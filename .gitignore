@@ -1,0 +1,32 @@
+example_sources/ 
+
+# Dependency directories
+node_modules/
+venv/
+env/
+packages/
+
+# Log files
+*.log
+logs/
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.suo
+*.user
+*.userprefs
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+!*.env.example
+secrets.*
+config.local.* 
+client_secret_1054233721282-tvskc3gdni8v4h2u1k2767a9ngbf4ong.apps.googleusercontent.com.json
+dist.crx
+dist.pem

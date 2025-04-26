@@ -1,0 +1,33 @@
+/* History popup styles */
+.history-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.history-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.history-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.history-item-preview {
+    font-size: 0.95em;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.error-message {
+    padding: 12px;
+    color: var(--error-color);
+    text-align: center;
+} 

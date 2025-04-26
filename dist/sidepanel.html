@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tab Agent</title>
+    <!-- Link generated Tailwind CSS -->
+    <link rel="stylesheet" href="output.css">
+    <!-- Link our custom CSS (ensure it comes AFTER Tailwind) -->
+    <link rel="stylesheet" href="sidepanel.css">
+    <script src="../theme-loader.js"></script>
+</head>
+<body class="h-screen flex flex-col font-sans">
+
+    <!-- Header -->
+    <div id="header" class="flex items-center justify-between p-2 border-b border-gray-300 dark:border-gray-700 shadow-sm flex-shrink-0 bg-gray-100 dark:bg-gray-700">
+        <div class="flex items-center space-x-2">
+            <button id="new-chat-button" title="New Chat" class="p-1 rounded">
+                <!-- Plus Icon replaced with img --> <img src="icons/NewChat.png" alt="New Chat" class="w-5 h-5 action-icon-img">
+            </button>
+            <h1 class="text-lg font-semibold">Tab Agent</h1>
+             <button id="history-button" title="Chat History" class="p-1 rounded">
+                <!-- History Icon (<img>) --> <img src="icons/history.png" alt="History" class="w-5 h-5 action-icon-img">
+            </button>
+        </div>
+        <div class="flex items-center space-x-1">
+            <button id="detach-button" title="Detach Panel" class="p-1 rounded">
+                <!-- Detach Icon (Pop-up <img>) --> <img src="icons/popup.png" alt="Detach" class="w-5 h-5 action-icon-img">
+            </button>
+            <!-- Close button might be handled by Chrome Side Panel API - TBC -->
+        </div>
+    </div>
+
+    <!-- Main Content Area - Now holds page containers -->
+    <div id="main-content" class="flex-1 overflow-hidden relative">
+        <!-- Home Page (Chat Interface) -->
+        <div id="page-home" class="page-container absolute inset-0 flex flex-col overflow-hidden">
+            <!-- Chat Message Area -->
+            <div id="chat-body" class="flex-1 p-3 space-y-4 overflow-y-auto">
+                <!-- Messages will be added here -->
+                 <div id="loading-indicator" class="flex justify-center items-center py-2 hidden">
+                     <svg class="animate-spin h-5 w-5 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                     </svg>
+                 </div>
+            </div>
+            <!-- Input Area -->
+            <div id="input-area" class="p-3 border-t border-gray-200 dark:border-gray-600 flex-shrink-0">
+                 <!-- Text Input -->
+                 <div class="relative mb-2">
+                     <textarea id="query-input" rows="1" placeholder="Ask Tab Agent..." class="w-full p-2 pr-10 border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" style="min-height: 40px; max-height: 150px;"></textarea>
+                     <button id="send-button" title="Send" class="absolute bottom-2.5 right-2.5 p-1 rounded bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <!-- Keep Send Icon inline --> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
+                    </button>
+                 </div>
+                 <!-- Bottom Controls Row -->
+                 <div class="flex items-center justify-between text-xs">
+                     <div class="flex items-center space-x-2">
+                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs">
+                           <option value="phi4">Phi-4</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                         <button id="drive-button" title="Link Google Drive" class="p-1 rounded text-gray-500 dark:text-gray-400">
+                            <!-- Drive Icon (<img>) --> <img src="icons/googledrive.png" alt="Google Drive" class="w-4 h-4 action-icon-img">
+                        </button>
+                        <button id="attach-button" title="Attach File" class="p-1 rounded text-gray-500 dark:text-gray-400">
+                            <!-- Attach Icon (<img>) --> <img src="icons/attach-svgrepo-com.svg" alt="Attach File" class="w-4 h-4 action-icon-img">
+                        </button>
+                    </div>
+                 </div>
+            </div>
+            <!-- Hidden File Input -->
+            <input
+                type="file"
+                id="file-input"
+                class="hidden"
+                accept="image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, .md, .txt, application/pdf"
+             />
+            <!-- Hidden History Popup Area (remains within Home page context for now) -->
+            <div id="history-popup" class="popup hidden">
+                 <div class="popup-header">
+                    <h2>Chat History</h2>
+                    <button id="close-history" class="icon-button" title="Close History">
+                        <!-- Close Icon (<img>) --> <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+                    </button>
+                </div>
+                <div class="popup-content">
+                    <div class="search-container">
+                        <input type="text" id="history-search" placeholder="Search history..." />
+                    </div>
+                    <div id="history-list">
+                        <!-- History items will be dynamically added here -->
+                    </div>
+                    <!-- Load More button will be added here by JS if needed -->
+                    <div id="history-footer" class="history-content p-2 text-center"></div> 
+                </div>
+            </div>
+        </div>
+
+        <!-- Discover Page -->
+        <div id="page-discover" class="page-container absolute inset-0 p-4 hidden">
+            <h2 class="text-xl font-semibold mb-4">Discover</h2>
+            <p>Discover content placeholder...</p>
+            <!-- Add Discover specific content here -->
+        </div>
+
+        <!-- Spaces Page -->
+        <div id="page-spaces" class="page-container absolute inset-0 p-4 hidden">
+            <h2 class="text-xl font-semibold mb-4">Spaces</h2>
+            <p>Spaces placeholder...</p>
+            <!-- Add Spaces specific content here -->
+        </div>
+
+        <!-- Library Page -->
+        <div id="page-library" class="page-container absolute inset-0 p-4 hidden">
+            <h2 class="text-xl font-semibold mb-4">Library (Starred)</h2>
+            <p>Starred items placeholder...</p>
+            <!-- Add Library specific content here (e.g., list of starred history) -->
+             <div id="starred-list"></div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="page-settings" class="page-container absolute inset-0 p-4 hidden">
+            <h2 class="text-xl font-semibold mb-4">Settings</h2>
+            <p>Settings placeholder...</p>
+            <!-- Add Settings specific content here -->
+        </div>
+
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div id="bottom-nav" class="flex justify-around items-center p-1 border-t border-gray-300 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-700">
+        <button data-page="page-home" class="nav-button p-2 rounded">
+            <!-- Home Icon (<img>) --> <img src="icons/home-svgrepo-com.svg" alt="Home" class="w-6 h-6 action-icon-img">
+        </button>
+        <button data-page="page-discover" class="nav-button p-2 rounded">
+            <!-- Discover/Rocket Icon (<img>) --> <img src="icons/rocket-2-svgrepo-com.svg" alt="Discover" class="w-6 h-6 action-icon-img">
+        </button>
+        <button data-page="page-spaces" class="nav-button p-2 rounded">
+             <!-- Spaces/MySpace Icon (<img>) --> <img src="icons/myspace-microsoft-svgrepo-com.svg" alt="Spaces" class="w-6 h-6 action-icon-img">
+        </button>
+        <button data-page="page-library" class="nav-button p-2 rounded">
+            <!-- Library Icon (<img>) --> <img src="icons/library-svgrepo-com.svg" alt="Library" class="w-6 h-6 action-icon-img">
+        </button>
+        <button data-page="page-settings" class="nav-button p-2 rounded">
+            <!-- Settings Icon (<img>) --> <img src="icons/settings-svgrepo-com.svg" alt="Settings" class="w-6 h-6 action-icon-img">
+         </button>
+    </div>
+
+    <!-- Notification Banner -->
+    <div id="notification-banner" class="notification hidden"></div>
+
+    <!-- Google Drive Modal (COMMENTED OUT FOR NOW) -->
+    <!-- 
+    <div id="drive-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-opacity-75 flex items-start justify-center z-50 hidden pt-10">
+        <div id="drive-modal-content" class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"> 
+            <div id="drive-modal-header" class="flex justify-between items-center border-b p-2 px-3 dark:border-gray-600 flex-shrink-0">
+                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Select Files</h3>
+                 <button id="drive-modal-close" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" aria-label="Close modal">
+                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                 </button>
+            </div>
+
+            <div id="drive-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
+                 <div id="drive-modal-selected-area" class="mb-2 p-2 border rounded dark:border-gray-600 min-h-[4rem] overflow-y-auto flex-shrink-0">
+                     <span class="text-xs text-gray-500 dark:text-gray-400">Selected files area (placeholder)</span>
+                 </div>
+
+                 <div id="drive-file-list" class="flex-grow overflow-y-auto border rounded dark:border-gray-600">
+                     <div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>
+                 </div>
+            </div>
+
+            <div id="drive-modal-footer" class="flex justify-end items-center border-t p-2 px-3 mt-auto dark:border-gray-600 space-x-2 flex-shrink-0">
+                 <button id="drive-modal-cancel" type="button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
+                 <button id="drive-modal-insert" type="button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>
+                      Insert (0)
+                 </button>
+            </div>
+        </div>
+    </div>
+    -->
+    <!-- End Google Drive Modal -->
+
+    <!-- NEW Drive Viewer Modal (Based on History Popup) -->
+    <div id="drive-viewer-modal" class="popup hidden" style="position: absolute; bottom: 60px; left: 10px; right: 10px; max-height: 70vh; z-index: 60;"> 
+         <!-- Main Content Box - Apply background via CSS -->
+         <div id="drive-modal-content" class="rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"> 
+              <!-- Header - Apply background via CSS -->
+             <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0">
+                  <!-- Back button container -->
+                  <div class="flex items-center space-x-2">
+                       <button id="drive-viewer-back" class="icon-button hidden" title="Go back">
+                           <!-- Back Arrow SVG - Inherits color -->
+                           <svg class="w-5 h-5 action-icon-img" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                      </button>
+                      <!-- Title - Inherits color -->
+                      <h2>Select Drive Files</h2>
+                 </div>
+                 <!-- Close Button - Needs specific styling or inherits -->
+                 <button id="drive-viewer-close" class="icon-button" title="Close Viewer">
+                      <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+                 </button>
+            </div>
+
+            <!-- Content Area - Background inherited -->
+            <div id="drive-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
+                 <!-- Breadcrumbs Container - Apply color/border via CSS -->
+                 <div id="drive-viewer-breadcrumbs" class="p-1 px-2 text-sm flex-shrink-0">Root</div>
+                 
+                 <!-- Search & Selected Area Container - Apply border via CSS -->
+                 <div class="search-container p-2"> <!-- Keep padding -->
+                      <!-- Search Input - Apply styles via CSS -->
+                      <input type="text" id="drive-viewer-search" placeholder="Search current folder..." />
+                      <!-- Selected Files Pills Area - Apply border via CSS -->
+                      <div id="drive-viewer-selected-area" class="mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center">
+                          <!-- "Selected:" text - Apply color via CSS -->
+                          <span class="text-xs mr-1 self-start">Selected:</span>
+                          <!-- Pills added by JS, styled by CSS -->
+                      </div>
+                 </div>
+                 <!-- File List - Apply padding via CSS -->
+                 <div id="drive-viewer-list" class="history-list flex-grow overflow-y-auto">
+                      <!-- Drive items will be dynamically added here -->
+                      <!-- Placeholder text styled via CSS -->
+                      <div class="text-center p-4">Loading...</div>
+                 </div>
+            </div>
+            <!-- END: Content Area -->
+
+             <!-- Footer - Apply background/border via CSS -->
+             <div id="drive-viewer-footer" class="flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0">
+                  <!-- Buttons - Keep Tailwind for now -->
+                  <button id="drive-viewer-cancel" type="button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
+                  <button id="drive-viewer-insert" type="button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>
+                       Insert (0)
+                  </button>
+             </div>
+        </div>
+    </div>
+    <!-- End Drive Viewer Modal -->
+
+    <script type="module" src="./sidepanel.js"></script>
+</body>
+</html>

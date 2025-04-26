@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Agent",
+  "version": "1.0",
+  "description": "A Chrome extension using a local LLM for summarization, RAG, and agentic web tasks.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "sidePanel",
+    "offscreen",
+    "scripting",
+    "declarativeNetRequest",
+    "downloads",
+    "identity"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "Readability.js",
+        "webScraper.js",
+        "content.js"
+      ],
+      "type": "module"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "oauth2": {
+    "client_id": "1054233721282-tvskc3gdni8v4h2u1k2767a9ngbf4ong.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sidepanel.html",
+        "offscreen.html",
+        "offscreen.js",
+        "assets/sidepanel-*.js",
+        "sidepanel.css",
+        "icons/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {},
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}

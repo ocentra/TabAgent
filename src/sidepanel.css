@@ -158,13 +158,6 @@ html.dark {
     color: var(--text-primary);
 }
 
-/* Simple text 'X' for close button */
-#close-history::before {
-    content: '\00D7'; /* Unicode multiplication sign (X) */
-    font-size: 1.2rem;
-    font-weight: bold;
-}
-
 .popup-content {
     flex-grow: 1; /* Allow content to fill remaining space */
     display: flex;
@@ -346,11 +339,6 @@ html.dark {
      font-size: 0.75rem;
      line-height: 1.2;
      border-radius: 4px;
-     /* Use variables if a specific color scheme is desired, or use Tailwind classes */
-     /* Example using Tailwind-like colors (adjust as needed) */
-     background-color: #38a169; /* green-600 */
-     color: white;
-     border: 1px solid #2f855a; /* green-700 */
      cursor: pointer;
      opacity: 0;
      transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out;
@@ -361,8 +349,6 @@ html.dark {
 }
 .history-item-load-btn:hover {
     opacity: 1;
-    background-color: #48bb78; /* green-500 */
-    color: white;
 }
 .history-item.is-editing .history-item-load-btn {
     display: none !important;
@@ -555,18 +541,6 @@ html.dark {
     display: inline-block;
     vertical-align: middle;
     /* width/height are set by Tailwind classes (w-4 h-4 or w-6 h-6) */
-}
-
-/* Style for unstarred icon (using class added in JS) */
-.icon-unstarred {
-    opacity: 0.4; /* Example: Make unstarred slightly faded */
-    /* You could also use filters for grayscale or other effects */
-    /* filter: grayscale(100%); */
-}
-.action-button.starred .icon-unstarred, /* Hide the unstarred style if parent button gets .starred */
-.history-item-star-toggle.starred .icon-unstarred {
-    opacity: 1;
-    filter: none;
 }
 
 /* Add to your sidepanel.css */

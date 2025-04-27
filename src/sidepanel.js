@@ -11,13 +11,27 @@ import {
     renameHistoryItem, 
     loadChatHistoryPaginated, // Import new DB function
     getChatHistoryCount,      // Import new DB function
-    searchChatHistory
+    searchChatHistory,
+    // Add DB functions needed by handlers
+    createChatSession,
+    addMessageToChat,
+    updateMessageInChat,
+    generateMessageId,
+    deleteMessageFromChat
 } from './db.js'; 
 import { initializeNavigation, navigateTo } from './navigation.js'; // Import navigateTo
-import { initializeHomePage, loadAndRenderChat, resetAndShowWelcomeMessage } from './home.js'; // Import state/render
+// REMOVE old home.js import
+// import { initializeHomePage, loadAndRenderChat, resetAndShowWelcomeMessage } from './home.js'; 
 // --- Import Download functions --- 
 import { formatChatToHtml, downloadHtmlFile } from './downloadFormatter.js';
 import { showNotification } from './notifications.js'; // Import showNotification
+
+// +++ Import New Modules +++
+import * as uiController from './Home/uiController.js';
+import * as chatRenderer from './Home/chatRenderer.js';
+import * as messageHandler from './Home/messageHandler.js';
+import * as fileHandler from './Home/fileHandler.js';
+// +++ END Import New Modules +++
 
 // --- Global State ---
 let currentTabId = null; 
@@ -61,7 +75,7 @@ function showError(message) {
     setTimeout(() => errorDiv.remove(), 3000);
 }
 
-// --- History Rename Logic ---
+// --- History Rename Logic (Restored) ---
 
 export function startEditing(historyItemElement) {
     if (!historyItemElement) return;
@@ -113,10 +127,15 @@ export async function finishEditing(historyItemElement, itemId, isCancel = false
     historyItemElement.classList.remove('is-editing');
 }
 
-// --- History Popup Logic (Moved to Global Scope) ---
+// --- END History Rename Logic ---
+
+// --- Moved SVG definition here, outside renderSingleHistoryItem ---
+const previewIconSvg = `<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`;
+const trashIconSvg = `<svg class="w-4 h-4 action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 17.8798 20.1818C17.1169 21 15.8356 21 13.2731 21H10.7269C8.16438 21 6.8831 21 6.12019 20.1818C5.35728 19.3671 5.27811 18.0864 5.11973 15.5251L4.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 5.5H21M16.5 5.5L16.1733 3.57923C16.0596 2.8469 15.9989 2.48073 15.8184 2.21449C15.638 1.94825 15.362 1.75019 15.039 1.67153C14.7158 1.59286 14.3501 1.59286 13.6186 1.59286H10.3814C9.64993 1.59286 9.28419 1.59286 8.96099 1.67153C8.63796 1.75019 8.36201 1.94825 8.18156 2.21449C8.00111 2.48073 7.9404 2.8469 7.82672 3.57923L7.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+// --- End SVG definitions ---
 
 // Function to render a single history item (extracted for reuse)
-export function renderSingleHistoryItem(entry) {
+export function renderSingleHistoryItem(entry, hidePopupFunc) {
     const item = document.createElement('div');
     // Added 'relative' for potential absolute positioning of preview close btn
     item.className = 'history-item group relative mb-2';
@@ -130,22 +149,22 @@ export function renderSingleHistoryItem(entry) {
         ? (entry.messages[0].text || '').substring(0, 50) + '...'
         : 'Empty chat');
 
-    // Trash Icon SVG (Keep inline for hover effect)
-    const trashIconSvg = `<svg class="w-4 h-4 action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 17.8798 20.1818C17.1169 21 15.8356 21 13.2731 21H10.7269C8.16438 21 6.8831 21 6.12019 20.1818C5.35728 19.3671 5.27811 18.0864 5.11973 15.5251L4.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 5.5H21M16.5 5.5L16.1733 3.57923C16.0596 2.8469 15.9989 2.48073 15.8184 2.21449C15.638 1.94825 15.362 1.75019 15.039 1.67153C14.7158 1.59286 14.3501 1.59286 13.6186 1.59286H10.3814C9.64993 1.59286 9.28419 1.59286 8.96099 1.67153C8.63796 1.75019 8.36201 1.94825 8.18156 2.21449C8.00111 2.48073 7.9404 2.8469 7.82672 3.57923L7.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-
-    // Preview Icon SVG (Keep inline for icon swapping)
-    const previewIconSvg = `<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`;
+    // --- Determine correct star icon source ---
+    const starIconSrc = entry.isStarred ? 'icons/StarFilled.png' : 'icons/StarHollow.png';
+    // ----------------------------------------
 
     item.innerHTML = `
         <div class="chat-card bg-gray-100 dark:bg-gray-700 rounded-lg shadow p-3 flex flex-col justify-between min-h-[100px]">
             <div>
                 <div class="card-header flex justify-between items-center mb-2">
                     <button data-action="toggle-star" class="action-button history-item-star-toggle ${entry.isStarred ? 'starred' : 'unstarred'}" title="Toggle Star">
-                         <img src="icons/star-alt-svgrepo-com.svg" alt="Star" class="w-4 h-4 action-icon-img">
+                         <!-- Use dynamic src -->
+                         <img src="${starIconSrc}" alt="Star" class="w-4 h-4 action-icon-img">
                     </button>
                     <div class="actions flex items-center space-x-1">
                          <button data-action="download-chat" class="action-button" title="Download">
-                              <img src="icons/download-icon-template.svg" alt="Download" class="w-4 h-4 action-icon-img"> <!-- Placeholder: Create or find a download icon -->
+                              <!-- <img src="icons/download-icon-template.svg" alt="Download" class="w-4 h-4 action-icon-img"> Placeholder: Create or find a download icon -->
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 action-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg> <!-- Using a fallback SVG icon -->
                          </button>
                          <button data-action="share-chat" class="action-button" title="Share">
                               <img src="icons/broken-link-chain-svgrepo-com.svg" alt="Share" class="w-4 h-4 action-icon-img">
@@ -154,7 +173,7 @@ export function renderSingleHistoryItem(entry) {
                          <button data-action="preview-chat" class="action-button history-item-preview-btn" title="Preview">${previewIconSvg}</button>
                     </div>
                 </div>
-                <div class="card-body mb-1 cursor-pointer" data-action="load-chat-body">
+                <div class="card-body mb-1" data-action="load-chat-body">
                     <div class="history-item-preview font-semibold text-sm truncate" title="${previewText}">${previewText}</div>
                     <input type="text" class="history-item-rename-input w-full text-sm p-1 border rounded" value="${previewText}" style="display: none;"/>
                 </div>
@@ -163,18 +182,21 @@ export function renderSingleHistoryItem(entry) {
                     <!-- Preview messages will be injected here -->
                 </div>
             </div>
-            <div class="card-footer mt-auto">
+            <div class="card-footer mt-auto flex justify-between items-center">
                  <span class="history-item-date text-xs text-gray-500 dark:text-gray-400">${formattedDate}</span>
+                 <button class="history-item-load-btn text-xs p-0.5 rounded" data-action="load-chat" title="Load Chat"> <!-- Removed hover:bg-* classes -->
+                    <img src="icons/Load.png" alt="Load" class="h-6 w-auto"> <!-- Changed h-4 to h-6 -->
+                 </button>
             </div>
         </div>
     `;
 
-    // Add rename event listeners
+    // Add rename event listeners (Double-click)
     const previewSpan = item.querySelector('.history-item-preview');
     const renameInput = item.querySelector('.history-item-rename-input');
     if (previewSpan && renameInput) {
         previewSpan.addEventListener('dblclick', (e) => {
-            e.stopPropagation(); // Prevent card body click
+            e.stopPropagation(); // Prevent any potential parent handlers
             startEditing(item);
         });
         renameInput.addEventListener('blur', () => finishEditing(item, entry.id, false));
@@ -189,15 +211,19 @@ export function renderSingleHistoryItem(entry) {
         });
     }
 
-    // Add listener to card body for loading chat
-    const cardBody = item.querySelector('[data-action="load-chat-body"]');
-    if (cardBody) {
-        cardBody.addEventListener('click', async () => {
-            // Only load if not currently renaming
-            if (!item.classList.contains('is-editing')) {
-                console.log(`Card Body: Load action clicked for ${itemId}`);
-                // Delegate the loading logic (will be handled by the main listener)
-                // We just need to ensure this click doesn't get stopped if it's not an action button
+    // Add listener specifically to the Load button
+    const loadButton = item.querySelector('.history-item-load-btn');
+    if (loadButton) {
+        loadButton.addEventListener('click', async (e) => {
+            e.stopPropagation(); // Prevent triggering other potential card clicks
+            const itemId = item.dataset.id;
+            console.log(`Load Button: Load action clicked for ${itemId}`);
+            setActiveChatSessionId(itemId); // Set the active session
+            await chatRenderer.renderChatSession(itemId);
+            if (typeof hidePopupFunc === 'function') {
+                hidePopupFunc(); // Call the passed function
+            } else {
+                console.warn("hidePopupFunc not provided to renderSingleHistoryItem");
             }
         });
     }
@@ -207,7 +233,6 @@ export function renderSingleHistoryItem(entry) {
     if (starButton) {
          // Add logic here if you want to change opacity or filter for starred/unstarred state
          // For now, just using the single star icon provided.
-         // Example: starButton.style.opacity = entry.isStarred ? '1' : '0.5';
          if (!entry.isStarred) {
             starButton.classList.add('icon-unstarred'); // Add class for potential CSS targeting
          }
@@ -464,11 +489,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Handle click on folder or file
     function handleDriveItemClick(event) {
+        event.stopPropagation(); 
         const itemElement = event.currentTarget;
         const itemId = itemElement.dataset.id;
         const itemName = itemElement.dataset.name;
         const mimeType = itemElement.dataset.mimeType;
-        const iconLink = itemElement.dataset.iconLink; // Get icon link
+        const iconLink = itemElement.dataset.iconLink; 
 
         if (!itemId || !mimeType) {
             console.error("Sidepanel: Clicked Drive item missing ID or mimeType.");
@@ -652,7 +678,8 @@ document.addEventListener('DOMContentLoaded', async () => {
          return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>';
     }
 
-    // --- History Popup Logic (DEFINED HERE) ---
+    // --- History Popup Logic (Moved to Global Scope - OK as it uses global vars/funcs defined here or passed in later) ---
+
     function hideHistoryPopup() {
         if (!isHistoryOpen) return;
         if (!historyPopup) return;
@@ -689,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             historyPage.forEach(entry => {
-                const itemElement = renderSingleHistoryItem(entry); // Uses the global renderSingleHistoryItem
+                const itemElement = renderSingleHistoryItem(entry, hideHistoryPopup); // <<< Pass hideHistoryPopup
                 historyList.appendChild(itemElement); // Append new items
             });
             
@@ -785,7 +812,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.log(`Displaying ${filteredHistory.length} search results.`);
                      // Display ALL filtered results (no pagination for search yet)
                      filteredHistory.forEach(entry => {
-                         const itemElement = renderSingleHistoryItem(entry); // Use global render function
+                         const itemElement = renderSingleHistoryItem(entry, hideHistoryPopup); // <<< Pass hideHistoryPopup
                          historyList.appendChild(itemElement);
                      });
                      // Do NOT show "Load More" for search results in this implementation
@@ -806,7 +833,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     console.log(`Displaying first page: ${historyPage.length} of ${totalHistoryCount} items.`);
                      historyPage.forEach(entry => {
-                         const itemElement = renderSingleHistoryItem(entry); // Use global render function
+                         const itemElement = renderSingleHistoryItem(entry, hideHistoryPopup); // <<< Pass hideHistoryPopup
                          historyList.appendChild(itemElement);
                      });
                      // Update skip count after initial load
@@ -908,24 +935,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Initialize Navigation
     initializeNavigation(); 
 
+    // --- MODIFIED: Initialize UI and Handlers using new modules ---
+    const dbFunctions = { // Pass DB functions needed by handlers/renderer
+        createChatSession,
+        addMessageToChat,
+        updateMessageInChat,
+        generateMessageId,
+        deleteMessageFromChat,
+        getChatSessionById // Needed by renderer
+    };
+
+    const uiElements = uiController.initializeUI({
+        onSendMessage: () => {
+            const messageText = uiController.getInputValue();
+            if (messageText) {
+                // Pass the text directly to the message handler
+                messageHandler.handleSendMessage(messageText); 
+            }
+        },
+        onAttachFile: () => {
+            fileHandler.handleAttachClick(); // Delegate to fileHandler
+        }
+    });
+
+    if (!uiElements) {
+        showError("Failed to initialize UI components.");
+        return; // Stop if UI failed
+    }
+
+    // Initialize other modules that depend on UI elements or callbacks
+    chatRenderer.initializeRenderer(uiElements.chatBody);
+
+    messageHandler.initializeMessageHandler({
+        dbFunctions,
+        uiController, // Pass the whole module
+        chatRenderer, // Pass the whole module
+        getActiveSessionIdFunc: getActiveChatSessionId,
+        onSessionCreatedCallback: renderHistoryList,
+        getCurrentTabIdFunc: () => currentTabId
+    });
+
+    fileHandler.initializeFileHandling({
+        dbFunctions, // Pass necessary DB functions
+        chatRenderer: chatRenderer, // <<< NEW WAY: Pass with correct key
+        getActiveSessionIdFunc: getActiveChatSessionId,
+        uiController // Pass the UI controller for triggering input click
+    });
+
+    // Attach the file input listener directly
+    if (uiElements.fileInput) {
+         uiElements.fileInput.addEventListener('change', fileHandler.handleFileSelected);
+    } else {
+         console.warn("File input element not found after UI initialization.");
+    }
+    
+    // Start listening for messages from background/content scripts
+    messageHandler.setupBackgroundListeners();
+    // --- END Initialize UI and Handlers ---
+
+
+    // --- Query Selectors (Specific to Sidepanel Structure) ---
+
     // 4. Initialize the Home Page - PASS THE CALLBACK
     const newChatButton = document.getElementById('new-chat-button'); // Get button reference
-    initializeHomePage(currentTabId, updateActiveSessionId); // Pass the function
+    // initializeHomePage(currentTabId, updateActiveSessionId); // REMOVE THIS LINE - Functionality moved to module initializers
     
     // --- MODIFIED: Load correct chat based on activeChatSessionId --- 
     if (activeChatSessionId) {
         console.log(`Sidepanel: Loading initial chat session: ${activeChatSessionId}`);
-        loadAndRenderChat(activeChatSessionId); // Load the restored/active session
+        // --- MODIFIED: Use new renderer function ---
+        await chatRenderer.renderChatSession(activeChatSessionId); 
     } else if (!isPopup) {
         // Only show welcome in side panel if no session ID is active
         // Popups without a session ID might indicate an error or cleared storage
         console.log("Sidepanel: No active session ID found, showing welcome message.");
-        resetAndShowWelcomeMessage(); 
+        // --- MODIFIED: Use new renderer/UI functions ---
+        chatRenderer.displayWelcomeMessage();
+        if (uiController.checkInitialized()) {
+            uiController.enableInput(); // Ensure input is enabled on welcome
+            uiController.focusInput();
+        }
+        // --- END MODIFICATION ---
     } else {
         // If it IS a popup and no session ID was found, log a warning
         console.warn("Sidepanel: Popup context loaded without an active session ID. Showing welcome/error state.");
         // You might want a specific error display here instead of just welcome
-        resetAndShowWelcomeMessage();
+        // --- MODIFIED: Use new renderer/UI functions ---
+        chatRenderer.displayWelcomeMessage(); 
+        if (uiController.checkInitialized()) {
+            uiController.enableInput(); 
+            uiController.focusInput();
+        }
+        // --- END MODIFICATION ---
     }
     // --- END MODIFICATION ---
 
@@ -988,7 +1089,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return; // Avoid unnecessary resets if already null
         }
         activeChatSessionId = null; // Reset the active session ID
-        resetAndShowWelcomeMessage(); // Call function from home.js to reset UI
+        // --- MODIFIED: Use new renderer/UI functions ---
+        chatRenderer.displayWelcomeMessage();
+        if (uiController.checkInitialized()) {
+            uiController.clearInput();
+            uiController.enableInput();
+            uiController.focusInput();
+        }
+        // --- END MODIFICATION ---
         navigateTo('page-home'); // Ensure home page is visible
         console.log('Sidepanel: Active session ID reset to null, UI cleared.');
     });
@@ -1012,6 +1120,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Add listeners for Drive Modal's internal close/cancel buttons
     driveViewerClose?.addEventListener('click', hideDriveViewerModal);
     driveViewerCancel?.addEventListener('click', hideDriveViewerModal);
+
+    // --- ADD Drive Insert Button Listener ---
+    const driveViewerInsert = document.getElementById('drive-viewer-insert');
+    driveViewerInsert?.addEventListener('click', async () => {
+        const selectedFiles = Object.values(selectedDriveFiles); // Get array of selected file data
+        if (selectedFiles.length === 0) {
+            console.warn("Drive Insert clicked, but no files selected.");
+            return; // Nothing to insert
+        }
+
+        let currentSessionId = getActiveChatSessionId(); // Use let as it might change
+        let isNewSession = false;
+
+        console.log(`Inserting ${selectedFiles.length} Drive files. Current session: ${currentSessionId}`);
+
+        // Placeholder message construction
+        const fileNames = selectedFiles.map(f => f.name).join(', ');
+        const messageText = `📎 Attached Drive files: ${fileNames}`; // Simple text for now
+        const attachmentMetadata = {
+            type: 'drive_attachments',
+            files: selectedFiles.map(f => ({ 
+                id: f.id, 
+                name: f.name, 
+                mimeType: f.mimeType, 
+                iconLink: f.iconLink 
+            }))
+        };
+
+        try {
+            // --- Logic to handle new session creation --- 
+            if (!currentSessionId) {
+                isNewSession = true;
+                console.log("No active session, creating a new one for Drive attachment.");
+                // Create the first message (the attachment notification itself)
+                const firstMessage = {
+                    // No messageId needed here, createChatSession might assign one or use its own logic
+                    sender: 'system',
+                    text: messageText,
+                    timestamp: Date.now(),
+                    isLoading: false,
+                    metadata: attachmentMetadata
+                };
+                currentSessionId = await dbFunctions.createChatSession(firstMessage);
+                setActiveChatSessionId(currentSessionId); // Update global state
+                // Ensure renderHistoryList is available in this scope or passed correctly
+                if (typeof renderHistoryList === 'function') { 
+                    await renderHistoryList(); // Update history list UI
+                } else {
+                    console.warn('renderHistoryList function not found when creating session from Drive insert.');
+                }
+                console.log(`New session ${currentSessionId} created.`);
+            } else {
+                // --- Logic for existing session --- 
+                console.log(`Adding attachment message to existing session ${currentSessionId}`);
+                const attachmentMessage = {
+                    messageId: dbFunctions.generateMessageId(currentSessionId),
+                    sender: 'system', 
+                    text: messageText,
+                    timestamp: Date.now(),
+                    isLoading: false,
+                    metadata: attachmentMetadata
+                };
+                await dbFunctions.addMessageToChat(currentSessionId, attachmentMessage);
+            }
+
+            // --- Common logic: Re-render and cleanup --- 
+            await chatRenderer.renderChatSession(currentSessionId); // Re-render the session (new or existing)
+
+            selectedDriveFiles = {}; // Reset selection state
+            renderSelectedFiles();   // Update UI (remove pills)
+            updateInsertButtonState(); // Update button (disable, set count to 0)
+            hideDriveViewerModal();    // Close the modal
+
+        } catch (error) {
+            console.error("Error adding Drive attachment message:", error);
+            showError("Failed to add Drive attachment message.");
+        }
+    });
+    // --- END Drive Insert Button Listener ---
+
 
     // --- ADD Drive Search/Back Listeners ---
     driveViewerSearch?.addEventListener('input', handleDriveSearchInput); // Use the defined handler
@@ -1076,23 +1264,82 @@ document.addEventListener('DOMContentLoaded', async () => {
     historyList.addEventListener('click', async (e) => {
         const target = e.target;
         // Find the closest BUTTON element first
-        const clickedButton = target.closest('button'); 
+        const clickedButton = target.closest('button');
         // Then check if the button itself OR its child img was clicked within an action button context
         const actionButton = clickedButton?.closest('[data-action]') || target.closest('[data-action]'); // More robust check
-        
+
         const historyItem = target.closest('.history-item');
 
         if (!historyItem) return; // Clicked outside an item
+
+        // --- Prevent actions if already confirming delete, unless it's a confirm/cancel click ---
+        const isConfirming = historyItem.classList.contains('is-confirming-delete');
+        const action = actionButton ? actionButton.dataset.action : null;
+        if (isConfirming && action !== 'confirm-delete' && action !== 'cancel-delete') {
+            console.log("Ignoring action while delete confirmation is active.");
+            return;
+        }
+        // -----------------------------------------------------------------------------------
+
         // If editing, only allow blur/enter/escape on input (handled elsewhere)
         if (historyItem.classList.contains('is-editing')) return;
 
         const itemId = historyItem.dataset.id;
         if (!itemId) return;
 
-        const action = actionButton ? actionButton.dataset.action : null;
-        
-        // --- Handle Specific Actions --- 
-        if (action === 'toggle-star') {
+        // const action = actionButton ? actionButton.dataset.action : null; // Moved action definition up
+
+        // --- Handle Specific Actions ---
+
+        // +++ ADD: Handle Confirm Delete Action +++
+        if (action === 'confirm-delete') {
+            e.stopPropagation();
+            console.log(`History: Confirm Delete action clicked for ${itemId}`);
+            try {
+                await deleteHistoryItem(itemId);
+                historyItem.remove(); // Remove item from UI
+                totalHistoryCount--; // Decrement total count
+                showNotification('Chat deleted successfully.', 'success');
+                // Check if the list is empty now
+                if (historyList.children.length === 0 && totalHistoryCount === 0) {
+                    historyList.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">No chat history found</div>';
+                }
+                updateLoadMoreButtonState(0); // Pass 0 to force re-evaluation
+            } catch (error) {
+                console.error(`Error deleting item ${itemId}:`, error);
+                showNotification(`Error deleting chat: ${error.message}`, 'error');
+                // Optionally restore UI if delete fails? For now, just shows error.
+                // Find actions div and restore original buttons might be complex here.
+            }
+            return; // Handled
+        }
+        // +++ END: Handle Confirm Delete Action +++
+
+        // +++ ADD: Handle Cancel Delete Action +++
+        else if (action === 'cancel-delete') {
+            e.stopPropagation();
+            console.log(`History: Cancel Delete action clicked for ${itemId}`);
+            const actionsDiv = historyItem.querySelector('.actions');
+            if (actionsDiv) {
+                 // Reconstruct original buttons HTML (ensure SVG vars are accessible)
+                 const originalActionsHtml = `
+                    <button data-action="download-chat" class="action-button" title="Download">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 action-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                    </button>
+                    <button data-action="share-chat" class="action-button" title="Share">
+                        <img src="icons/broken-link-chain-svgrepo-com.svg" alt="Share" class="w-4 h-4 action-icon-img">
+                    </button>
+                    <button data-action="delete-chat" class="action-button text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400" title="Delete">${trashIconSvg}</button>
+                    <button data-action="preview-chat" class="action-button history-item-preview-btn" title="Preview">${previewIconSvg}</button>
+                 `;
+                 actionsDiv.innerHTML = originalActionsHtml;
+            }
+            historyItem.classList.remove('is-confirming-delete');
+            return; // Handled
+        }
+        // +++ END: Handle Cancel Delete Action +++
+
+        else if (action === 'toggle-star') {
             e.stopPropagation();
             console.log(`History: Toggling star for item ${itemId}`);
             try {
@@ -1103,6 +1350,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (starButtonElement) {
                      starButtonElement.classList.toggle('starred', updatedItem.isStarred);
                      starButtonElement.classList.toggle('unstarred', !updatedItem.isStarred);
+                     // --- ADD: Update image source ---
+                     const starImage = starButtonElement.querySelector('img');
+                     if (starImage) {
+                        starImage.src = updatedItem.isStarred ? 'icons/StarFilled.png' : 'icons/StarHollow.png';
+                     }
+                     // -----------------------------
                 }
                 showNotification(updatedItem.isStarred ? 'Chat starred.' : 'Chat unstarred.', 'success', 2000);
             } catch (error) {
@@ -1111,27 +1364,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             return; // Handled
         }
+        // --- MODIFIED: Delete Chat Action ---
         else if (action === 'delete-chat') {
             e.stopPropagation();
-            console.log(`History: Delete action clicked for ${itemId}`);
-            if (confirm('Are you sure you want to delete this chat history item?')) {
-                try {
-                    await deleteHistoryItem(itemId);
-                    historyItem.remove(); // Remove item from UI
-                    totalHistoryCount--; // Decrement total count
-                    showNotification('Chat deleted successfully.', 'success');
-                    // Check if the list is empty now
-                    if (historyList.children.length === 0 && totalHistoryCount === 0) {
-                        historyList.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">No chat history found</div>';
-                    }
-                    updateLoadMoreButtonState(0); // Pass 0 to force re-evaluation
-                } catch (error) {
-                    console.error(`Error deleting item ${itemId}:`, error);
-                    showNotification(`Error deleting chat: ${error.message}`, 'error');
-                }
+            console.log(`History: Delete action clicked for ${itemId}, showing inline confirmation.`);
+            // --- REMOVED confirm() call ---
+            // if (confirm('Are you sure you want to delete this chat history item?')) { ... }
+
+            // --- ADD Inline Confirmation UI ---
+            const actionsDiv = historyItem.querySelector('.actions');
+            if (actionsDiv) {
+                // Use SVG icons for Yes/No
+                actionsDiv.innerHTML = `
+                    <!-- Removed <span class='text-xs text-red-600 dark:text-red-400 mr-2 font-semibold flex-grow text-right'>Delete?</span> -->
+                    <button data-action='confirm-delete' title="Confirm Delete" class='action-button p-1 rounded bg-red-100 hover:bg-red-200 dark:bg-red-800 dark:hover:bg-red-700 text-red-700 dark:text-red-200 ml-auto'> <!-- Added ml-auto -->
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    </button>
+                    <button data-action='cancel-delete' title="Cancel Delete" class='action-button p-1 rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 ml-1'>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                `;
             }
-            return; // Handled
+            historyItem.classList.add('is-confirming-delete');
+            // --- END Inline Confirmation UI ---
+
+            // --- MOVED the actual deletion logic to 'confirm-delete' handler ---
+            return; // Handled (shows confirmation)
         }
+        // --- END MODIFIED Delete Chat Action ---
         else if (action === 'share-chat') {
             e.stopPropagation();
             console.log(`History: Share action clicked for ${itemId}`);
@@ -1184,17 +1444,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`History: Preview action clicked for ${itemId}`);
             const previewContentDiv = historyItem.querySelector('.history-item-preview-content');
             const previewButton = actionButton; // Use identified action button
-            const previewButtonIconContainer = previewButton; // The button itself holds the SVG
+            // const previewButtonIconContainer = previewButton; // The button itself holds the SVG
 
-            if (!previewContentDiv) return;
+            if (!previewContentDiv || !previewButton) return;
 
             const isPreviewVisible = !previewContentDiv.classList.contains('hidden');
             if (isPreviewVisible) {
                 previewContentDiv.classList.add('hidden');
                 previewContentDiv.innerHTML = ''; // Clear content
                 historyItem.classList.remove('preview-active');
-                // Restore original '...' icon
-                previewButtonIconContainer.innerHTML = previewIconSvg; // Use the stored SVG string
+                // Restore original '...' icon using the global variable
+                previewButton.innerHTML = previewIconSvg; // <<< FIX: Use the variable
             } else {
                 // Hide other open previews
                  document.querySelectorAll('.history-item.preview-active').forEach(item => {
@@ -1202,7 +1462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                      const otherPreviewBtn = item.querySelector('[data-action="preview-chat"]');
                      if (otherPreviewDiv) otherPreviewDiv.classList.add('hidden');
                      item.classList.remove('preview-active');
-                      if (otherPreviewBtn) otherPreviewBtn.innerHTML = previewIconSvg;
+                      if (otherPreviewBtn) otherPreviewBtn.innerHTML = previewIconSvg; // <<< FIX: Use the variable here too
                  });
 
                 // Show loading state in preview div
@@ -1210,7 +1470,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 previewContentDiv.classList.remove('hidden');
                 historyItem.classList.add('preview-active');
                  // Change icon to a close 'X'
-                 previewButtonIconContainer.innerHTML = '<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
+                 previewButton.innerHTML = '<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
 
                 try {
                     const session = await getChatSessionById(itemId);
@@ -1228,42 +1488,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch (error) {
                     console.error("Preview error:", error);
                     previewContentDiv.innerHTML = '<span class="text-red-500">Error loading preview.</span>';
-                    previewButtonIconContainer.innerHTML = previewIconSvg; // Restore icon on error
+                    previewButton.innerHTML = previewIconSvg; // Restore icon on error
                 }
             }
             return; // Handled
-        }
-        // --- Click on Card Body (for loading chat) ---
-        else if (action === 'load-chat-body' || !action) {
-            // Ensure it wasn't a click on the rename input happening
-             if (target.closest('.history-item-rename-input')) {
-                 return;
-             }
-             
-             // --- Defensive Re-read of itemId ---
-             const currentItemId = historyItem.dataset.id; // Re-read ID inside this block
-             if (!currentItemId) { // Add extra safety check
-                 console.error("History Load Error: Could not get valid itemId from clicked item element.");
-                 return;
-             }
-             // --- End Defensive Re-read ---
-
-             console.log(`History: Item body clicked for ${currentItemId}, loading chat.`);
-             if (currentItemId === activeChatSessionId) {
-                 console.log(`Chat ${currentItemId} already active.`);
-                 historyPopup?.classList.add('hidden');
-                 return;
-             }
-             try {
-                 setActiveChatSessionId(currentItemId); // Use the re-read ID
-                 await loadAndRenderChat(currentItemId); // Use the re-read ID
-                 navigateTo('page-home');
-                 historyPopup?.classList.add('hidden');
-             } catch (error) {
-                 // Use the re-read ID in the error message as well
-                 console.error(`Error loading chat ${currentItemId} from history click:`, error);
-                 showNotification(`Failed to load chat: ${error.message}`, 'error');
-             }
         }
     });
 });

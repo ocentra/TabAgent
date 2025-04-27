@@ -1,6 +1,6 @@
 import { loadAllChatHistory, getChatSessionById, deleteHistoryItem, toggleItemStarred } from './db.js'; // Use the new function name
 import { navigateTo } from './navigation.js'; // To switch back to home on restore
-import { loadAndRenderChat } from './home.js'; // Import the new function from home.js
+import { renderChatSession } from './Home/chatRenderer.js'; // Import the new function
 import { setActiveChatSessionId } from './sidepanel.js'; // Import function to set active ID
 // Import the shared rendering function and its helpers
 import { renderSingleHistoryItem, startEditing, finishEditing } from './sidepanel.js'; 
@@ -41,7 +41,7 @@ function renderStarredItem(entry) {
              // 1. Set the active session in sidepanel
              setActiveChatSessionId(itemId);
              // 2. Tell home page to load and render it
-             await loadAndRenderChat(itemId); 
+             await renderChatSession(itemId); 
              // 3. Navigate to the home page view
              navigateTo('page-home'); 
              console.log(`Library: Restored chat ${itemId} and navigated home.`);
@@ -141,7 +141,7 @@ export async function initializeLibraryPage() {
             console.log(`Library: Load button clicked for ${itemId}`);
             try {
                 setActiveChatSessionId(itemId);
-                await loadAndRenderChat(itemId); 
+                await renderChatSession(itemId); 
                 navigateTo('page-home'); 
             } catch (error) { 
                  console.error("Library Load Error:", error);

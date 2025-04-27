@@ -295,6 +295,7 @@ async function scrapeUrlWithTempTab_ContentScript(url) {
 async function scrapeUrlMultiStage(url, chatId, messageId) {
     console.log(`Scraping Orchestrator: Starting for ${url}. ChatID: ${chatId}, MessageID: ${messageId}`);
     const sendStageResult = (stageResult) => {
+        console.log(`[Orchestrator] Sending STAGE_SCRAPE_RESULT for Stage ${stageResult.stage}, ChatID: ${chatId}, Success: ${stageResult.success}`);
         chrome.runtime.sendMessage({
             type: 'STAGE_SCRAPE_RESULT',
             payload: stageResult
@@ -470,25 +471,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } else {
             console.log(`Background: Query is not a URL, using placeholder logic for "${text}"`);
             const placeholderResponse = `(Tab ${tabId || 'N/A'}) Background received non-URL: "${text}". Agent logic for ${model} not implemented.`;
-            setTimeout(() => {
-                try {
-                    chrome.runtime.sendMessage({
-                        type: 'response',
-                        chatId: chatId,
-                        messageId: messageId,
-                        text: placeholderResponse
-                    }).catch(e => console.warn(`BG: Could not send response for ${messageId}, context likely closed.`, e));
-                    console.log(`Background: Sent placeholder response for ${messageId}.`);
-                } catch (error) {
-                    console.warn(`Background: Error sending placeholder response for ${messageId}`, error);
-                     chrome.runtime.sendMessage({
-                         type: 'error',
-                         chatId: chatId,
-                         messageId: messageId,
-                         error: `Failed to send response: ${error.message}`
-                     }).catch(e => console.warn(`BG: Could not send error message for ${messageId} after initial failure.`, e));
-                }
-            }, 500);
+            
+            try {
+                console.log(`Background: Sending immediate response for ${messageId}.`);
+                chrome.runtime.sendMessage({ 
+                    type: 'response',
+                    chatId: chatId,
+                    messageId: messageId,
+                    text: placeholderResponse
+                }).catch(e => console.warn(`BG: Could not send response for ${messageId}, context likely closed.`, e));
+                console.log(`Background: Sent placeholder response for ${messageId}.`);
+            } catch (error) {
+                console.warn(`Background: Error sending placeholder response for ${messageId}`, error);
+                 chrome.runtime.sendMessage({ 
+                     type: 'error',
+                     chatId: chatId,
+                     messageId: messageId,
+                     error: `Failed to send response: ${error.message}`
+                 }).catch(e => console.warn(`BG: Could not send error message for ${messageId} after initial failure.`, e));
+            }
+            
             sendResponse({ success: true, message: "Non-URL query received, processing..." });
             return true;
         }

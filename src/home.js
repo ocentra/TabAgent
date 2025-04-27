@@ -1,72 +1,34 @@
-// Import necessary functions from db.js
-import { dbInitializationPromise, /* REMOVED: saveChatHistory, */ loadAllChatHistory, createChatSession, addMessageToChat, updateMessageInChat, getChatSessionById, generateMessageId, deleteMessageFromChat } from './db.js';
+import { dbInitializationPromise,  loadAllChatHistory, createChatSession, addMessageToChat, updateMessageInChat, getChatSessionById, generateMessageId, deleteMessageFromChat } from './db.js';
+import { getActiveChatSessionId } from './sidepanel.js'; 
+import { showNotification } from './notifications.js'; 
 
-// Import function to get the active session ID from sidepanel
-import { getActiveChatSessionId } from './sidepanel.js'; // We need this export from sidepanel.js
-
-// Import showNotification function from notifications.js
-import { showNotification } from './notifications.js'; // Make sure this is imported
-
-// --- Consolidated DOM Element Declarations ---
 let queryInput, sendButton, chatBody, attachButton, fileInput; 
-// Comment out old drive modal elements
-// let driveButton, driveModal, driveModalClose, driveModalCancel, driveModalInsert, driveFileListContainer;
-// let driveModalContent, driveModalHeader, driveModalSelectedArea, driveModalMiddleSection, driveModalFooter; 
-
-// --- NEW: Drive Viewer Modal Elements ---
-let driveButton; // Keep the main trigger button
+let driveButton; 
 let driveViewerModal, driveViewerClose, driveViewerList, driveViewerCancel, driveViewerInsert, driveViewerSearch, driveViewerSelectedArea, driveViewerBreadcrumbsContainer, driveViewerBack; // Keep selections
-// ------------------------------------
-
-// State specific to Home page
-// let currentTabId = null; // Passed during init, keep if needed for context
-// let chatMessages = []; // REMOVED - Source of truth is now DB
-
-// --- Store the callback from sidepanel ---
-let onSessionCreatedCallback = null; // <<< ADD
-
-// --- DOM Elements --- 
+let onSessionCreatedCallback = null; 
 let isSendingMessage = false;
 let currentContextTabId = null; 
-
-// --- ADD Drive Modal DOM Elements ---
-// let isDriveModalOpen = false;
-// --- REMOVE/COMMENT OUT unused refs for now ---
-// let currentFolderId = 'root';
-// let currentFolderPath = [{ id: 'root', name: 'Root' }]; 
-// let driveFilesCache = {}; 
-// let selectedDriveFiles = {}; 
 let isFetchingDriveList = false;
-let driveSearchTerm = ''; // Restore search term
-// ---------------------------
+let driveSearchTerm = ''; 
 
-// --- Drive Viewer Modal State ---
-// let isDriveViewerOpen = false;
-// let currentFolderId = 'root'; // Restore folder tracking
-// let currentFolderPath = [{ id: 'root', name: 'Root' }]; // Restore for breadcrumbs
-// let driveFilesCache = {}; // Restore for caching
-// let selectedDriveFiles = {}; // Restore selection tracking
-// ---------------------------
 
 // --- Constants --- 
 // Please place your API Key from Google Cloud Console here
-const GOOGLE_API_KEY = 'AIzaSyBIEk7rhZdvDXj7HFWKtp4rwSpZD5q8wEc'; // <<< UPDATED
+const GOOGLE_API_KEY = 'AIzaSyBIEk7rhZdvDXj7HFWKtp4rwSpZD5q8wEc'; 
 // Derive App ID from Client ID (remove .apps.googleusercontent.com)
 const GOOGLE_CLIENT_ID = '1054233721282-tvskc3gdni8v4h2u1k2767a9ngbf4ong.apps.googleusercontent.com';
 const GOOGLE_APP_ID = GOOGLE_CLIENT_ID.split('-')[0];
-// REMOVED: const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 
 // --- Global Variables ---
-// Note: The 'gapi' and 'google' objects become available globally once the Google API script loads.
-let gapiLoaded = false;
-let pickerApiLoaded = false;
+
 let oauthToken = null; // Store the token after successful auth
 
 const OFFSCRIPT_PATH = 'offscreen.html';
 
 // --- Utility Functions --- 
 function showError(message) {
-    // (Consider moving to a shared utils.js if needed elsewhere)
+
     console.error("UI Error:", message);
     const errorDiv = document.createElement('div');
     errorDiv.style.position = 'fixed';
@@ -96,16 +58,13 @@ function debounce(func, wait) {
 
 // --- Core Home Page Logic --- 
 
-// REMOVED: addMessageToState - Messages added directly to DB
-
-// NEW: Render chat messages for a given session ID
 async function renderChatSession(sessionId) {
     if (!chatBody) return;
     console.log(`Home: Rendering chat session ID: ${sessionId}`);
-    chatBody.innerHTML = ''; // Clear existing messages
+    chatBody.innerHTML = ''; 
 
     if (!sessionId) {
-        // No active session, show welcome message
+       
         displayWelcomeMessage();
         return;
     }
@@ -122,7 +81,7 @@ async function renderChatSession(sessionId) {
              sessionData.messages.forEach(msg => displayMessage(msg)); // Display messages from DB
 
              // Scroll to bottom after rendering
-             if (isScrolledToBottom || true) { // Always scroll down for now
+             if (isScrolledToBottom || true) { 
                  chatBody.scrollTop = chatBody.scrollHeight;
              }
         }
@@ -141,8 +100,8 @@ const displayMessage = (msg) => {
     messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random()}`;
 
     const bubbleDiv = document.createElement('div');
-    bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group'); // Added relative, group
-    // Increase max width
+    bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group'); 
+   
     bubbleDiv.classList.add('max-w-4xl'); // <<< INCREASED MAX WIDTH
 
     // --- Copy Button Container ---
@@ -153,9 +112,9 @@ const displayMessage = (msg) => {
     copyButton.className = 'copy-button p-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600';
     copyButton.title = 'Copy text';
     copyButton.onclick = (e) => {
-        e.stopPropagation(); // Prevent bubble click events
+        e.stopPropagation(); 
         let textToCopy = '';
-        // Find the main content area (might be text, JSON, etc.)
+      
         const contentElement = bubbleDiv.querySelector('pre code') || bubbleDiv.querySelector('.prose') || bubbleDiv;
         textToCopy = contentElement.textContent || '';
         navigator.clipboard.writeText(textToCopy)
@@ -167,9 +126,9 @@ const displayMessage = (msg) => {
     };
     copyButtonContainer.appendChild(copyButton);
     bubbleDiv.appendChild(copyButtonContainer);
-    // ---------------------------
 
-    let codeElement = null; // Keep track if we create a code element
+
+    let codeElement = null; 
 
     // --- Check message type by metadata --- 
     if (msg.metadata && msg.metadata.type === 'scrape_result') {
@@ -203,30 +162,28 @@ const displayMessage = (msg) => {
             stageHeaderDiv.textContent = `[Stage ${msg.metadata.stage} - ${msg.metadata.method || 'Unknown'} - Success] Length: ${msg.metadata.length || 0}`;
             bubbleDiv.appendChild(stageHeaderDiv);
             
-            // --- MODIFIED: Add JSON view --- 
+            // JSON view --- 
             const stageContentContainer = document.createElement('div');
-            stageContentContainer.classList.add('overflow-y-auto', 'max-h-64', 'mt-1'); // Use max-h-64 like final result
+            stageContentContainer.classList.add('overflow-y-auto', 'max-h-64', 'mt-1'); 
             
             const preElement = document.createElement('pre');
-            // Add Prism theme background class for consistency (optional but recommended)
-            preElement.classList.add('bg-gray-800', 'rounded', 'p-2'); // Example: Using dark bg
-            
-            // ADDED: Create code element for Prism
+
+            preElement.classList.add('bg-gray-800', 'rounded', 'p-2');           
+  
             codeElement = document.createElement('code');
-            codeElement.className = 'language-json'; // Set language for Prism
-            
-            // Format the segments (and potentially links) as JSON
+            codeElement.className = 'language-json'; 
+                       
             const dataToShow = {
                  title: msg.metadata.title || 'N/A',
                  segments: msg.metadata.segments,
-                 // links: msg.metadata.links // Optionally include links too
+                 links: msg.metadata.links 
             };
             codeElement.textContent = JSON.stringify(dataToShow, null, 2);
             
-            preElement.appendChild(codeElement); // Append code to pre
-            stageContentContainer.appendChild(preElement); // Append pre to container
+            preElement.appendChild(codeElement); 
+            stageContentContainer.appendChild(preElement); 
             bubbleDiv.appendChild(stageContentContainer);
-            // --- END MODIFICATION --- 
+
 
         } else {
             bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900');
@@ -237,7 +194,7 @@ const displayMessage = (msg) => {
 
     } else {
         // --- Normal Message Rendering --- 
-        bubbleDiv.classList.add('p-2'); // Add padding for normal messages
+        bubbleDiv.classList.add('p-2'); 
         bubbleDiv.textContent = msg.text;
 
         if (msg.isLoading) {
@@ -259,7 +216,7 @@ const displayMessage = (msg) => {
     messageDiv.appendChild(bubbleDiv);
     chatBody.appendChild(messageDiv);
 
-    // --- ADDED: Trigger Prism highlighting if code exists ---
+
     if (codeElement && window.Prism) {
         try {
             Prism.highlightElement(codeElement);
@@ -267,14 +224,14 @@ const displayMessage = (msg) => {
             console.error("Prism highlighting failed:", e);
         }
     }
-    // ------------------------------------------------------
+
 };
 
-// NEW: Display the initial welcome message
+
 const displayWelcomeMessage = () => {
     if (!chatBody) return;
-    chatBody.innerHTML = ''; // Clear previous messages
-    // You can customize this welcome message structure
+    chatBody.innerHTML = ''; 
+
     const welcomeMsg = {
         messageId: 'welcome-msg',
         sender: 'ai',
@@ -283,13 +240,13 @@ const displayWelcomeMessage = () => {
         isLoading: false
     };
     displayMessage(welcomeMsg);
-    // Ensure input is enabled when showing welcome
+
     if (queryInput) queryInput.disabled = false;
-    if (sendButton) sendButton.disabled = true; // Disabled until user types
+    if (sendButton) sendButton.disabled = true; 
     adjustTextareaHeight();
 };
 
-// Adjust textarea height
+
 const adjustTextareaHeight = () => {
     if (!queryInput) return;
     queryInput.style.height = 'auto';
@@ -301,9 +258,9 @@ const adjustTextareaHeight = () => {
     }
 };
 
-// --- NEW: Handle URL Scraping (Database-centric) --- 
-async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId if needed by background
-    let sessionId = getActiveChatSessionId(); // Get current session ID
+
+async function handleUrlScrapeRequest(url, currentTabId) { 
+    let sessionId = getActiveChatSessionId(); 
     let userMessageId = null;
     let placeholderMessageId = null;
 
@@ -318,21 +275,21 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
             isLoading: false
         };
         if (!sessionId) {
-            // First message in a new chat
+
             console.log("Home: No active session, creating new one for URL message.");
             sessionId = await createChatSession(userMessage);
-            // --- CALL THE CALLBACK --- <<< MODIFY
+
             if (onSessionCreatedCallback) {
                 onSessionCreatedCallback(sessionId);
             } else {
                 console.error("Home: onSessionCreatedCallback is not defined in handleUrlScrapeRequest!");
             }
-            // --- END CALLBACK CALL --- 
+
             await renderChatSession(sessionId); 
-            userMessageId = sessionId ? (await getChatSessionById(sessionId))?.messages[0]?.messageId : null; // Get ID of the first message
+            userMessageId = sessionId ? (await getChatSessionById(sessionId))?.messages[0]?.messageId : null; 
         } else {
             userMessageId = await addMessageToChat(sessionId, userMessage);
-            await renderChatSession(sessionId); // Re-render to show user message
+            await renderChatSession(sessionId); 
         }
 
         // 2. Save Placeholder Message
@@ -349,7 +306,7 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
         // 3. Clear input & disable
         queryInput.value = '';
         adjustTextareaHeight();
-        queryInput.disabled = true; // Disable while processing
+        queryInput.disabled = true; 
         sendButton.disabled = true;
 
         // 4. Send Request to Background
@@ -357,19 +314,18 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
         chrome.runtime.sendMessage({
             type: 'TEMP_SCRAPE_URL',
             url: url,
-            tabId: currentTabId, // Pass context if needed by background
+            tabId: currentTabId, 
             chatId: sessionId,
             messageId: placeholderMessageId 
         });
-        // The response/result is now handled by the main chrome.runtime.onMessage listener
+
 
     } catch (error) {
         console.error("Home: Error processing URL scrape request:", error);
         showError(`Error saving/starting scrape: ${error.message}`);
-        // Attempt to re-enable input on error
-        // Only re-enable if the placeholder was successfully added? Consider.
+
         if(placeholderMessageId && sessionId){
-            // If we failed after adding placeholder, update it to error state
+        
              updateMessageInChat(sessionId, placeholderMessageId, {
                  isLoading: false,
                  sender: 'error',
@@ -385,7 +341,7 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
 // Regular expression to check for URLs (simple version)
 const URL_REGEX = /^(https?):\/\/[^\s/$.?#].[^\s]*$/i;
 
-// Helper function to get active tab info
+
 function getActiveTab() {
     return new Promise((resolve, reject) => {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -394,29 +350,28 @@ function getActiveTab() {
             }
             if (tabs && tabs.length > 0) {
                 resolve(tabs[0]);
-            } else {
-                // Handle case where no active tab is found (might happen in edge cases)
+            } else {               
                 resolve(null);
             }
         });
     });
 }
 
-// Handle sending message (modified for active tab check AND DB integration)
+
 const handleSendMessage = async (currentTabId) => {
-    if (isSendingMessage) { // Check the flag
+    if (isSendingMessage) { 
         console.log("Home: Already sending message, preventing double execution.");
         return;
     }
-    isSendingMessage = true; // Set the flag
+    isSendingMessage = true; 
 
     const messageText = queryInput.value.trim();
     if (!messageText || queryInput.disabled) {
-        isSendingMessage = false; // Reset flag if exiting early
+        isSendingMessage = false; 
         return; 
     }
 
-    let sessionId = getActiveChatSessionId(); // Get current active session
+    let sessionId = getActiveChatSessionId(); 
     let userMessageId = null;
     let placeholderMessageId = null;
 
@@ -424,7 +379,7 @@ const handleSendMessage = async (currentTabId) => {
 
     const isURL = URL_REGEX.test(messageText);
 
-    // --- URL Handling Logic ---
+
     if (isURL) {
         try {
             const activeTab = await getActiveTab();
@@ -434,14 +389,14 @@ const handleSendMessage = async (currentTabId) => {
             const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
 
             if (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized) {
-                // --- URL matches active tab: Scrape via Content Script ---
+           
                 console.log("URL matches active tab. Sending SCRAPE_ACTIVE_TAB to content script.");
 
                 // 1. Save User Message
                 const userMessage = { sender: 'user', text: messageText, timestamp: Date.now(), isLoading: false };
                  if (!sessionId) {
                      sessionId = await createChatSession(userMessage);
-                     // --- CALL THE CALLBACK --- <<< MODIFY
+
                      if (onSessionCreatedCallback) {
                          onSessionCreatedCallback(sessionId);
                      } else {
@@ -467,10 +422,10 @@ const handleSendMessage = async (currentTabId) => {
 
                 // 4. Send message to Content Script
                 chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_ACTIVE_TAB' }, async (response) => {
-                    // --- MODIFIED: Handle Response from Content Script --- 
+
                     let updatePayload = { 
                         isLoading: false,
-                        sender: 'ai' // Keep sender as 'ai' or choose 'system'/'scrape'
+                        sender: 'ai' 
                     };
                     let success = false;
 
@@ -480,15 +435,15 @@ const handleSendMessage = async (currentTabId) => {
                         updatePayload.text = `Error scraping active tab: ${chrome.runtime.lastError.message}`;
                     } else if (response?.success) {
                         console.log('Received successful scrape from active tab:', response);
-                        // Store FULL textContent or excerpt
+
                         updatePayload.text = response.textContent || response.excerpt || 'No text content found.'; 
-                        // Add metadata
+
                         updatePayload.metadata = {
                             type: 'scrape_result',
-                            method: 'contentScript', // Indicate method
-                            url: inputUrlNormalized, // URL user entered
+                            method: 'contentScript', 
+                            url: inputUrlNormalized,
                             title: response.title || inputUrlNormalized
-                            // Add other fields from response if available (e.g., response.content)
+                            
                         };
                         success = true;
                     } else {
@@ -497,12 +452,12 @@ const handleSendMessage = async (currentTabId) => {
                         updatePayload.sender = 'error';
                         updatePayload.text = `Scraping active tab failed: ${errorMsg}`;
                     }
-                    // --- END MODIFICATION ---
+                   
 
                     // 5. Update Placeholder in DB
                     try {
                        await updateMessageInChat(sessionId, placeholderMessageId, updatePayload);
-                       await renderChatSession(sessionId); // Re-render
+                       await renderChatSession(sessionId); 
                     } catch (dbError) {
                        console.error("Home: DB Error updating content script scrape result:", dbError);
                        showError("Failed to save scrape result.");
@@ -512,41 +467,37 @@ const handleSendMessage = async (currentTabId) => {
                     queryInput.disabled = false;
                     adjustTextareaHeight(); 
                     queryInput.focus();
-                    isSendingMessage = false; // <-- RESET FLAG HERE
+                    isSendingMessage = false; 
                 });
 
             } else {
-                // --- URL does NOT match active tab: Use Background Scrape ---
+               
                 console.log("URL does not match active tab. Using background scrape.");
                 handleUrlScrapeRequest(messageText, currentTabId); 
-                // Note: isSendingMessage reset is handled by the background response listener
+                
             }
         } catch (error) {
             console.error("Error checking active tab or processing URL:", error);
             showError(`Error processing URL: ${error.message}`);
-            // Fallback to background scrape on error? Or just let user retry?
-            // For now, just show error and re-enable input if it was disabled.
             queryInput.disabled = false;
             adjustTextareaHeight();
-            isSendingMessage = false; // Reset flag on error within try block
+            isSendingMessage = false; 
         } 
-        return; // Stop further processing 
+        return; 
     }
-    // --- End URL Handling ---
 
-    // --- Regular Chat Query Logic --- 
     try {
-        // 1. Save User Message
+
         const userMessage = { sender: 'user', text: messageText, timestamp: Date.now(), isLoading: false };
         if (!sessionId) {
             sessionId = await createChatSession(userMessage);
-            // --- CALL THE CALLBACK --- <<< MODIFY
+
             if (onSessionCreatedCallback) {
                 onSessionCreatedCallback(sessionId);
             } else {
                 console.error("Home: onSessionCreatedCallback is not defined! (Query Path)");
             }
-            // --- 
+
             await renderChatSession(sessionId);
         } else {
             userMessageId = await addMessageToChat(sessionId, userMessage);
@@ -567,21 +518,20 @@ const handleSendMessage = async (currentTabId) => {
         // 4. Send Request to Background
         const messagePayload = {
             type: 'query',
-            tabId: currentTabId, // Keep for context if background needs it
+            tabId: currentTabId, 
             text: messageText,
             model: document.getElementById('model-selector')?.value || 'default',
-            // ---- NEW ----
             chatId: sessionId,
             messageId: placeholderMessageId 
-            // ------------
+
         };
 
         console.log('Home: Sending query to background:', messagePayload);
         chrome.runtime.sendMessage(messagePayload, (response) => {
-            // This callback confirms message SENT. Result comes via listener.
+
             if (chrome.runtime.lastError) {
                 console.error('Home: Error sending query:', chrome.runtime.lastError.message);
-                // Update placeholder to show sending error
+
                  updateMessageInChat(sessionId, placeholderMessageId, {
                      isLoading: false,
                      sender: 'error',
@@ -589,14 +539,13 @@ const handleSendMessage = async (currentTabId) => {
                  }).then(() => {
                     if (sessionId === getActiveChatSessionId()) renderChatSession(sessionId);
                  });
-                 // Re-enable input immediately ONLY if sending failed
+
                  queryInput.disabled = false;
                  adjustTextareaHeight();
-                 isSendingMessage = false; // Reset flag on send error
+                 isSendingMessage = false; 
             } else {
                 console.log('Home: Query message sent successfully.', response);
-                 // Input remains disabled until result listener fires
-                 // isSendingMessage flag will be reset by the listener or if an error occurs during processing below
+                 
             }
         });
 
@@ -605,11 +554,11 @@ const handleSendMessage = async (currentTabId) => {
         showError(`Error sending message: ${error.message}`);
         queryInput.disabled = false;
         adjustTextareaHeight();
-        isSendingMessage = false; // Reset flag on processing error
+        isSendingMessage = false; 
     }
 };
 
-// --- NEW: Handle File Input Change --- 
+
 async function handleFileSelected(event) {
     if (!event.target.files || event.target.files.length === 0) {
         console.log("No file selected.");
@@ -619,61 +568,51 @@ async function handleFileSelected(event) {
     const file = event.target.files[0];
     console.log(`File selected: ${file.name}, Type: ${file.type}, Size: ${file.size} bytes`);
 
-    // TODO: Implement actual file processing (reading content, sending to background)
-    
-    // --- Add placeholder message to chat --- 
+
     let sessionId = getActiveChatSessionId();
     if (!sessionId) {
-        // If there's no active chat, maybe create one? Or show an error?
-        // For now, let's show an error if no chat is active.
+
         showError("Please start a chat before attaching a file.");
-         // Reset file input value to allow selecting the same file again if needed
          if(fileInput) fileInput.value = '';
         return; 
     }
 
     const fileMessage = {
-        sender: 'system', // Or maybe a new 'file' sender type?
+        sender: 'system', 
         text: `📎 Attached file: ${file.name}`, 
         timestamp: Date.now(),
-        isLoading: false // Not really loading, just indicating attachment
+        isLoading: false 
     };
 
     try {
         await addMessageToChat(sessionId, fileMessage);
-        await renderChatSession(sessionId); // Re-render to show the attachment message
+        await renderChatSession(sessionId); 
     } catch (error) {
          console.error("Error adding file attachment message to chat:", error);
          showError("Failed to add file attachment message.");
     }
-    // --- End placeholder message --- 
 
-    // Reset file input value to allow selecting the same file again if needed
     if(fileInput) fileInput.value = ''; 
 }
 
-// --- MODIFIED: Initialization --- 
+
 function initializeHomePage(tabId, onSessionCreated) { 
     console.log(`[HomeInit] Initializing Home Page elements and listeners. Context TabID: ${tabId}`);
     currentContextTabId = tabId;
-    
-    // --- ADD GUARD: Only set callback if it's not already set and is a function --- 
+
     if (!onSessionCreatedCallback && typeof onSessionCreated === 'function') {
         console.log("[HomeInit] Storing onSessionCreatedCallback.");
         onSessionCreatedCallback = onSessionCreated; 
     } else if (typeof onSessionCreated !== 'function' && !onSessionCreatedCallback) {
          console.warn("[HomeInit] onSessionCreated callback was not provided or already set.");
     }
-    // --- END GUARD --- 
 
-    // Assign chat elements
     queryInput = document.getElementById('query-input');
     sendButton = document.getElementById('send-button');
     chatBody = document.getElementById('chat-body');
     attachButton = document.getElementById('attach-button'); 
-    fileInput = document.getElementById('file-input');      
+    fileInput = document.getElementById('file-input');   
 
-    // Assign Drive Viewer Modal elements (using variables declared above)
     driveButton = document.getElementById('drive-button'); 
     driveViewerModal = document.getElementById('drive-viewer-modal');
     driveViewerClose = document.getElementById('drive-viewer-close');
@@ -684,25 +623,19 @@ function initializeHomePage(tabId, onSessionCreated) {
     driveViewerSelectedArea = document.getElementById('drive-viewer-selected-area');
     driveViewerBreadcrumbsContainer = document.getElementById('drive-viewer-breadcrumbs');
     driveViewerBack = document.getElementById('drive-viewer-back');
-    // Comment out assignments for unused elements
-    // driveBreadcrumbsContainer = document.getElementById('drive-breadcrumbs');
-    // driveSelectedFilesContainer = document.getElementById('drive-selected-files');
-    // driveSearchInput = document.getElementById('drive-modal-search'); 
-    // driveModalBack = document.getElementById('drive-modal-back');   
 
-    // Attach chat event listeners
-    queryInput?.removeEventListener('input', adjustTextareaHeight); // Remove previous if any
+    queryInput?.removeEventListener('input', adjustTextareaHeight); 
     queryInput?.addEventListener('input', adjustTextareaHeight);
     
     queryInput?.removeEventListener('keydown', handleEnterKey);
-    queryInput?.addEventListener('keydown', handleEnterKey); // Use named function
+    queryInput?.addEventListener('keydown', handleEnterKey); 
     
     sendButton?.removeEventListener('click', handleSendButtonClick);
-    sendButton?.addEventListener('click', handleSendButtonClick); // Use named function
+    sendButton?.addEventListener('click', handleSendButtonClick); 
 
-    // --- ADD Listeners for File Attachment --- 
+
     if (attachButton && fileInput) {
-        // Remove first to prevent duplicates if init runs again
+
         attachButton.removeEventListener('click', handleAttachClick);
         attachButton.addEventListener('click', handleAttachClick);
 
@@ -711,31 +644,11 @@ function initializeHomePage(tabId, onSessionCreated) {
     } else {
         console.warn("Attach button or file input element not found.");
     }
-    // --- 
-
-    // --- Google Drive Button Listener --- REMOVED
-    // REMOVED: driveButton.addEventListener('click', handleDriveConnect);
-
-    // --- Attach SIMPLIFIED Drive Viewer listeners --- REMOVED
-    // REMOVED: driveButton?.removeEventListener('click', showDriveViewerModal);
-    // REMOVED: driveButton?.addEventListener('click', showDriveViewerModal);
-    // REMOVED: driveViewerClose?.removeEventListener('click', hideDriveViewerModal);
-    // REMOVED: driveViewerClose?.addEventListener('click', hideDriveViewerModal);
-    // REMOVED: driveViewerCancel?.removeEventListener('click', hideDriveViewerModal);
-    // REMOVED: driveViewerCancel?.addEventListener('click', hideDriveViewerModal);
-
-    // --- Attach Listeners for NEW Drive Viewer --- REMOVED
-    // REMOVED: driveViewerSearch?.removeEventListener('input', handleDriveSearchInput);
-    // REMOVED: driveViewerSearch?.addEventListener('input', handleDriveSearchInput);
-    // REMOVED: driveViewerBack?.removeEventListener('click', handleDriveBackButtonClick);
-    // REMOVED: driveViewerBack?.addEventListener('click', handleDriveBackButtonClick);
-    // driveViewerInsert?.addEventListener(...); // Add later
-    // ------------------------------------------
 
     console.log("Home Page Elements & Listeners Initialized." + Date.now()); // Simplified log
 }
 
-// --- Named Event Handlers for Re-attachment/Removal --- 
+
 function handleEnterKey(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -747,58 +660,52 @@ function handleSendButtonClick() {
     handleSendMessage(currentContextTabId);
 }
 
-// --- ADD Handler for Attach Button Click --- 
+
 function handleAttachClick() {
     if (fileInput) {
-        fileInput.click(); // Programmatically click the hidden file input
+        fileInput.click(); 
     }
 }
-// --- 
 
-// --- REVISED: Google Drive Connection Handler - REMOVED ---
-// REMOVED: async function handleDriveConnect() { ... }
 
-// --- MODIFIED: Background Message Listener ---
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     console.log("Home: Received message:", message, "from sender:", sender);
 
-    // --- Handle Query (Modified to check sender context) ---
+   
     if (message.type === 'query') {
-        // ... query handling logic ...
+       
     }
-    // --- Handle Request for Tab ID ---
+  
     else if (message.type === 'getTabId') {
-        // ... tab id logic ...
+        
     }
-    // --- Handle Popup Creation Tracking --- 
+   
     else if (message.type === 'popupCreated') {
-        // ... popup tracking logic ...
+        
     }
-    // --- Handle Get Popup for Tab ---
+   
     else if (message.type === 'getPopupForTab') {
         // ... get popup logic ...
-    }
-    // --- Handle AI response ---
+    }  
     else if (message.type === 'response' && message.chatId && message.messageId) {
-        // --- ADDED: Logic to handle standard AI/Query response ---
+      
         const { chatId, messageId, text } = message;
         console.log(`Home: Received 'response' for chat ${chatId}, message ${messageId}`);
 
         const updatePayload = {
             isLoading: false,
-            sender: 'ai', // Or 'system' based on desired display
-            text: text || 'Received empty response.' // Ensure text is not empty
+            sender: 'ai', 
+            text: text || 'Received empty response.' 
         };
 
         (async () => {
             try {
                 await updateMessageInChat(chatId, messageId, updatePayload);
                 console.log(`Home: Updated message ${messageId} in chat ${chatId} with AI response.`);
-
-                // Re-render IF the chat is active
+            
                 if (chatId === getActiveChatSessionId()) {
                     await renderChatSession(chatId);
-                    // Re-enable input ONLY if this chat is active
+                  
                     if (queryInput) {
                         queryInput.disabled = false;
                         adjustTextareaHeight();
@@ -808,35 +715,34 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
                          sendButton.disabled = queryInput.value.trim() === '';
                     }
                 }
-                // Reset sending flag regardless of active chat, as the request is complete
+              
                 console.log("Home: Resetting isSendingMessage after processing 'response' message.");
                 isSendingMessage = false;
 
             } catch (dbError) {
                 console.error(`Home: DB Error updating message ${messageId} for 'response' type:`, dbError);
-                showError("Failed to update chat with response.");
-                // Reset flag even on error
+                showError("Failed to update chat with response.");              
                 console.log("Home: Resetting isSendingMessage after DB error on 'response' message.");
                 isSendingMessage = false;
-                 // Consider re-enabling input even on error? Maybe not, to avoid double sends.
+               
                  if (queryInput && chatId === getActiveChatSessionId()) {
-                     queryInput.disabled = false; // Re-enable input on error too?
+                     queryInput.disabled = false; 
                      adjustTextareaHeight();
                  }
             }
         })();
-        // --- END ADDED LOGIC ---
+      
     }
-    // --- Handle AI error ---
+   
     else if (message.type === 'error' && message.chatId && message.messageId) {
         // ... AI error handling ...
     }
-    // --- ADD HANDLER for STAGE_SCRAPE_RESULT ---
+   
     else if (message.type === 'STAGE_SCRAPE_RESULT' && message.payload) {
         const { stage, success, chatId, messageId: originalPlaceholderId, error, ...resultData } = message.payload;
         console.log(`Home: Received STAGE_SCRAPE_RESULT for Stage ${stage}, chatId: ${chatId}, placeholderId: ${originalPlaceholderId}`);
 
-        // --- Create a new message object for this stage result --- 
+       
         const stageResultMessage = {
             messageId: generateMessageId(chatId),
             sender: 'system',
@@ -846,30 +752,42 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
                  type: 'scrape_stage_result',
                  stage: stage,
                  originalPlaceholderId: originalPlaceholderId,
-                 success: success // Store success flag here directly
+                 success: success 
             }
         };
 
         if (success) {
-            // For success, store the structured data we want to inspect
-            stageResultMessage.text = `Stage ${stage} Success (See JSON)`; // Placeholder text
+            
+            stageResultMessage.text = `Stage ${stage} Success (See JSON)`; 
             stageResultMessage.metadata.title = resultData.title || resultData.url || 'Unknown Title';
-            stageResultMessage.metadata.length = resultData.text?.length || 0; // Use text length from resultData
-            stageResultMessage.metadata.method = resultData.method;
-            // --- STORE STRUCTURED DATA --- 
+            stageResultMessage.metadata.length = resultData.text?.length || 0; 
+            stageResultMessage.metadata.method = resultData.method;           
             stageResultMessage.metadata.segments = resultData.segments || []; 
             stageResultMessage.metadata.links = resultData.links || []; 
-            // stageResultMessage.metadata.images = resultData.images || []; // Optionally add others
-            // --------------------------- 
+            stageResultMessage.metadata.images = resultData.images || [];     
+            stageResultMessage.metadata.videos = resultData.videos || [];
+            stageResultMessage.metadata.tables = resultData.tables || [];
+            stageResultMessage.metadata.url = resultData.url || undefined; 
+            stageResultMessage.metadata.extractedAt = resultData.extractedAt || undefined;
+            stageResultMessage.metadata.wordCount = resultData.wordCount || undefined;
+            stageResultMessage.metadata.readingTime = resultData.readingTime || undefined;
+            stageResultMessage.metadata.author = resultData.author || undefined;
+            stageResultMessage.metadata.publishDate = resultData.publishDate || undefined;
+            stageResultMessage.metadata.metaDescription = resultData.metaDescription || undefined;
+            stageResultMessage.metadata.language = resultData.language || undefined;
+            stageResultMessage.metadata.keywords = resultData.keywords || []; 
+            stageResultMessage.metadata.categories = resultData.categories || []; 
+         
+           
         } else {
-            // Format error message
+          
             stageResultMessage.sender = 'error';
             stageResultMessage.text = `Stage ${stage} Failed: ${error || 'Unknown error.'}`;
             stageResultMessage.metadata.error = error || 'Unknown error.';
         }
 
-        // --- Add the new message to the database --- 
-        (async () => { // Use async IIFE to handle DB operations
+       
+        (async () => { 
             try {
                 if (stage === 1) { // Note: Stage 1 is removed, this might need adjustment if stage numbers change
                     const placeholderUpdate = { text: 'Scraping stages running...' };
@@ -880,21 +798,27 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
                 await addMessageToChat(chatId, stageResultMessage);
                 console.log(`Home: Added stage ${stage} result message to DB for chat ${chatId}.`);
                 
-                // Delete placeholder after stage 4 is added
-                if (stage === 4) { 
-                    console.log(`Home: Deleting original placeholder message ${originalPlaceholderId} after Stage 4.`);
-                    await deleteMessageFromChat(chatId, originalPlaceholderId);
-                    // Reset sending flag and re-enable input AFTER deletion and BEFORE final render
-                    console.log("Home: Resetting isSendingMessage after processing Stage 4 result.");
-                    isSendingMessage = false;
+
+                // --- MODIFIED: Run cleanup if any stage succeeded OR if it's the last stage (Stage 4) ---
+                if (success || stage === 4) { 
+                    console.log(`Home: Cleaning up after Stage ${stage} (Success: ${success}). Deleting placeholder ${originalPlaceholderId}.`);
+                    try {
+                        await deleteMessageFromChat(chatId, originalPlaceholderId);
+                    } catch (deleteError) {
+                         // Log deletion error but continue UI cleanup
+                         console.error(`Home: Failed to delete placeholder ${originalPlaceholderId}, continuing cleanup.`, deleteError);
+                    }
+
+                    console.log(`Home: Resetting isSendingMessage and re-enabling UI after Stage ${stage}.`);
+                    isSendingMessage = false; 
                      if (queryInput && chatId === getActiveChatSessionId()) {
                          queryInput.disabled = false;
                          adjustTextareaHeight();
                          queryInput.focus();
                      }
                 }
-
-                // Re-render IF the chat is active (happens after adding stage msg and potentially after deleting placeholder)
+                // --- END MODIFICATION ---
+                
                 if (chatId === getActiveChatSessionId()) {
                     await renderChatSession(chatId);
                 }
@@ -902,8 +826,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
             } catch (dbError) {
                 console.error(`Home: DB Error handling STAGE_SCRAPE_RESULT (Stage ${stage}):`, dbError);
                 showError(`Failed to record result for Stage ${stage}.`);
-                 if (stage === 4) { 
-                     console.log("Home: Resetting isSendingMessage after DB error on Stage 4.");
+                 // --- MODIFIED: Also reset UI on DB error during the *final* stage or on success ---
+                 if (success || stage === 4) { 
+                     console.log(`Home: Resetting isSendingMessage after DB error during final stage/success (Stage ${stage}).`);
                      isSendingMessage = false; 
                      if (queryInput && chatId === getActiveChatSessionId()) {
                          queryInput.disabled = false;
@@ -913,61 +838,36 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
             }
         })();
 
-        return false; // Indicate message processed
-    }
-    // --- End STAGE_SCRAPE_RESULT Handler ---
-
+        return false; 
+    }   
     else {
         console.log("Home: Received message not handled by primary handlers:", message.type);
         return false;
     }
 });
 
-// Function to load and render a specific chat session (called by sidepanel)
+
 async function loadAndRenderChat(sessionId) {
     console.log(`Home: loadAndRenderChat called for session ID: ${sessionId}`);
     if (!queryInput) {
         console.warn("Home: Cannot load chat, UI elements not ready.");
-        return; // Or throw error?
+        return; 
     }
-    // The activeChatSessionId is managed by sidepanel.js
-    // This function just needs to render the specified session.
+
     await renderChatSession(sessionId);
-    // Ensure input is enabled after loading a chat
+
     queryInput.disabled = false;
     adjustTextareaHeight();
     queryInput.focus();
 }
 
-// Function to reset UI to welcome state (called by sidepanel or New Chat button)
+
 function resetAndShowWelcomeMessage() {
     console.log("Home: Resetting UI to welcome state.");
     displayWelcomeMessage();
-    // Ensure activeChatSessionId is null (handled by sidepanel.js initiator)
-    // Clear input
     if(queryInput) queryInput.value = '';
     adjustTextareaHeight();
     if(queryInput) queryInput.focus();
 }
 
-// --- NEW: Drive Viewer Modal Logic --- REMOVED
-// REMOVED: function showDriveViewerModal() { ... }
-// REMOVED: function hideDriveViewerModal() { ... }
-// REMOVED: function fetchAndDisplayViewerFolderContent(folderId) { ... }
-// REMOVED: function renderDriveViewerItems(items) { ... }
-// REMOVED: function handleDriveItemClick(event) { ... }
-// REMOVED: function updateBreadcrumbs() { ... }
-// REMOVED: function handleBreadcrumbClick(event) { ... }
-// REMOVED: function toggleFileSelection(fileId, element, fileData) { ... }
-// REMOVED: function renderSelectedFiles() { ... }
-// REMOVED: function handleRemoveSelectedFile(event) { ... }
-// REMOVED: function updateInsertButtonState() { ... }
-// REMOVED: const handleDriveSearchInput = debounce(...) { ... }
-// REMOVED: function handleDriveBackButtonClick() { ... }
-// REMOVED: function updateHeaderState() { ... }
-// REMOVED: function getFallbackIcon(mimeType) { ... }
-
-// Export the necessary functions for sidepanel.js
 export { initializeHomePage, loadAndRenderChat, resetAndShowWelcomeMessage }; 
-// Export the initializer function AND chatMessages if needed by history restore
-// export { initializeHomePage, chatMessages, renderChatMessages }; // OLD EXPORT REMOVED 

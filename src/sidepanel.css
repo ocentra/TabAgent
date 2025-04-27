@@ -1,58 +1,65 @@
-/* Apply basic styles, especially for scrollbars */
+/* Apply basic styles, especially for scrollbars which Tailwind doesn't style extensively */
+
+/* Set body background and text color using variables */
 body {
     background-color: var(--popup-bg);
     color: var(--text-primary);
+
 }
 
-/* Custom scrollbar styling */
+
+
+/* Custom scrollbar styling for WebKit browsers (Chrome, Safari) */
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 6px;  /* Width of the scrollbar */
+    height: 6px; /* Height of the scrollbar for horizontal */
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+    background: transparent; /* Make track invisible */
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5); /* gray-400 @ 50% */
+    background-color: rgba(156, 163, 175, 0.5); /* gray-400 with 50% opacity */
     border-radius: 3px;
-    border: 1px solid transparent;
+    border: 1px solid transparent; /* Optional: adds padding around thumb */
     background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(107, 114, 128, 0.7); /* gray-500 @ 70% */
+    background-color: rgba(107, 114, 128, 0.7); /* gray-500 with 70% opacity */
 }
 
 .dark ::-webkit-scrollbar-thumb {
-    background-color: rgba(107, 114, 128, 0.5); /* gray-500 @ 50% */
+    background-color: rgba(107, 114, 128, 0.5); /* gray-500 with 50% opacity */
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(156, 163, 175, 0.7); /* gray-400 @ 70% */
+    background-color: rgba(156, 163, 175, 0.7); /* gray-400 with 70% opacity */
 }
 
-/* Query Input Area */
+/* Style for the text area to auto-expand */
 #query-input {
+
     overflow-y: auto;
     background-color: var(--input-bg);
     color: var(--text-primary);
     border: 1px solid var(--input-border);
+
     transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 
-/* Resizer Style */
+/* Minimal style for the resizer */
 #resizer {
     min-width: 6px;
     flex-shrink: 0;
+
 }
 
 
-/* --- Theme Variables --- */
 
-/* Light Mode */
+/* Base variables (Light Mode) */
 :root {
     --popup-bg: #ffffff;               /* white */
     --popup-border: #e5e7eb;           /* gray-200 */
@@ -70,16 +77,13 @@ body {
     --nav-border-active: #312e81;     /* indigo-900 */
     --nav-shadow-active: rgba(49, 46, 129, 0.2); /* indigo-900 @ 20% */
     --star-active: #facc15;             /* yellow-400 */
-    --link-color: #2563eb;             /* blue-600 */
-    --link-color-dark: #60a5fa;         /* blue-400 */
-    --header-footer-bg: var(--input-bg); /* Use input background for headers/footers */
 }
 
-/* Dark Mode */
+/* Dark Mode Variables */
 html.dark {
     --popup-bg: #374151;               /* gray-700 */
     --popup-border: #4b5563;           /* gray-600 */
-    --popup-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+    --popup-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15); /* Darker shadow */
     --text-primary: #f9fafb;           /* gray-50 */
     --text-secondary: #9ca3af;         /* gray-400 */
     --input-bg: #4b5563;               /* gray-600 */
@@ -92,17 +96,18 @@ html.dark {
     --nav-bg-active: rgba(165, 180, 252, 0.15);/* indigo-300 @ 15% */
     --nav-border-active: #6366f1;     /* indigo-500 */
     --nav-shadow-active: rgba(99, 102, 241, 0.2); /* indigo-500 @ 20% */
-    --star-active: #facc15;             /* yellow-400 */
-    --link-color: #60a5fa;             /* blue-400 */
-    --link-color-dark: #93c5fd;         /* blue-300 */
-    --header-footer-bg: var(--input-bg); /* Use input background for headers/footers */
+    --star-active: #facc15;             /* yellow-400 (same) */
 }
 
 
-/* --- History Popup Styles --- */
+/* --- Removed TEMP: Direct Dark Mode Styles --- */
+/* The section applying direct overrides with html.dark and !important has been removed */
+
+
+/* History Popup Styles */
 #history-popup {
-    position: absolute;
-    bottom: 60px;
+    position: absolute; /* Position relative to the body/viewport */
+    bottom: 60px; /* Position above the input area */
     left: 10px;
     right: 10px;
     background-color: var(--popup-bg);
@@ -110,11 +115,13 @@ html.dark {
     border: 1px solid var(--popup-border);
     border-radius: 8px;
     box-shadow: var(--popup-shadow);
-    z-index: 50;
-    max-height: 60vh;
+    z-index: 50; /* Ensure it's above other content */
+    max-height: 60vh; /* Limit height */
     display: flex;
     flex-direction: column;
 }
+
+
 
 #history-popup.hidden {
     display: none;
@@ -126,7 +133,7 @@ html.dark {
     align-items: center;
     padding: 8px 12px;
     border-bottom: 1px solid var(--popup-border);
-    flex-shrink: 0;
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 .popup-header h2 {
@@ -135,40 +142,43 @@ html.dark {
     color: var(--text-primary);
 }
 
-/* Generic close button style for popups */
-.popup-close-button { /* Renamed from #close-history for reuse */
+/* Close button styling */
+#close-history {
     background: none;
     border: none;
     padding: 4px;
     cursor: pointer;
     border-radius: 4px;
     color: var(--text-secondary);
-    line-height: 1;
+    line-height: 1; /* Ensure icon/text aligns well */
 }
 
-.popup-close-button:hover {
+#close-history:hover {
     background-color: var(--button-hover);
     color: var(--text-primary);
 }
 
-/* Use image for close button now */
-/* #close-history::before { ... } */
+/* Simple text 'X' for close button */
+#close-history::before {
+    content: '\00D7'; /* Unicode multiplication sign (X) */
+    font-size: 1.2rem;
+    font-weight: bold;
+}
 
 .popup-content {
-    flex-grow: 1;
+    flex-grow: 1; /* Allow content to fill remaining space */
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: hidden; /* Prevent content overflow */
 }
 
 .search-container {
     padding: 8px 12px;
     border-bottom: 1px solid var(--popup-border);
-    flex-shrink: 0;
+    flex-shrink: 0; /* Prevent search from shrinking */
 }
 
-/* Generic search input style for popups */
-.popup-search-input { /* Renamed from #history-search */
+#history-search {
     width: 100%;
     padding: 6px 10px;
     border: 1px solid var(--input-border);
@@ -178,37 +188,36 @@ html.dark {
     font-size: 0.9rem;
 }
 
-.popup-search-input:focus {
+#history-search:focus {
     outline: none;
-    border-color: var(--nav-icon-active);
-    box-shadow: 0 0 0 1px var(--nav-icon-active);
-}
-
-.popup-search-input::placeholder {
-    color: var(--text-secondary);
+    /* Consider adding a focus ring using variables */
+    /* box-shadow: 0 0 0 2px var(--nav-icon-active); */
 }
 
 #history-list {
     overflow-y: auto;
     flex-grow: 1;
-    padding: 8px 12px;
+    padding: 8px 12px; /* Add padding around the list itself */
 }
 
 .history-item {
     position: relative;
     cursor: default;
-    margin-bottom: 8px;
+    margin-bottom: 8px; /* Add vertical spacing between items */
 }
 
+/* New Card Structure Styles */
 .chat-card {
+    /* Use input background for cards for slight contrast */
     background-color: var(--input-bg);
     border: 1px solid var(--popup-border);
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 6px 10px; /* Slightly reduce card padding */
     position: relative;
     transition: background-color 0.2s ease-in-out;
 }
 .chat-card:hover {
+   /* Use item hover variable */
    background-color: var(--item-hover);
 }
 
@@ -230,6 +239,8 @@ html.dark {
     min-height: 20px;
 }
 
+
+/* Single definition for date style */
 .history-item-date {
     font-style: italic;
     font-size: 0.65rem;
@@ -243,17 +254,18 @@ html.dark {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 0;
-    font-size: 1.1rem;
-    line-height: 1.3;
+    padding: 0; /* Remove padding */
+    font-size: 1.1rem; /* Make title noticeably larger */
+    line-height: 1.3; /* Adjust line height for larger font */
 }
 
 .history-item-rename-input {
     display: none;
     width: 100%;
+    /* Keep other input styles */
     font-size: 0.9rem;
     color: var(--text-primary);
-    background-color: transparent;
+    background-color: transparent; /* Keep transparent */
     border: 1px solid var(--input-border);
     border-radius: 3px;
     padding: 1px 5px;
@@ -262,9 +274,12 @@ html.dark {
 }
 .history-item-rename-input:focus {
     outline: none;
-    box-shadow: 0 0 0 1px var(--nav-icon-active);
+    /* Use a variable color for focus potentially */
+    box-shadow: 0 0 0 1px #3b82f6; /* Keep blue focus shadow for now */
 }
+/* Removed dark mode specific input override */
 
+/* Visibility toggle based on new structure */
 .history-item.is-editing .card-body .history-item-preview {
     display: none;
 }
@@ -272,6 +287,8 @@ html.dark {
     display: block;
 }
 
+
+/* Single definition for actions button */
 .history-item-actions-btn {
      background: none;
      border: none;
@@ -281,18 +298,21 @@ html.dark {
      border-radius: 4px;
      margin-left: 8px;
      line-height: 1;
-     transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+     transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out; /* Added transition */
 }
 .history-item-actions-btn:hover {
     background-color: var(--button-hover);
     color: var(--text-primary);
 }
 
+/* Single definition for actions menu */
 .history-item-actions-menu {
+    /* Keep positioning relative to history-item */
     position: absolute;
     right: 10px;
-    top: 5px;
+    top: 5px; /* Adjusted slightly */
     z-index: 65;
+    /* Keep appearance styles */
     background-color: var(--popup-bg);
     border: 1px solid var(--popup-border);
     border-radius: 6px;
@@ -313,7 +333,7 @@ html.dark {
     padding: 6px 12px;
     cursor: pointer;
     font-size: 0.85rem;
-    transition: background-color 0.2s ease-in-out;
+    transition: background-color 0.2s ease-in-out; /* Added transition */
 }
 .history-item-actions-menu button:hover {
     background-color: var(--item-hover);
@@ -321,16 +341,19 @@ html.dark {
 
 .history-item-load-btn {
     display: none;
-    padding: 2px 6px;
-    font-size: 0.75rem;
-    line-height: 1.2;
-    border-radius: 4px;
-    background-color: #38a169; /* Keep specific color for now */
-    color: white;
-    border: 1px solid #2f855a;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out;
+    position: static; /* Positioned by card-footer flex */
+     padding: 2px 6px;
+     font-size: 0.75rem;
+     line-height: 1.2;
+     border-radius: 4px;
+     /* Use variables if a specific color scheme is desired, or use Tailwind classes */
+     /* Example using Tailwind-like colors (adjust as needed) */
+     background-color: #38a169; /* green-600 */
+     color: white;
+     border: 1px solid #2f855a; /* green-700 */
+     cursor: pointer;
+     opacity: 0;
+     transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out;
 }
 .history-item:hover .history-item-load-btn {
     display: inline-block;
@@ -338,7 +361,7 @@ html.dark {
 }
 .history-item-load-btn:hover {
     opacity: 1;
-    background-color: #48bb78;
+    background-color: #48bb78; /* green-500 */
     color: white;
 }
 .history-item.is-editing .history-item-load-btn {
@@ -346,6 +369,8 @@ html.dark {
     opacity: 0 !important;
 }
 
+
+/* Single definition for star icon */
 .star-icon {
     display: inline-block;
     font-size: 1.1em;
@@ -356,9 +381,12 @@ html.dark {
     transition: color 0.2s ease-in-out;
 }
 .history-item.starred .star-icon {
-    color: var(--star-active);
+    color: var(--star-active); /* Use variable */
 }
+/* Removed redundant dark mode star icon rules */
 
+
+/* Styling for messages within the history list if needed */
 .no-results, .error-message {
     padding: 16px;
     text-align: center;
@@ -367,17 +395,22 @@ html.dark {
 }
 
 .error-message {
-    color: var(--error-color);
+    color: var(--error-color); /* Use variable */
     font-style: normal;
 }
 
 
-/* --- Bottom Navigation Bar --- */
+/* --- Removed duplicate rules sections --- */
+/* Duplicates for .history-item-actions-btn, .history-item-actions-menu, .history-item-date, .star-icon were removed */
+
+
+/* Bottom Navigation Bar */
 #bottom-nav {
     height: 50px;
-    background-color: var(--header-footer-bg); /* Use variable */
+    background-color: var(--popup-bg);
     border-top: 1px solid var(--popup-border);
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.05); /* Keep subtle shadow or adjust */
+    /* Use transition for smoother theme changes */
     transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 
@@ -388,40 +421,49 @@ html.dark {
     justify-content: center;
     flex-grow: 1;
     color: var(--nav-icon-inactive);
-    transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* Add transitions */
 }
 
 .nav-button.active {
      color: var(--nav-icon-active);
-     background-color: var(--nav-bg-active);
-     border-top: 1px solid var(--nav-border-active);
-     box-shadow: 0 -1px 3px var(--nav-shadow-active);
+     background-color: var(--nav-bg-active); /* Use variable */
+     border-top: 1px solid var(--nav-border-active); /* Use variable */
+     /* Adjust shadow for potentially better visibility in both themes */
+     box-shadow: 0 -1px 3px var(--nav-shadow-active); /* Use variable, adjust spread/blur */
 }
 
 
-/* --- Notification Banner --- */
+/* --- Removed second duplicate rule block --- */
+
+/* --- Removed duplicate .history-item-date rule --- */
+
+/* Add styles for the notification banner */
 .notification {
-    position: fixed;
+    position: fixed; /* Or absolute if you prefer relative to a container */
     bottom: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%); /* Center horizontally */
     padding: 10px 20px;
     border-radius: 6px;
     background-color: #333; /* Default info background */
     color: white;
-    z-index: 1000;
+    z-index: 1000; /* Ensure it's above other content */
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s ease, visibility 0.3s ease;
     font-size: 0.9rem;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    max-width: 90%;
+    max-width: 90%; /* Prevent it from being too wide on small panels */
     text-align: center;
 }
 
 .notification.visible {
     opacity: 1;
     visibility: visible;
+}
+
+.notification.hidden {
+    /* Already handled by default state */
 }
 
 .notification.error {
@@ -439,13 +481,14 @@ html.dark {
     color: white;
 }
 
-
-/* --- Action Buttons (e.g., in History Cards) --- */
+/* History/Library Card Action Button Styling */
 .action-button {
-    padding: 4px;
+    /* General button styling (padding, rounded corners etc) */
+    padding: 4px; /* Adjust padding as needed */
     border-radius: 4px;
-    line-height: 1;
+    line-height: 1; /* Ensure icon is centered vertically */
     transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    /* Default icon color */
     color: var(--text-secondary);
 }
 
@@ -454,23 +497,28 @@ html.dark {
     color: var(--text-primary);
 }
 
+/* Specific hover for delete button icon */
 .action-button[data-action="delete-chat"]:hover svg {
-     color: var(--error-color);
+     color: var(--error-color); /* Use error color variable for red */
 }
+/* Keep default hover background for delete button itself */
 .action-button[data-action="delete-chat"]:hover {
      background-color: var(--button-hover);
 }
 
+
+/* Consistent sizing for icons within action buttons */
 .action-icon {
-    width: 1rem;
-    height: 1rem;
-    display: inline-block;
-    vertical-align: middle;
+    width: 1rem;  /* 16px */
+    height: 1rem; /* 16px */
+    display: inline-block; /* Ensure it behaves like an icon */
+    vertical-align: middle; /* Align nicely with text if any */
 }
 
-/* --- History Preview Content --- */
+/* Preview content styling */
 .history-item-preview-content {
-    background-color: rgba(0,0,0,0.02);
+    /* Styles for the container */
+    background-color: rgba(0,0,0,0.02); /* Very subtle background */
     border-radius: 4px;
 }
 .dark .history-item-preview-content {
@@ -493,165 +541,375 @@ html.dark {
     margin-right: 4px;
 }
 
+/* Style for when preview is active */
+.history-item.preview-active .actions {
+    /* Optionally hide actions when preview is open */
+    /* opacity: 0.2; */
+}
 .history-item.preview-active .history-item-preview-content {
-    display: block;
+    display: block; /* Override hidden class */
 }
 
-
-/* --- General Icon Styles --- */
+/* Ensure img tags used as icons behave correctly */
 .action-icon-img {
     display: inline-block;
     vertical-align: middle;
+    /* width/height are set by Tailwind classes (w-4 h-4 or w-6 h-6) */
 }
 
+/* Style for unstarred icon (using class added in JS) */
 .icon-unstarred {
-    opacity: 0.4;
+    opacity: 0.4; /* Example: Make unstarred slightly faded */
+    /* You could also use filters for grayscale or other effects */
+    /* filter: grayscale(100%); */
 }
-.action-button.starred .icon-unstarred,
+.action-button.starred .icon-unstarred, /* Hide the unstarred style if parent button gets .starred */
 .history-item-star-toggle.starred .icon-unstarred {
     opacity: 1;
     filter: none;
 }
 
-/* --- Removed Old Drive Modal Styles (#drive-modal) --- */
+/* Add to your sidepanel.css */
+#drive-modal .drive-item {
+    /* Basic styling for items in the list */
+    padding: 0.5rem;
+    border-bottom: 1px solid #e5e7eb; /* light gray */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#drive-modal .drive-item:last-child {
+    border-bottom: none;
+}
+#drive-modal .drive-item:hover {
+    background-color: #f3f4f6; /* lighter gray */
+}
+#drive-modal .drive-item.selected {
+    background-color: #dbeafe; /* light blue */
+}
 
+/* Dark mode equivalents */
+.dark #drive-modal .drive-item {
+     border-bottom-color: #4b5563; /* dark gray */
+}
+.dark #drive-modal .drive-item:hover {
+    background-color: #374151; /* darker gray */
+}
+.dark #drive-modal .drive-item.selected {
+    background-color: #1e3a8a; /* dark blue */
+}
 
-/* --- Drive Viewer Modal Styles --- */
+/* Basic Folder/File Icons (replace with better SVGs later) */
+#drive-modal .drive-item-icon {
+    width: 1.25rem; /* Slightly larger icon */
+    height: 1.25rem;
+    flex-shrink: 0;
+    color: #6b7280; /* Default icon color */
+}
+.dark #drive-modal .drive-item-icon {
+     color: #9ca3af;
+}
 
+/* Style for selected files area */
+#drive-selected-files {
+    /* Use flex to align the 'Selected:' text and the pill container */
+    display: flex;
+    align-items: flex-start; /* Align items to the top */
+}
+#drive-selected-files .selected-file-item {
+    display: inline-flex; /* Changed to inline-flex */
+    align-items: center;
+    background-color: #e0e7ff; /* light indigo */
+    color: #3730a3; /* indigo */
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem; /* text-xs */
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem; /* Add bottom margin for wrapping */
+}
+
+.dark #drive-selected-files .selected-file-item {
+    background-color: #3730a3; /* indigo */
+    color: #e0e7ff; /* light indigo */
+}
+
+#drive-selected-files .selected-file-remove {
+    margin-left: 0.5rem;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Search input specific styles */
+#drive-modal-search::placeholder {
+    color: var(--text-secondary);
+    font-size: 0.875rem; /* text-sm */
+}
+
+/* Ensure file list padding is minimal if needed */
+#drive-file-list {
+    padding: 0.25rem; /* Reduced padding slightly */
+}
+
+/* --- ADD Drive Viewer Modal Styles (Based on History) --- */
 #drive-viewer-modal {
+    /* Use styles from #history-popup */
     position: absolute;
     bottom: 60px;
     left: 10px;
     right: 10px;
-    z-index: 60;
-    max-height: 70vh;
-    /* Inherits general .popup structure from HTML */
-    /* Uses #drive-modal-content for background/border/shadow */
+    background-color: var(--popup-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--popup-border);
+    border-radius: 8px;
+    box-shadow: var(--popup-shadow);
+    z-index: 60; /* Ensure it's above other popups if needed */
+    max-height: 70vh; /* Limit height */
+    display: flex;
+    flex-direction: column;
 }
 
 #drive-viewer-modal.hidden {
     display: none;
 }
 
-#drive-viewer-modal #drive-modal-content {
-    background-color: var(--popup-bg);
-    /* Tailwind: rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden */
+/* Use existing .popup-header styles */
+
+/* Use existing .popup-content styles */
+
+/* Use existing .search-container styles */
+#drive-viewer-search {
+    /* Use styles from #history-search */
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+#drive-viewer-search:focus {
+     outline: none;
 }
 
+#drive-viewer-list {
+     /* Use styles from #history-list */
+    overflow-y: auto;
+    flex-grow: 1;
+    padding: 8px 12px;
+}
+
+/* Style for items inside the drive viewer list */
+.drive-viewer-item {
+    /* Similar to history-item or drive-item, adapt as needed */
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--popup-border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+.drive-viewer-item:last-child {
+    border-bottom: none;
+}
+.drive-viewer-item:hover {
+    background-color: var(--item-hover);
+}
+.drive-viewer-item.selected { /* For selection later */
+    background-color: #dbeafe; /* light blue */
+}
+.dark .drive-viewer-item.selected {
+    background-color: #1e3a8a; /* dark blue */
+}
+.drive-viewer-item-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+/* Footer Styles (optional if added) */
+#drive-viewer-footer {
+     /* Basic footer styles */
+     padding: 8px 12px;
+     border-top: 1px solid var(--popup-border);
+     flex-shrink: 0;
+}
+
+/* --- END Drive Viewer Modal Styles --- */
+
+/* --- Drive Viewer Modal Specific Styles --- */
+
+/* Inherit general popup styles */
+#drive-viewer-modal {
+    /* Base styles already defined in html, keep structural tailwind */
+    /* We rely on #drive-modal-content for the main background */
+}
+
+/* Style the main content box within the modal */
+#drive-viewer-modal #drive-modal-content {
+    background-color: var(--popup-bg); /* Use variable for main background */
+    /* Keep Tailwind for layout: rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden */
+}
+
+/* Style the header within the modal */
 #drive-viewer-modal #drive-viewer-header {
-    background-color: var(--header-footer-bg);
+    background-color: var(--header-footer-bg, var(--input-bg)); /* Use specific var or fallback */
     color: var(--text-primary);
     border-bottom: 1px solid var(--popup-border);
-    /* Tailwind: flex justify-between items-center p-2 px-3 flex-shrink-0 */
+    /* Keep Tailwind for layout: flex justify-between items-center p-2 px-3 flex-shrink-0 */
 }
 
+/* Style the footer within the modal */
 #drive-viewer-modal #drive-viewer-footer {
-    background-color: var(--header-footer-bg);
+    background-color: var(--header-footer-bg, var(--input-bg)); /* Use specific var or fallback */
     border-top: 1px solid var(--popup-border);
-    /* Tailwind: flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0 */
+     /* Keep Tailwind for layout: flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0 */
 }
 
+/* Style the middle section containing list, search etc. */
 #drive-viewer-modal #drive-modal-middle-section {
-    /* Tailwind: flex-grow flex flex-col overflow-hidden p-2 */
+     /* Keep Tailwind for layout: flex-grow flex flex-col overflow-hidden p-2 */
+     /* Background is inherited from #drive-modal-content */
 }
 
+/* Breadcrumbs */
 #drive-viewer-modal #drive-viewer-breadcrumbs {
     color: var(--text-secondary);
     border-bottom: 1px solid var(--popup-border);
-    /* Tailwind: p-1 px-2 text-sm flex-shrink-0 */
+     /* Keep Tailwind for layout: p-1 px-2 text-sm flex-shrink-0 */
 }
 #drive-viewer-modal #drive-viewer-breadcrumbs button {
-     color: var(--link-color);
+     color: var(--link-color, blue); /* Add a link color variable? */
 }
-/* Overwrite for dark mode if different variable needed */
-/* html.dark #drive-viewer-modal #drive-viewer-breadcrumbs button {
-    color: var(--link-color-dark);
-} */
+/* Add dark mode link color */
+html.dark #drive-viewer-modal #drive-viewer-breadcrumbs button {
+    color: var(--link-color-dark, lightblue);
+}
 
+/* Search container */
 #drive-viewer-modal .search-container {
+    /* Use popup border for consistency */
     border-bottom: 1px solid var(--popup-border);
-    /* Tailwind: p-2 */
+     /* Keep Tailwind for layout: p-2 */
 }
 
+/* Search Input */
 #drive-viewer-modal #drive-viewer-search {
-    /* Uses .popup-search-input styles via HTML */
-    width: 100%; /* Ensure full width */
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--input-border);
+    border-radius: 6px; /* Match history search */
+    width: 100%;
+    padding: 6px 10px; /* Match history search */
+    font-size: 0.9rem; /* Match history search */
+     /* Keep Tailwind structural classes if needed */
 }
 
+#drive-viewer-modal #drive-viewer-search::placeholder {
+    color: var(--text-secondary);
+}
+
+#drive-viewer-modal #drive-viewer-search:focus {
+     outline: none;
+     border-color: var(--nav-icon-active); /* Use an active color for focus maybe? */
+     box-shadow: 0 0 0 1px var(--nav-icon-active);
+}
+
+/* Selected Area */
 #drive-viewer-modal #drive-viewer-selected-area {
     border-top: 1px solid var(--popup-border);
-    /* Tailwind: mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center */
+    /* Keep Tailwind for layout: mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center */
 }
 
 #drive-viewer-modal #drive-viewer-selected-area .text-xs {
-     color: var(--text-secondary);
+     color: var(--text-secondary); /* Style the "Selected:" text */
 }
 
+/* Selected File Pill Item */
 #drive-viewer-modal .selected-file-item {
     background-color: var(--input-bg);
     color: var(--text-primary);
     border: 1px solid var(--popup-border);
-    border-radius: 9999px;
-    padding: 2px 8px 2px 10px;
-    font-size: 0.75rem;
-    display: inline-flex;
+    border-radius: 9999px; /* Full round */
+    padding: 2px 8px 2px 10px; /* Adjust padding */
+    font-size: 0.75rem; /* text-xs */
+    display: inline-flex; /* Use flex for alignment */
     align-items: center;
-    margin-right: 4px;
+    margin-right: 4px; /* Add spacing */
     margin-bottom: 4px;
 }
 
+/* Remove button inside the pill */
 #drive-viewer-modal .selected-file-remove {
     background: none;
     border: none;
     color: var(--text-secondary);
     margin-left: 6px;
     padding: 0;
-    font-size: 1rem;
+    font-size: 1rem; /* Adjust size */
     line-height: 1;
     cursor: pointer;
     font-weight: bold;
 }
 
 #drive-viewer-modal .selected-file-remove:hover {
-    color: var(--error-color);
+    color: var(--error-color); /* Use error color on hover */
 }
 
+/* Drive File List Container */
 #drive-viewer-modal #drive-viewer-list {
     overflow-y: auto;
     flex-grow: 1;
-    padding: 8px 0px;
+    /* Mimic history list padding */
+    padding: 8px 0px; /* Remove horizontal padding, item has its own */
+     /* Keep Tailwind structural classes if needed */
 }
 
+/* Individual Drive List Item */
 #drive-viewer-modal .drive-viewer-item {
     display: flex;
     align-items: center;
-    padding: 6px 12px;
+    padding: 6px 12px; /* Add padding inside item */
     cursor: pointer;
     color: var(--text-primary);
     transition: background-color 0.1s ease-in-out;
+    /* Remove bottom margin if padding handles spacing */
+    /* margin-bottom: 2px; */ 
 }
 
 #drive-viewer-modal .drive-viewer-item:hover {
     background-color: var(--item-hover);
 }
 
+/* Style for selected file items */
 #drive-viewer-modal .drive-viewer-item.selected {
-    background-color: var(--nav-bg-active);
+    background-color: var(--nav-bg-active); /* Use active nav background */
     color: var(--nav-icon-active);
     font-weight: 500;
 }
+/* Ensure hover on selected items doesn't look weird */
 #drive-viewer-modal .drive-viewer-item.selected:hover {
-    background-color: var(--nav-bg-active);
+    background-color: var(--nav-bg-active); /* Keep the same background */
 }
+
 
 #drive-viewer-modal .drive-viewer-item-icon {
-     margin-right: 8px;
-     flex-shrink: 0;
+     margin-right: 8px; /* Space between icon and text */
+     flex-shrink: 0; /* Prevent icon shrinking */
+     /* Tailwind w-5 h-5 handles size */
 }
 
+/* Placeholder/Loading/Empty text */
 #drive-viewer-modal #drive-viewer-list .text-center {
      color: var(--text-secondary);
+      /* Keep Tailwind for layout: text-center p-4 */
 }
 #drive-viewer-modal #drive-viewer-list .text-red-500 {
      color: var(--error-color);
 }
+
+
+/* Buttons in footer - Keep Tailwind for now, they seem okay */
+/* #drive-viewer-modal #drive-viewer-cancel {...} */
+/* #drive-viewer-modal #drive-viewer-insert {...} */

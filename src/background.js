@@ -69,10 +69,18 @@ updateDeclarativeNetRequestRules();
 
 // Checks if an offscreen document is currently open.
 async function hasOffscreenDocument(path) {
+    // --- MODIFICATION --- 
+    // Extract filename and construct the URL as used by createDocument
+    const filename = path.split('/').pop(); 
+    const targetUrl = chrome.runtime.getURL(filename);
+    console.log(`[Debug] hasOffscreenDocument: Checking for URL: ${targetUrl}`); // Added debug log
+    // --- END MODIFICATION ---
+    
     const existingContexts = await chrome.runtime.getContexts({
         contextTypes: ['OFFSCREEN_DOCUMENT'],
-        documentUrls: [chrome.runtime.getURL(path)]
+        documentUrls: [targetUrl] // Use the constructed URL
     });
+    console.log(`[Debug] hasOffscreenDocument: Found ${existingContexts.length} matching contexts.`); // Added debug log
     return existingContexts.length > 0;
 }
 
@@ -95,45 +103,6 @@ async function setupOffscreenDocument(path, reasons, justification) {
     console.log(`Background: Offscreen document created successfully using ${filename}.`);
 }
 
-// STAGE 1: Scrapes a URL using fetch + offscreen document + Readability
-async function scrapeUrlWithOffscreen(url) {
-    console.log(`[Stage 1] Attempting Offscreen Direct: ${url}`);
-    if (!url || !url.startsWith('http')) throw new Error(`Invalid URL: ${url}`);
-
-    await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH, ['IFRAME_SCRIPTING'], 'Load Google Picker API and handle external scripts/UI');
-
-    let htmlContent;
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        htmlContent = await response.text();
-        console.log(`[Stage 1] Fetched HTML (${htmlContent.length} bytes)`);
-    } catch (error) {
-        throw new Error(`Failed to fetch URL: ${error.message}`);
-    }
-
-    console.log('[Stage 1] Sending HTML to offscreen document...');
-    try {
-        const response = await chrome.runtime.sendMessage({
-            type: 'parseHTML',
-            target: 'offscreen',
-            htmlContent: htmlContent
-        });
-        console.log('[Stage 1] Received response from offscreen:', response);
-
-        if (response?.success && response.article) {
-            return response.article; // Success!
-        } else if (response?.success && response.article === null) {
-            throw new Error('Readability found no content (offscreen).');
-        } else {
-            throw new Error(`Offscreen parsing error: ${response?.error || 'Invalid response format'}`);
-        }
-    } catch (error) {
-        console.error('[Stage 1] Communication/Parsing error with offscreen:', error);
-        throw new Error(`Offscreen stage failed: ${error.message}`);
-    }
-}
-
 // ========================================================================
 // == Offscreen + iframe Scraping (Stage 2)
 // ========================================================================
@@ -149,10 +118,10 @@ async function scrapeUrlWithOffscreenIframe(url) {
     // --- Cleanup function --- 
     const cleanup = async (scriptIdBase) => {
         console.log(`[Stage 2 Cleanup] Starting cleanup for script ID base: ${scriptIdBase}`);
-        // Unregister the single dynamic script ID we registered
+        // Unregister the dynamic script ID
         if (scriptIdBase) {
              try {
-                 await chrome.scripting.unregisterContentScripts({ ids: [scriptIdBase] }); // Only unregister the base ID
+                 await chrome.scripting.unregisterContentScripts({ ids: [scriptIdBase] });
                  console.log(`[Stage 2 Cleanup] Unregistered script: ${scriptIdBase}`);
              } catch (error) {
                  console.warn(`[Stage 2 Cleanup] Failed to unregister script ${scriptIdBase}:`, error);
@@ -160,16 +129,31 @@ async function scrapeUrlWithOffscreenIframe(url) {
         }
         // Remove iframe in offscreen document
         try {
+            // Send message to remove iframe first
             await chrome.runtime.sendMessage({ type: 'removeIframe', target: 'offscreen' });
             console.log('[Stage 2 Cleanup] Sent removeIframe request to offscreen.');
         } catch (error) {
             console.warn('[Stage 2 Cleanup] Failed to send removeIframe request: ', error);
         }
+        // --- COMMENTED OUT: Close the offscreen document for debugging --- 
+        /*
+        try {
+            if (await hasOffscreenDocument(OFFSCREEN_DOCUMENT_PATH)) {
+                 console.log("[Stage 2 Cleanup] Closing offscreen document.");
+                 await chrome.offscreen.closeDocument();
+            } else {
+                 console.log("[Stage 2 Cleanup] Offscreen document already closed.");
+            }
+        } catch (error) {
+             console.warn("[Stage 2 Cleanup] Error closing offscreen document:", error);
+        }
+        */
+        // -----------------------------------------
     };
 
     try {
         // 1. Ensure Offscreen Document Exists
-        await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH, ['IFRAME_SCRIPTING'], 'Load Google Picker API and handle external scripts/UI');
+        await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH, ['DOM_PARSER', 'IFRAME_SCRIPTING'], 'Parse HTML content and manage scraping iframes');
 
         // 2. Create Iframe in Offscreen Document
         console.log('[Stage 2] Sending createIframe request to offscreen...');
@@ -189,15 +173,16 @@ async function scrapeUrlWithOffscreenIframe(url) {
         // Register dependencies and the helper script using file paths
         await chrome.scripting.registerContentScripts([{
             id: dynamicScripterId,
-            // Inject dependencies AND the new helper script
-            js: ['Readability.js', 'webScraper.js', 'scriptingReadabilityHelper.js'], 
+            // --- MODIFIED: Inject web-scraper and new helper --- 
+            js: ['PageExtractor.js', 'stage2-helper.js'], 
+            // --- END MODIFICATION --- 
             matches: [url], // Target the specific URL
             runAt: 'document_idle',
-            world: 'ISOLATED',
+            world: 'ISOLATED', // Use ISOLATED world
             allFrames: true, // IMPORTANT: Target the iframe
             persistAcrossSessions: false
         }]);
-        console.log(`[Stage 2] Registered dynamic script(s): ${dynamicScripterId} (files: Readability.js, webScraper.js, scriptingReadabilityHelper.js)`);
+        console.log(`[Stage 2] Registered dynamic script(s): ${dynamicScripterId} (files: PageExtractor.js, stage2-helper.js)`); // Updated log
 
         // 4. Wait for Response from Dynamic Script (with Timeout)
         let messageListener = null;
@@ -254,41 +239,9 @@ async function scrapeUrlWithOffscreenIframe(url) {
 
 // STAGE 3: Scrapes URL using temporary tab + executeScript + Readability
 async function scrapeUrlWithTempTabExecuteScript(url) {
-    console.log(`[Stage 3] Attempting Temp Tab + executeScript: ${url}`);
+    console.log(`[Stage 3] Attempting Temp Tab + executeScript (using window.scraper.extract): ${url}`); // Updated log
     let tempTabId = null;
     const TEMP_TAB_LOAD_TIMEOUT = 30000; // 30 seconds
-
-    // Function to inject and execute inside the target tab
-    function grabContentWithReadability() {
-        // Check if Readability is already available (e.g., from content.js injection)
-        if (typeof Readability === 'undefined') {
-            // Basic check, might need a more robust way if Readability isn't globally attached
-            // Or, consider injecting Readability.js library itself via executeScript
-            // if this approach proves unreliable across different sites/build setups.
-            console.error('[Stage 3 ExecuteScript] Readability class is not available.');
-            return { success: false, error: 'Readability library not found in tab context.' };
-        }
-        try {
-            // Using cloneNode(true) is safer as Readability modifies the DOM
-            const documentClone = document.cloneNode(true);
-            const article = new Readability(documentClone).parse();
-            // Return necessary fields
-            return {
-                success: true,
-                title: article ? article.title : '',
-                textContent: article ? article.textContent : '',
-                content: article ? article.content : '', // HTML content
-                byline: article ? article.byline : '',
-                length: article ? article.length : 0,
-                excerpt: article ? article.excerpt : '',
-                siteName: article ? article.siteName : ''
-                // Add other fields from Readability Article object if needed
-            };
-        } catch (e) {
-            console.error('[Stage 3 ExecuteScript] Error running Readability:', e);
-            return { success: false, error: `Readability execution failed: ${e.message}` };
-        }
-    }
 
     return new Promise(async (resolve, reject) => {
         const cleanupAndReject = (errorMsg) => {
@@ -314,18 +267,14 @@ async function scrapeUrlWithTempTabExecuteScript(url) {
         let loadTimeoutId = null;
         const loadPromise = new Promise((resolveLoad, rejectLoad) => {
             const listener = (tabId, changeInfo, updatedTab) => {
-                // Wait for 'complete' status
                 if (tabId === tempTabId && changeInfo.status === 'complete') {
                     console.log(`[Stage 3] Tab ${tempTabId} loaded.`);
                     if (loadTimeoutId) clearTimeout(loadTimeoutId);
                     chrome.tabs.onUpdated.removeListener(listener);
-                    resolveLoad(); // Tab is ready
+                    resolveLoad();
                 }
-                // Consider handling potential load errors here if needed (e.g., changeInfo.status === 'error')
             };
             chrome.tabs.onUpdated.addListener(listener);
-
-            // Timeout
             loadTimeoutId = setTimeout(() => {
                 chrome.tabs.onUpdated.removeListener(listener);
                 rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load.`));
@@ -339,14 +288,19 @@ async function scrapeUrlWithTempTabExecuteScript(url) {
         }
 
         // 3. Execute Script
-        console.log(`[Stage 3] Executing script in tab ${tempTabId}`);
+        console.log(`[Stage 3] Injecting PageExtractor.js and calling window.scraper.extract() in tab ${tempTabId}`);
         try {
+            // --- MODIFIED: Inject PageExtractor.js then execute func --- 
+            await chrome.scripting.executeScript({
+                target: { tabId: tempTabId },
+                files: ['PageExtractor.js'] // CORRECTED PATH: Relative to extension root
+            });
+            
             const results = await chrome.scripting.executeScript({
                 target: { tabId: tempTabId },
-                func: grabContentWithReadability,
-                // world: 'MAIN' // Use MAIN world if Readability relies on page's JS context
-                               // Use 'ISOLATED' (default) if Readability is self-contained or injected separately
+                func: () => window.scraper.extract(), // Call the globally available function
             });
+            // --- END MODIFICATION ---
 
             // Always clean up tab after script execution attempt
             if (tempTabId) {
@@ -356,23 +310,21 @@ async function scrapeUrlWithTempTabExecuteScript(url) {
 
             if (results && results.length > 0 && results[0].result) {
                 const scriptResult = results[0].result;
-                if (scriptResult.success) {
-                    console.log('[Stage 3] executeScript succeeded.');
-                    // Resolve with the article object directly
+                // Assuming window.scraper.extract() returns the ExtractedContent object or null
+                if (scriptResult && typeof scriptResult === 'object') { // Check if we got a valid result object
+                    console.log('[Stage 3] window.scraper.extract() succeeded.');
+                    // Resolve with the ExtractedContent object directly
                     resolve(scriptResult);
                 } else {
-                    // Script ran but reported failure (e.g., Readability error)
-                    reject(new Error(scriptResult.error || 'executeScript function reported failure.'));
+                    // Script ran but returned null or invalid data
+                    reject(new Error(scriptResult?.error || 'window.scraper.extract() failed or returned null.'));
                 }
             } else {
-                 // Handle cases where executeScript failed to return a result
-                 // Check chrome.runtime.lastError within the callback if not using async/await
                  const lastError = chrome.runtime.lastError ? chrome.runtime.lastError.message : 'No result returned';
                  reject(new Error(`executeScript failed: ${lastError}`));
             }
 
         } catch (error) {
-            // Handle errors during the executeScript call itself (e.g., permission issues, invalid target)
             cleanupAndReject(`executeScript call failed: ${error.message}`);
         }
     });
@@ -392,8 +344,9 @@ async function scrapeUrlWithTempTab_ContentScript(url) {
     return new Promise(async (resolve, reject) => { // Make outer function async for await inside create callback
         const cleanupAndReject = (errorMsg) => {
             if (tempTabId) {
-                chrome.tabs.remove(tempTabId).catch(err => {});
-                tempTabId = null;
+                // --- RESTORED --- Ensure tab is closed on error/reject
+                chrome.tabs.remove(tempTabId).catch(err => console.warn(`[Stage 4] Error removing tab ${tempTabId} during cleanup: ${err.message}`)); 
+                tempTabId = null; // Still nullify the ID so cleanup doesn't try again
             }
             reject(new Error(errorMsg));
         };
@@ -437,8 +390,9 @@ async function scrapeUrlWithTempTab_ContentScript(url) {
         try {
             const response = await chrome.tabs.sendMessage(tempTabId, { type: 'SCRAPE_PAGE' });
             // Cleanup immediately after getting response (or error)
-            if (tempTabId) chrome.tabs.remove(tempTabId).catch(err => {}); 
-            tempTabId = null;
+            // --- RESTORED --- Ensure tab is closed after successful message send/receive
+            if (tempTabId) chrome.tabs.remove(tempTabId).catch(err => console.warn(`[Stage 4] Error removing tab ${tempTabId} post-message: ${err.message}`)); 
+            tempTabId = null; // Still nullify the ID so cleanup doesn't try again
 
             if (response?.success) {
                 console.log(`[Stage 4] Success from content script.`);
@@ -461,86 +415,74 @@ async function scrapeUrlWithTempTab_ContentScript(url) {
 // Main function to attempt scraping using multiple stages
 async function scrapeUrlMultiStage(url, chatId, messageId) {
     console.log(`Scraping Orchestrator: Starting for ${url}. ChatID: ${chatId}, MessageID: ${messageId}`);
-    let resultPayload;
 
+    const sendStageResult = (stageResult) => {
+        chrome.runtime.sendMessage({
+            type: 'STAGE_SCRAPE_RESULT',
+            payload: stageResult
+        }).catch(e => console.warn(`[Orchestrator] Failed to send result for Stage ${stageResult.stage}:`, e));
+    };
+
+    // --- Stage 2 Attempt (Now the first stage) --- 
     try {
-        // --- Stage 1: Try Offscreen Direct ---
-        const article = await scrapeUrlWithOffscreen(url);
-        console.log(`Scraping Orchestrator: Stage 1 (Offscreen) Succeeded for ${url}.`);
-        resultPayload = {
-            chatId: chatId,       // Include Chat ID
-            messageId: messageId, // Include Message ID
-            success: true,
-            method: 'offscreenDirect',
-            url: url,
-            title: article.title,
-            textContent: article.textContent,
-            content: article.content,
-            byline: article.byline,
-            length: article.length,
-            excerpt: article.excerpt,
-            siteName: article.siteName
+        const iframeResult = await scrapeUrlWithOffscreenIframe(url);
+        console.log(`[Orchestrator Log] Stage 2 (Offscreen + iframe) Succeeded for ${url}.`);
+        const stage2SuccessPayload = { 
+            stage: 2, success: true, chatId: chatId, messageId: messageId, 
+            method: 'offscreenIframe', url: url, 
+            length: iframeResult?.text?.length || 0,
+            ...iframeResult 
         };
-    } catch (stage1Error) {
-        console.warn(`Scraping Orchestrator: Stage 1 (Offscreen Direct) Failed for ${url}: ${stage1Error.message}`);
-
-        try {
-            // --- Stage 2: Try Offscreen + iframe ---
-            const iframeResult = await scrapeUrlWithOffscreenIframe(url);
-            console.log(`Scraping Orchestrator: Stage 2 (Offscreen + iframe) Succeeded for ${url}.`);
-            resultPayload = {
-                chatId: chatId,       // Include Chat ID
-                messageId: messageId, // Include Message ID
-                success: true,
-                method: 'offscreenIframe',
-                url: url,
-                ...iframeResult
-            };
-        } catch (stage2Error) {
-            console.warn(`Scraping Orchestrator: Stage 2 (Offscreen + iframe) Failed for ${url}: ${stage2Error.message}`);
-
-            try {
-                 // --- Stage 3: Try Temp Tab + executeScript ---
-                 const executeScriptResult = await scrapeUrlWithTempTabExecuteScript(url);
-                 console.log(`Scraping Orchestrator: Stage 3 (Temp Tab + executeScript) Succeeded for ${url}.`);
-                 resultPayload = {
-                     chatId: chatId,       // Include Chat ID
-                     messageId: messageId, // Include Message ID
-                     success: true,
-                     method: 'tempTabExecuteScript',
-                     url: url,
-                     ...executeScriptResult
-                 };
-            } catch (stage3Error) {
-                 console.warn(`Scraping Orchestrator: Stage 3 (Temp Tab + executeScript) Failed for ${url}: ${stage3Error.message}`);
-
-                 try {
-                    // --- Stage 4: Try Temporary Tab + Content Script (Last Resort) ---
-                    const tempTabResult = await scrapeUrlWithTempTab_ContentScript(url);
-                    console.log(`Scraping Orchestrator: Stage 4 (Temp Tab + Content Script) Succeeded for ${url}.`);
-                    resultPayload = {
-                        chatId: chatId,       // Include Chat ID
-                        messageId: messageId, // Include Message ID
-                        success: true,
-                        method: 'tempTabContentScript',
-                        url: url,
-                        ...tempTabResult
-                    };
-                 } catch (stage4Error) {
-                     console.error(`Scraping Orchestrator: Stage 4 (Temp Tab + Content Script) Failed for ${url}: ${stage4Error.message}`);
-                     // --- All Stages Failed ---
-                     resultPayload = {
-                         chatId: chatId,       // Include Chat ID
-                         messageId: messageId, // Include Message ID
-                         success: false,
-                         url: url,
-                         error: stage4Error.message || 'Scraping failed using all available methods.'
-                     };
-                 }
-            }
-        }
+        sendStageResult(stage2SuccessPayload); // Send success result
+        return; // <<< EXIT EARLY ON SUCCESS
+    } catch (stage2Error) {
+        console.warn(`[Orchestrator Log] Stage 2 (Offscreen + iframe) Failed for ${url}: ${stage2Error.message}`);
+        sendStageResult({ stage: 2, success: false, chatId: chatId, messageId: messageId, error: stage2Error.message }); // Send failure result
+        // Continue to next stage
     }
-    return resultPayload; // This payload now includes chatId and messageId
+
+    // --- Stage 3 Attempt --- 
+    try {
+         const executeScriptResult = await scrapeUrlWithTempTabExecuteScript(url);
+         console.log(`[Orchestrator Log] Stage 3 (Temp Tab + executeScript) Succeeded for ${url}.`);
+         const stage3SuccessPayload = { 
+            stage: 3, success: true, chatId: chatId, messageId: messageId, 
+            method: 'tempTabExecuteScript', url: url, 
+            length: executeScriptResult?.text?.length || 0,
+            ...executeScriptResult 
+         };
+         sendStageResult(stage3SuccessPayload); // Send success result
+         return; // <<< EXIT EARLY ON SUCCESS
+    } catch (stage3Error) {
+         console.warn(`[Orchestrator Log] Stage 3 (Temp Tab + executeScript) Failed for ${url}: ${stage3Error.message}`);
+         sendStageResult({ stage: 3, success: false, chatId: chatId, messageId: messageId, error: stage3Error.message }); // Send failure result
+         // Continue to next stage
+    }
+    
+    // --- Stage 4 Attempt --- 
+    try {
+        const tempTabResult = await scrapeUrlWithTempTab_ContentScript(url);
+        console.log(`[Orchestrator Log] Stage 4 (Temp Tab + Content Script) Succeeded for ${url}.`);
+        const stage4SuccessPayload = {
+            stage: 4, success: true, chatId: chatId, messageId: messageId, 
+            method: 'tempTabContentScript', url: url, 
+            length: tempTabResult?.text?.length || 0,
+            ...tempTabResult
+        };
+        // --- ADDED LOG --- 
+        console.log("[Orchestrator Log] Stage 4 Payload being sent:", stage4SuccessPayload);
+        // -----------------
+        sendStageResult(stage4SuccessPayload); // Send success result
+        return; // <<< EXIT EARLY ON SUCCESS
+    } catch (stage4Error) {
+         console.warn(`[Orchestrator Log] Stage 4 (Temp Tab + Content Script) Failed for ${url}: ${stage4Error.message}`);
+         sendStageResult({ stage: 4, success: false, chatId: chatId, messageId: messageId, error: stage4Error.message }); // Send failure result
+         // If this stage fails, it's the last one, so we fall through
+    }
+    
+    // This line is only reached if ALL stages failed.
+    console.log("[Orchestrator Log] All stages failed.");
+    // No need to send a final error message, as each failure was already sent.
 }
 
 
@@ -667,35 +609,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         console.log(`Background: Processing query "${text}" for model "${model}". ChatID: ${chatId}, MessageID: ${messageId}`);
 
-        // --- TODO: Implement Agentic Workflow (Task 7) --- Replace placeholder logic
-        const placeholderResponse = `(Tab ${tabId || 'N/A'}) Background received: "${text}". Agent logic for ${model} not implemented.`;
+        // --- Check if the query text is a URL ---
+        const isUrl = text && (text.startsWith('http://') || text.startsWith('https://'));
 
-        setTimeout(() => { // Simulate async processing
-            try {
-                // Check if the sender still exists before sending (important!)
-                // Use chrome.runtime.sendMessage to broadcast; sidepanel listener filters by chatId/messageId
-                chrome.runtime.sendMessage({ 
-                    type: 'response', 
-                    chatId: chatId,       // Include Chat ID
-                    messageId: messageId, // Include Message ID
-                    text: placeholderResponse 
-                }).catch(e => console.warn(`BG: Could not send response for ${messageId}, context likely closed.`, e));
-                console.log(`Background: Sent placeholder response for ${messageId}.`);
-            } catch (error) { 
-                // Catch potential immediate errors, though sendMessage itself is async
-                console.warn(`Background: Error sending placeholder response for ${messageId}`, error);
-                 // Attempt to send an error back to the specific message placeholder
-                 chrome.runtime.sendMessage({ 
-                     type: 'error', 
-                     chatId: chatId,
-                     messageId: messageId,
-                     error: `Failed to send response: ${error.message}`
-                 }).catch(e => console.warn(`BG: Could not send error message for ${messageId} after initial failure.`, e));
-            }
-        }, 500);
-        
-        sendResponse({ success: true, message: "Query received, processing..." }); // Acknowledge receipt
-        return true; // Indicate async response will be sent later via separate sendMessage
+        if (isUrl) {
+            console.log(`Background: Query is a URL, initiating scrape for ${text}`);
+            // Initiate the multi-stage scrape - it will send its own messages
+             (async () => {
+                 await scrapeUrlMultiStage(text, chatId, messageId);
+             })();
+             // Acknowledge the request immediately
+             sendResponse({ success: true, message: "URL query received, initiating scrape..." });
+             // Don't return true, scrapeUrlMultiStage sends results separately
+             return false; 
+        } else {
+            console.log(`Background: Query is not a URL, using placeholder logic for "${text}"`);
+            // --- TODO: Implement Agentic Workflow (Task 7) --- Replace placeholder logic
+            const placeholderResponse = `(Tab ${tabId || 'N/A'}) Background received non-URL: "${text}". Agent logic for ${model} not implemented.`;
+
+            setTimeout(() => { // Simulate async processing
+                try {
+                    // Check if the sender still exists before sending (important!)
+                    // Use chrome.runtime.sendMessage to broadcast; sidepanel listener filters by chatId/messageId
+                    chrome.runtime.sendMessage({
+                        type: 'response',
+                        chatId: chatId,       // Include Chat ID
+                        messageId: messageId, // Include Message ID
+                        text: placeholderResponse
+                    }).catch(e => console.warn(`BG: Could not send response for ${messageId}, context likely closed.`, e));
+                    console.log(`Background: Sent placeholder response for ${messageId}.`);
+                } catch (error) {
+                    // Catch potential immediate errors, though sendMessage itself is async
+                    console.warn(`Background: Error sending placeholder response for ${messageId}`, error);
+                     // Attempt to send an error back to the specific message placeholder
+                     chrome.runtime.sendMessage({
+                         type: 'error',
+                         chatId: chatId,
+                         messageId: messageId,
+                         error: `Failed to send response: ${error.message}`
+                     }).catch(e => console.warn(`BG: Could not send error message for ${messageId} after initial failure.`, e));
+                }
+            }, 500);
+
+            sendResponse({ success: true, message: "Non-URL query received, processing..." }); // Acknowledge receipt
+            return true; // Indicate async response will be sent later via separate sendMessage
+        }
 
     // --- Handle Request for Tab ID ---
     } else if (message.type === 'getTabId') {
@@ -765,21 +723,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Use the orchestrator function - run async but don't hold channel open
         (async () => {
             // Pass IDs to the orchestrator
-            const finalResultPayload = await scrapeUrlMultiStage(urlToScrape, chatId, messageId);
-            
-            // Send the final result (success or error payload) back via a new message
-            // The payload now contains chatId and messageId
-            console.log('[Background Listener] Sending final scrape result:', finalResultPayload);
-            try {
-                 chrome.runtime.sendMessage({ 
-                     type: 'TEMP_SCRAPE_RESULT', 
-                     // No longer need to add chatId/messageId here, they are IN the payload
-                     payload: finalResultPayload 
-                 }).catch(e => console.warn("[Background Listener] Failed to send final scrape result:", e));
-            } catch (sendError) {
-                 // Catch sync errors during send, though unlikely for sendMessage
-                 console.warn(`[Background Listener] Synchronous error sending final scrape result:`, sendError);
-            }
+            await scrapeUrlMultiStage(urlToScrape, chatId, messageId);
         })();
 
         sendResponse({ success: true, message: "Scrape request received." }); // Acknowledge receipt immediately
@@ -787,9 +731,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false; 
 
     // --- MODIFIED: Handle Request for Drive File List ---
-    } else if (message.type === 'requestDriveFileList') {
+    } else if (message.type === 'getDriveFileList') {
         const folderId = message.folderId || 'root'; // <<< Get folderId from message
-        console.log(`Background: Received requestDriveFileList for folder: ${folderId}`);
+        console.log(`Background: Received getDriveFileList for folder: ${folderId}`);
         (async () => {
             let files = null;
             let errorMsg = null;
@@ -798,7 +742,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // Pass folderId to the fetch function
                 files = await fetchDriveFileList(token, folderId); 
             } catch (error) {
-                console.error(`Background: Error handling requestDriveFileList (Folder: ${folderId}):`, error);
+                console.error(`Background: Error handling getDriveFileList (Folder: ${folderId}):`, error);
                 errorMsg = error.message || "Unknown error fetching file list.";
             }
             // Send response back to sidepanel, include folderId for context

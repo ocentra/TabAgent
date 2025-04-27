@@ -25,19 +25,19 @@ export default defineConfig({
       targets: [
         { src: 'manifest.json', dest: '.' },
         { src: 'src/sidepanel.html', dest: '.' },
+        { src: 'src/PageExtractor.js', dest: '.' },
         { src: 'src/content.js', dest: '.' },
-        { src: 'src/webScraper.js', dest: '.' },
         { src: 'src/theme-loader.js', dest: '.' },
-        { 
-          src: 'node_modules/@mozilla/readability/Readability.js', 
-          dest: '.' 
-        },
+        { src: 'src/stage2-helper.js', dest: '.' },
         { src: 'src/offscreen.html', dest: '.' },
         { src: 'src/output.css', dest: '.' },
         { src: 'src/sidepanel.css', dest: '.' },
         { src: 'src/notifications.js', dest: '.' },
         { src: 'src/downloadFormatter.js', dest: '.' },
-        { src: 'icons', dest: '.' }
+        { src: 'icons', dest: '.' },
+        { src: 'node_modules/prismjs/prism.js', dest: 'assets' },
+        { src: 'node_modules/prismjs/components/prism-json.min.js', dest: 'assets' },
+        { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' }
       ]
     })
   ]

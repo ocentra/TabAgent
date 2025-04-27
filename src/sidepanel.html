@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="output.css">
     <!-- Link our custom CSS (ensure it comes AFTER Tailwind) -->
     <link rel="stylesheet" href="sidepanel.css">
+    <link rel="stylesheet" href="assets/prism-okaidia.css">
     <script src="../theme-loader.js"></script>
 </head>
 <body class="h-screen flex flex-col font-sans">
@@ -152,43 +153,92 @@
     <!-- Notification Banner -->
     <div id="notification-banner" class="notification hidden"></div>
 
-    <!-- OLD Google Drive Modal - REMOVED -->
-
-    <!-- NEW Drive Viewer Modal (Based on History Popup) -->
-    <div id="drive-viewer-modal" class="popup hidden" style="position: absolute; bottom: 60px; left: 10px; right: 10px; max-height: 70vh; z-index: 60;"> 
-         <div id="drive-modal-content" class="rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"> 
-             <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0">
-                  <div class="flex items-center space-x-2">
-                       <button id="drive-viewer-back" class="icon-button hidden" title="Go back">
-                           <svg class="w-5 h-5 action-icon-img" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                      </button>
-                      <h2>Select Drive Files</h2>
-                 </div>
-                 <button id="drive-viewer-close" class="icon-button popup-close-button" title="Close Viewer">
-                      <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+    <!-- Google Drive Modal (COMMENTED OUT FOR NOW) -->
+    <!-- 
+    <div id="drive-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-opacity-75 flex items-start justify-center z-50 hidden pt-10">
+        <div id="drive-modal-content" class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"> 
+            <div id="drive-modal-header" class="flex justify-between items-center border-b p-2 px-3 dark:border-gray-600 flex-shrink-0">
+                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Select Files</h3>
+                 <button id="drive-modal-close" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" aria-label="Close modal">
+                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
                  </button>
             </div>
 
             <div id="drive-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
-                 <div id="drive-viewer-breadcrumbs" class="p-1 px-2 text-sm flex-shrink-0">Root</div>
-                 
-                 <div class="search-container p-2">
-                      <input type="text" id="drive-viewer-search" class="popup-search-input" placeholder="Search current folder..." />
-                      <div id="drive-viewer-selected-area" class="mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center">
-                          <span class="text-xs mr-1 self-start">Selected:</span>
-                      </div>
+                 <div id="drive-modal-selected-area" class="mb-2 p-2 border rounded dark:border-gray-600 min-h-[4rem] overflow-y-auto flex-shrink-0">
+                     <span class="text-xs text-gray-500 dark:text-gray-400">Selected files area (placeholder)</span>
                  </div>
-                 <div id="drive-viewer-list" class="history-list flex-grow overflow-y-auto">
-                      <div class="text-center p-4">Loading...</div>
+
+                 <div id="drive-file-list" class="flex-grow overflow-y-auto border rounded dark:border-gray-600">
+                     <div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>
                  </div>
             </div>
 
+            <div id="drive-modal-footer" class="flex justify-end items-center border-t p-2 px-3 mt-auto dark:border-gray-600 space-x-2 flex-shrink-0">
+                 <button id="drive-modal-cancel" type="button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
+                 <button id="drive-modal-insert" type="button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>
+                      Insert (0)
+                 </button>
+            </div>
+        </div>
+    </div>
+    -->
+    <!-- End Google Drive Modal -->
+
+    <!-- NEW Drive Viewer Modal (Based on History Popup) -->
+    <div id="drive-viewer-modal" class="popup hidden"> 
+         <!-- Main Content Box - Apply background via CSS -->
+         <div id="drive-modal-content" class="rounded-lg shadow-xl p-0 w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"> 
+              <!-- Header - Apply background via CSS -->
+             <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0">
+                  <!-- Back button container -->
+                  <div class="flex items-center space-x-2">
+                       <button id="drive-viewer-back" class="icon-button hidden" title="Go back">
+                           <!-- Back Arrow SVG - Inherits color -->
+                           <svg class="w-5 h-5 action-icon-img" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                      </button>
+                      <!-- Title - Inherits color -->
+                      <h2>Select Drive Files</h2>
+                 </div>
+                 <!-- Close Button - Needs specific styling or inherits -->
+                 <button id="drive-viewer-close" class="icon-button" title="Close Viewer">
+                      <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+                 </button>
+            </div>
+
+            <!-- Content Area - Background inherited -->
+            <div id="drive-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
+                 <!-- Breadcrumbs Container - Apply color/border via CSS -->
+                 <div id="drive-viewer-breadcrumbs" class="p-1 px-2 text-sm flex-shrink-0">Root</div>
+                 
+                 <!-- Search & Selected Area Container - Apply border via CSS -->
+                 <div class="search-container p-2"> <!-- Keep padding -->
+                      <!-- Search Input - Apply styles via CSS -->
+                      <input type="text" id="drive-viewer-search" placeholder="Search current folder..." />
+                      <!-- Selected Files Pills Area - Apply border via CSS -->
+                      <div id="drive-viewer-selected-area" class="mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center">
+                          <!-- "Selected:" text - Apply color via CSS -->
+                          <span class="text-xs mr-1 self-start">Selected:</span>
+                          <!-- Pills added by JS, styled by CSS -->
+                      </div>
+                 </div>
+                 <!-- File List - Apply padding via CSS -->
+                 <div id="drive-viewer-list" class="history-list flex-grow overflow-y-auto">
+                      <!-- Drive items will be dynamically added here -->
+                      <!-- Placeholder text styled via CSS -->
+                      <div class="text-center p-4">Loading...</div>
+                 </div>
+            </div>
+            <!-- END: Content Area -->
+
+             <!-- Footer - Apply background/border via CSS -->
              <div id="drive-viewer-footer" class="flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0">
+                  <!-- Buttons - Keep Tailwind for now -->
                   <button id="drive-viewer-cancel" type="button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
                   <button id="drive-viewer-insert" type="button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>
                        Insert (0)
-                 </button>
-            </div>
+                  </button>
+             </div>
         </div>
     </div>
     <!-- End Drive Viewer Modal -->

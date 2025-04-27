@@ -26,8 +26,7 @@
         "<all_urls>"
       ],
       "js": [
-        "Readability.js",
-        "webScraper.js",
+        "PageExtractor.js",
         "content.js"
       ],
       "type": "module"
@@ -48,7 +47,9 @@
         "sidepanel.html",
         "offscreen.html",
         "offscreen.js",
-        "assets/sidepanel-*.js",
+        "PageExtractor.js",
+        "stage2-helper.js",
+        "assets/*",
         "sidepanel.css",
         "icons/*"
       ],

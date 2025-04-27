@@ -18,55 +18,51 @@ try {
         if (message.type === 'SCRAPE_PAGE' || message.type === 'SCRAPE_ACTIVE_TAB') {
             console.log(`[ContentScript] ${message.type} request received.`);
             try {
-                // --- Create a clone of the document for Readability --- 
-                console.log("[ContentScript] Cloning document...");
-                const documentClone = document.cloneNode(true);
-                console.log("[ContentScript] Document cloned. Calling extractReadableArticle...");
-                // -----------------------------------------------------
+                // REMOVED: Cloning document for Readability
+                // console.log("[ContentScript] Cloning document...");
+                // const documentClone = document.cloneNode(true);
+                // console.log("[ContentScript] Document cloned. Calling extractReadableArticle...");
                 
-                // Call function directly from global scope
-                const article = extractReadableArticle(documentClone); 
+                // --- MODIFIED: Call window.scraper.extract() directly --- 
+                if (typeof window.scraper === 'undefined' || typeof window.scraper.extract !== 'function') {
+                    console.error('TabAgent Content Script: window.scraper.extract not found! Ensure PageExtractor.js is loaded before this script.');
+                    throw new Error('TabAgent Content Script: Scraper functions not found. Was PageExtractor.js injected correctly?');
+                }
+                console.log("[ContentScript] Calling window.scraper.extract()...");
+                const extractedData = window.scraper.extract(); // Call the new function
+                console.log("[ContentScript] window.scraper.extract() completed.");
+                // --------------------------------------------------------
 
-                if (article && article.textContent) { // Check if article and textContent exist
-                    console.log(`[ContentScript] Readability extracted: ${article.title}, Length: ${article.length}`);
-                    // Send back relevant data extracted by Readability
+                // Check if extraction was successful (returned an object)
+                if (extractedData && typeof extractedData === 'object') { 
+                    console.log(`[ContentScript] New scraper extracted: ${extractedData.title}, Text Length: ${extractedData.text?.length}`);
+                    // Send back the full ExtractedContent object
                     sendResponse({
                         success: true,
-                        title: article.title || document.title, // Fallback to document title
-                        textContent: article.textContent,      // Cleaned text
-                        contentHtml: article.content,          // Cleaned HTML (includes images)
-                        excerpt: article.excerpt,
-                        siteName: article.siteName,
-                        byline: article.byline,
-                        lang: article.lang || document.documentElement.lang // Fallback lang
+                        // Keep the existing structure expected by background.js for now
+                        // The background stage will add the method, stage number etc.
+                        title: extractedData.title,
+                        text: extractedData.text,
+                        contentHtml: extractedData.content, // Pass cleaned HTML if available
+                        segments: extractedData.segments,
+                        excerpt: null, // Excerpt not directly in new structure, maybe use metaDescription?
+                        siteName: null, // Not explicitly in new structure
+                        byline: extractedData.author, // Map author
+                        lang: extractedData.language || document.documentElement.lang,
+                        // Pass the whole object for potential future use, but map main fields
+                        _extractedData: extractedData 
                     });
                 } else {
-                     console.warn("[ContentScript] Readability failed. Trying fallback...");
-                     // --- Fallback to simple scraping --- 
-                     // Call function directly from global scope
-                     const simpleText = scrapeSimpleTextFallback(); 
-                     if (simpleText) {
-                          console.log("[ContentScript] Fallback succeeded.");
-                         sendResponse({ 
-                             success: true, // Still success, but indicate fallback was used
-                             wasFallback: true,
-                             title: document.title, // Use document title for fallback
-                             textContent: simpleText,
-                             contentHtml: null, // No clean HTML from fallback
-                             lang: document.documentElement.lang || null
-                          });
-                     } else {
-                          console.error("[ContentScript] Both Readability and fallback scraping failed.");
-                          sendResponse({ success: false, error: "Failed to extract content using Readability or fallback." });
-                     }
-                     // ---------------------------------
+                     console.error("[ContentScript] window.scraper.extract() failed or returned null.");
+                     sendResponse({ success: false, error: "Failed to extract content using window.scraper.extract." });
                 }
+                // REMOVED: Readability fallback logic
 
             } catch (error) {
                 console.error("[ContentScript] Error during scraping process:", error);
                 sendResponse({ success: false, error: error.message });
             }
-            console.log("[ContentScript] Sending response for SCRAPE_PAGE.");
+            // console.log("[ContentScript] Sending response for SCRAPE_PAGE."); // Log is less specific now
             return true; // Indicate async response
         }
 

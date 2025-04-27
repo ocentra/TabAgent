@@ -407,10 +407,95 @@ async function getChatHistoryCount() {
     }
 }
 
+// Function to search chat history titles (basic implementation)
+async function searchChatHistory(searchTerm) {
+    console.log(`DB: Searching history for term: "${searchTerm}"`);
+    try {
+        const isReady = await dbReadyPromise;
+        if (!isReady || !chatHistoryCollection) {
+            throw new Error('Chat history database is not initialized');
+        }
+
+        if (!searchTerm) {
+            return loadAllChatHistory(); // Return all if search term is empty
+        }
+
+        const lowerCaseTerm = searchTerm.toLowerCase();
+
+        // Find documents where the title (case-insensitive) contains the search term
+        const entries = await chatHistoryCollection
+            .find({
+                selector: {
+                    title: {
+                        $regex: new RegExp(lowerCaseTerm, 'i') // Case-insensitive regex search
+                    }
+                }
+            })
+            .sort({ timestamp: 'desc' })
+            .exec();
+
+        console.log(`DB: Found ${entries.length} history entries matching "${searchTerm}".`);
+        return entries.map(doc => doc.toJSON());
+    } catch (error) {
+        console.error(`DB: Error searching chat history for "${searchTerm}":`, error);
+        throw error;
+    }
+}
+
 // --- Export Functions and Initialization Trigger --- 
 
 // Call initializeDb immediately when this module is loaded
 const dbInitializationPromise = initializeDb();
+
+/**
+ * Deletes a specific message from a chat session.
+ * @param {string} sessionId - The ID of the chat session.
+ * @param {string} messageId - The ID of the message to delete.
+ * @returns {Promise<boolean>} - True if deleted, false otherwise.
+ */
+export const deleteMessageFromChat = async (sessionId, messageId) => {
+    await dbInitializationPromise;
+    if (!db || !sessionId || !messageId) {
+        console.error("deleteMessageFromChat: Missing sessionId or messageId");
+        return false;
+    }
+
+    console.log(`DB: Attempting to delete message ID: ${messageId} from chat ID: ${sessionId}`);
+    try {
+        const sessionDoc = await db.chatHistory.findOne(sessionId).exec();
+        if (!sessionDoc) {
+            console.warn(`DB: Cannot delete message, session ${sessionId} not found.`);
+            return false;
+        }
+
+        const messageIndex = sessionDoc.messages.findIndex(msg => msg.messageId === messageId);
+
+        if (messageIndex === -1) {
+            console.warn(`DB: Cannot delete message, message ID ${messageId} not found in session ${sessionId}.`);
+            return false;
+        }
+
+        // Create a new array without the message to delete
+        const updatedMessages = [
+            ...sessionDoc.messages.slice(0, messageIndex),
+            ...sessionDoc.messages.slice(messageIndex + 1)
+        ];
+
+        // Update the document
+        await sessionDoc.incrementalModify((data) => {
+            data.messages = updatedMessages;
+            // Also update the timestamp if needed, though maybe not essential for deletion
+            // data.timestamp = Date.now(); 
+            return data;
+        });
+
+        console.log(`DB: Message ${messageId} deleted successfully from session ${sessionId}.`);
+        return true;
+    } catch (error) {
+        console.error(`DB: Error deleting message ${messageId} from session ${sessionId}:`, error);
+        throw error; // Re-throw the error for the caller to handle
+    }
+};
 
 export {
     dbInitializationPromise, // Export the promise for waiting
@@ -424,5 +509,6 @@ export {
     createChatSession,
     addMessageToChat,
     updateMessageInChat,
-    generateMessageId
+    generateMessageId,
+    searchChatHistory
 }; 

@@ -1,5 +1,5 @@
 // Import necessary functions from db.js
-import { dbInitializationPromise, saveChatHistory, loadAllChatHistory, createChatSession, addMessageToChat, updateMessageInChat, getChatSessionById, generateMessageId } from './db.js';
+import { dbInitializationPromise, /* REMOVED: saveChatHistory, */ loadAllChatHistory, createChatSession, addMessageToChat, updateMessageInChat, getChatSessionById, generateMessageId, deleteMessageFromChat } from './db.js';
 
 // Import function to get the active session ID from sidepanel
 import { getActiveChatSessionId } from './sidepanel.js'; // We need this export from sidepanel.js
@@ -9,33 +9,60 @@ import { showNotification } from './notifications.js'; // Make sure this is impo
 
 // --- Consolidated DOM Element Declarations ---
 let queryInput, sendButton, chatBody, attachButton, fileInput; 
+// Comment out old drive modal elements
+// let driveButton, driveModal, driveModalClose, driveModalCancel, driveModalInsert, driveFileListContainer;
+// let driveModalContent, driveModalHeader, driveModalSelectedArea, driveModalMiddleSection, driveModalFooter; 
 
-// --- Drive Viewer Modal Elements ---
-let driveButton;
-let driveViewerModal, driveViewerClose, driveViewerList, driveViewerCancel, driveViewerInsert, driveViewerSearch, driveViewerSelectedArea, driveViewerBreadcrumbsContainer, driveViewerBack;
+// --- NEW: Drive Viewer Modal Elements ---
+let driveButton; // Keep the main trigger button
+let driveViewerModal, driveViewerClose, driveViewerList, driveViewerCancel, driveViewerInsert, driveViewerSearch, driveViewerSelectedArea, driveViewerBreadcrumbsContainer, driveViewerBack; // Keep selections
 // ------------------------------------
 
-// --- Store the callback from sidepanel ---
-let onSessionCreatedCallback = null;
+// State specific to Home page
+// let currentTabId = null; // Passed during init, keep if needed for context
+// let chatMessages = []; // REMOVED - Source of truth is now DB
 
-// --- State Variables ---
+// --- Store the callback from sidepanel ---
+let onSessionCreatedCallback = null; // <<< ADD
+
+// --- DOM Elements --- 
+let isSendingMessage = false;
 let currentContextTabId = null; 
+
+// --- ADD Drive Modal DOM Elements ---
+// let isDriveModalOpen = false;
+// --- REMOVE/COMMENT OUT unused refs for now ---
+// let currentFolderId = 'root';
+// let currentFolderPath = [{ id: 'root', name: 'Root' }]; 
+// let driveFilesCache = {}; 
+// let selectedDriveFiles = {}; 
 let isFetchingDriveList = false;
-let driveSearchTerm = '';
+let driveSearchTerm = ''; // Restore search term
+// ---------------------------
 
 // --- Drive Viewer Modal State ---
-let isDriveViewerOpen = false;
-let currentFolderId = 'root';
-let currentFolderPath = [{ id: 'root', name: 'Root' }];
-let driveFilesCache = {};
-let selectedDriveFiles = {};
+// let isDriveViewerOpen = false;
+// let currentFolderId = 'root'; // Restore folder tracking
+// let currentFolderPath = [{ id: 'root', name: 'Root' }]; // Restore for breadcrumbs
+// let driveFilesCache = {}; // Restore for caching
+// let selectedDriveFiles = {}; // Restore selection tracking
 // ---------------------------
 
 // --- Constants --- 
-const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+// Please place your API Key from Google Cloud Console here
+const GOOGLE_API_KEY = 'AIzaSyBIEk7rhZdvDXj7HFWKtp4rwSpZD5q8wEc'; // <<< UPDATED
+// Derive App ID from Client ID (remove .apps.googleusercontent.com)
+const GOOGLE_CLIENT_ID = '1054233721282-tvskc3gdni8v4h2u1k2767a9ngbf4ong.apps.googleusercontent.com';
+const GOOGLE_APP_ID = GOOGLE_CLIENT_ID.split('-')[0];
+// REMOVED: const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 
 // --- Global Variables ---
-// Note: The 'gapi' and 'google' objects are NOT expected to be loaded globally in this script anymore.
+// Note: The 'gapi' and 'google' objects become available globally once the Google API script loads.
+let gapiLoaded = false;
+let pickerApiLoaded = false;
+let oauthToken = null; // Store the token after successful auth
+
+const OFFSCRIPT_PATH = 'offscreen.html';
 
 // --- Utility Functions --- 
 function showError(message) {
@@ -69,7 +96,9 @@ function debounce(func, wait) {
 
 // --- Core Home Page Logic --- 
 
-// Render chat messages for a given session ID
+// REMOVED: addMessageToState - Messages added directly to DB
+
+// NEW: Render chat messages for a given session ID
 async function renderChatSession(sessionId) {
     if (!chatBody) return;
     console.log(`Home: Rendering chat session ID: ${sessionId}`);
@@ -109,33 +138,139 @@ const displayMessage = (msg) => {
     if (!chatBody) return;
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('flex', 'mb-2');
-    // Use messageId from DB as the element ID
-    messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random()}`; 
+    messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random()}`;
 
     const bubbleDiv = document.createElement('div');
-    bubbleDiv.classList.add('rounded-lg', 'p-2', 'max-w-xs', 'lg:max-w-md', 'break-words');
-    bubbleDiv.textContent = msg.text; 
+    bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group'); // Added relative, group
+    // Increase max width
+    bubbleDiv.classList.add('max-w-4xl'); // <<< INCREASED MAX WIDTH
 
-    // Apply styling based on sender type or loading state
-    if (msg.isLoading) {
+    // --- Copy Button Container ---
+    const copyButtonContainer = document.createElement('div');
+    copyButtonContainer.className = 'copy-button-container absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity';
+    const copyButton = document.createElement('button');
+    copyButton.innerHTML = `<svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
+    copyButton.className = 'copy-button p-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600';
+    copyButton.title = 'Copy text';
+    copyButton.onclick = (e) => {
+        e.stopPropagation(); // Prevent bubble click events
+        let textToCopy = '';
+        // Find the main content area (might be text, JSON, etc.)
+        const contentElement = bubbleDiv.querySelector('pre code') || bubbleDiv.querySelector('.prose') || bubbleDiv;
+        textToCopy = contentElement.textContent || '';
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => showNotification('Copied!', 'success', 1500))
+            .catch(err => {
+                console.error('Failed to copy:', err);
+                showNotification('Copy failed', 'error', 1500);
+            });
+    };
+    copyButtonContainer.appendChild(copyButton);
+    bubbleDiv.appendChild(copyButtonContainer);
+    // ---------------------------
+
+    let codeElement = null; // Keep track if we create a code element
+
+    // --- Check message type by metadata --- 
+    if (msg.metadata && msg.metadata.type === 'scrape_result') {
+        // --- FINAL Scrape Result Rendering (Scrollable) --- 
+        messageDiv.classList.add('justify-start');
+        bubbleDiv.classList.add('bg-gray-200', 'dark:bg-gray-600', 'p-2');
+
+        const headerDiv = document.createElement('div');
+        headerDiv.classList.add('text-xs', 'font-semibold', 'mb-1', 'text-gray-700', 'dark:text-gray-300');
+        // Display method in header
+        headerDiv.textContent = `Scraped (${msg.metadata.method || 'Unknown'}): ${msg.metadata.title || msg.metadata.url || 'Content'}`;
+        bubbleDiv.appendChild(headerDiv);
+
+        const contentDiv = document.createElement('div');
+        contentDiv.classList.add('overflow-y-auto', 'max-h-64', 'text-sm', 'prose', 'prose-sm', 'dark:prose-invert', 'whitespace-pre-wrap');
+        contentDiv.textContent = msg.text;
+        bubbleDiv.appendChild(contentDiv);
+
+    } else if (msg.metadata && msg.metadata.type === 'scrape_stage_result') {
+        // --- INDIVIDUAL Stage Result Rendering (for comparison) --- 
         messageDiv.classList.add('justify-start'); 
-        bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic', 'message-loading'); 
-    } else if (msg.sender === 'user') {
-        messageDiv.classList.add('justify-end');
-        bubbleDiv.classList.add('bg-blue-500', 'text-white');
-    } else if (msg.sender === 'error') { // Handle error type
-        messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-700', 'dark:text-red-300'); // Error styling
-    } else { // Includes 'ai', 'system' etc.
-        messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add('bg-gray-200', 'dark:bg-gray-600');
+        bubbleDiv.classList.add('p-2');
+
+        const stageHeaderDiv = document.createElement('div');
+        stageHeaderDiv.classList.add('text-xs', 'font-semibold', 'mb-1');
+        
+        if (msg.metadata.success) {
+            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700');
+            bubbleDiv.classList.add('border', 'border-gray-300', 'dark:border-gray-600');
+            stageHeaderDiv.classList.add('text-gray-700', 'dark:text-gray-300');
+            stageHeaderDiv.textContent = `[Stage ${msg.metadata.stage} - ${msg.metadata.method || 'Unknown'} - Success] Length: ${msg.metadata.length || 0}`;
+            bubbleDiv.appendChild(stageHeaderDiv);
+            
+            // --- MODIFIED: Add JSON view --- 
+            const stageContentContainer = document.createElement('div');
+            stageContentContainer.classList.add('overflow-y-auto', 'max-h-64', 'mt-1'); // Use max-h-64 like final result
+            
+            const preElement = document.createElement('pre');
+            // Add Prism theme background class for consistency (optional but recommended)
+            preElement.classList.add('bg-gray-800', 'rounded', 'p-2'); // Example: Using dark bg
+            
+            // ADDED: Create code element for Prism
+            codeElement = document.createElement('code');
+            codeElement.className = 'language-json'; // Set language for Prism
+            
+            // Format the segments (and potentially links) as JSON
+            const dataToShow = {
+                 title: msg.metadata.title || 'N/A',
+                 segments: msg.metadata.segments,
+                 // links: msg.metadata.links // Optionally include links too
+            };
+            codeElement.textContent = JSON.stringify(dataToShow, null, 2);
+            
+            preElement.appendChild(codeElement); // Append code to pre
+            stageContentContainer.appendChild(preElement); // Append pre to container
+            bubbleDiv.appendChild(stageContentContainer);
+            // --- END MODIFICATION --- 
+
+        } else {
+            bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900');
+            stageHeaderDiv.classList.add('text-red-700', 'dark:text-red-300');
+            stageHeaderDiv.textContent = `[Stage ${msg.metadata.stage} - Failed] Error: ${msg.metadata.error || 'Unknown'}`;
+            bubbleDiv.appendChild(stageHeaderDiv);
+        }
+
+    } else {
+        // --- Normal Message Rendering --- 
+        bubbleDiv.classList.add('p-2'); // Add padding for normal messages
+        bubbleDiv.textContent = msg.text;
+
+        if (msg.isLoading) {
+            messageDiv.classList.add('justify-start');
+            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic');
+        } else if (msg.sender === 'user') {
+            messageDiv.classList.add('justify-end');
+            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-900', 'dark:text-gray-100', 'p-2');
+        } else if (msg.sender === 'error') {
+            messageDiv.classList.add('justify-start');
+            bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-700', 'dark:text-red-300', 'p-2');
+        } else { // Includes 'ai', 'system' etc.
+            messageDiv.classList.add('justify-start');
+            bubbleDiv.classList.add('bg-green-100', 'dark:bg-green-900', 'text-green-900', 'dark:text-green-100', 'p-2');
+        }
     }
+    // --- End Rendering Logic --- 
 
     messageDiv.appendChild(bubbleDiv);
-    chatBody.appendChild(messageDiv); 
+    chatBody.appendChild(messageDiv);
+
+    // --- ADDED: Trigger Prism highlighting if code exists ---
+    if (codeElement && window.Prism) {
+        try {
+            Prism.highlightElement(codeElement);
+        } catch (e) {
+            console.error("Prism highlighting failed:", e);
+        }
+    }
+    // ------------------------------------------------------
 };
 
-// Display the initial welcome message
+// NEW: Display the initial welcome message
 const displayWelcomeMessage = () => {
     if (!chatBody) return;
     chatBody.innerHTML = ''; // Clear previous messages
@@ -166,7 +301,7 @@ const adjustTextareaHeight = () => {
     }
 };
 
-// Handle URL Scraping (Database-centric)
+// --- NEW: Handle URL Scraping (Database-centric) --- 
 async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId if needed by background
     let sessionId = getActiveChatSessionId(); // Get current session ID
     let userMessageId = null;
@@ -186,13 +321,13 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
             // First message in a new chat
             console.log("Home: No active session, creating new one for URL message.");
             sessionId = await createChatSession(userMessage);
-            // Call the callback
+            // --- CALL THE CALLBACK --- <<< MODIFY
             if (onSessionCreatedCallback) {
                 onSessionCreatedCallback(sessionId);
             } else {
                 console.error("Home: onSessionCreatedCallback is not defined in handleUrlScrapeRequest!");
             }
-            
+            // --- END CALLBACK CALL --- 
             await renderChatSession(sessionId); 
             userMessageId = sessionId ? (await getChatSessionById(sessionId))?.messages[0]?.messageId : null; // Get ID of the first message
         } else {
@@ -222,7 +357,7 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
         chrome.runtime.sendMessage({
             type: 'TEMP_SCRAPE_URL',
             url: url,
-            tabId: currentTabId,
+            tabId: currentTabId, // Pass context if needed by background
             chatId: sessionId,
             messageId: placeholderMessageId 
         });
@@ -244,8 +379,6 @@ async function handleUrlScrapeRequest(url, currentTabId) { // Pass currentTabId 
         queryInput.disabled = false;
         adjustTextareaHeight();
         sendButton.disabled = queryInput.value.trim() === '';
-    } finally {
-         // isSendingMessage = false; // Reset flag - This seems incorrect here, handled later
     }
 }
 
@@ -308,13 +441,13 @@ const handleSendMessage = async (currentTabId) => {
                 const userMessage = { sender: 'user', text: messageText, timestamp: Date.now(), isLoading: false };
                  if (!sessionId) {
                      sessionId = await createChatSession(userMessage);
-                     // Call the callback
+                     // --- CALL THE CALLBACK --- <<< MODIFY
                      if (onSessionCreatedCallback) {
                          onSessionCreatedCallback(sessionId);
                      } else {
                          console.error("Home: onSessionCreatedCallback is not defined! (Content Script Path)");
                      }
-                     
+                     // ---
                      await renderChatSession(sessionId);
                  } else {
                      userMessageId = await addMessageToChat(sessionId, userMessage);
@@ -334,18 +467,29 @@ const handleSendMessage = async (currentTabId) => {
 
                 // 4. Send message to Content Script
                 chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_ACTIVE_TAB' }, async (response) => {
-                    let updatePayload = { isLoading: false };
+                    // --- MODIFIED: Handle Response from Content Script --- 
+                    let updatePayload = { 
+                        isLoading: false,
+                        sender: 'ai' // Keep sender as 'ai' or choose 'system'/'scrape'
+                    };
                     let success = false;
 
-                    // --- Handle Response from Content Script --- 
                     if (chrome.runtime.lastError) {
                         console.error('Error sending/receiving SCRAPE_ACTIVE_TAB:', chrome.runtime.lastError.message);
                         updatePayload.sender = 'error';
                         updatePayload.text = `Error scraping active tab: ${chrome.runtime.lastError.message}`;
                     } else if (response?.success) {
                         console.log('Received successful scrape from active tab:', response);
-                        updatePayload.sender = 'ai';
-                        updatePayload.text = `Scraped Active Tab: ${response.title || messageText}\n\n${(response.textContent || response.excerpt || 'No text content found.').substring(0, 500)}${ (response.textContent?.length > 500 || response.excerpt?.length > 500) ? '...' : '' }`;
+                        // Store FULL textContent or excerpt
+                        updatePayload.text = response.textContent || response.excerpt || 'No text content found.'; 
+                        // Add metadata
+                        updatePayload.metadata = {
+                            type: 'scrape_result',
+                            method: 'contentScript', // Indicate method
+                            url: inputUrlNormalized, // URL user entered
+                            title: response.title || inputUrlNormalized
+                            // Add other fields from response if available (e.g., response.content)
+                        };
                         success = true;
                     } else {
                         const errorMsg = response?.error || 'Unknown error from content script.';
@@ -353,6 +497,7 @@ const handleSendMessage = async (currentTabId) => {
                         updatePayload.sender = 'error';
                         updatePayload.text = `Scraping active tab failed: ${errorMsg}`;
                     }
+                    // --- END MODIFICATION ---
 
                     // 5. Update Placeholder in DB
                     try {
@@ -361,19 +506,20 @@ const handleSendMessage = async (currentTabId) => {
                     } catch (dbError) {
                        console.error("Home: DB Error updating content script scrape result:", dbError);
                        showError("Failed to save scrape result.");
-                       // Maybe add a new error message instead?
                     }
 
                     // 6. Re-enable input
                     queryInput.disabled = false;
                     adjustTextareaHeight(); 
                     queryInput.focus();
+                    isSendingMessage = false; // <-- RESET FLAG HERE
                 });
 
             } else {
                 // --- URL does NOT match active tab: Use Background Scrape ---
                 console.log("URL does not match active tab. Using background scrape.");
                 handleUrlScrapeRequest(messageText, currentTabId); 
+                // Note: isSendingMessage reset is handled by the background response listener
             }
         } catch (error) {
             console.error("Error checking active tab or processing URL:", error);
@@ -382,12 +528,8 @@ const handleSendMessage = async (currentTabId) => {
             // For now, just show error and re-enable input if it was disabled.
             queryInput.disabled = false;
             adjustTextareaHeight();
-        } finally {
-            // Reset flag ONLY if NOT calling background scrape
-            if (!(activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized)) {
-                 isSendingMessage = false; 
-            }
-        }
+            isSendingMessage = false; // Reset flag on error within try block
+        } 
         return; // Stop further processing 
     }
     // --- End URL Handling ---
@@ -398,13 +540,13 @@ const handleSendMessage = async (currentTabId) => {
         const userMessage = { sender: 'user', text: messageText, timestamp: Date.now(), isLoading: false };
         if (!sessionId) {
             sessionId = await createChatSession(userMessage);
-            // Call the callback
+            // --- CALL THE CALLBACK --- <<< MODIFY
             if (onSessionCreatedCallback) {
                 onSessionCreatedCallback(sessionId);
             } else {
                 console.error("Home: onSessionCreatedCallback is not defined! (Query Path)");
             }
-            
+            // --- 
             await renderChatSession(sessionId);
         } else {
             userMessageId = await addMessageToChat(sessionId, userMessage);
@@ -428,8 +570,10 @@ const handleSendMessage = async (currentTabId) => {
             tabId: currentTabId, // Keep for context if background needs it
             text: messageText,
             model: document.getElementById('model-selector')?.value || 'default',
+            // ---- NEW ----
             chatId: sessionId,
             messageId: placeholderMessageId 
+            // ------------
         };
 
         console.log('Home: Sending query to background:', messagePayload);
@@ -513,14 +657,14 @@ function initializeHomePage(tabId, onSessionCreated) {
     console.log(`[HomeInit] Initializing Home Page elements and listeners. Context TabID: ${tabId}`);
     currentContextTabId = tabId;
     
-    // Store the callback from sidepanel if provided
+    // --- ADD GUARD: Only set callback if it's not already set and is a function --- 
     if (!onSessionCreatedCallback && typeof onSessionCreated === 'function') {
         console.log("[HomeInit] Storing onSessionCreatedCallback.");
         onSessionCreatedCallback = onSessionCreated; 
     } else if (typeof onSessionCreated !== 'function' && !onSessionCreatedCallback) {
          console.warn("[HomeInit] onSessionCreated callback was not provided or already set.");
     }
-    
+    // --- END GUARD --- 
 
     // Assign chat elements
     queryInput = document.getElementById('query-input');
@@ -540,18 +684,23 @@ function initializeHomePage(tabId, onSessionCreated) {
     driveViewerSelectedArea = document.getElementById('drive-viewer-selected-area');
     driveViewerBreadcrumbsContainer = document.getElementById('drive-viewer-breadcrumbs');
     driveViewerBack = document.getElementById('drive-viewer-back');
-    
+    // Comment out assignments for unused elements
+    // driveBreadcrumbsContainer = document.getElementById('drive-breadcrumbs');
+    // driveSelectedFilesContainer = document.getElementById('drive-selected-files');
+    // driveSearchInput = document.getElementById('drive-modal-search'); 
+    // driveModalBack = document.getElementById('drive-modal-back');   
+
     // Attach chat event listeners
     queryInput?.removeEventListener('input', adjustTextareaHeight); // Remove previous if any
     queryInput?.addEventListener('input', adjustTextareaHeight);
     
     queryInput?.removeEventListener('keydown', handleEnterKey);
-    queryInput?.addEventListener('keydown', handleEnterKey);
+    queryInput?.addEventListener('keydown', handleEnterKey); // Use named function
     
     sendButton?.removeEventListener('click', handleSendButtonClick);
-    sendButton?.addEventListener('click', handleSendButtonClick);
+    sendButton?.addEventListener('click', handleSendButtonClick); // Use named function
 
-    // File Attachment Listeners
+    // --- ADD Listeners for File Attachment --- 
     if (attachButton && fileInput) {
         // Remove first to prevent duplicates if init runs again
         attachButton.removeEventListener('click', handleAttachClick);
@@ -562,28 +711,31 @@ function initializeHomePage(tabId, onSessionCreated) {
     } else {
         console.warn("Attach button or file input element not found.");
     }
-    
+    // --- 
 
-    // Google Drive Button Listener
-    driveButton.addEventListener('click', handleDriveConnect);
+    // --- Google Drive Button Listener --- REMOVED
+    // REMOVED: driveButton.addEventListener('click', handleDriveConnect);
 
-    // Drive Viewer Listeners
-    driveButton?.removeEventListener('click', showDriveViewerModal);
-    driveButton?.addEventListener('click', showDriveViewerModal);
-    driveViewerClose?.removeEventListener('click', hideDriveViewerModal);
-    driveViewerClose?.addEventListener('click', hideDriveViewerModal);
-    driveViewerCancel?.removeEventListener('click', hideDriveViewerModal);
-    driveViewerCancel?.addEventListener('click', hideDriveViewerModal);
-    driveViewerSearch?.removeEventListener('input', handleDriveSearchInput);
-    driveViewerSearch?.addEventListener('input', handleDriveSearchInput);
-    driveViewerBack?.removeEventListener('click', handleDriveBackButtonClick);
-    driveViewerBack?.addEventListener('click', handleDriveBackButtonClick);
-    
+    // --- Attach SIMPLIFIED Drive Viewer listeners --- REMOVED
+    // REMOVED: driveButton?.removeEventListener('click', showDriveViewerModal);
+    // REMOVED: driveButton?.addEventListener('click', showDriveViewerModal);
+    // REMOVED: driveViewerClose?.removeEventListener('click', hideDriveViewerModal);
+    // REMOVED: driveViewerClose?.addEventListener('click', hideDriveViewerModal);
+    // REMOVED: driveViewerCancel?.removeEventListener('click', hideDriveViewerModal);
+    // REMOVED: driveViewerCancel?.addEventListener('click', hideDriveViewerModal);
 
-    console.log("Home Page Elements & Listeners Initialized (Drive Viewer - Full Features)." + Date.now());
+    // --- Attach Listeners for NEW Drive Viewer --- REMOVED
+    // REMOVED: driveViewerSearch?.removeEventListener('input', handleDriveSearchInput);
+    // REMOVED: driveViewerSearch?.addEventListener('input', handleDriveSearchInput);
+    // REMOVED: driveViewerBack?.removeEventListener('click', handleDriveBackButtonClick);
+    // REMOVED: driveViewerBack?.addEventListener('click', handleDriveBackButtonClick);
+    // driveViewerInsert?.addEventListener(...); // Add later
+    // ------------------------------------------
+
+    console.log("Home Page Elements & Listeners Initialized." + Date.now()); // Simplified log
 }
 
-// Named Event Handlers for Re-attachment/Removal
+// --- Named Event Handlers for Re-attachment/Removal --- 
 function handleEnterKey(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -595,56 +747,180 @@ function handleSendButtonClick() {
     handleSendMessage(currentContextTabId);
 }
 
-// Handler for Attach Button Click
+// --- ADD Handler for Attach Button Click --- 
 function handleAttachClick() {
     if (fileInput) {
         fileInput.click(); // Programmatically click the hidden file input
     }
 }
+// --- 
 
-// Google Drive Connection Handler (Now just opens modal)
-async function handleDriveConnect() {
-    // This function is currently triggered by the Drive button click,
-    // but the primary action (opening the modal) is handled by showDriveViewerModal,
-    // which is ALSO attached to the same button click in initializeHomePage.
-    // Consider simplifying this - maybe handleDriveConnect *only* checks auth
-    // and then calls showDriveViewerModal, removing the direct listener for showDriveViewerModal.
-    // For now, leaving as is, but it's slightly redundant.
-    console.log("handleDriveConnect called - primarily for potential future auth checks before opening modal.");
-    // We could add auth check logic here if needed before showing the modal.
-    // showDriveViewerModal(); // Or call it from here instead of direct listener
-}
+// --- REVISED: Google Drive Connection Handler - REMOVED ---
+// REMOVED: async function handleDriveConnect() { ... }
 
-// Background Message Listener
+// --- MODIFIED: Background Message Listener ---
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-    // Handle File List Response
-    if (message.type === 'driveFileListResponse') {
-        console.log('Home: Received driveFileListResponse (For Viewer):', message);
-        isFetchingDriveList = false; 
+    console.log("Home: Received message:", message, "from sender:", sender);
 
-        if (!isDriveViewerOpen || message.folderId !== currentFolderId) { 
-            console.warn(`Home: Ignoring driveFileListResponse for folder ${message.folderId}. Current: ${currentFolderId}`);
-            return false;
+    // --- Handle Query (Modified to check sender context) ---
+    if (message.type === 'query') {
+        // ... query handling logic ...
+    }
+    // --- Handle Request for Tab ID ---
+    else if (message.type === 'getTabId') {
+        // ... tab id logic ...
+    }
+    // --- Handle Popup Creation Tracking --- 
+    else if (message.type === 'popupCreated') {
+        // ... popup tracking logic ...
+    }
+    // --- Handle Get Popup for Tab ---
+    else if (message.type === 'getPopupForTab') {
+        // ... get popup logic ...
+    }
+    // --- Handle AI response ---
+    else if (message.type === 'response' && message.chatId && message.messageId) {
+        // --- ADDED: Logic to handle standard AI/Query response ---
+        const { chatId, messageId, text } = message;
+        console.log(`Home: Received 'response' for chat ${chatId}, message ${messageId}`);
+
+        const updatePayload = {
+            isLoading: false,
+            sender: 'ai', // Or 'system' based on desired display
+            text: text || 'Received empty response.' // Ensure text is not empty
+        };
+
+        (async () => {
+            try {
+                await updateMessageInChat(chatId, messageId, updatePayload);
+                console.log(`Home: Updated message ${messageId} in chat ${chatId} with AI response.`);
+
+                // Re-render IF the chat is active
+                if (chatId === getActiveChatSessionId()) {
+                    await renderChatSession(chatId);
+                    // Re-enable input ONLY if this chat is active
+                    if (queryInput) {
+                        queryInput.disabled = false;
+                        adjustTextareaHeight();
+                        queryInput.focus();
+                    }
+                    if (sendButton) {
+                         sendButton.disabled = queryInput.value.trim() === '';
+                    }
+                }
+                // Reset sending flag regardless of active chat, as the request is complete
+                console.log("Home: Resetting isSendingMessage after processing 'response' message.");
+                isSendingMessage = false;
+
+            } catch (dbError) {
+                console.error(`Home: DB Error updating message ${messageId} for 'response' type:`, dbError);
+                showError("Failed to update chat with response.");
+                // Reset flag even on error
+                console.log("Home: Resetting isSendingMessage after DB error on 'response' message.");
+                isSendingMessage = false;
+                 // Consider re-enabling input even on error? Maybe not, to avoid double sends.
+                 if (queryInput && chatId === getActiveChatSessionId()) {
+                     queryInput.disabled = false; // Re-enable input on error too?
+                     adjustTextareaHeight();
+                 }
+            }
+        })();
+        // --- END ADDED LOGIC ---
+    }
+    // --- Handle AI error ---
+    else if (message.type === 'error' && message.chatId && message.messageId) {
+        // ... AI error handling ...
+    }
+    // --- ADD HANDLER for STAGE_SCRAPE_RESULT ---
+    else if (message.type === 'STAGE_SCRAPE_RESULT' && message.payload) {
+        const { stage, success, chatId, messageId: originalPlaceholderId, error, ...resultData } = message.payload;
+        console.log(`Home: Received STAGE_SCRAPE_RESULT for Stage ${stage}, chatId: ${chatId}, placeholderId: ${originalPlaceholderId}`);
+
+        // --- Create a new message object for this stage result --- 
+        const stageResultMessage = {
+            messageId: generateMessageId(chatId),
+            sender: 'system',
+            timestamp: Date.now(),
+            isLoading: false,
+            metadata: { 
+                 type: 'scrape_stage_result',
+                 stage: stage,
+                 originalPlaceholderId: originalPlaceholderId,
+                 success: success // Store success flag here directly
+            }
+        };
+
+        if (success) {
+            // For success, store the structured data we want to inspect
+            stageResultMessage.text = `Stage ${stage} Success (See JSON)`; // Placeholder text
+            stageResultMessage.metadata.title = resultData.title || resultData.url || 'Unknown Title';
+            stageResultMessage.metadata.length = resultData.text?.length || 0; // Use text length from resultData
+            stageResultMessage.metadata.method = resultData.method;
+            // --- STORE STRUCTURED DATA --- 
+            stageResultMessage.metadata.segments = resultData.segments || []; 
+            stageResultMessage.metadata.links = resultData.links || []; 
+            // stageResultMessage.metadata.images = resultData.images || []; // Optionally add others
+            // --------------------------- 
+        } else {
+            // Format error message
+            stageResultMessage.sender = 'error';
+            stageResultMessage.text = `Stage ${stage} Failed: ${error || 'Unknown error.'}`;
+            stageResultMessage.metadata.error = error || 'Unknown error.';
         }
 
-        if (message.success && message.files) {
-            driveFilesCache[message.folderId] = message.files;
-            renderDriveViewerItems(message.files); 
-            } else {
-            showNotification(`Error fetching folder content: ${message.error || 'Unknown error.'}`, 'error');
-            if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${message.error || 'Unknown'}</div>`;
-        }
-        return false; 
-    }
-    
-    // Handle File Content Response
-    else if (message.type === 'driveFileContentResponse') {
-        // ... (Keep existing logic - unrelated to modal layout) ...
-    }
-    
-    // Keep existing handlers for TEMP_SCRAPE_RESULT, response, error
-    // ... (Keep existing logic) ...
+        // --- Add the new message to the database --- 
+        (async () => { // Use async IIFE to handle DB operations
+            try {
+                if (stage === 1) { // Note: Stage 1 is removed, this might need adjustment if stage numbers change
+                    const placeholderUpdate = { text: 'Scraping stages running...' };
+                    await updateMessageInChat(chatId, originalPlaceholderId, placeholderUpdate);
+                    console.log(`Home: Updated placeholder ${originalPlaceholderId} text.`);
+                }
+                
+                await addMessageToChat(chatId, stageResultMessage);
+                console.log(`Home: Added stage ${stage} result message to DB for chat ${chatId}.`);
+                
+                // Delete placeholder after stage 4 is added
+                if (stage === 4) { 
+                    console.log(`Home: Deleting original placeholder message ${originalPlaceholderId} after Stage 4.`);
+                    await deleteMessageFromChat(chatId, originalPlaceholderId);
+                    // Reset sending flag and re-enable input AFTER deletion and BEFORE final render
+                    console.log("Home: Resetting isSendingMessage after processing Stage 4 result.");
+                    isSendingMessage = false;
+                     if (queryInput && chatId === getActiveChatSessionId()) {
+                         queryInput.disabled = false;
+                         adjustTextareaHeight();
+                         queryInput.focus();
+                     }
+                }
 
+                // Re-render IF the chat is active (happens after adding stage msg and potentially after deleting placeholder)
+                if (chatId === getActiveChatSessionId()) {
+                    await renderChatSession(chatId);
+                }
+                
+            } catch (dbError) {
+                console.error(`Home: DB Error handling STAGE_SCRAPE_RESULT (Stage ${stage}):`, dbError);
+                showError(`Failed to record result for Stage ${stage}.`);
+                 if (stage === 4) { 
+                     console.log("Home: Resetting isSendingMessage after DB error on Stage 4.");
+                     isSendingMessage = false; 
+                     if (queryInput && chatId === getActiveChatSessionId()) {
+                         queryInput.disabled = false;
+                         adjustTextareaHeight();
+                     }
+                 }
+            }
+        })();
+
+        return false; // Indicate message processed
+    }
+    // --- End STAGE_SCRAPE_RESULT Handler ---
+
+    else {
+        console.log("Home: Received message not handled by primary handlers:", message.type);
+        return false;
+    }
 });
 
 // Function to load and render a specific chat session (called by sidepanel)
@@ -674,300 +950,24 @@ function resetAndShowWelcomeMessage() {
     if(queryInput) queryInput.focus();
 }
 
-// --- NEW: Drive Viewer Modal Logic --- 
+// --- NEW: Drive Viewer Modal Logic --- REMOVED
+// REMOVED: function showDriveViewerModal() { ... }
+// REMOVED: function hideDriveViewerModal() { ... }
+// REMOVED: function fetchAndDisplayViewerFolderContent(folderId) { ... }
+// REMOVED: function renderDriveViewerItems(items) { ... }
+// REMOVED: function handleDriveItemClick(event) { ... }
+// REMOVED: function updateBreadcrumbs() { ... }
+// REMOVED: function handleBreadcrumbClick(event) { ... }
+// REMOVED: function toggleFileSelection(fileId, element, fileData) { ... }
+// REMOVED: function renderSelectedFiles() { ... }
+// REMOVED: function handleRemoveSelectedFile(event) { ... }
+// REMOVED: function updateInsertButtonState() { ... }
+// REMOVED: const handleDriveSearchInput = debounce(...) { ... }
+// REMOVED: function handleDriveBackButtonClick() { ... }
+// REMOVED: function updateHeaderState() { ... }
+// REMOVED: function getFallbackIcon(mimeType) { ... }
 
-function showDriveViewerModal() {
-    if (!driveViewerModal) return;
-    console.log("Home: Showing Drive Viewer modal.");
-    driveViewerModal.classList.remove('hidden');
-    isDriveViewerOpen = true;
-    // Reset state on open
-    currentFolderId = 'root';
-    currentFolderPath = [{ id: 'root', name: 'Root' }];
-    selectedDriveFiles = {}; 
-    driveFilesCache = {};
-    driveSearchTerm = '';
-    if(driveViewerSearch) driveViewerSearch.value = '';
-    updateInsertButtonState(); 
-    renderSelectedFiles();
-    // Trigger fetch for root folder content
-    fetchAndDisplayViewerFolderContent('root'); 
-}
-
-function hideDriveViewerModal() {
-    if (!driveViewerModal) return;
-    console.log("Home: Hiding Drive Viewer modal.");
-    driveViewerModal.classList.add('hidden');
-    isDriveViewerOpen = false;
-    if (driveViewerList) {
-         driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>`; // Reset list content on close
-    }
-}
-
-// Fetch folder content (includes caching)
-function fetchAndDisplayViewerFolderContent(folderId) {
-    if (!driveViewerList || isFetchingDriveList) return;
-
-    currentFolderId = folderId; 
-    driveSearchTerm = ''; 
-    if(driveViewerSearch) driveViewerSearch.value = '';
-    console.log(`Home: Fetching content for Drive Viewer (Folder: ${folderId})`);
-    isFetchingDriveList = true;
-    driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>`;
-    updateHeaderState();
-    updateBreadcrumbs();
-
-    // Check cache first
-    if (driveFilesCache[folderId]) {
-         console.log(`Home: Using cached content for folder ${folderId}`);
-         renderDriveViewerItems(driveFilesCache[folderId]);
-         isFetchingDriveList = false;
-         return;
-    }
-
-    // Request folder content from background if not cached
-    chrome.runtime.sendMessage({ type: 'requestDriveFileList', folderId: folderId }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.error(`Home: Error sending requestDriveFileList (Viewer - ${folderId}):`, chrome.runtime.lastError.message);
-            showNotification(`Error requesting folder content: ${chrome.runtime.lastError.message}`, 'error');
-            if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content.</div>`;
-             isFetchingDriveList = false;
-        } else if (response && response.success) {
-            console.log(`Home: Background acknowledged requestDriveFileList for Viewer (${folderId}).`);
-            // Wait for the driveFileListResponse message
-        } else {
-            const errorMsg = response?.error || 'Unknown error from background';
-            console.error(`Home: Background reported error for requestDriveFileList (Viewer - ${folderId}):`, errorMsg);
-            showNotification(`Error requesting folder content: ${errorMsg}`, 'error');
-            if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 dark:text-gray-400 p-4">Error loading content.</div>`;
-             isFetchingDriveList = false;
-        }
-    });
-}
-
-// Render folder items
-function renderDriveViewerItems(items) {
-    if (!driveViewerList) return;
-    driveViewerList.innerHTML = ''; 
-
-    const searchTermLower = driveSearchTerm.toLowerCase();
-    const filteredItems = driveSearchTerm
-        ? items.filter(item => item.name.toLowerCase().includes(searchTermLower))
-        : items;
-
-    if (!filteredItems || filteredItems.length === 0) {
-        const msg = driveSearchTerm 
-            ? `No items match "${driveSearchTerm}".` 
-            : "Folder is empty.";
-        driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">${msg}</div>`;
-        return;
-    }
-
-    filteredItems.forEach(item => {
-        const isFolder = item.mimeType === GOOGLE_FOLDER_MIME_TYPE;
-        const itemElement = document.createElement('div');
-        itemElement.className = 'drive-viewer-item'; 
-        itemElement.dataset.id = item.id;
-        itemElement.dataset.name = item.name;
-        itemElement.dataset.mime = item.mimeType;
-
-        // Add selected class if applicable (only for files)
-        if (!isFolder && selectedDriveFiles[item.id]) {
-            itemElement.classList.add('selected');
-        }
-
-        // Icon
-        const iconElement = document.createElement('span');
-        iconElement.className = 'drive-viewer-item-icon';
-        if (item.iconLink) {
-            const img = document.createElement('img');
-            img.src = item.iconLink;
-            img.alt = isFolder ? 'Folder' : 'File';
-            img.className = 'w-5 h-5';
-            img.onerror = () => { iconElement.innerHTML = getFallbackIcon(item.mimeType); };
-            iconElement.appendChild(img);
-        } else {
-            iconElement.innerHTML = getFallbackIcon(item.mimeType);
-        }
-
-        // Name
-        const nameElement = document.createElement('span');
-        nameElement.className = 'flex-grow truncate';
-        nameElement.textContent = item.name;
-        nameElement.title = item.name;
-
-        itemElement.appendChild(iconElement);
-        itemElement.appendChild(nameElement);
-
-        // Add click listener
-        itemElement.addEventListener('click', handleDriveItemClick);
-
-        driveViewerList.appendChild(itemElement);
-    });
-}
-
-// Handle click on folder or file
-function handleDriveItemClick(event) {
-    const itemElement = event.currentTarget;
-    const itemId = itemElement.dataset.id;
-    const itemName = itemElement.dataset.name;
-    const itemMime = itemElement.dataset.mime;
-
-    if (!itemId || !itemName || !itemMime) return;
-
-    if (itemMime === GOOGLE_FOLDER_MIME_TYPE) {
-        // Navigate into folder
-        console.log(`Home: Navigating into folder: ${itemName} (${itemId})`);
-        currentFolderPath.push({ id: itemId, name: itemName });
-        fetchAndDisplayViewerFolderContent(itemId);
-        } else {
-        // Toggle file selection
-        toggleFileSelection(itemId, itemElement, { id: itemId, name: itemName, mimeType: itemMime });
-    }
-}
-
-// Update breadcrumbs display
-function updateBreadcrumbs() {
-    if (!driveViewerBreadcrumbsContainer) return;
-    driveViewerBreadcrumbsContainer.innerHTML = '';
-    currentFolderPath.forEach((folder, index) => {
-        const crumbElement = document.createElement(index === currentFolderPath.length - 1 ? 'span' : 'button');
-        crumbElement.textContent = folder.name;
-        crumbElement.dataset.id = folder.id;
-        crumbElement.dataset.index = index; // Store index for navigation
-        if (index < currentFolderPath.length - 1) {
-            // Apply button styling and add listener for navigation
-            crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer'; // Consider CSS variables
-            crumbElement.addEventListener('click', handleBreadcrumbClick);
-            const separator = document.createElement('span');
-            separator.textContent = ' / ';
-            separator.className = 'mx-1 text-gray-400';
-            driveViewerBreadcrumbsContainer.appendChild(crumbElement);
-            driveViewerBreadcrumbsContainer.appendChild(separator);
-        } else {
-            // Last element is just text (current folder)
-            crumbElement.className = 'font-semibold';
-            driveViewerBreadcrumbsContainer.appendChild(crumbElement);
-        }
-    });
-}
-
-// Handle clicks on breadcrumb links
-function handleBreadcrumbClick(event) {
-    const targetIndex = parseInt(event.currentTarget.dataset.index, 10);
-    const targetFolderId = event.currentTarget.dataset.id;
-
-    if (isNaN(targetIndex) || !targetFolderId) return;
-
-    console.log(`Home: Breadcrumb click - Navigating to index ${targetIndex} (${targetFolderId})`);
-    // Slice the path array up to and including the clicked index
-    currentFolderPath = currentFolderPath.slice(0, targetIndex + 1);
-    fetchAndDisplayViewerFolderContent(targetFolderId);
-}
-
-// Toggle file selection state and UI
-function toggleFileSelection(fileId, element, fileData) {
-    if (selectedDriveFiles[fileId]) {
-        delete selectedDriveFiles[fileId];
-        element?.classList.remove('selected');
-             } else {
-        selectedDriveFiles[fileId] = fileData; 
-        element?.classList.add('selected');
-    }
-    renderSelectedFiles();
-    updateInsertButtonState();
-}
-
-// Render the selected file pills
-function renderSelectedFiles() {
-     if (!driveViewerSelectedArea) return;
-
-     const selectedIds = Object.keys(selectedDriveFiles);
-     const pillContainer = driveViewerSelectedArea.querySelector('.flex-wrap') || driveViewerSelectedArea;
-     pillContainer.innerHTML = ''; // Clear previous pills
-
-     if (selectedIds.length === 0) {
-         // Optionally hide the area or show a placeholder text
-     } else {
-         selectedIds.forEach(id => {
-             const file = selectedDriveFiles[id];
-             const pill = document.createElement('span');
-             pill.className = 'selected-file-item';
-             pill.textContent = file.name;
-             const removeBtn = document.createElement('button');
-             removeBtn.className = 'selected-file-remove';
-             removeBtn.textContent = '×'; // Use times symbol
-             removeBtn.title = `Remove ${file.name}`;
-             removeBtn.dataset.id = id;
-             removeBtn.addEventListener('click', handleRemoveSelectedFile);
-             pill.appendChild(removeBtn);
-             pillContainer.appendChild(pill);
-         });
-     }
-}
-
-// Handle removing a selected file via its pill
-function handleRemoveSelectedFile(event) {
-    const fileId = event.currentTarget.dataset.id;
-    if (fileId && selectedDriveFiles[fileId]) {
-        // Find the corresponding item in the main list to deselect visually
-        const mainListItem = driveViewerList?.querySelector(`.drive-viewer-item[data-id="${fileId}"]`);
-        // Call toggleFileSelection to update state and UI
-        toggleFileSelection(fileId, mainListItem, null);
-    }
-}
-
-// Update the Insert button state (enabled/disabled, count)
-function updateInsertButtonState() {
-     if (!driveViewerInsert) return;
-     const count = Object.keys(selectedDriveFiles).length;
-     driveViewerInsert.disabled = count === 0;
-     driveViewerInsert.textContent = `Insert (${count})`;
-}
-
-// Search Handler (debounced)
-const handleDriveSearchInput = debounce((event) => {
-    driveSearchTerm = event.target.value.trim();
-    console.log(`Home: Filtering Drive items by term: "${driveSearchTerm}"`);
-    if (driveFilesCache[currentFolderId]) {
-        renderDriveViewerItems(driveFilesCache[currentFolderId]);
-    } else {
-        console.warn(`Home: Search triggered but folder ${currentFolderId} not in cache.`);
-        if(driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Folder not cached for search.</div>`;
-    }
-}, 300); 
-
-// Back button handler
-function handleDriveBackButtonClick() {
-    if (currentFolderPath.length <= 1) return; // Already at root
-
-    // Remove the last folder from the path to get the parent
-    const parentFolder = currentFolderPath[currentFolderPath.length - 2]; 
-    // Update the path state *before* fetching
-    currentFolderPath.pop(); 
-    console.log(`Home: Back button click - Navigating to ${parentFolder.name} (${parentFolder.id})`);
-    fetchAndDisplayViewerFolderContent(parentFolder.id);
-}
-
-// Update Header State (Back button visibility)
-function updateHeaderState() {
-    if (!driveViewerBack) return;
-    if (currentFolderPath.length > 1) {
-        driveViewerBack.classList.remove('hidden');
-    } else {
-        driveViewerBack.classList.add('hidden');
-    }
-}
-
-// Generate fallback icon SVG based on mime type
-function getFallbackIcon(mimeType) {
-    // Simple fallback logic
-     if (mimeType === GOOGLE_FOLDER_MIME_TYPE) {
-         return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>';
-     } // TODO: Add more specific mime types (Docs, Sheets, Slides, PDF, Image etc.)
-     // Default file icon
-     return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>';
-}
-
-// Export functions needed by sidepanel.js
+// Export the necessary functions for sidepanel.js
 export { initializeHomePage, loadAndRenderChat, resetAndShowWelcomeMessage }; 
+// Export the initializer function AND chatMessages if needed by history restore
+// export { initializeHomePage, chatMessages, renderChatMessages }; // OLD EXPORT REMOVED 

@@ -11,12 +11,10 @@ import {
     renameHistoryItem, 
     loadChatHistoryPaginated, // Import new DB function
     getChatHistoryCount,      // Import new DB function
-    deleteChatSession,
-    starChatSession,
     searchChatHistory
 } from './db.js'; 
 import { initializeNavigation, navigateTo } from './navigation.js'; // Import navigateTo
-import { initializeHomePage, loadAndRenderChat, resetAndShowWelcomeMessage, resetChatUI } from './home.js'; // Import state/render
+import { initializeHomePage, loadAndRenderChat, resetAndShowWelcomeMessage } from './home.js'; // Import state/render
 // --- Import Download functions --- 
 import { formatChatToHtml, downloadHtmlFile } from './downloadFormatter.js';
 import { showNotification } from './notifications.js'; // Import showNotification
@@ -26,10 +24,6 @@ let currentTabId = null;
 let activeChatSessionId = null;
 let isPopup = false;
 let originalTabIdFromPopup = null;
-const HISTORY_PAGE_SIZE = 10; // How many items to load per page
-let currentHistorySkip = 0;    // How many items have been skipped so far
-let totalHistoryCount = 0;     // Total number of items in the DB
-let isLoadingHistory = false;  // Prevent multiple concurrent loads
 
 // --- Global DOM Elements (Header/Popups) ---
 let historyButton, historyPopup, closeHistoryButton, historySearch, historyList;
@@ -222,161 +216,20 @@ export function renderSingleHistoryItem(entry) {
     return item;
 }
 
-// NEW: Function to load and append the next page of history
-async function loadMoreHistoryItems() {
-    if (isLoadingHistory) return; // Prevent concurrent loads
-    
-    const loadMoreButton = document.getElementById('load-more-history-btn');
-    if (loadMoreButton) {
-         loadMoreButton.textContent = 'Loading...'; // Indicate loading
-         loadMoreButton.disabled = true;
-    }
-    isLoadingHistory = true;
-    console.log(`Global: Loading more history items. Current skip: ${currentHistorySkip}`);
+// --- MOVED History Load/Render Logic - Needs state passed or defined inside DOMContentLoaded ---
+// REMOVED COMMENTED OUT FUNCTIONS FROM HERE
+// ---------------------------------------------------------------------------------------------
 
-    try {
-        // Calculate the correct skip count for the next page
-        const nextSkip = historyList.querySelectorAll('.history-item').length;
-        console.log(`Calculated next skip: ${nextSkip}`); 
-        currentHistorySkip = nextSkip; // Update global skip state
-
-        const historyPage = await loadChatHistoryPaginated(HISTORY_PAGE_SIZE, currentHistorySkip);
-        
-        if (!historyList) return;
-
-        historyPage.forEach(entry => {
-            const itemElement = renderSingleHistoryItem(entry);
-            historyList.appendChild(itemElement); // Append new items
-        });
-        
-        // Update "Load More" button visibility/state
-        updateLoadMoreButtonState(historyPage.length); 
-
-    } catch (error) {
-        console.error('Global: Error loading more history items:', error);
-        showError('Failed to load more history');
-        // Remove button on error
-        if (loadMoreButton) loadMoreButton.remove(); 
-    } finally {
-        isLoadingHistory = false;
-        // Re-enable button ONLY if more items might exist (handled by updateLoadMoreButtonState)
-        const updatedButton = document.getElementById('load-more-history-btn');
-        if(updatedButton) {
-             updatedButton.textContent = 'Load Older Chats';
-             updatedButton.disabled = false; // Re-enable if it still exists
-        }
-    }
-}
-
-// NEW: Helper to manage the "Load More" button state
-function updateLoadMoreButtonState(loadedCount) {
-    const existingButton = document.getElementById('load-more-history-btn');
-    if (existingButton) existingButton.remove(); // Remove previous button first
-
-    const currentlyDisplayedCount = historyList.querySelectorAll('.history-item').length;
-    
-    console.log(`Updating Load More button: Loaded this page: ${loadedCount}, Displayed total: ${currentlyDisplayedCount}, DB total count: ${totalHistoryCount}`);
-
-    // Show button only if we loaded a full page AND there are potentially more items based on total count
-    if (loadedCount === HISTORY_PAGE_SIZE && currentlyDisplayedCount < totalHistoryCount) {
-        const loadMoreButton = document.createElement('button');
-        loadMoreButton.id = 'load-more-history-btn';
-        loadMoreButton.textContent = 'Load Older Chats';
-        loadMoreButton.className = 'load-more-button w-full text-center py-2 mt-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'; // Add styling classes
-        loadMoreButton.addEventListener('click', loadMoreHistoryItems);
-        // Append button within the popup structure, e.g., after the history list
-        historyPopup.querySelector('.history-content').appendChild(loadMoreButton);
-    } else {
-        console.log("Load More button condition not met or all items loaded.");
-    }
-}
-
-// MODIFIED: Render history list (handles initial load and search)
-async function renderHistoryList(filter = '') {
-    console.log(`Global: Rendering history list with filter: "${filter}"`);
-    if (!historyList || isLoadingHistory) { 
-        console.log("History list not found or already loading, skipping render.");
-        return; 
-    }
-
-    isLoadingHistory = true; // Set loading flag
-    const isSearch = filter.trim() !== '';
-    const loadMoreButton = document.getElementById('load-more-history-btn');
-    if (loadMoreButton) loadMoreButton.remove(); // Remove button during initial load/search
-
-    historyList.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Loading...</div>'; // Show loading indicator
-
-    try {
-        if (isSearch) {
-            // --- Search Logic --- //
-            console.log("Performing search...");
-            currentHistorySkip = 0; // Reset skip for search context
-            // Simple Search: Load ALL, then filter in memory.
-            const allHistory = await loadAllChatHistory(); // Using the old function for search simplicity
-            totalHistoryCount = allHistory.length; // Update total count for context
-
-            const filteredHistory = allHistory.filter(entry => {
-                const title = entry.title || '';
-                const searchTerm = filter.toLowerCase();
-                // Basic title search
-                return title.toLowerCase().includes(searchTerm); 
-                // TODO: Consider adding message content search later if needed
-            });
-            
-            historyList.innerHTML = ''; // Clear loading indicator
-
-            if (filteredHistory.length === 0) {
-                 historyList.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400">No results for "${filter}"</div>`;
-            } else {
-                console.log(`Displaying ${filteredHistory.length} search results.`);
-                 // Display ALL filtered results (no pagination for search yet)
-                 filteredHistory.forEach(entry => {
-                     const itemElement = renderSingleHistoryItem(entry);
-                     historyList.appendChild(itemElement);
-                 });
-                 // Do NOT show "Load More" for search results in this simple implementation
-            }
-            // --- End Search Logic --- //
-
-        } else {
-            // --- Initial Load / Load First Page --- //
-            console.log("Performing initial history load.");
-            currentHistorySkip = 0; // Reset skip count for initial load
-            totalHistoryCount = await getChatHistoryCount(); // Get total count from DB
-            const historyPage = await loadChatHistoryPaginated(HISTORY_PAGE_SIZE, currentHistorySkip);
-
-            historyList.innerHTML = ''; // Clear loading indicator
-
-            if (totalHistoryCount === 0) {
-                 historyList.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">No chat history found</div>';
-            } else {
-                console.log(`Displaying first page: ${historyPage.length} of ${totalHistoryCount} items.`);
-                 historyPage.forEach(entry => {
-                     const itemElement = renderSingleHistoryItem(entry);
-                     historyList.appendChild(itemElement);
-                 });
-                 // Add "Load More" button if needed based on total count
-                 updateLoadMoreButtonState(historyPage.length); 
-            }
-            // --- End Initial Load Logic --- //
-        }
-    } catch (error) {
-        console.error('Global: Error rendering history list:', error);
-        historyList.innerHTML = '<div class="p-4 text-center text-red-500">Error loading chat history</div>';
-        showError('Failed to render chat history');
-    } finally {
-         isLoadingHistory = false; // Clear loading flag
-    }
-}
-const debouncedRenderHistoryList = debounce(renderHistoryList, 300);
-
-// --- Detach Logic (Moved to Global Scope) ---
+// --- Detach Logic (Moved to Global Scope - OK as it uses global activeChatSessionId/currentTabId) ---
 async function handleDetach() {
     if (!currentTabId) {
         console.error('Cannot detach: Missing tab ID');
         showError('Cannot detach: Missing tab ID');
         return;
     }
+    // --- REMOVED Check for active session --- 
+    // Allow detaching even if no session is active (will show welcome in popup)
+    const currentSessionId = getActiveChatSessionId(); // Get current session ID (might be null)
 
     // Check if popup already exists
     try {
@@ -390,20 +243,17 @@ async function handleDetach() {
             return; 
         }
 
-        // Save current chat (assuming homeChatMessages reflects current state)
-        // TODO: Need a more robust way to get current chat if not on home page?
-        // For now, assume we only detach from home
-        // await saveCurrentChatToHistory(); // Save function is in db.js now
-
-        // Save state for detached window
-        const storageKey = `detachedState_${currentTabId}`;
+        // --- MODIFIED: Save Session ID (or null) instead of messages ---
+        const storageKey = `detachedSessionId_${currentTabId}`; // Use new key name
         await chrome.storage.local.set({
-            [storageKey]: JSON.stringify(homeChatMessages) // Use exported state
+            [storageKey]: currentSessionId // Save the active session ID (or null)
         });
+        console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+        // --- END MODIFICATION ---
 
         // Create popup
         const popup = await chrome.windows.create({
-            url: chrome.runtime.getURL(`src/sidepanel.html?context=popup&originalTabId=${currentTabId}`),
+            url: chrome.runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
             type: 'popup',
             width: 400,
             height: 600
@@ -429,22 +279,20 @@ async function handleDetach() {
     }
 }
 
-// --- NEW FUNCTION to set active session ID --- 
+// --- Session ID Getters/Setters (OK as they use global activeChatSessionId) ---
 export function setActiveChatSessionId(sessionId) {
     console.log(`Sidepanel: Setting activeChatSessionId to ${sessionId}`);
     activeChatSessionId = sessionId;
 }
 
-// Function passed to home.js to update ID on creation
 function updateActiveSessionId(newId) {
     console.log(`Sidepanel: Updating activeChatSessionId from null to ${newId}`);
     activeChatSessionId = newId;
-    // Optionally: Update any UI elements in sidepanel that depend on the ID?
 }
 
-// Function to get active session ID
+// Ensure this function is defined globally and exported
 export function getActiveChatSessionId() {
-    return activeChatSessionId;
+    return activeChatSessionId; // Access the global variable
 }
 
 // --- DOMContentLoaded --- 
@@ -458,7 +306,531 @@ document.addEventListener('DOMContentLoaded', async () => {
     historySearch = document.getElementById('history-search');
     historyList = document.getElementById('history-list');
     detachButton = document.getElementById('detach-button');
+    const driveButton = document.getElementById('drive-button'); // <<< SELECT driveButton HERE
     // Add other global elements if needed (e.g., settings button if moved from nav)
+
+    // --- ADD: Select Drive Modal Elements Here --- 
+    const driveViewerModal = document.getElementById('drive-viewer-modal');
+    const driveViewerList = document.getElementById('drive-viewer-list');
+    const driveViewerClose = document.getElementById('drive-viewer-close');
+    const driveViewerCancel = document.getElementById('drive-viewer-cancel');
+    const driveViewerSearch = document.getElementById('drive-viewer-search');
+    const driveViewerSelectedArea = document.getElementById('drive-viewer-selected-area');
+    const driveViewerBreadcrumbsContainer = document.getElementById('drive-viewer-breadcrumbs');
+    const driveViewerBack = document.getElementById('drive-viewer-back');
+
+    // --- State Variables DECLARED INSIDE DOMContentLoaded ---
+    let isDriveOpen = false;
+    let isHistoryOpen = false;
+    const HISTORY_PAGE_SIZE = 10; 
+    let currentHistorySkip = 0;    
+    let totalHistoryCount = 0;     
+    let isLoadingHistory = false;  
+    let currentFolderId = 'root'; 
+    let currentFolderPath = [{ id: 'root', name: 'Root' }]; 
+    let driveFilesCache = {}; 
+    let selectedDriveFiles = {}; 
+    let isFetchingDriveList = false;
+    let driveSearchTerm = ''; 
+    // ------------------------------------------------------
+
+    // --- Functions DEFINED INSIDE DOMContentLoaded (can access above state) ---
+    
+    // --- Drive Modal Logic ---
+    function showDriveViewerModal() {
+        if (isDriveOpen) return;
+        if (!driveViewerModal) return;
+        if (isHistoryOpen) { hideHistoryPopup(); }
+        console.log("Sidepanel: Showing Drive Viewer modal."); // Changed log prefix
+        currentFolderId = 'root';
+        currentFolderPath = [{ id: 'root', name: 'Root' }];
+        selectedDriveFiles = {};
+        driveFilesCache = {};
+        driveSearchTerm = '';
+        if(driveViewerSearch) driveViewerSearch.value = '';
+        updateInsertButtonState(); // Added from home.js logic
+        renderSelectedFiles();    // Added from home.js logic
+        fetchAndDisplayViewerFolderContent('root');
+        driveViewerModal.classList.remove('hidden');
+        isDriveOpen = true;
+    }
+
+    function hideDriveViewerModal() {
+        if (!isDriveOpen) return;
+        if (!driveViewerModal) return;
+        console.log("Sidepanel: Hiding Drive Viewer modal."); // Changed log prefix
+        driveViewerModal.classList.add('hidden');
+        isDriveOpen = false;
+        if (driveViewerList) {
+             driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>`; // Reset list content on close
+        }
+    }
+
+    // --- MOVED Drive Item Rendering Logic ---
+    const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'; // Define constant here
+
+    // Render folder items
+    function renderDriveViewerItems(items) {
+        if (!driveViewerList) return;
+        driveViewerList.innerHTML = ''; // Clear previous items
+
+        const searchTermLower = driveSearchTerm.toLowerCase();
+        const filteredItems = driveSearchTerm
+            ? items.filter(item => item.name.toLowerCase().includes(searchTermLower))
+            : items;
+
+        if (!filteredItems || filteredItems.length === 0) {
+            driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">${driveSearchTerm ? 'No results found.' : 'Folder is empty.'}</div>`;
+            return;
+        }
+
+        filteredItems.forEach(item => {
+            const isFolder = item.mimeType === GOOGLE_FOLDER_MIME_TYPE;
+            const itemElement = document.createElement('div');
+            itemElement.className = 'drive-viewer-item flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer';
+            itemElement.dataset.id = item.id;
+            itemElement.dataset.name = item.name;
+            itemElement.dataset.mimeType = item.mimeType;
+            itemElement.dataset.iconLink = item.iconLink || ''; // Store icon link
+
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'flex-shrink-0 w-6 h-6 mr-3 flex items-center justify-center';
+            if (item.iconLink) {
+                iconDiv.innerHTML = `<img src="${item.iconLink}" alt="${isFolder ? 'Folder' : 'File'}" class="w-5 h-5">`;
+            } else {
+                iconDiv.innerHTML = getFallbackIcon(item.mimeType); // Use fallback function
+            }
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'flex-grow truncate';
+            nameSpan.textContent = item.name;
+            nameSpan.title = item.name; // Tooltip for long names
+
+            itemElement.appendChild(iconDiv);
+            itemElement.appendChild(nameSpan);
+
+            // Check if the item is selected
+            if (selectedDriveFiles[item.id]) {
+                itemElement.classList.add('selected'); // Add selected style
+            }
+
+            // Attach click listener
+            itemElement.addEventListener('click', handleDriveItemClick);
+
+            driveViewerList.appendChild(itemElement);
+        });
+    }
+    // --- END MOVED Drive Item Rendering Logic ---
+
+    // Fetch folder content (includes caching)
+    function fetchAndDisplayViewerFolderContent(folderId) {
+        if (!driveViewerList || isFetchingDriveList) return;
+
+        isFetchingDriveList = true;
+        console.log(`Sidepanel: Fetching Drive content for folder: ${folderId}`);
+        updateBreadcrumbs(); // Update breadcrumbs before fetch
+        updateHeaderState(); // Update back button state
+
+        // Show loading indicator in list area
+        driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>`;
+
+        // Check cache first
+        if (driveFilesCache[folderId]) {
+            console.log(`Sidepanel: Using cached content for folder: ${folderId}`);
+            renderDriveViewerItems(driveFilesCache[folderId]);
+            isFetchingDriveList = false;
+            return;
+        }
+
+        // If not cached, request from background script
+        chrome.runtime.sendMessage({
+            type: 'getDriveFileList',
+            folderId: folderId
+        }, (response) => {
+            // Note: The response handling is now done in the main message listener setup later
+            // This function just initiates the request.
+            if (chrome.runtime.lastError) {
+                console.error("Sidepanel: Error sending getDriveFileList message:", chrome.runtime.lastError.message);
+                showError(`Error fetching folder content: ${chrome.runtime.lastError.message}`);
+                 if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
+                 isFetchingDriveList = false; // Ensure flag is reset on send error
+            } else {
+                // No immediate processing here, wait for 'driveFileListResponse' message
+                console.log(`Sidepanel: Sent getDriveFileList request for ${folderId}. Waiting for response...`);
+            }
+        });
+    }
+
+
+    // Handle click on folder or file
+    function handleDriveItemClick(event) {
+        const itemElement = event.currentTarget;
+        const itemId = itemElement.dataset.id;
+        const itemName = itemElement.dataset.name;
+        const mimeType = itemElement.dataset.mimeType;
+        const iconLink = itemElement.dataset.iconLink; // Get icon link
+
+        if (!itemId || !mimeType) {
+            console.error("Sidepanel: Clicked Drive item missing ID or mimeType.");
+            return;
+        }
+
+        if (mimeType === GOOGLE_FOLDER_MIME_TYPE) {
+            // Navigate into folder
+            console.log(`Sidepanel: Navigating into folder: ${itemName} (${itemId})`);
+            currentFolderId = itemId;
+            currentFolderPath.push({ id: itemId, name: itemName }); // Add to path
+            fetchAndDisplayViewerFolderContent(itemId);
+        } else {
+            // Toggle file selection
+            console.log(`Sidepanel: Toggling selection for file: ${itemName} (${itemId})`);
+            toggleFileSelection(itemId, itemElement, { id: itemId, name: itemName, mimeType: mimeType, iconLink: iconLink });
+        }
+    }
+
+    // Update breadcrumbs display
+    function updateBreadcrumbs() {
+        if (!driveViewerBreadcrumbsContainer) return;
+        driveViewerBreadcrumbsContainer.innerHTML = '';
+        currentFolderPath.forEach((folder, index) => {
+            const crumbElement = document.createElement(index === currentFolderPath.length - 1 ? 'span' : 'button');
+            crumbElement.textContent = folder.name;
+            crumbElement.dataset.id = folder.id; // Store ID for navigation
+            crumbElement.dataset.index = index; // Store index for navigation
+            if (index < currentFolderPath.length - 1) {
+                // Apply button styling and add listener for navigation
+                crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer'; // Consider CSS variables
+                crumbElement.addEventListener('click', handleBreadcrumbClick);
+                const separator = document.createElement('span');
+                separator.textContent = ' / ';
+                separator.className = 'mx-1 text-gray-400';
+                driveViewerBreadcrumbsContainer.appendChild(crumbElement);
+                driveViewerBreadcrumbsContainer.appendChild(separator);
+            } else {
+                // Last element is just text (current folder)
+                crumbElement.className = 'font-semibold';
+                driveViewerBreadcrumbsContainer.appendChild(crumbElement);
+            }
+        });
+    }
+
+    // Handle clicks on breadcrumb links
+    function handleBreadcrumbClick(event) {
+        const targetIndex = parseInt(event.currentTarget.dataset.index, 10);
+        const targetFolderId = event.currentTarget.dataset.id;
+
+        if (isNaN(targetIndex) || !targetFolderId) {
+            console.error("Sidepanel: Invalid breadcrumb data.");
+            return;
+        }
+        // Prevent navigating to the current folder via breadcrumb
+        if (targetFolderId === currentFolderId) return;
+
+        console.log(`Sidepanel: Breadcrumb click - Navigating to index ${targetIndex} (${targetFolderId})`);
+        // Slice the path array up to and including the clicked index
+        currentFolderPath = currentFolderPath.slice(0, targetIndex + 1);
+        currentFolderId = targetFolderId; // Update current folder ID
+        fetchAndDisplayViewerFolderContent(targetFolderId);
+    }
+
+    // Toggle file selection state and UI
+    function toggleFileSelection(fileId, element, fileData) {
+        if (selectedDriveFiles[fileId]) {
+            delete selectedDriveFiles[fileId];
+            element?.classList.remove('selected');
+        } else {
+            // Simple selection: just add the file
+            selectedDriveFiles[fileId] = fileData;
+            element?.classList.add('selected');
+        }
+        renderSelectedFiles();
+        updateInsertButtonState();
+    }
+
+    // Render the selected file pills
+    function renderSelectedFiles() {
+         if (!driveViewerSelectedArea) return;
+
+         const selectedIds = Object.keys(selectedDriveFiles);
+         const pillContainer = driveViewerSelectedArea.querySelector('.flex-wrap') || driveViewerSelectedArea; // Use or create container
+         pillContainer.innerHTML = ''; // Clear previous pills
+
+         if (selectedIds.length === 0) {
+             // Optionally hide the area or show a placeholder text
+             driveViewerSelectedArea.classList.add('hidden'); // Hide if empty
+         } else {
+             driveViewerSelectedArea.classList.remove('hidden'); // Show if not empty
+             selectedIds.forEach(id => {
+                 const file = selectedDriveFiles[id];
+                 const pill = document.createElement('span');
+                 // Match styling from home.js diff
+                 pill.className = 'selected-file-item inline-flex items-center bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100 text-xs font-medium mr-2 mb-1 px-2.5 py-0.5 rounded-full';
+                 // Add icon if available
+                 if (file.iconLink) {
+                      pill.innerHTML = `<img src="${file.iconLink}" alt="" class="w-3 h-3 mr-1.5"> ${file.name} `;
+                 } else {
+                     pill.textContent = file.name + ' '; // Add space before button
+                 }
+
+                 const removeBtn = document.createElement('button');
+                 removeBtn.className = 'selected-file-remove ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-200 dark:bg-blue-700 hover:bg-blue-300 dark:hover:bg-blue-600 focus:outline-none';
+                 removeBtn.innerHTML = '&times;'; // Simple 'x'
+                 removeBtn.dataset.id = id;
+                 removeBtn.addEventListener('click', handleRemoveSelectedFile);
+
+                 pill.appendChild(removeBtn);
+                 pillContainer.appendChild(pill);
+             });
+         }
+    }
+
+    // Handle removing a selected file via its pill
+    function handleRemoveSelectedFile(event) {
+        const fileId = event.currentTarget.dataset.id;
+        if (fileId && selectedDriveFiles[fileId]) {
+            delete selectedDriveFiles[fileId];
+            renderSelectedFiles();
+            updateInsertButtonState();
+            // Deselect in the list if visible
+            const listItem = driveViewerList?.querySelector(`.drive-viewer-item[data-id="${fileId}"]`);
+            listItem?.classList.remove('selected');
+        }
+    }
+
+    // Update the Insert button state (enabled/disabled, count)
+    function updateInsertButtonState() {
+         const driveViewerInsert = document.getElementById('drive-viewer-insert'); // Get button inside function
+         if (!driveViewerInsert) return;
+         const count = Object.keys(selectedDriveFiles).length;
+         driveViewerInsert.disabled = count === 0;
+         driveViewerInsert.textContent = `Insert (${count})`;
+    }
+
+    // Search Handler (debounced)
+    const handleDriveSearchInput = debounce((event) => {
+        driveSearchTerm = event.target.value.trim();
+        console.log(`Sidepanel: Filtering Drive items by term: "${driveSearchTerm}"`);
+        // Re-render the *currently cached* items with the filter applied
+        if (driveFilesCache[currentFolderId]) {
+            renderDriveViewerItems(driveFilesCache[currentFolderId]);
+        } else {
+            // If cache is empty for current folder (shouldn't normally happen if already loaded)
+            // maybe trigger a fetch? Or just show 'loading...'
+             driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Enter search term...</div>`;
+        }
+    }, 300); // 300ms debounce
+
+    // Back button handler
+    function handleDriveBackButtonClick() {
+        if (currentFolderPath.length <= 1) return; // Already at root
+
+        const parentFolder = currentFolderPath[currentFolderPath.length - 2]; // Get the second to last item
+        // Update the path state *before* fetching
+        currentFolderPath.pop();
+        currentFolderId = parentFolder.id; // Update current folder ID
+        console.log(`Sidepanel: Back button click - Navigating to ${parentFolder.name} (${parentFolder.id})`);
+        fetchAndDisplayViewerFolderContent(parentFolder.id);
+    }
+
+    // Update Header State (Back button visibility)
+    function updateHeaderState() {
+        if (!driveViewerBack) return;
+        if (currentFolderPath.length > 1) {
+            driveViewerBack.classList.remove('hidden');
+        } else {
+            driveViewerBack.classList.add('hidden');
+        }
+    }
+
+    // Generate fallback icon SVG based on mime type
+    function getFallbackIcon(mimeType) {
+        // Simple fallback logic (copied from home.js diff)
+         if (mimeType === GOOGLE_FOLDER_MIME_TYPE) {
+             return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>';
+         } // TODO: Add more specific mime types (Docs, Sheets, Slides, PDF, Image etc.)
+         // Default file icon
+         return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>';
+    }
+
+    // --- History Popup Logic (DEFINED HERE) ---
+    function hideHistoryPopup() {
+        if (!isHistoryOpen) return;
+        if (!historyPopup) return;
+        console.log("Hiding History popup.");
+        historyPopup.classList.add('hidden');
+        isHistoryOpen = false;
+    }
+    
+    // Function to load and append the next page of history
+    async function loadMoreHistoryItems() {
+        if (isLoadingHistory) return; // Prevent concurrent loads
+
+        const loadMoreButton = document.getElementById('load-more-history-btn');
+        if (loadMoreButton) {
+             loadMoreButton.textContent = 'Loading...'; // Indicate loading
+             loadMoreButton.disabled = true;
+        }
+        isLoadingHistory = true;
+        console.log(`Sidepanel: Loading more history items. Current skip: ${currentHistorySkip}`);
+
+        try {
+            // Calculate the correct skip count for the next page
+            // const nextSkip = historyList.querySelectorAll('.history-item').length; // Original calculation
+            // Use currentHistorySkip directly as it should represent the count already loaded
+             const nextSkip = currentHistorySkip; 
+            console.log(`Calculated next skip: ${nextSkip}`); 
+            // currentHistorySkip = nextSkip; // Update global skip state - Now updated AFTER successful load
+
+            const historyPage = await loadChatHistoryPaginated(HISTORY_PAGE_SIZE, nextSkip);
+            
+            if (!historyList) { // Check if historyList exists
+                 isLoadingHistory = false;
+                 return;
+            }
+
+            historyPage.forEach(entry => {
+                const itemElement = renderSingleHistoryItem(entry); // Uses the global renderSingleHistoryItem
+                historyList.appendChild(itemElement); // Append new items
+            });
+            
+            // Update skip count ONLY after successful load and render
+            currentHistorySkip += historyPage.length;
+            console.log(`Sidepanel: Updated history skip to: ${currentHistorySkip}`);
+
+            // Update "Load More" button visibility/state
+            updateLoadMoreButtonState(historyPage.length); 
+
+        } catch (error) {
+            console.error('Sidepanel: Error loading more history items:', error);
+            showError('Failed to load more history');
+            // Remove button on error
+            if (loadMoreButton) loadMoreButton.remove(); 
+        } finally {
+            isLoadingHistory = false;
+            // Re-enable button ONLY if more items might exist (handled by updateLoadMoreButtonState)
+            const updatedButton = document.getElementById('load-more-history-btn');
+            if(updatedButton) {
+                 updatedButton.textContent = 'Load Older Chats';
+                 // Disable state is managed by updateLoadMoreButtonState
+                 // updatedButton.disabled = false; 
+            }
+        }
+    }
+
+    // Helper to manage the "Load More" button state
+    function updateLoadMoreButtonState(loadedCount) {
+        const existingButton = document.getElementById('load-more-history-btn');
+        if (existingButton) existingButton.remove(); // Remove previous button first
+
+        const currentlyDisplayedCount = historyList?.querySelectorAll('.history-item').length || 0; // Add safe access
+        
+        console.log(`Updating Load More button: Loaded this page: ${loadedCount}, Displayed total: ${currentlyDisplayedCount}, DB total count: ${totalHistoryCount}`);
+
+        // Show button only if there are potentially more items based on total count
+        if (currentlyDisplayedCount < totalHistoryCount) {
+            const loadMoreButton = document.createElement('button');
+            loadMoreButton.id = 'load-more-history-btn';
+            loadMoreButton.textContent = 'Load Older Chats';
+            loadMoreButton.className = 'load-more-button w-full text-center py-2 mt-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'; // Add styling classes
+            loadMoreButton.addEventListener('click', loadMoreHistoryItems);
+            // Append button within the popup structure, e.g., after the history list
+            // Ensure history content div exists
+            const historyContentDiv = historyPopup?.querySelector('.history-content');
+            if (historyContentDiv) {
+                 historyContentDiv.appendChild(loadMoreButton);
+            } else {
+                 console.warn("Could not find .history-content to append load more button.");
+            }
+        } else {
+            console.log("Load More button condition not met or all items loaded.");
+        }
+    }
+
+    // Render history list (handles initial load and search)
+    async function renderHistoryList(filter = '') {
+        console.log(`Sidepanel: Rendering history list with filter: "${filter}"`);
+        // Ensure historyList is selected and available
+        if (!historyList) { 
+            console.error("History list element not found, cannot render.");
+            return; 
+        }
+        // Don't block if already loading, just log it
+        if (isLoadingHistory) {
+            console.log("History is already loading, skipping concurrent render request.");
+            return; 
+        }
+
+        isLoadingHistory = true; // Set loading flag
+        const isSearch = filter.trim() !== '';
+        const loadMoreButton = document.getElementById('load-more-history-btn');
+        if (loadMoreButton) loadMoreButton.remove(); // Remove button during initial load/search
+
+        historyList.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Loading...</div>'; // Show loading indicator
+
+        try {
+            if (isSearch) {
+                // --- Search Logic --- //
+                console.log("Performing history search...");
+                currentHistorySkip = 0; // Reset skip for search context
+                
+                // Perform search using DB function
+                const filteredHistory = await searchChatHistory(filter);
+                totalHistoryCount = filteredHistory.length; // Update total count based on search results
+                
+                historyList.innerHTML = ''; // Clear loading indicator
+
+                if (filteredHistory.length === 0) {
+                     historyList.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400">No results for "${filter}"</div>`;
+                } else {
+                    console.log(`Displaying ${filteredHistory.length} search results.`);
+                     // Display ALL filtered results (no pagination for search yet)
+                     filteredHistory.forEach(entry => {
+                         const itemElement = renderSingleHistoryItem(entry); // Use global render function
+                         historyList.appendChild(itemElement);
+                     });
+                     // Do NOT show "Load More" for search results in this implementation
+                }
+                // --- End Search Logic --- //
+
+            } else {
+                // --- Initial Load / Load First Page --- //
+                console.log("Performing initial history load.");
+                currentHistorySkip = 0; // Reset skip count for initial load
+                totalHistoryCount = await getChatHistoryCount(); // Get total count from DB
+                const historyPage = await loadChatHistoryPaginated(HISTORY_PAGE_SIZE, currentHistorySkip);
+
+                historyList.innerHTML = ''; // Clear loading indicator
+
+                if (totalHistoryCount === 0) {
+                     historyList.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">No chat history found</div>';
+                } else {
+                    console.log(`Displaying first page: ${historyPage.length} of ${totalHistoryCount} items.`);
+                     historyPage.forEach(entry => {
+                         const itemElement = renderSingleHistoryItem(entry); // Use global render function
+                         historyList.appendChild(itemElement);
+                     });
+                     // Update skip count after initial load
+                     currentHistorySkip = historyPage.length;
+                      console.log(`Sidepanel: Updated history skip after initial load to: ${currentHistorySkip}`);
+                     // Add "Load More" button if needed based on total count
+                     updateLoadMoreButtonState(historyPage.length); 
+                }
+                // --- End Initial Load Logic --- //
+            }
+        } catch (error) {
+            console.error('Sidepanel: Error rendering history list:', error);
+            historyList.innerHTML = '<div class="p-4 text-center text-red-500">Error loading chat history</div>';
+            showError('Failed to render chat history');
+        } finally {
+             isLoadingHistory = false; // Clear loading flag
+        }
+    }
+    // Other history helpers (loadMoreHistoryItems, updateLoadMoreButtonState) NEED TO BE MOVED/DEFINED HERE
+    // const debouncedRenderHistoryList = debounce(renderHistoryList, 300); // Define debounced version here
+    const debouncedRenderHistoryList = debounce(renderHistoryList, 300); // Uses the globally defined debounce
+
+    // --- END FUNCTION DEFINITIONS ---
+
 
     // 1. Determine Context and Get Tab ID
     const urlParams = new URLSearchParams(window.location.search);
@@ -470,25 +842,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentTabId = originalTabIdFromPopup; 
         console.log(`Sidepanel: Running in POPUP mode for original tab ${currentTabId}`);
         detachButton.style.display = 'none'; // Hide detach in popup
-        // TODO: Popups need to load based on session ID too. 
-        // For now, popup loading might be broken until detach is refactored.
-        // Attempt to load session ID instead of raw messages
+        
+        // --- MODIFIED: Load Session ID for Popup --- 
         try {
-            const storageKey = `detachedState_${currentTabId}`; // Key might need changing
+            const storageKey = `detachedSessionId_${currentTabId}`; // Use the key set during detach
             const result = await chrome.storage.local.get([storageKey]);
             if (result[storageKey]) {
-                 console.log(`Sidepanel: Found detached state for popup (tab ${currentTabId})`);
-                 // Assuming the stored state is now the sessionId
-                 // activeChatSessionId = result[storageKey]; 
-                 // OR if it's still messages, need to handle that transition
-                 // For now, commenting out popup loading logic until detach is revisited
-                 console.warn("Popup loading logic needs refactoring for session IDs.");
-                 // initialMessages = JSON.parse(result[storageKey]); 
-                 await chrome.storage.local.remove(storageKey); 
+                 const restoredSessionId = result[storageKey];
+                 console.log(`Sidepanel: Found detached session ID ${restoredSessionId} for popup (tab ${currentTabId})`);
+                 activeChatSessionId = restoredSessionId; // <<< SET the active session ID
+                 await chrome.storage.local.remove(storageKey); // Clean up storage
+            } else {
+                 console.warn(`Sidepanel: No detached session ID found in storage for key ${storageKey}. Popup might not load correctly.`);
+                 // Keep activeChatSessionId as null/undefined, maybe show welcome?
             }
         } catch (error) {
-            console.error(`Sidepanel: Error loading detached state for popup:`, error);
+            console.error(`Sidepanel: Error loading detached session state for popup:`, error);
         }
+        // --- END MODIFICATION ---
 
     } else {
         isPopup = false;
@@ -540,32 +911,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 4. Initialize the Home Page - PASS THE CALLBACK
     const newChatButton = document.getElementById('new-chat-button'); // Get button reference
     initializeHomePage(currentTabId, updateActiveSessionId); // Pass the function
-    if (!activeChatSessionId) {
-        resetAndShowWelcomeMessage(); 
-    }
-    // TODO: Add logic here to load the *last active* session ID from storage if desired.
     
+    // --- MODIFIED: Load correct chat based on activeChatSessionId --- 
+    if (activeChatSessionId) {
+        console.log(`Sidepanel: Loading initial chat session: ${activeChatSessionId}`);
+        loadAndRenderChat(activeChatSessionId); // Load the restored/active session
+    } else if (!isPopup) {
+        // Only show welcome in side panel if no session ID is active
+        // Popups without a session ID might indicate an error or cleared storage
+        console.log("Sidepanel: No active session ID found, showing welcome message.");
+        resetAndShowWelcomeMessage(); 
+    } else {
+        // If it IS a popup and no session ID was found, log a warning
+        console.warn("Sidepanel: Popup context loaded without an active session ID. Showing welcome/error state.");
+        // You might want a specific error display here instead of just welcome
+        resetAndShowWelcomeMessage();
+    }
+    // --- END MODIFICATION ---
 
-    // 5. Setup Global Event Listeners (History, Detach, NEW CHAT)
+    // 5. Setup Global Event Listeners (using functions defined above)
     historyButton?.addEventListener('click', async () => {
-        const isHidden = historyPopup?.classList.contains('hidden');
-        if (isHidden) {
-            console.log('Global: Showing history popup.');
+        console.log(`[HistoryBtn] Clicked. isHistoryOpen: ${isHistoryOpen}, isDriveOpen: ${isDriveOpen}`); // Log initial state
+        // Use state variable to check if hidden
+        if (!isHistoryOpen) {
+            // **CORRECTED**: Close Drive if open
+            if (isDriveOpen) { 
+                console.log("[HistoryBtn] Drive is open, attempting to hide."); // Log before hide call
+                hideDriveViewerModal();
+            }
+            // Show History
+            console.log('[HistoryBtn] Proceeding to show history.'); // Log before show
             historySearch.value = ''; // Clear search on open
             try {
-                // Call renderHistoryList WITHOUT filter for initial load
                 await renderHistoryList(); 
+                console.log("[HistoryBtn] Removing hidden class from historyPopup."); // Log before class remove
                 historyPopup?.classList.remove('hidden');
+                isHistoryOpen = true; // Set state AFTER showing
+                console.log(`[HistoryBtn] State set. isHistoryOpen: ${isHistoryOpen}`); // Log state change
             } catch (error) { /* Error handled in renderHistoryList */ }
         } else {
-            console.log('Global: Hiding history popup.');
-            historyPopup?.classList.add('hidden');
+            // Hide History
+            console.log("[HistoryBtn] History is open, hiding."); // Log hide action
+            hideHistoryPopup();
         }
     });
 
     closeHistoryButton?.addEventListener('click', () => {
-        console.log('Global: Close history button clicked.');
-        historyPopup?.classList.add('hidden');
+        // Use the dedicated hide function
+        hideHistoryPopup();
+    });
+
+    // --- MOVED: Listener for clicking outside popups INSIDE DOMContentLoaded ---
+    document.addEventListener('click', (event) => {
+        // Use optional chaining and check state variables
+        if (isHistoryOpen && historyPopup && !historyPopup.contains(event.target) && historyButton && !historyButton.contains(event.target)) {
+            hideHistoryPopup();
+        }
+        // Use optional chaining and check state variables
+        if (isDriveOpen && driveViewerModal && !driveViewerModal.contains(event.target) && driveButton && !driveButton.contains(event.target)) {
+             hideDriveViewerModal();
+        }
     });
 
     historySearch?.addEventListener('input', (e) => {
@@ -589,30 +994,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     // --- END NEW CHAT BUTTON LISTENER --- 
 
-    // Placeholder listeners (can stay here or move to specific page modules if relevant)
-    // document.getElementById('drive-button')?.addEventListener('click', () => alert('Google Drive integration coming soon!')); // Handled in home.js now
+    // --- ADD Listeners for File Attachment --- 
+    // ... (file attachment listeners) ...
 
+    // --- Google Drive Button Listener --- 
+    // Ensure this listener calls showDriveViewerModal
+    driveButton?.removeEventListener('click', showDriveViewerModal); // Remove previous direct listener if any
+    
+    // Use an inline function to call showDriveViewerModal AND stop propagation
+    const handleDriveButtonClick = (event) => {
+        event.stopPropagation(); // <<< Stop the event from bubbling to the document
+        showDriveViewerModal(); 
+    };
+    driveButton?.removeEventListener('click', handleDriveButtonClick); // Remove if already added
+    driveButton?.addEventListener('click', handleDriveButtonClick);
 
-    // 6. Setup Background Message Listener (Simplified)
+    // Add listeners for Drive Modal's internal close/cancel buttons
+    driveViewerClose?.addEventListener('click', hideDriveViewerModal);
+    driveViewerCancel?.addEventListener('click', hideDriveViewerModal);
+
+    // --- ADD Drive Search/Back Listeners ---
+    driveViewerSearch?.addEventListener('input', handleDriveSearchInput); // Use the defined handler
+    driveViewerBack?.addEventListener('click', handleDriveBackButtonClick); // Use the defined handler
+    // ---------------------------------------
+
+    // 6. Setup Background Message Listener (Needs access to local state/functions)
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log("Sidepanel received message from background:", message);
 
-        // --- Route messages based on type --- 
-        // REMOVE forwarding logic for types handled by home.js
-        // Handle only global messages specific to sidepanel if needed
-        if (message.type === 'some_other_global_message') {
-            // handleGlobalMessage(message);
-        } else {
-            // Log unhandled messages but don't assume error
-             if (message.type !== 'TEMP_SCRAPE_RESULT' && message.type !== 'response' && message.type !== 'error') {
-                 console.log("Sidepanel: Received message not handled by sidepanel listener:", message.type);
-             }
-        }
+        if (message.type === 'driveFileListResponse') {
+            console.log(`Sidepanel: Handling driveFileListResponse for folder: ${message.folderId}`);
+            isFetchingDriveList = false; // <<< Now correctly updates local state
 
-        return false; // Assume sync handling for now
+             // Check if the modal is still open and focused on the correct folder
+            if (!isDriveOpen || message.folderId !== currentFolderId) {
+                console.warn(`Sidepanel: Ignoring driveFileListResponse for folder ${message.folderId}. Current: ${currentFolderId}, IsOpen: ${isDriveOpen}`);
+                return false; // Indicate sync handling, no response needed
+            }
+
+            if (message.success && message.files) {
+                driveFilesCache[message.folderId] = message.files;
+                // Call the render function which is now defined in this scope
+                renderDriveViewerItems(message.files);
+            } else {
+                // Show error in the list area
+                const errorMsg = message.error || 'Unknown error fetching files.';
+                console.error(`Sidepanel: Drive file list error for ${message.folderId}: ${errorMsg}`);
+                showError(`Error fetching folder content: ${errorMsg}`); // Show notification
+                if (driveViewerList) { // Update UI to show error
+                    driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${errorMsg}</div>`;
+                }
+            }
+        }
+        // ... (other message types) ...
+        return false; // Indicate synchronous handling or no response needed
     });
 
     console.log("Sidepanel Initialization Complete.");
+
+    // --- Load PrismJS Scripts --- 
+    try {
+        const prismCore = document.createElement('script');
+        prismCore.src = 'assets/prism.js';
+        prismCore.onload = () => {
+            console.log('Prism Core loaded.');
+            // Load JSON component *after* core is loaded
+            const prismJson = document.createElement('script');
+            prismJson.src = 'assets/prism-json.min.js';
+            prismJson.onload = () => console.log('Prism JSON component loaded.');
+            prismJson.onerror = () => console.error('Failed to load Prism JSON component.');
+            document.body.appendChild(prismJson);
+        };
+        prismCore.onerror = () => console.error('Failed to load Prism Core.');
+        document.body.appendChild(prismCore);
+    } catch (e) {
+        console.error('Error loading Prism scripts:', e);
+    }
+    // --------------------------
 
     // --- Event Listeners for History Actions --- //
     historyList.addEventListener('click', async (e) => {
@@ -781,19 +1239,29 @@ document.addEventListener('DOMContentLoaded', async () => {
              if (target.closest('.history-item-rename-input')) {
                  return;
              }
-             console.log(`History: Item body clicked for ${itemId}, loading chat.`);
-             if (itemId === activeChatSessionId) {
-                 console.log(`Chat ${itemId} already active.`);
+             
+             // --- Defensive Re-read of itemId ---
+             const currentItemId = historyItem.dataset.id; // Re-read ID inside this block
+             if (!currentItemId) { // Add extra safety check
+                 console.error("History Load Error: Could not get valid itemId from clicked item element.");
+                 return;
+             }
+             // --- End Defensive Re-read ---
+
+             console.log(`History: Item body clicked for ${currentItemId}, loading chat.`);
+             if (currentItemId === activeChatSessionId) {
+                 console.log(`Chat ${currentItemId} already active.`);
                  historyPopup?.classList.add('hidden');
                  return;
              }
              try {
-                 setActiveChatSessionId(itemId);
-                 await loadAndRenderChat(activeChatSessionId);
+                 setActiveChatSessionId(currentItemId); // Use the re-read ID
+                 await loadAndRenderChat(currentItemId); // Use the re-read ID
                  navigateTo('page-home');
                  historyPopup?.classList.add('hidden');
              } catch (error) {
-                 console.error(`Error loading chat ${itemId} from history click:`, error);
+                 // Use the re-read ID in the error message as well
+                 console.error(`Error loading chat ${currentItemId} from history click:`, error);
                  showNotification(`Failed to load chat: ${error.message}`, 'error');
              }
         }

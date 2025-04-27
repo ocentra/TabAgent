@@ -1,7 +1,5 @@
 console.log("[Offscreen Script Start] Executing offscreen.js");
 
-import { Readability } from '@mozilla/readability';
-
 // Keep track of the iframe we create
 let scrapingIframe = null;
 const IFRAME_ID = 'scraping-iframe';
@@ -17,59 +15,14 @@ console.log("[Offscreen Script] Adding runtime.onMessage listener...");
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Offscreen: Received message:', message);
     // This document now ONLY handles parsing/iframe tasks
-    if (message.target !== 'offscreen' && message.type !== 'parseHTML' && message.type !== 'createIframe' && message.type !== 'removeIframe') {
-        console.log('Offscreen: Ignoring message not intended for parsing/iframe document:', message.type);
+    if (message.target !== 'offscreen' && message.type !== 'createIframe' && message.type !== 'removeIframe') {
+        console.log('Offscreen: Ignoring message not intended for iframe document:', message.type);
         return false; // Ignore messages not intended for this offscreen document
     }
 
     switch (message.type) {
         // REMOVED case 'showGooglePicker' - Handled by google_drive_offscreen.js
         // case 'showGooglePicker': ...
-        case 'parseHTML':
-            console.log('[Offscreen] Handling parseHTML.');
-            if (typeof message.htmlContent !== 'string') {
-                 console.error('[Offscreen] Invalid HTML content received.');
-                 // Ensure response is sent even on validation failure
-                 sendResponse({ success: false, error: 'Invalid HTML content provided.' }); 
-                 return false; 
-            }
-
-            try {
-                console.log('[Offscreen] Creating DOMParser...');
-                const parser = new DOMParser();
-                console.log('[Offscreen] Parsing HTML string...');
-                const doc = parser.parseFromString(message.htmlContent, 'text/html');
-                console.log('[Offscreen] HTML parsing done.');
-
-                if (!doc || !doc.body || doc.body.innerHTML.trim() === '') {
-                     console.error('[Offscreen] DOMParser failed to parse HTML or resulted in empty body.');
-                     sendResponse({ success: false, error: 'Failed to parse HTML content meaningfully.' });
-                     return false;
-                }
-                console.log('[Offscreen] Document seems valid. Instantiating Readability...');
-                
-                // Use Readability
-                const reader = new Readability(doc);
-                console.log('[Offscreen] Calling reader.parse()...');
-                const article = reader.parse();
-                console.log('[Offscreen] reader.parse() returned.', article === null ? 'null' : 'object');
-
-                console.log('[Offscreen] Readability parsing complete. Sending response...');
-                // Send the parsed article object back
-                sendResponse({ success: true, article: article });
-                console.log('[Offscreen] Response sent (success/article).');
-
-            } catch (error) {
-                console.error('[Offscreen] Error during parsing process:', error);
-                // Ensure response is sent on error
-                sendResponse({ success: false, error: error.message || 'Unknown error during parsing.' });
-                console.log('[Offscreen] Response sent (error).');
-            }
-            
-            // Return true MUST be outside the try/catch to ensure it's always reached
-            // if the message type was handled, allowing async sendResponse.
-            console.log('[Offscreen] Returning true to indicate async response.');
-            return true; 
         case 'createIframe':
             console.log('[Offscreen] ENTERING createIframe handler...');
             console.log(`[Offscreen] Handling createIframe for URL: ${message.url}`);

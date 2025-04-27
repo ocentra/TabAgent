@@ -16,6 +16,7 @@
   "description": "",
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.4",
+    "prismjs": "^1.30.0",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4.1.4",
     "vite": "^6.3.3",

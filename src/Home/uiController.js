@@ -1,36 +1,32 @@
-// src/uiController.js
+import { eventBus } from '../eventBus.js';
+import { DbStatusUpdatedNotification, DbSessionUpdatedNotification } from '../events/dbEvents.js';
 
-let queryInput, sendButton, chatBody, attachButton, fileInput;
+let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement;
 let isInitialized = false;
-let sendMessageCallback = null;
 let attachFileCallback = null;
+let currentSessionId = null;
 
-//  Selects and stores references to key UI elements upon initialization.
 function selectElements() {
     queryInput = document.getElementById('query-input');
     sendButton = document.getElementById('send-button');
     chatBody = document.getElementById('chat-body');
     attachButton = document.getElementById('attach-button');
     fileInput = document.getElementById('file-input');
-
-    if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput) {
-        console.error("UIController: One or more essential elements not found!");
+    loadingIndicatorElement = document.getElementById('loading-indicator');
+    if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
+        console.error("UIController: One or more essential elements not found (excluding session list)!");
         return false;
     }
     return true;
 }
-
 
 function attachListeners() {
     queryInput?.addEventListener('input', adjustTextareaHeight);
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
-    // Note: The fileInput 'change' listener is handled separately (e.g., in fileHandler or main init)
-    // fileInput?.addEventListener('change', handleFileChange); <--- Not here usually
 }
 
-//  Removes event listeners to prevent memory leaks when the UI is re-initialized or destroyed.
 function removeListeners() {
     queryInput?.removeEventListener('input', adjustTextareaHeight);
     queryInput?.removeEventListener('keydown', handleEnterKey);
@@ -38,111 +34,150 @@ function removeListeners() {
     attachButton?.removeEventListener('click', handleAttachClick);
 }
 
-//  Handles Enter key press in the textarea to trigger sending the message.
 function handleEnterKey(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-        if (sendMessageCallback) {
-            sendMessageCallback(); // Call the provided callback
+        const messageText = getInputValue();
+        if (messageText && !queryInput.disabled) {
+            console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
+            eventBus.publish('ui:querySubmitted', { text: messageText });
+            clearInput();
+        } else {
+             console.log("[UIController] Enter key pressed, but input is empty or disabled.");
         }
     }
 }
 
-//  Handles the click event on the send button to trigger sending the message.
 function handleSendButtonClick() {
-    if (sendMessageCallback) {
-        sendMessageCallback(); // Call the provided callback
+    const messageText = getInputValue();
+    if (messageText && !queryInput.disabled) {
+        console.log("[UIController] Send button clicked. Publishing ui:querySubmitted");
+        eventBus.publish('ui:querySubmitted', { text: messageText });
+        clearInput();
+    } else {
+        console.log("[UIController] Send button clicked, but input is empty or disabled.");
     }
 }
 
-//  Handles the click event on the attach button, delegating to the provided callback.
 function handleAttachClick() {
     if (attachFileCallback) {
-        attachFileCallback(); // Call the provided callback (likely triggers file input)
+        attachFileCallback();
     }
 }
 
-//  Dynamically adjusts the height of the input textarea based on its content.
 export function adjustTextareaHeight() {
     if (!queryInput) return;
     queryInput.style.height = 'auto';
-    const maxHeight = 150; // Consider making this configurable
+    const maxHeight = 150;
     const scrollHeight = queryInput.scrollHeight;
     queryInput.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
-    // Update send button state based on input value and disabled state
     if (sendButton) {
         sendButton.disabled = queryInput.value.trim() === '' || queryInput.disabled;
     }
 }
 
-// --- Public API ---
-
-//  Sets up the UI controller, selects elements, and attaches listeners. Accepts callbacks for actions.
-export function initializeUI(callbacks) {
-    console.log("[UIController] Initializing...");
-    if (isInitialized) {
-        console.warn("[UIController] Already initialized. Removing old listeners.");
-        removeListeners(); // Clean up previous listeners if re-initializing
+function setInputStateInternal(status) {
+    console.log(`[UIController] setInputStateInternal called with status: ${status}`);
+    if (!isInitialized || !queryInput || !sendButton) return;
+    switch (status) {
+        case 'processing':
+            queryInput.disabled = true;
+            sendButton.disabled = true;
+            break;
+        case 'error':
+        case 'idle':
+        case 'complete':
+        default:
+            queryInput.disabled = false;
+            adjustTextareaHeight();
+            break;
     }
-
-    if (!selectElements()) {
-        isInitialized = false;
-        return null; // Return null or throw error if elements are missing
-    }
-
-    // Store callbacks provided by the main script
-    sendMessageCallback = callbacks?.onSendMessage; // Expects a function
-    attachFileCallback = callbacks?.onAttachFile;   // Expects a function
-
-    attachListeners();
-    adjustTextareaHeight(); // Set initial height and button state
-    isInitialized = true;
-    console.log("[UIController] Initialized successfully.");
-
-    // Return references to elements that might be needed externally (e.g., chatBody for renderer)
-    return { queryInput, sendButton, chatBody, attachButton, fileInput };
+    console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
 }
 
-//  Checks if the UI controller has been successfully initialized.
+function showLoadingIndicatorInternal(message = 'Loading...') {
+    if (loadingIndicatorElement) {
+        loadingIndicatorElement.textContent = message;
+        loadingIndicatorElement.classList.remove('hidden');
+    }
+}
+
+function hideLoadingIndicatorInternal() {
+    if (loadingIndicatorElement) {
+        loadingIndicatorElement.classList.add('hidden');
+    }
+}
+
+function handleStatusUpdate(notification) {
+    if (!isInitialized || !notification || !notification.sessionId || !notification.payload) return;
+    if (notification.sessionId === currentSessionId) {
+        setInputStateInternal(notification.payload.status || 'idle');
+    }
+}
+
+export async function initializeUI(callbacks) {
+    console.log("[UIController] Initializing...");
+    if (isInitialized) {
+        console.warn("[UIController] Already initialized. Removing old listeners and subscriptions.");
+        removeListeners();
+        eventBus.unsubscribe(DbStatusUpdatedNotification.name, handleStatusUpdate);
+    }
+    if (!selectElements()) {
+        isInitialized = false;
+        return null;
+    }
+    attachFileCallback = callbacks?.onAttachFile;
+    
+    attachListeners();
+    
+    const newChatButton = document.getElementById('new-chat-button');
+    if (newChatButton && callbacks?.onNewChat) {
+        newChatButton.addEventListener('click', callbacks.onNewChat);
+    }
+
+    eventBus.subscribe(DbStatusUpdatedNotification.name, handleStatusUpdate);
+    console.log("[UIController] Subscribed to DB Status notifications.");
+
+    isInitialized = true;
+    setInputStateInternal('idle');
+    adjustTextareaHeight();
+    console.log("[UIController] Initialized successfully.");
+
+    console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
+    return { chatBody, queryInput, sendButton, attachButton, fileInput };
+}
+
+export function setActiveSession(sessionId) {
+    console.log(`[UIController] Setting active session for UI state: ${sessionId}`);
+    currentSessionId = sessionId;
+    // Still update input state based on active session
+    if (!sessionId) {
+        setInputStateInternal('idle'); 
+    } 
+    // We might still want to trigger setInputStateInternal(status) if we load an existing session
+    // but that should happen based on DbStatusUpdatedNotification for the loaded session.
+}
+
 export function checkInitialized() {
     return isInitialized;
 }
 
-//  Provides controlled access to the current value of the query input.
 export function getInputValue() {
-    // Return trimmed value or empty string if input doesn't exist
     return queryInput?.value.trim() || '';
 }
 
-//  Clears the content of the query input.
 export function clearInput() {
     console.log("[UIController] Entering clearInput function.");
     if (queryInput) {
         queryInput.value = '';
-        adjustTextareaHeight(); // Re-adjust height and button state after clearing
+        adjustTextareaHeight();
     }
 }
 
-//  Disables the query input and send button, typically during processing.
-export function disableInput() {
-    console.log("[UIController] Entering disableInput function.");
-    if (queryInput) queryInput.disabled = true;
-    if (sendButton) sendButton.disabled = true; // Always disable send when input is disabled
-}
-
-//  Re-enables the input field and send button.
-export function enableInput() {
-    if (!checkInitialized()) return;
-    queryInput.disabled = false;
-    adjustTextareaHeight(); // Recalculate button state based on content
-}
-
-//  Sets focus to the query input element.
 export function focusInput() {
     queryInput?.focus();
 }
 
-//  Programmatically clicks the hidden file input element.
 export function triggerFileInputClick() {
     fileInput?.click();
-} 
+}

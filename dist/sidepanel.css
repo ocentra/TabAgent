@@ -630,8 +630,8 @@ html.dark {
     /* Use styles from #history-popup */
     position: absolute;
     bottom: 60px;
-    left: 10px;
-    right: 10px;
+    left: 0; /* Set to 0 for full width */
+    right: 0; /* Set to 0 for full width */
     background-color: var(--popup-bg);
     color: var(--text-primary);
     border: 1px solid var(--popup-border);
@@ -639,6 +639,7 @@ html.dark {
     box-shadow: var(--popup-shadow);
     z-index: 60; /* Ensure it's above other popups if needed */
     max-height: 70vh; /* Limit height */
+    width: 100%; /* Explicitly set width */
     display: flex;
     flex-direction: column;
 }

@@ -5,6 +5,7 @@ import { resolve } from 'path';
 export default defineConfig({
   build: {
     outDir: 'dist',
+    sourcemap: true,
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, 'src/sidepanel.js'),

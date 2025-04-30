@@ -241,6 +241,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn("[Sidepanel] Could not find #starred-list element for Library Controller.");
         }
 
+        // Listen for request from UI controller to load the model
+        eventBus.subscribe('ui:requestModelLoad', (payload) => {
+            const modelId = payload?.modelId;
+            if (!modelId) {
+                 console.error("[Sidepanel] Received 'ui:requestModelLoad' but missing modelId.");
+                 eventBus.publish('worker:error', 'No model ID specified for loading.');
+                 return;
+            }
+            console.log(`[Sidepanel] Received 'ui:requestModelLoad' for ${modelId}. Sending 'loadModel' to background.`);
+            chrome.runtime.sendMessage({ type: 'loadModel', payload: { modelId: modelId } }).catch(err => {
+                 console.error(`[Sidepanel] Error sending 'loadModel' message for ${modelId}:`, err);
+                 // Optionally inform UI of the error
+                 eventBus.publish('worker:error', `Failed to send load request: ${err.message}`);
+            });
+        });
+
         // Initialize Discover Controller
         initializeDiscoverController();
         console.log("[Sidepanel] Discover Controller Initialized call attempted.");
@@ -309,6 +325,10 @@ function handleBackgroundMessage(message, sender, sendResponse) {
         eventBus.publish('background:scrapeStageResult', message.payload);
     } else if (message.type === 'DIRECT_SCRAPE_RESULT') {
         eventBus.publish('background:scrapeResultReceived', message.payload);
+    } else if (message.type === 'uiLoadingStatusUpdate') {
+        // Forward loading status updates from background onto the local event bus
+        console.log('[Sidepanel] Forwarding uiLoadingStatusUpdate to eventBus.');
+        eventBus.publish('ui:loadingStatusUpdate', message.payload);
     } else {
         console.warn('[Sidepanel] Received unknown message type from background:', message.type, message);
     }

@@ -10,6 +10,8 @@ import {
 let chatBodyElement = null;
 let currentSessionId = null;
 let requestDbAndWaitFunc = null;
+let observer = null; // MutationObserver
+const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
 
 export function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
@@ -27,6 +29,9 @@ export function initializeRenderer(chatBody, requestDbFunc) {
     console.log("[ChatRenderer] Subscribed to DbMessagesUpdatedNotification.");
     eventBus.subscribe(DbSessionUpdatedNotification.name, handleSessionMetadataUpdate);
     console.log("[ChatRenderer] Subscribed to DbSessionUpdatedNotification.");
+
+    // Initialize MutationObserver to apply syntax highlighting
+    initializeObserver();
 }
 
 export function setActiveSessionId(sessionId) {
@@ -264,5 +269,92 @@ function renderSingleMessage(msg) {
         } catch (e) {
             console.warn("Prism highlighting failed:", e);
         }
+    }
+}
+
+// --- NEW: Functions for Temporary Messages ---
+
+/**
+ * Renders a temporary status message directly to the chat body.
+ * These messages are not saved to the database.
+ * @param {string} type - 'system', 'success', or 'error'
+ * @param {string} text - The message content.
+ */
+export function renderTemporaryMessage(type, text) {
+    if (!chatBodyElement) return;
+
+    // Only log non-system temporary messages to reduce noise
+    if (type !== 'system') {
+        console.log(`[ChatRenderer] Rendering temporary message (${type}): ${text}`);
+    }
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', `message-${type}`, TEMP_MESSAGE_CLASS);
+
+    // Basic styling (can be enhanced in CSS)
+    messageDiv.style.padding = '8px 12px';
+    messageDiv.style.borderRadius = '8px';
+    messageDiv.style.marginBottom = '10px';
+    messageDiv.style.maxWidth = '90%';
+    messageDiv.style.alignSelf = 'center'; // Center align system/error messages
+    messageDiv.style.backgroundColor = type === 'error' ? '#fee2e2' : (type === 'success' ? '#dcfce7' : '#f3f4f6'); // Example colors
+    messageDiv.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#166534' : '#374151'); // Example colors
+
+    // Handle dark mode styling (basic example)
+    if (document.documentElement.classList.contains('dark')) {
+        messageDiv.style.backgroundColor = type === 'error' ? '#450a0a' : (type === 'success' ? '#14532d' : '#374151');
+        messageDiv.style.color = type === 'error' ? '#fca5a5' : (type === 'success' ? '#bbf7d0' : '#d1d5db');
+    }
+
+    messageDiv.textContent = text;
+
+    chatBodyElement.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+/**
+ * Removes all temporary status messages from the chat body.
+ */
+export function clearTemporaryMessages() {
+    if (!chatBodyElement) return;
+    console.log("[ChatRenderer] Clearing temporary status messages.");
+    const tempMessages = chatBodyElement.querySelectorAll(`.${TEMP_MESSAGE_CLASS}`);
+    tempMessages.forEach(msg => msg.remove());
+}
+
+// --- END: Temporary Message Functions ---
+
+function initializeObserver() {
+    if (observer) observer.disconnect(); // Disconnect previous observer if any
+
+    observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'PRE') {
+                        const codeElement = node.querySelector('code[class*="language-"]');
+                        if (codeElement) {
+                            if (window.Prism) Prism.highlightElement(codeElement);
+                        }
+                    } else if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Also check nodes added within existing messages (e.g., streaming)
+                        const codeBlocks = node.querySelectorAll('pre code[class*="language-"]');
+                        codeBlocks.forEach(codeElement => {
+                            // Check if Prism has already highlighted it
+                            if (!codeElement.classList.contains('prism-highlighted')) {
+                                if (window.Prism) Prism.highlightElement(codeElement);
+                                codeElement.classList.add('prism-highlighted'); // Mark as highlighted
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+
+    if (chatBodyElement) {
+        observer.observe(chatBodyElement, { childList: true, subtree: true });
+        console.log("[ChatRenderer] MutationObserver initialized and observing chat body.");
+    } else {
+        console.error("[ChatRenderer] Cannot initialize MutationObserver: chatBody is null.");
     }
 }

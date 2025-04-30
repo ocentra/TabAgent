@@ -12,7 +12,8 @@
     "scripting",
     "declarativeNetRequest",
     "downloads",
-    "identity"
+    "identity",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -47,11 +48,16 @@
         "sidepanel.html",
         "offscreen.html",
         "offscreen.js",
+        "offscreenWorker.html",
+        "offscreenWorker.js",
+        "model-worker.js",
         "PageExtractor.js",
         "stage2-helper.js",
         "assets/*",
         "sidepanel.css",
-        "icons/*"
+        "icons/*",
+        "xenova/*"
+       
       ],
       "matches": ["<all_urls>"]
     }
@@ -63,6 +69,8 @@
     "128": "icons/icon128.png"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self';"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+    "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self';",
+    "worker-src": "'self' 'wasm-unsafe-eval' 'blob:';"
   }
 }

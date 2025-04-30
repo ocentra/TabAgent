@@ -1,2 +1,104 @@
-console.log("[Offscreen Script Start] Executing offscreen.js");let e=null;const n="scraping-iframe";console.log("[Offscreen Script] Adding runtime.onMessage listener...");chrome.runtime.onMessage.addListener((r,c,o)=>{if(console.log("Offscreen: Received message:",r),r.target!=="offscreen"&&r.type!=="createIframe"&&r.type!=="removeIframe")return console.log("Offscreen: Ignoring message not intended for iframe document:",r.type),!1;switch(r.type){case"createIframe":if(console.log("[Offscreen] ENTERING createIframe handler..."),console.log(`[Offscreen] Handling createIframe for URL: ${r.url}`),e&&(console.warn("[Offscreen] Iframe already exists. Removing old one before creating new."),e.remove(),e=null),!r.url||!r.url.startsWith("http"))return console.error("[Offscreen] Invalid URL received for createIframe."),o({success:!1,error:"Invalid URL provided for iframe."}),!1;try{e=document.createElement("iframe"),e.id=n,e.src=r.url,e.style.position="absolute",e.style.width="1px",e.style.height="1px",e.style.left="-9999px",e.style.top="-9999px",e.style.border="none",document.body.appendChild(e),console.log("[Offscreen] Iframe created and appended."),o({success:!0})}catch(f){return console.error("[Offscreen] Error creating iframe:",f),o({success:!1,error:`Failed to create iframe: ${f.message}`}),e&&e.remove(),e=null,!1}return!1;case"removeIframe":if(console.log("[Offscreen] Handling removeIframe."),e)try{e.remove(),console.log("[Offscreen] Iframe removed successfully."),e=null,o({success:!0})}catch(f){console.error("[Offscreen] Error removing iframe:",f),o({success:!1,error:`Failed to remove iframe: ${f.message}`})}else console.warn("[Offscreen] No iframe found to remove."),o({success:!1,error:"No iframe exists to remove."});return!1;default:return console.log("[Offscreen] Received unhandled message type:",r==null?void 0:r.type),!1}});console.log("Offscreen script (Parsing/Iframe) loaded and listener added.");
-//# sourceMappingURL=offscreen.js.map
+console.log("[Offscreen Script Start] Executing offscreen.js");
+
+// Keep track of the iframe we create
+let scrapingIframe = null;
+const IFRAME_ID = 'scraping-iframe';
+
+// --- REMOVED Globals for Google API/Picker --- 
+// let pickerApiLoaded = false;
+// let oauthToken = null;
+// let googleApiKey = null;
+// let googleAppId = null;
+
+console.log("[Offscreen Script] Adding runtime.onMessage listener...");
+// Listen for messages from the background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('Offscreen: Received message:', message);
+    // This document now ONLY handles parsing/iframe tasks
+    if (message.target !== 'offscreen' && message.type !== 'createIframe' && message.type !== 'removeIframe') {
+        console.log('Offscreen: Ignoring message not intended for iframe document:', message.type);
+        return false; // Ignore messages not intended for this offscreen document
+    }
+
+    switch (message.type) {
+        // REMOVED case 'showGooglePicker' - Handled by google_drive_offscreen.js
+        // case 'showGooglePicker': ...
+        case 'createIframe':
+            console.log('[Offscreen] ENTERING createIframe handler...');
+            console.log(`[Offscreen] Handling createIframe for URL: ${message.url}`);
+            if (scrapingIframe) {
+                 console.warn('[Offscreen] Iframe already exists. Removing old one before creating new.');
+                 scrapingIframe.remove();
+                 scrapingIframe = null;
+            }
+            if (!message.url || !message.url.startsWith('http')) {
+                console.error('[Offscreen] Invalid URL received for createIframe.');
+                sendResponse({ success: false, error: 'Invalid URL provided for iframe.' });
+                return false; // Synchronous response for invalid input
+            }
+
+            try {
+                scrapingIframe = document.createElement('iframe');
+                scrapingIframe.id = IFRAME_ID;
+                scrapingIframe.src = message.url;
+                // Styling to keep it hidden but functional (may need adjustment)
+                scrapingIframe.style.position = 'absolute';
+                scrapingIframe.style.width = '1px';
+                scrapingIframe.style.height = '1px';
+                scrapingIframe.style.left = '-9999px';
+                scrapingIframe.style.top = '-9999px';
+                scrapingIframe.style.border = 'none';
+
+                document.body.appendChild(scrapingIframe);
+                console.log('[Offscreen] Iframe created and appended.');
+                // Send success response immediately, loading happens async
+                sendResponse({ success: true }); 
+            } catch (error) {
+                 console.error('[Offscreen] Error creating iframe:', error);
+                 sendResponse({ success: false, error: `Failed to create iframe: ${error.message}` });
+                 // Clean up if partially created
+                 if (scrapingIframe) scrapingIframe.remove();
+                 scrapingIframe = null;
+                 return false; // Synchronous response on error
+            }
+            // We send the response synchronously above, so return false here.
+            return false; 
+        case 'removeIframe':
+            console.log('[Offscreen] Handling removeIframe.');
+            if (scrapingIframe) {
+                try {
+                    scrapingIframe.remove();
+                    console.log('[Offscreen] Iframe removed successfully.');
+                    scrapingIframe = null;
+                    sendResponse({ success: true });
+                } catch (error) {
+                     console.error('[Offscreen] Error removing iframe:', error);
+                     sendResponse({ success: false, error: `Failed to remove iframe: ${error.message}`});
+                }
+            } else {
+                console.warn('[Offscreen] No iframe found to remove.');
+                sendResponse({ success: false, error: 'No iframe exists to remove.' });
+            }
+            return false; // Synchronous response
+        default:
+            console.log('[Offscreen] Received unhandled message type:', message?.type);
+            // It's important to return false if the message type isn't handled
+            return false; 
+    }
+});
+
+// --- REMOVED Google Picker Functions --- 
+// function loadPickerApi() { ... }
+// function handleGapiError(error) { ... }
+// function handleGapiLoad() { ... }
+// function handleClientLoad() { ... }
+// function createPicker() { ... }
+// function pickerCallback(data) { ... }
+
+// Function to close the offscreen document (still potentially useful, e.g., if parsing fails critically)
+function closeOffscreenDocument() {
+  console.log("Offscreen: Closing document.");
+  window.close();
+}
+
+console.log("Offscreen script (Parsing/Iframe) loaded and listener added."); 

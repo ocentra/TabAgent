@@ -1,10 +1,32 @@
 import { eventBus } from '../eventBus.js';
 import { DbStatusUpdatedNotification, DbSessionUpdatedNotification } from '../events/dbEvents.js';
+import { renderTemporaryMessage, clearTemporaryMessages } from './chatRenderer.js';
 
-let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement;
+let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement, 
+    historyButton, historyPopup, historyList, closeHistoryButton, newChatButton, historySearchInput, 
+    sessionListElement, driveButton, driveViewerModal, driveViewerClose, driveViewerBack, driveViewerContent, 
+    driveViewerList, driveViewerSearch, driveViewerBreadcrumbs, driveViewerSelectedArea, driveViewerCancel, 
+    driveViewerInsert, starredListElement, loadModelButton, modelLoadProgress;
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
+
+// Define available models (can be moved elsewhere later)
+const AVAILABLE_MODELS = {
+    // Model ID (value) : Display Name
+    "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
+    "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
+    "HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
+    "HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
+    "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
+    "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", // Experimental Multimodal
+    "microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", // Experimental Multimodal
+    "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
+    "Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
+    "google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
+    "HuggingFaceTB/SmolLM2-360M": "HuggingFaceTB/SmolLM2-360M", 
+    // Add more models here as needed
+};
 
 function selectElements() {
     queryInput = document.getElementById('query-input');
@@ -95,17 +117,25 @@ function setInputStateInternal(status) {
     console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
 }
 
-function showLoadingIndicatorInternal(message = 'Loading...') {
-    if (loadingIndicatorElement) {
-        loadingIndicatorElement.textContent = message;
-        loadingIndicatorElement.classList.remove('hidden');
-    }
+function showLoadingIndicatorInternal(message = '', showSpinner = true) {
+    if (!isInitialized || !loadingIndicatorElement) return;
+
+    const textElement = loadingIndicatorElement.querySelector('span');
+    if (textElement) textElement.textContent = message;
+    
+    const spinner = loadingIndicatorElement.querySelector('svg');
+    if (spinner) spinner.classList.toggle('hidden', !showSpinner);
+
+    loadingIndicatorElement.classList.remove('hidden');
+
+    if (message.startsWith('Downloading') || message.startsWith('Loading')) {
+        setLoadButtonState('loading', message); 
+    } 
 }
 
 function hideLoadingIndicatorInternal() {
-    if (loadingIndicatorElement) {
-        loadingIndicatorElement.classList.add('hidden');
-    }
+    if (!isInitialized || !loadingIndicatorElement) return;
+    loadingIndicatorElement.classList.add('hidden');
 }
 
 function handleStatusUpdate(notification) {
@@ -115,12 +145,59 @@ function handleStatusUpdate(notification) {
     }
 }
 
+function handleLoadingProgress(payload) {
+    if (!isInitialized || !payload) return;
+
+    // Ensure progress bar exists
+    if (!modelLoadProgress) {
+        console.warn("[UIController] Model load progress bar not found.");
+    }
+
+    const { status, file, progress, model } = payload;
+    let message = status;
+    let buttonState = 'loading';
+
+    if (status === 'progress') {
+        message = `Downloading ${file}... ${Math.round(progress)}%`;
+        renderTemporaryMessage('system', message);
+        if (modelLoadProgress) {
+            modelLoadProgress.value = progress;
+            modelLoadProgress.classList.remove('hidden');
+        }
+        setLoadButtonState('loading', `Down: ${Math.round(progress)}%`);
+    } else if (status === 'download' || status === 'ready') {
+        message = `Loading ${file}...`;
+        renderTemporaryMessage('system', message);
+        if (modelLoadProgress) {
+            modelLoadProgress.value = 0; // Reset to 0 for loading phase
+            modelLoadProgress.classList.remove('hidden');
+        }
+        setLoadButtonState('loading', `Loading ${file}`);
+    } else if (status === 'done') {
+        message = `${file} loaded. Preparing pipeline...`;
+        renderTemporaryMessage('system', message);
+        if (modelLoadProgress) {
+            // Keep progress bar visible but maybe indeterminate or full?
+            modelLoadProgress.value = 100; // Show as full while preparing
+            modelLoadProgress.classList.remove('hidden'); 
+        }
+        setLoadButtonState('loading', 'Preparing...');
+    } else {
+        renderTemporaryMessage('system', message);
+        if (modelLoadProgress) {
+            modelLoadProgress.classList.add('hidden');
+        }
+        setLoadButtonState('loading', status);
+    }
+}
+
 export async function initializeUI(callbacks) {
     console.log("[UIController] Initializing...");
     if (isInitialized) {
         console.warn("[UIController] Already initialized. Removing old listeners and subscriptions.");
         removeListeners();
         eventBus.unsubscribe(DbStatusUpdatedNotification.name, handleStatusUpdate);
+        eventBus.unsubscribe('ui:loadingStatusUpdate', handleLoadingProgress);
     }
     if (!selectElements()) {
         isInitialized = false;
@@ -136,7 +213,8 @@ export async function initializeUI(callbacks) {
     }
 
     eventBus.subscribe(DbStatusUpdatedNotification.name, handleStatusUpdate);
-    console.log("[UIController] Subscribed to DB Status notifications.");
+    eventBus.subscribe('ui:loadingStatusUpdate', handleLoadingProgress);
+    console.log("[UIController] Subscribed to DB Status & Loading Status notifications.");
 
     isInitialized = true;
     setInputStateInternal('idle');
@@ -144,18 +222,51 @@ export async function initializeUI(callbacks) {
     console.log("[UIController] Initialized successfully.");
 
     console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
+
+    clearTemporaryMessages();
+
+    loadModelButton = document.getElementById('load-model-button');
+    if (loadModelButton) {
+        loadModelButton.addEventListener('click', handleLoadModelClick);
+    } else {
+        console.error("[UIController] Load Model button not found!");
+    }
+
+    disableInput("Model not loaded. Click 'Load'.");
+    setLoadButtonState('idle');
+
+    console.log("[UIController] Initializing UI elements...");
+
+    // Populate model selector
+    console.log("[UIController] Attempting to find model selector...");
+    const modelSelector = document.getElementById('model-selector');
+    console.log(modelSelector ? "[UIController] Model selector found." : "[UIController] WARNING: Model selector NOT found!");
+    if (modelSelector) {
+        modelSelector.innerHTML = ''; // Clear existing options
+        console.log("[UIController] Populating model selector. Available models:", AVAILABLE_MODELS);
+        for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
+            console.log(`[UIController] Adding option: ${displayName} (${modelId})`);
+            const option = document.createElement('option');
+            option.value = modelId;
+            option.textContent = displayName;
+            modelSelector.appendChild(option);
+        }
+        // Add listener for changes if needed later (e.g., to automatically load)
+        // modelSelector.addEventListener('change', handleModelSelectionChange);
+    } else {
+        console.warn("[UIController] Model selector dropdown not found.");
+    }
+
+    console.log("[UIController] UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
 }
 
 export function setActiveSession(sessionId) {
     console.log(`[UIController] Setting active session for UI state: ${sessionId}`);
     currentSessionId = sessionId;
-    // Still update input state based on active session
     if (!sessionId) {
         setInputStateInternal('idle'); 
     } 
-    // We might still want to trigger setInputStateInternal(status) if we load an existing session
-    // but that should happen based on DbStatusUpdatedNotification for the loaded session.
 }
 
 export function checkInitialized() {
@@ -181,3 +292,88 @@ export function focusInput() {
 export function triggerFileInputClick() {
     fileInput?.click();
 }
+
+function handleLoadModelClick() {
+    if (!isInitialized) return;
+    console.log("[UIController] Load Model button clicked.");
+
+    // Get the selected model ID
+    const modelSelector = document.getElementById('model-selector');
+    const selectedModelId = modelSelector?.value;
+
+    if (!selectedModelId) {
+        console.error("[UIController] Cannot load: No model selected or selector not found.");
+        showNotification("Error: Please select a model.", "error");
+        return;
+    }
+
+    console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
+    setLoadButtonState('loading'); // Indicate loading
+    disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`); 
+    // Pass the selected model ID in the event payload
+    eventBus.publish('ui:requestModelLoad', { modelId: selectedModelId });
+}
+
+function setLoadButtonState(state, text = 'Load') {
+    if (!isInitialized || !loadModelButton) return;
+
+    switch (state) {
+        case 'idle':
+            loadModelButton.disabled = false;
+            loadModelButton.textContent = text;
+            loadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
+            loadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
+            break;
+        case 'loading':
+            loadModelButton.disabled = true;
+            loadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
+            loadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
+             loadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
+            break;
+        case 'loaded':
+            loadModelButton.disabled = true;
+            loadModelButton.textContent = 'Loaded';
+            loadModelButton.classList.replace('bg-green-500', 'bg-gray-500'); 
+            loadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
+            break;
+        case 'error':
+            loadModelButton.disabled = false;
+            loadModelButton.textContent = 'Load Failed';
+            loadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
+            loadModelButton.classList.replace('bg-green-500', 'bg-red-500');
+            loadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
+            break;
+    }
+}
+
+function disableInput(reason = "Processing...") {
+    if (!isInitialized || !queryInput || !sendButton) return;
+    queryInput.disabled = true;
+    queryInput.placeholder = reason;
+    sendButton.disabled = true;
+}
+
+function enableInput() {
+    if (!isInitialized || !queryInput || !sendButton) return;
+    queryInput.disabled = false; 
+    queryInput.placeholder = "Ask Tab Agent...";
+    sendButton.disabled = queryInput.value.trim() === '';
+}
+
+eventBus.subscribe('worker:ready', (payload) => {
+    console.log("[UIController] Received worker:ready signal", payload);
+    if (modelLoadProgress) modelLoadProgress.classList.add('hidden'); // Hide progress bar
+    clearTemporaryMessages();
+    renderTemporaryMessage('success', `Model ${payload?.model || ''} ready.`);
+    enableInput();
+    setLoadButtonState('loaded');
+});
+
+eventBus.subscribe('worker:error', (payload) => {
+    console.error("[UIController] Received worker:error signal", payload);
+    if (modelLoadProgress) modelLoadProgress.classList.add('hidden'); // Hide progress bar
+    clearTemporaryMessages();
+    renderTemporaryMessage('error', `Model load failed: ${payload}`);
+    setLoadButtonState('error');
+    disableInput("Model load failed. Check logs."); 
+});

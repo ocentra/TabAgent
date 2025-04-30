@@ -13,6 +13,7 @@ import {
     DbDeleteSessionRequest, DbDeleteSessionResponse,
     DbRenameSessionRequest, DbRenameSessionResponse
 } from '../events/dbEvents.js';
+import { clearTemporaryMessages } from './chatRenderer.js';
 
 let getActiveSessionIdFunc = null;
 let onSessionCreatedCallback = null;
@@ -122,6 +123,7 @@ async function handleQuerySubmit(data) {
     const isURL = URL_REGEX.test(text);
 
     try {
+        clearTemporaryMessages();
         const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
         if (!sessionId) {
             console.log("Orchestrator: No active session, creating new one via event.");
@@ -136,6 +138,7 @@ async function handleQuerySubmit(data) {
             }
         } else {
             console.log(`Orchestrator: Adding user message to existing session ${sessionId} via event.`);
+            clearTemporaryMessages();
             const addRequest = new DbAddMessageRequest(sessionId, userMessage);
             await requestDbAndWait(addRequest);
         }
@@ -203,13 +206,42 @@ async function handleQuerySubmit(data) {
             chrome.runtime.sendMessage(messagePayload, (response) => {
                 if (chrome.runtime.lastError) {
                     console.error('Orchestrator: Error sending query:', chrome.runtime.lastError.message);
-                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                        isLoading: false, sender: 'error', text: `Failed to send query: ${chrome.runtime.lastError.message}`
-                    });
+                    const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${chrome.runtime.lastError.message}` };
+                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
                     requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
                     requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                    isSendingMessage = false;
-                } else { console.log('Orchestrator: Query message sent successfully.'); }
+                    isSendingMessage = false; // Reset flag on send error
+                } else {
+                    // Process the response received from background.js
+                    console.log('Orchestrator: Received direct response from background for query:', response);
+                    let updatePayload = {};
+                    let finalStatus = 'idle';
+
+                    if (response && response.success) {
+                        updatePayload = { isLoading: false, sender: 'ai', text: response.data || 'Received empty successful response.' };
+                        finalStatus = 'idle';
+                    } else {
+                        updatePayload = { isLoading: false, sender: 'error', text: `Error: ${response?.error || 'Unknown error from background.'}` };
+                        finalStatus = 'error';
+                        console.error('Orchestrator: Background query processing failed:', response?.error);
+                    }
+
+                    // Update the placeholder message
+                    const updateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, updatePayload);
+                    requestDbAndWait(updateRequest)
+                        .then(() => {
+                             console.log(`[Orchestrator] Setting session ${sessionId} status to '${finalStatus}' after query response via event`);
+                             return requestDbAndWait(new DbUpdateStatusRequest(sessionId, finalStatus));
+                        })
+                        .catch(e => {
+                            console.error("Failed to update placeholder/status after query response:", e);
+                             // Attempt to set error status even if update failed
+                             requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e2 => console.error("Failed to set fallback error status:", e2));
+                        })
+                        .finally(() => {
+                            isSendingMessage = false; // Reset flag after processing response
+                        });
+                }
             });
         }
     } catch (error) {
@@ -246,23 +278,40 @@ async function handleBackgroundMsgResponse(message) {
 }
 
 async function handleBackgroundMsgError(message) {
-    const { chatId, messageId, error } = message;
-    console.error(`Orchestrator: handleBackgroundMsgError for chat ${chatId}, placeholder ${messageId}:`, error);
-    try {
-        const updatePayload = { isLoading: false, sender: 'error', text: `Error: ${error || 'Unknown error occurred.'}` };
-        const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        console.log(`[Orchestrator] Setting session ${chatId} status to 'error' after background error via event`);
-        const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
-        await requestDbAndWait(statusRequest);
-    } catch (error) {
-         console.error(`Orchestrator: Error updating chat/status on background error for chat ${chatId}:`, error);
-         showError("Failed to update chat with error status.");
-         const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
-         requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on error handling error:", e));
-    } finally {
-         isSendingMessage = false; // TODO: Remove later
+    console.error(`Orchestrator: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
+    showError(`Error processing request: ${message.error}`); // Show global error regardless
+
+    const sessionId = getActiveSessionIdFunc(); // Get current session ID
+
+    if (sessionId && message.chatId === sessionId && message.messageId) {
+        // Only update DB if the error belongs to the *active* session and has a message ID
+        console.log(`Orchestrator: Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
+        const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
+        const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
+        const statusRequest = new DbUpdateStatusRequest(sessionId, 'error');
+        try {
+            await requestDbAndWait(errorUpdateRequest);
+            console.log(`Orchestrator: Error message update successful for session ${sessionId}.`);
+            await requestDbAndWait(statusRequest);
+            console.log(`Orchestrator: Session ${sessionId} status set to 'error'.`);
+        } catch (dbError) {
+            console.error('Orchestrator: Error updating chat/status on background error:', dbError);
+            // Show a more specific UI error if DB update fails
+            showError(`Failed to update chat with error status: ${dbError.message}`);
+            // Attempt to set status to error even if message update failed
+            try {
+                 await requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error'));
+            } catch (statusError) {
+                 console.error('Failed to set session status on error handling error:', statusError);
+            }
+        }
+    } else {
+         console.warn(`Orchestrator: Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
+         // If the error is specifically a model load error (we might need a better way to signal this)
+         // ensure the UI controller knows. The direct worker:error event might be better.
     }
+
+    isSendingMessage = false; // Reset flag after handling error
 }
 
 async function handleBackgroundScrapeStage(payload) {

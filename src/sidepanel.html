@@ -40,10 +40,11 @@
             <div id="chat-body" class="flex-1 p-3 space-y-4 overflow-y-auto">
                 <!-- Messages will be added here -->
                  <div id="loading-indicator" class="flex justify-center items-center py-2 hidden">
-                     <svg class="animate-spin h-5 w-5 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                     <svg class="animate-spin h-5 w-5 text-gray-500 dark:text-gray-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                      </svg>
+                     <span class="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
                  </div>
             </div>
             <!-- Input Area -->
@@ -58,9 +59,13 @@
                  <!-- Bottom Controls Row -->
                  <div class="flex items-center justify-between text-xs">
                      <div class="flex items-center space-x-2">
-                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs">
-                           <option value="phi4">Phi-4</option>
+                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500">
+                           <!-- Model options will be populated by uiController.js -->
                         </select>
+                        <button id="load-model-button" title="Load selected model" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                            Load
+                        </button>
+                        <progress id="model-load-progress" value="0" max="100" class="w-16 h-2 ml-2 hidden"></progress>
                     </div>
                     <div class="flex items-center space-x-1">
                          <button id="drive-button" title="Link Google Drive" class="p-1 rounded text-gray-500 dark:text-gray-400">

@@ -11,6 +11,7 @@ export default defineConfig({
         sidepanel: resolve(__dirname, 'src/sidepanel.js'),
         background: resolve(__dirname, 'src/background.js'),
         offscreen: resolve(__dirname, 'src/offscreen.js'),
+        modelWorker: resolve(__dirname, 'src/model-worker.js'),
         scriptingReadabilityHelper: resolve(__dirname, 'src/scriptingReadabilityHelper.js')
       },
       output: {
@@ -28,9 +29,13 @@ export default defineConfig({
         { src: 'src/sidepanel.html', dest: '.' },
         { src: 'src/PageExtractor.js', dest: '.' },
         { src: 'src/content.js', dest: '.' },
+        { src: 'src/model-worker.js', dest: '.' },
         { src: 'src/theme-loader.js', dest: '.' },
         { src: 'src/stage2-helper.js', dest: '.' },
         { src: 'src/offscreen.html', dest: '.' },
+        { src: 'src/offscreen.js', dest: '.' },
+        { src: 'src/offscreenWorker.html', dest: '.' },
+        { src: 'src/offscreenWorker.js', dest: '.' },
         { src: 'src/output.css', dest: '.' },
         { src: 'src/sidepanel.css', dest: '.' },
         { src: 'src/notifications.js', dest: '.' },
@@ -38,7 +43,8 @@ export default defineConfig({
         { src: 'icons', dest: '.' },
         { src: 'node_modules/prismjs/prism.js', dest: 'assets' },
         { src: 'node_modules/prismjs/components/prism-json.min.js', dest: 'assets' },
-        { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' }
+        { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' },
+        {src: 'src/xenova', dest: '.'}
       ]
     })
   ]

@@ -1,7 +1,7 @@
 # Tab Agent: Project Plan 
 
 ## Project Overview
-Tab Agent is a Chrome browser extension that leverages the phi4 3.8 billion parameter model (in ONNX format, quantized) to perform advanced natural language processing tasks entirely client-side. The extension aims to:
+Tab Agent is a Chrome browser extension that leverages the LLM 3.8 billion parameter model (in ONNX format, quantized) to perform advanced natural language processing tasks entirely client-side. The extension aims to:
 - Summarize content from web pages, PDFs, and Google Drive files.
 - Search and fetch articles from links or open tabs.
 - Implement Retrieval-Augmented Generation (RAG) with RxDB as the browser-based vector database for accurate, reference-linked answers.
@@ -12,7 +12,7 @@ All computation must occur in the browser (no external servers).  will develop t
 
 ## Project Goals
 1. **Model Inference**:
-   - Load and run the phi4 ONNX model in the browser for tasks like summarization and question-answering.
+   - Load and run the LLM ONNX model in the browser for tasks like summarization and question-answering.
    - Optimize performance using WebAssembly or WebGPU.
 
 2. **Content Scraping and Fetching**:
@@ -21,7 +21,7 @@ All computation must occur in the browser (no external servers).  will develop t
    - Fetch files from Google Drive via API (with OAuth).
 
 3. **Summarization**:
-   - Generate concise summaries of web pages, articles, or PDFs using the phi4 model.
+   - Generate concise summaries of web pages, articles, or PDFs using the LLM model.
 
 4. **RAG-Based Answering**:
    - Store document embeddings in RxDB.
@@ -96,15 +96,15 @@ The project is organized as follows:
 4. **Adjust Manifest:** Ensure `manifest.json` in the *output* directory correctly points to the bundled JS/CSS files *and* any copied static JS files. Check that the paths are relative to the output directory root. Some build tools might offer plugins to manage the manifest automatically.
 **How It Fits**: Provides the essential mechanism to package the modular source code and `npm` dependencies into a loadable Chrome extension format, enabling the use of libraries like Readability.js. **Remember to update the build config's static copy list whenever adding new JS files directly to the manifest.**
 
-### Task 2: Load and Run Phi4 Model
-**Goal**: Load the phi4 ONNX model in the browser for inference.
+### Task 2: Load and Run  Model
+**Goal**: Load the  ONNX model in the browser for inference.
 **Steps**:
-1. In `background.js`, use transformers.js to load the phi4 ONNX model with WebAssembly.
+1. In `background.js`, use transformers.js to load the  ONNX model with WebAssembly.
 2. Implement model inference for text generation tasks (e.g., summarization, question-answering).
 3. Optimize performance using techniques from `example_sources/web_llm.js` (from web-llm).
 4. Adapt Chrome-specific model handling from `example_sources/model.js` (from transformers.js-chrome).
 5. Reference `example_sources/models.js` (from transformers.js) for model loading logic.
-**How It Fits**: Enables core NLP tasks using the phi4 model.
+**How It Fits**: Enables core NLP tasks using the llm model.
 
 ### Task 3: Implement Multi-Stage Web Scraping and Content Fetching
 **Goal**: Reliably scrape readable content from the current tab and specific URLs (including SPAs), using a staged, progressively more robust approach for non-active tabs, minimizing user disruption where possible. Implement placeholders for future Sitemap, PDF, and Google Drive scraping.
@@ -170,9 +170,9 @@ The project is organized as follows:
 ### Task 4: Build Summarization Module
 **Goal**: Summarize web pages, articles, and PDFs.
 **Steps**:
-1. In `background.js`, use the phi4 model (via transformers.js) to generate summaries of scraped content.
+1. In `background.js`, use the  model (via transformers.js) to generate summaries of scraped content.
 2. Pass scraped content from `content.js` to `background.js` via message passing.
-3. Reference `example_sources/summarizer.js` (from AI-PC-Samples) for summarization logic and adapt it for phi4.
+3. Reference `example_sources/summarizer.js` (from AI-PC-Samples) for summarization logic and adapt it for LLM.
 **How It Fits**: Enables concise summaries for users.
 
 ### Task 5: Set Up RxDB for Vector Storage and WASM for Search
@@ -199,7 +199,7 @@ The project is organized as follows:
    - Generate an embedding for the user's query.
    - Use the vector search function (from Task 5, leveraging the WASM library) to get the `ids` of the most relevant text chunks.
    - Fetch the corresponding full `text_chunk` data (and metadata like `source_url`) from RxDB using these `ids`.
-2. **Generate Contextual Answer:** Use the phi4 model to generate an answer, providing the retrieved text chunks as context in the prompt.
+2. **Generate Contextual Answer:** Use the LLM model to generate an answer, providing the retrieved text chunks as context in the prompt.
 3. **Include Reference Links:** Extract source information (e.g., `source_url`) from the metadata of the retrieved chunks and include them as reference links in the response presented to the user.
 4. Reference `example_sources/rag.js` (from site-rag) for the overall RAG pipeline logic (prompting with context, generation), adapting the retrieval part to use the new two-step process (WASM search -> RxDB fetch).
 **How It Fits**: Provides accurate, reference-linked answers by combining efficient local retrieval with LLM generation.
@@ -210,7 +210,7 @@ The project is organized as follows:
 1. In `background.js`, use LangChain.js to create an agent that orchestrates:
    - Scraping content (from `content.js`).
    - **Retrieving relevant document chunks (using the WASM vector search for IDs, then fetching content from RxDB).**
-   - Generating answers (via phi4 model using retrieved context).
+   - Generating answers (via LLM model using retrieved context).
 2. Define a "retrieval tool" for the LangChain agent that encapsulates the process described in Task 6, step 1.
 3. Pass user queries from the side panel to the agent and return responses.
 4. Reference `example_sources/rag.js` (from site-rag) for integrating RAG concepts into the agent.
@@ -225,7 +225,7 @@ The project is organized as follows:
    - **Chat History Sidebar**: On the left, display a list of previous chats (stored in `chrome.storage.local`) with a scroll bar.
    - **Main Chat Body**: In the center, show the current chat's message history with a scroll bar.
    - **Input Area**: At the bottom, include:
-     - A dropdown to select the AI model (default: phi4).
+     - A dropdown to select the AI model (default: LLM).
      - A text box for user queries.
      - Buttons to upload PDFs, images, or Google Drive links.
      - A send button.
@@ -255,7 +255,7 @@ The project is organized as follows:
 
 ## File References in `example_sources`
  will reference the following files in the `example_sources` folder:
-- `models.js` (from transformers.js): Model loading logic for phi4.
+- `models.js` (from transformers.js): Model loading logic for LLM.
 - `model.js` (from transformers.js-chrome): Chrome-specific model handling.
 - `web_llm.js` (from web-llm): Performance optimizations for model inference.
 - `summarizer.js` (from AI-PC-Samples): Summarization logic and extension structure.
@@ -267,7 +267,7 @@ The project is organized as follows:
 Collect the following files from the specified repositories and place them in the `example_sources` folder. These will guide ’s code generation:
 1. **From [transformers.js](https://github.com/huggingface/transformers.js)**:
    - File: `src/models.js`
-   - Purpose: Model loading and inference logic for phi4.
+   - Purpose: Model loading and inference logic for LLM.
    - Location: Likely in `src/` or `lib/`.
 2. **From [transformers.js-chrome](https://github.com/tantara/transformers.js-chrome)**:
    - File: `src/model.js`

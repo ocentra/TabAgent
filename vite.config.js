@@ -44,7 +44,9 @@ export default defineConfig({
         { src: 'node_modules/prismjs/prism.js', dest: 'assets' },
         { src: 'node_modules/prismjs/components/prism-json.min.js', dest: 'assets' },
         { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' },
-        {src: 'src/xenova', dest: '.'}
+        {src: 'src/xenova', dest: '.'},
+        {src: 'src/model', dest: '.'},
+        {src: 'src/wasm', dest: '.'}
       ]
     })
   ]

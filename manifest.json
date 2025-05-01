@@ -56,7 +56,9 @@
         "assets/*",
         "sidepanel.css",
         "icons/*",
-        "xenova/*"
+        "xenova/*",
+        "model/*",
+        "wasm/*"
        
       ],
       "matches": ["<all_urls>"]

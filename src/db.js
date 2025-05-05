@@ -82,15 +82,30 @@ import {
     DbRenameSessionRequest, DbRenameSessionResponse,
     DbGetStarredSessionsRequest, DbGetStarredSessionsResponse
 } from './events/dbEvents.js';
+import {
+    DbAddLogRequest,
+    DbGetLogsRequest, DbGetLogsResponse,
+    DbGetUniqueLogValuesRequest, DbGetUniqueLogValuesResponse,
+    DbClearLogsRequest, DbClearLogsResponse,
+    DbGetCurrentAndLastLogSessionIdsRequest, DbGetCurrentAndLastLogSessionIdsResponse
+} from './events/dbEvents.js'; // Updated path
 
 const logger = new Logger('Main');
 
 // Database state
 let db = null;
 let chatHistoryCollection = null;
+let logDbInstance = null;
+let logsCollection = null;
 let isDbInitialized = false;
+let isLogDbInitialized = false;
 let dbReadyResolve;
 const dbReadyPromise = new Promise(resolve => { dbReadyResolve = resolve; });
+
+// Variable to store the session ID for the current extension run
+// These will be set during initialization
+let currentExtensionSessionId = null;
+let previousExtensionSessionId = null;
 
 // Database schema (version 0)
 const chatHistorySchema = {
@@ -125,44 +140,150 @@ const chatHistorySchema = {
     indexes: [['timestamp']]
 };
 
-// Ensure database is ready
-async function ensureDbReady() {
-    const isReady = await withTimeout(dbReadyPromise, 5000, 'Database initialization timeout');
-    if (!isReady || !chatHistoryCollection) {
-        throw new AppError('DB_NOT_READY', 'Database not initialized');
+// Log schema (version 0)
+const logSchema = {
+  title: 'log schema',
+  version: 0,
+  description: 'Stores application log entries',
+  primaryKey: 'id',
+  type: 'object',
+  properties: {
+    id: { 
+      type: 'string',
+      maxLength: 100,
+      final: true 
+    },
+    timestamp: { 
+      type: 'number',
+      index: true 
+    },
+    level: { 
+      type: 'string',
+      enum: ['error', 'warn', 'info', 'debug'],
+      index: true 
+    },
+    message: { 
+      type: 'string'
+    },
+    component: { 
+      type: 'string',
+      index: true
+    },
+    extensionSessionId: { 
+      type: 'string',
+      index: true
+    },
+    chatSessionId: {
+      type: ['string', 'null'],
+      index: true,
+      default: null 
     }
+  },
+  required: ['id', 'timestamp', 'level', 'component', 'extensionSessionId', 'message']
+};
+
+// Ensure database is ready
+async function ensureDbReady(type = 'chat') {
+    const isReady = await withTimeout(dbReadyPromise, 5000, 'Database initialization timeout');
+    if (!isReady) {
+         throw new AppError('DB_NOT_READY', 'Main Database systems not initialized');
+    }
+    if (type === 'chat') {
+        if (!chatHistoryCollection) throw new AppError('COLLECTION_NOT_READY', 'Chat history collection not initialized');
     return chatHistoryCollection;
+    } else if (type === 'log') {
+        if (!logsCollection) throw new AppError('COLLECTION_NOT_READY', 'Logs collection not initialized');
+        return logsCollection;
+    } else {
+        throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`);
+    }
 }
 
 // Reset database (for development)
 async function resetDatabase() {
     const resetLogger = new Logger('Reset');
-    resetLogger.info('Resetting database due to initialization failure');
+    resetLogger.info('Resetting databases due to initialization failure');
     try {
         if (db) {
             await db.destroy();
-            resetLogger.debug('Existing database destroyed');
+            resetLogger.debug('Main database instance destroyed');
         }
-        await getRxStorageDexie().getDexieDb().delete();
-        resetLogger.info('Dexie database deleted');
+        if (logDbInstance) {
+            await logDbInstance.destroy();
+            resetLogger.debug('Log database instance destroyed');
+        }
+        // Reset state variables *after* attempting destruction
         db = null;
         chatHistoryCollection = null;
         isDbInitialized = false;
+        logDbInstance = null;
+        logsCollection = null;
+        isLogDbInitialized = false;
+
+        // Reset both underlying Dexie stores if possible
+        // Note: This might be simplified if they share the same Dexie instance internally, 
+        // but safer to attempt separate deletes if names are different.
+        try {
+            // Check if getRxStorageDexie returns an object with a remove method
+            const mainStorage = getRxStorageDexie('tabagentdb');
+            if (mainStorage && typeof mainStorage.remove === 'function') {
+                 await mainStorage.remove();
+                 resetLogger.info('Removed tabagentdb storage');
+            } else {
+                 resetLogger.warn('Could not get main storage or remove method.');
+            }
+        } catch (e) { resetLogger.warn('Could not remove tabagentdb storage (might not exist)', { error: e?.message }); }
+         try {
+             // Check if getRxStorageDexie returns an object with a remove method
+             const logStorage = getRxStorageDexie('tabagent_logs_db');
+             if (logStorage && typeof logStorage.remove === 'function') {
+                 await logStorage.remove();
+                 resetLogger.info('Removed tabagent_logs_db storage');
+             } else {
+                  resetLogger.warn('Could not get log storage or remove method.');
+             }
+        } catch (e) { resetLogger.warn('Could not remove tabagent_logs_db storage (might not exist)', { error: e?.message }); }
+
         dbReadyResolve(false);
     } catch (error) {
-        // Log the raw reset error
         console.error("[DB:Reset] CAUGHT RAW ERROR during reset:", error);
-        resetLogger.error('Failed to reset database', { error });
-        throw new AppError('RESET_FAILED', 'Could not reset database', { originalError: error });
+        resetLogger.error('Failed to reset databases', { error });
+        throw new AppError('RESET_FAILED', 'Could not reset databases', { originalError: error });
     }
 }
 
 // Initialize database
+// Modify to accept session IDs (or retrieve them internally if background exports them)
 async function handleInitializeRequest(event) {
     const initLogger = new Logger('Initialize');
     initLogger.info('Handling initialize request');
-    if (isDbInitialized) {
-        initLogger.info('Already initialized, skipping');
+
+    // ---- Get Session IDs ----
+    // Ideally, these are passed from background.js or retrieved via an import
+    // For now, let's assume they are set externally before this runs, or retrieve from storage
+    // If background exports functions: 
+    // import { getCurrentLogSessionId, getPreviousLogSessionId } from '../background.js'; // Adjust path
+    // currentExtensionSessionId = getCurrentLogSessionId();
+    // previousExtensionSessionId = getPreviousLogSessionId();
+    // ---- OR retrieve from storage as a fallback ----
+    try {
+        const ids = await chrome.storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
+        currentExtensionSessionId = ids.currentLogSessionId || null;
+        previousExtensionSessionId = ids.previousLogSessionId || null;
+        if (!currentExtensionSessionId) {
+            initLogger.error('CRITICAL: currentLogSessionId not found in storage during DB init!');
+            // Handle error - maybe generate one here? Or rely on background?
+        }
+         initLogger.info('Retrieved log session IDs', { current: currentExtensionSessionId, previous: previousExtensionSessionId });
+    } catch (storageError) {
+         initLogger.error('Failed to retrieve log session IDs from storage', { error: storageError });
+         // Decide how to proceed - block init?
+    }
+    // ---- End Get Session IDs ----
+
+    // Check if BOTH are initialized to avoid partial re-init
+    if (isDbInitialized && isLogDbInitialized) {
+        initLogger.info('Both databases already initialized, skipping');
         return; 
     }
     
@@ -171,22 +292,71 @@ async function handleInitializeRequest(event) {
         addRxPlugin(RxDBMigrationSchemaPlugin);
         addRxPlugin(RxDBUpdatePlugin);
 
+        // Initialize Main DB (Chat History)
+        if (!isDbInitialized) {
         db = await withTimeout(createRxDatabase({
             name: 'tabagentdb',
             storage: getRxStorageDexie()
         }), 10000);
-        initLogger.debug('Database created', { name: db.name });
+            initLogger.debug('Main database instance created', { name: db.name });
 
-        const collections = await db.addCollections({
+            const chatCollections = await db.addCollections({
             chatHistory: {
                 schema: chatHistorySchema
             }
         });
-        chatHistoryCollection = collections.chatHistory;
+            chatHistoryCollection = chatCollections.chatHistory;
         initLogger.debug('Chat history collection initialized');
+            isDbInitialized = true;
+        } else {
+             initLogger.info('Main database already initialized');
+        }
+        
+        // Initialize Log DB
+        if (!isLogDbInitialized) {
+            logDbInstance = await withTimeout(createRxDatabase({
+                 name: 'tabagent_logs_db',
+                 storage: getRxStorageDexie()
+             }), 10000);
+             initLogger.debug('Log database instance created', { name: logDbInstance.name });
 
-        // Subscribe to events
-        const subscriptions = [
+            const logCollections = await logDbInstance.addCollections({
+                logs: {
+                    schema: logSchema
+                }
+            });
+            logsCollection = logCollections.logs;
+            initLogger.debug('Logs collection initialized');
+            isLogDbInitialized = true;
+        } else {
+            initLogger.info('Log database already initialized');
+        }
+
+        // Only resolve ready promise and subscribe if BOTH succeed
+        if (isDbInitialized && isLogDbInitialized) {
+             // Subscribe to chat events (only if not already done)
+             // This assumes init might be called multiple times if one part fails
+             // A better approach might ensure event subscriptions happen only once globally
+            const currentSubscriptions = (typeof eventBus?.getSubscriptions === 'function') 
+                ? eventBus.getSubscriptions() 
+                : {}; // Default to empty object if method doesn't exist
+            const chatEventNames = [
+                 DbCreateSessionRequest.name,
+                 DbGetSessionRequest.name,
+                 DbAddMessageRequest.name,
+                 DbUpdateMessageRequest.name,
+                 DbDeleteMessageRequest.name,
+                 DbUpdateStatusRequest.name,
+                 DbToggleStarRequest.name,
+                 DbGetAllSessionsRequest.name,
+                 DbGetStarredSessionsRequest.name,
+                 DbDeleteSessionRequest.name,
+                 DbRenameSessionRequest.name
+             ];
+             const needChatSubscription = chatEventNames.some(name => !currentSubscriptions[name]);
+            
+             if (needChatSubscription) {
+                 const chatSubscriptions = [
             { event: DbCreateSessionRequest.name, handler: handleDbCreateSessionRequest },
             { event: DbGetSessionRequest.name, handler: handleDbGetSessionRequest },
             { event: DbAddMessageRequest.name, handler: handleDbAddMessageRequest },
@@ -199,13 +369,86 @@ async function handleInitializeRequest(event) {
             { event: DbDeleteSessionRequest.name, handler: handleDbDeleteSessionRequest },
             { event: DbRenameSessionRequest.name, handler: handleDbRenameSessionRequest }
         ];
-        subscriptions.forEach(({ event, handler }) => eventBus.subscribe(event, handler));
-        initLogger.debug('Event bus subscriptions complete', { count: subscriptions.length });
+                 chatSubscriptions.forEach(({ event, handler }) => eventBus.subscribe(event, handler));
+                 initLogger.debug('Chat event bus subscriptions complete', { count: chatSubscriptions.length });
+             } else {
+                 initLogger.debug('Chat event bus subscriptions already exist.');
+             }
 
-        isDbInitialized = true;
+            // Subscribe to Log events
+            const logEventNames = [
+                 DbAddLogRequest.name,
+                 DbGetLogsRequest.name,
+                 DbGetUniqueLogValuesRequest.name,
+                 DbClearLogsRequest.name,
+                 DbGetCurrentAndLastLogSessionIdsRequest.name
+             ];
+             const needLogSubscription = logEventNames.some(name => !currentSubscriptions[name]);
+
+             if (needLogSubscription) {
+                 const logSubscriptions = [
+                     { event: DbAddLogRequest.name, handler: handleDbAddLogRequest },
+                     { event: DbGetLogsRequest.name, handler: handleDbGetLogsRequest },
+                     { event: DbGetUniqueLogValuesRequest.name, handler: handleDbGetUniqueLogValuesRequest },
+                     { event: DbClearLogsRequest.name, handler: handleDbClearLogsRequest },
+                     { event: DbGetCurrentAndLastLogSessionIdsRequest.name, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
+                 ];
+                 logSubscriptions.forEach(({ event, handler }) => eventBus.subscribe(event, handler));
+                 initLogger.info('Subscribed to Log Database events', { count: logSubscriptions.length });
+             } else {
+                 initLogger.info('Log Database event subscriptions already exist.');
+             }
+
         dbReadyResolve(true);
-        initLogger.info('Initialization complete');
+            initLogger.info('Initialization complete for both databases');
         await eventBus.publish(DbInitializationCompleteNotification.name, new DbInitializationCompleteNotification({ success: true }));
+        } else {
+            // Should not happen if logic is correct, but indicates partial init
+            initLogger.warn('Initialization partially complete, something went wrong.');
+        }
+
+        // --- Run Log Pruning on Startup (with a delay) ---
+        if (isDbInitialized && isLogDbInitialized) {
+            setTimeout(async () => {
+                initLogger.info('Running startup log pruning (delayed)...');
+                initLogger.debug('Current/Previous IDs for pruning', { current: currentExtensionSessionId, previous: previousExtensionSessionId });
+                try {
+                     const currentId = currentExtensionSessionId;
+                     const previousId = previousExtensionSessionId; 
+
+                     if (!currentId) {
+                         initLogger.warn('Cannot prune logs, currentExtensionSessionId is not set!');
+                     } else {
+                         // Proceed with pruning only if currentId exists
+                         initLogger.debug('Attempting to get all unique log session IDs...');
+                         const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
+                         initLogger.debug('Found unique log session IDs in DB', { ids: allLogSessionIds });
+                         
+                         const sessionsToKeep = new Set();
+                         sessionsToKeep.add(currentId);
+                         if (previousId) sessionsToKeep.add(previousId);
+                         initLogger.debug('Session IDs to keep', { ids: Array.from(sessionsToKeep) });
+
+                         const sessionIdsToDelete = Array.from(allLogSessionIds).filter(id => !sessionsToKeep.has(id));
+                         initLogger.debug('Session IDs to delete', { ids: sessionIdsToDelete });
+
+                         if (sessionIdsToDelete.length > 0) {
+                             initLogger.info(`Attempting to clear logs for ${sessionIdsToDelete.length} old session(s).`);
+                             const { deletedCount } = await clearLogsInternal(sessionIdsToDelete);
+                             initLogger.info(`Startup pruning removed ${deletedCount} logs from old session(s).`);
+                         } else {
+                             initLogger.info('No old log sessions found to prune during startup.');
+                         }
+                     }
+                } catch (pruneError) {
+                    // Simplified error logging
+                    console.error('[DB:Initialize] Error during startup log pruning:', pruneError);
+                     // Log error but continue - pruning failure shouldn't block app init
+                }
+            }, 100); // Delay pruning by 100ms
+        }
+        // --- End Log Pruning ---
+
     } catch (error) {
         // Add simple string log first
         console.error("[DB:Initialize] Entered CATCH block for init error.");
@@ -231,6 +474,7 @@ async function handleInitializeRequest(event) {
         }
 
         isDbInitialized = false;
+        isLogDbInitialized = false;
         dbReadyResolve(false); 
         await eventBus.publish(DbInitializationCompleteNotification.name, new DbInitializationCompleteNotification({ success: false, error: appError }));
     }
@@ -904,6 +1148,174 @@ async function handleDbRenameSessionRequest(event) {
     }
 }
 
+// --- Log Event Handlers ---
+
+// Fire-and-forget handler for adding logs
+async function handleDbAddLogRequest(event) {
+    const opLogger = new Logger('AddLogHandler');
+    try {
+        if (!event?.payload?.logEntryData) {
+            throw new AppError('INVALID_INPUT', 'Missing logEntryData in payload');
+        }
+        
+        // Directly insert the log using the logsCollection
+        const collection = await ensureDbReady('log');
+        await withTimeout(collection.insert(event.payload.logEntryData), 3000); 
+        opLogger.debug('Log entry added successfully', { logId: event.payload.logEntryData.id });
+
+        // No response needed for this fire-and-forget operation
+    } catch (error) {
+        // Log error internally, but don't try to send a response
+        opLogger.error('Failed to handle add log request', { requestId: event?.requestId, error });
+    }
+}
+
+async function handleDbGetLogsRequest(event) {
+    const opLogger = new Logger('GetLogsHandler');
+    const requestId = event?.requestId || crypto.randomUUID();
+    try {
+        if (!event?.payload?.filters) {
+            throw new AppError('INVALID_INPUT', 'Missing filters in payload');
+        }
+        const logs = await getLogsInternal(event.payload.filters);
+        const response = new DbGetLogsResponse(requestId, true, logs);
+        await eventBus.publish(response.type, response);
+        opLogger.info('Log retrieval successful', { requestId, count: logs.length });
+    } catch (error) {
+        const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get logs', { originalError: error });
+        const response = new DbGetLogsResponse(requestId, false, null, appError);
+        await eventBus.publish(response.type, response); // Publish error response
+        opLogger.error('Get logs failed', { requestId, error: appError });
+    }
+}
+
+async function handleDbGetUniqueLogValuesRequest(event) {
+    const opLogger = new Logger('GetUniqueLogValuesHandler');
+    const requestId = event?.requestId || crypto.randomUUID();
+    try {
+        if (!event?.payload?.fieldName) {
+            throw new AppError('INVALID_INPUT', 'Missing fieldName in payload');
+        }
+        const values = await getUniqueLogValuesInternal(event.payload.fieldName);
+        const response = new DbGetUniqueLogValuesResponse(requestId, true, values);
+        await eventBus.publish(response.type, response);
+        opLogger.info('Unique value retrieval successful', { requestId, field: event.payload.fieldName, count: values.length });
+    } catch (error) {
+        const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get unique log values', { originalError: error });
+        const response = new DbGetUniqueLogValuesResponse(requestId, false, null, appError);
+        await eventBus.publish(response.type, response); // Publish error response
+        opLogger.error('Get unique log values failed', { requestId, error: appError });
+    }
+}
+
+async function handleDbClearLogsRequest(event) {
+    const opLogger = new Logger('ClearLogsHandler');
+    const requestId = event?.requestId || crypto.randomUUID();
+    try {
+        // For now, assume filter='all' means clear *all* logs except current/last session
+        // This might need refinement based on how filter payload is defined/used.
+        // Let's stick to the pruning logic: clear logs NOT matching current/last.
+        opLogger.info('ClearLogs request received. Performing pruning of non-current/last sessions.');
+        
+        const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
+        const sessionsToKeep = new Set();
+        if (currentExtensionSessionId) sessionsToKeep.add(currentExtensionSessionId);
+        if (previousExtensionSessionId) sessionsToKeep.add(previousExtensionSessionId);
+        const sessionIdsToDelete = Array.from(allLogSessionIds).filter(id => !sessionsToKeep.has(id));
+
+        if (sessionIdsToDelete.length > 0) {
+            const { deletedCount } = await clearLogsInternal(sessionIdsToDelete);
+            opLogger.info(`ClearLogs request resulted in pruning ${deletedCount} logs from old sessions.`);
+        } else {
+             opLogger.info('ClearLogs request found no old sessions to prune.');
+        }
+        
+        const response = new DbClearLogsResponse(requestId, true);
+        await eventBus.publish(response.type, response);
+        
+    } catch (error) {
+        const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to clear logs', { originalError: error });
+        const response = new DbClearLogsResponse(requestId, false, appError);
+        await eventBus.publish(response.type, response); // Publish error response
+        opLogger.error('Clear logs failed', { requestId, error: appError });
+    }
+}
+
+async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
+    const opLogger = new Logger('GetCurrentAndLastIdsHandler');
+    const requestId = event?.requestId || crypto.randomUUID();
+    try {
+        // These IDs should be available as module variables now
+        const ids = {
+             currentLogSessionId: currentExtensionSessionId,
+             previousLogSessionId: previousExtensionSessionId // This might be null if it's the first run
+        };
+        const response = new DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
+        await eventBus.publish(response.type, response);
+        opLogger.info('Current/Last session ID retrieval successful', { requestId });
+    } catch (error) { // Should realistically not error here, but good practice
+        const appError = new AppError('UNKNOWN', 'Failed to get current/last log session IDs', { originalError: error });
+        const response = new DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
+        await eventBus.publish(response.type, response);
+        opLogger.error('Get current/last log session IDs failed', { requestId, error: appError });
+    }
+}
+
+// --- End Log Event Handlers ---
+
 // Subscribe to initialization
 eventBus.subscribe(DbInitializeRequest.name, handleInitializeRequest);
 logger.info('Subscribed to DbInitializeRequest');
+
+// Internal database operations (Chat History - Existing)
+// ... rest of existing code ...
+
+// Internal helper to get all unique extensionSessionId values from logs
+async function getAllUniqueLogSessionIdsInternal() {
+    const opLogger = new Logger('GetUniqueLogSessionIds');
+    opLogger.debug('Starting retrieval of unique session IDs...');
+    const collection = await ensureDbReady('log');
+    opLogger.debug('Log collection ensured ready.');
+
+    // Use RxDB's methods if possible, otherwise query all and process
+    // RxDB doesn't have a direct 'distinct' query. We fetch all docs or specific field.
+    try {
+        opLogger.debug('Executing find().select(extensionSessionId).exec()...');
+        const results = await collection.find().exec();
+        opLogger.debug(`Found ${results.length} log documents.`);
+        
+        const uniqueIds = new Set(results.map(doc => doc.get('extensionSessionId')));
+        opLogger.debug('Unique session IDs calculated', { count: uniqueIds.size });
+        return uniqueIds; // Return the Set directly
+    } catch (error) {
+        opLogger.error('Error during find().select().exec() for unique session IDs', { error });
+        throw new AppError('DB_QUERY_FAILED', 'Failed to retrieve unique log session IDs', { originalError: error });
+    }
+}
+
+// Internal helper to get unique values for a given field (e.g., component, level)
+
+// Internal helper to clear logs
+async function clearLogsInternal(sessionIdsToDelete) {
+    const opLogger = new Logger('ClearLogs');
+    opLogger.info('ClearLogs request received. Performing pruning of non-current/last sessions.');
+    
+    const collection = await ensureDbReady('log');
+    opLogger.debug('Log collection ensured ready.');
+
+    const results = await collection.find().exec();
+    opLogger.debug(`Found ${results.length} log documents.`);
+    
+    const filteredResults = results.filter(doc => {
+        const sessionId = doc.get('extensionSessionId');
+        return sessionId && !sessionIdsToDelete.includes(sessionId);
+    });
+
+    opLogger.debug(`Filtered results count: ${filteredResults.length}`);
+
+    const deletedCount = filteredResults.length;
+    await withTimeout(collection.bulkRemove(filteredResults), 3000);
+    opLogger.info(`ClearLogs request resulted in pruning ${deletedCount} logs from old sessions.`);
+
+    return { deletedCount };
+}

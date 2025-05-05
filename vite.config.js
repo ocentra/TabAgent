@@ -41,6 +41,7 @@ export default defineConfig({
         { src: 'src/notifications.js', dest: '.' },
         { src: 'src/downloadFormatter.js', dest: '.' },
         { src: 'icons', dest: '.' },
+        { src: 'src/events/dbEvents.js', dest: 'events' },
         { src: 'node_modules/prismjs/prism.js', dest: 'assets' },
         { src: 'node_modules/prismjs/components/prism-json.min.js', dest: 'assets' },
         { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' },
@@ -50,4 +51,4 @@ export default defineConfig({
       ]
     })
   ]
-}); 
+});

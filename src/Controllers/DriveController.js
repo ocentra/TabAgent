@@ -26,6 +26,7 @@ let debounceDep = null; // Debounce needs to be passed or imported
 
 // --- Drive Modal Logic ---
 function showDriveViewerModal() {
+    console.log("Attempting to show Drive modal...");
     if (isDriveOpen) return;
     if (!driveViewerModal) {
         console.error("DriveViewerModal element not found.");
@@ -42,6 +43,7 @@ function showDriveViewerModal() {
     if (driveViewerSearch) driveViewerSearch.value = '';
     updateInsertButtonState();
     renderSelectedFiles();
+    console.log("Fetching root content and making modal visible.");
     fetchAndDisplayViewerFolderContent('root');
     driveViewerModal.classList.remove('hidden');
     isDriveOpen = true;
@@ -68,6 +70,7 @@ function getFallbackIcon(mimeType) {
 }
 
 function renderDriveViewerItems(items) {
+    console.log(`[DriveController:Render] renderDriveViewerItems called with ${items?.length ?? 0} items.`); // Log entry
     if (!driveViewerList) return;
     driveViewerList.innerHTML = ''; // Clear previous items
 
@@ -347,19 +350,25 @@ function updateHeaderState() {
 
 // --- Background Message Handler ---
 function handleBackgroundMessages(message, sender, sendResponse) {
+    // Added verbose logging
+    console.log(`[DriveController:MsgListener] Received message type: ${message?.type}`, message);
+
     if (message.type === 'driveFileListResponse') {
         console.log(`DriveController: Handling driveFileListResponse for folder: ${message.folderId}`);
         isFetchingDriveList = false;
 
         // Check if the modal is still open and focused on the correct folder
+        console.log(`[DriveController:MsgListener] Check: isDriveOpen=${isDriveOpen}, message.folderId=${message.folderId}, currentFolderId=${currentFolderId}`); // Log check values
         if (!isDriveOpen || message.folderId !== currentFolderId) {
             console.warn(`DriveController: Ignoring driveFileListResponse for folder ${message.folderId}. Current: ${currentFolderId}, IsOpen: ${isDriveOpen}`);
             return false;
         }
 
         if (message.success && message.files) {
+            console.log(`[DriveController:MsgListener] Success! Caching and calling renderDriveViewerItems for ${message.files.length} files.`); // Log before render
             driveFilesCache[message.folderId] = message.files;
             renderDriveViewerItems(message.files);
+            console.log(`[DriveController:MsgListener] renderDriveViewerItems completed.`); // Log after render
         } else {
             const errorMsg = message.error || 'Unknown error fetching files.';
             console.error(`DriveController: Drive file list error for ${message.folderId}: ${errorMsg}`);
@@ -380,11 +389,21 @@ export function initializeDriveController(dependencies) {
 
     // Store dependencies
     requestDbAndWaitFunc = dependencies.requestDbAndWaitFunc; // Store the request function
-    // chatRendererDep = dependencies.chatRenderer; // Removed dependency
     getActiveChatSessionIdDep = dependencies.getActiveChatSessionId;
     setActiveChatSessionIdDep = dependencies.setActiveChatSessionId;
     if (dependencies.showNotification) showNotificationDep = dependencies.showNotification;
     debounceDep = dependencies.debounce;
+
+    // Import eventBus if not already (ensure it's available in this scope)
+    // Assuming eventBus is exported from './eventBus.js' relative to sidepanel.js
+    // Or passed as a dependency if needed.
+    // Let's assume it's globally accessible or passed via dependencies.
+    const eventBusDep = dependencies.eventBus; // Assuming eventBus is passed in
+    if (!eventBusDep) {
+        console.error("DriveController requires eventBus dependency!");
+        // Handle error - perhaps disable Drive functionality?
+        return; // Stop initialization if eventBus is missing
+    }
 
     if (!debounceDep) {
         console.error("DriveController requires a debounce function dependency.");
@@ -409,6 +428,7 @@ export function initializeDriveController(dependencies) {
 
     // --- Add Event Listeners ---
     const handleDriveButtonClick = (event) => {
+        console.log("Drive button clicked!");
         event.stopPropagation(); // Stop the event from bubbling to the document listener that closes popups
         showDriveViewerModal();
     };
@@ -505,7 +525,11 @@ export function initializeDriveController(dependencies) {
     // --- Setup Background Message Listener ---
     // Remove previous listener if controller is re-initialized?
     // chrome.runtime.onMessage.removeListener(handleBackgroundMessages); // Might cause issues if other listeners exist
-    chrome.runtime.onMessage.addListener(handleBackgroundMessages);
+    // *** REMOVED direct chrome.runtime listener ***
+    // chrome.runtime.onMessage.addListener(handleBackgroundMessages);
+
+    // *** ADDED EventBus listener ***
+    eventBusDep.subscribe('drive:fileListReceived', handleBackgroundMessages); // Listen on event bus
 
     console.log("DriveController Initialization Complete.");
 } 

@@ -99,8 +99,56 @@ async function setActiveChatSessionId(newSessionId) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("[Sidepanel] DOM Content Loaded. Initializing modules...");
+    console.log("[Sidepanel] DOM Content Loaded.");
 
+    // --- Context Detection --- 
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedView = urlParams.get('view');
+
+    if (requestedView === 'logs') {
+        console.log("[Sidepanel] Initializing in Log Viewer Mode.");
+        document.body.classList.add('log-viewer-mode'); // Optional: for specific CSS overrides
+        
+        // Hide main UI elements immediately
+        document.getElementById('header')?.classList.add('hidden');
+        document.getElementById('bottom-nav')?.classList.add('hidden');
+        // Ensure all standard page containers are hidden (except log viewer)
+        document.querySelectorAll('#main-content > .page-container:not(#page-log-viewer)')
+            .forEach(el => el.classList.add('hidden'));
+        // Show the log viewer page
+        const logViewerPage = document.getElementById('page-log-viewer');
+        if (logViewerPage) {
+            logViewerPage.classList.remove('hidden');
+        } else {
+            console.error("CRITICAL: #page-log-viewer element not found!");
+            document.body.innerHTML = "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>"; // Show error
+            return; // Stop further execution
+        }
+
+        // Dynamically import and initialize the Log Viewer Controller
+        try {
+            const logViewerModule = await import('./Controllers/LogViewerController.js');
+            await logViewerModule.initializeLogViewerController();
+            console.log("[Sidepanel] Log Viewer Controller initialized.");
+        } catch (err) {
+            console.error("Failed to load or initialize LogViewerController:", err);
+            if (logViewerPage) {
+                logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${err.message}</div>`;
+            }
+        }
+        
+        // Stop here, don't initialize the rest of the sidepanel UI
+        return; 
+    }
+    // --- End Context Detection ---
+    
+    // --- Regular Sidepanel Initialization (only runs if not view=logs) ---
+    console.log("[Sidepanel] Initializing in Standard Mode.");
+    
+    // Ensure log viewer page is hidden in standard mode
+    document.getElementById('page-log-viewer')?.classList.add('hidden'); 
+
+    // Proceed with existing initialization...
     let dbInitializationComplete = false;
     const dbReadyPromise = new Promise((resolve, reject) => {
         const TIMEOUT_MS = 10000;
@@ -279,29 +327,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         console.log("[Sidepanel] Drive Controller Initialized.");
 
-    const urlParams = new URLSearchParams(window.location.search);
-        isPopup = urlParams.get('context') === 'popup';
-        originalTabIdFromPopup = urlParams.get('originalTabId');
-        console.log(`[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${originalTabIdFromPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
-
+        // Wait for DB Initialization AFTER setting up listeners/controllers
         console.log("[Sidepanel] Waiting for DB initialization to complete...");
-        try {
-            await dbReadyPromise;
-            isDbReady = true;
-            console.log("[Sidepanel] DB initialization confirmed complete.");
-        } catch (dbInitError) {
-            console.error("[Sidepanel] DB Initialization failed within DOMContentLoaded:", dbInitError);
-            utilShowError(`Critical Error: ${dbInitError.message}. Cannot load data.`);
-            if(chatBody) chatBody.innerHTML = `<div class="p-4 text-red-500">Database failed to load. Please try reloading the extension.</div>`;
-            return; // Stop further execution if DB fails
+        isDbReady = await dbReadyPromise; // Wait for the DB promise to resolve/reject
+        console.log("[Sidepanel] DB initialization confirmed complete.");
+
+        // Now check if we need to load a specific session (e.g., from detach)
+        // Extract context determination logic
+        const popupContext = urlParams.get('context');
+        originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
+        isPopup = popupContext === 'popup';
+        console.log(`[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
+
+        if (isPopup && originalTabIdFromPopup) {
+            const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
+            const result = await chrome.storage.local.get(storageKey);
+            const detachedSessionId = result[storageKey];
+            if (detachedSessionId) {
+                console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
+                await loadAndDisplaySession(detachedSessionId);
+                // Optionally remove the key after loading
+                // await chrome.storage.local.remove(storageKey);
+            } else {
+                 console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
+                 await setActiveChatSessionId(null);
+            }
+        } else {
+            // If not a popup, load last known session or start fresh
+            const { lastSessionId } = await chrome.storage.local.get(['lastSessionId']);
+            if (lastSessionId) {
+                 console.log(`[Sidepanel] Loading last active session: ${lastSessionId}`);
+                 await loadAndDisplaySession(lastSessionId);
+             } else {
+                 console.log("[Sidepanel] No last session ID found, starting fresh.");
+                 await setActiveChatSessionId(null);
+             }
         }
         
-        console.log("[Sidepanel] DB ready. Starting with a clean session.");
-       
-        // Start with null session ID explicitly
-        await loadAndDisplaySession(null); 
-        
-        console.log("[Sidepanel] Initialization complete (starting fresh).");
+        console.log("[Sidepanel] Initialization complete (after DB ready).");
 
     } catch (error) {
         console.error('[Sidepanel] Initialization failed:', error);

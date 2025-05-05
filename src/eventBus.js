@@ -46,8 +46,8 @@ class EventBus {
           console.error(`[EventBus] Failed to structuredClone data for event ${eventName}:`, cloneError, data);
       }
     } else {
-        // Log if no listeners found
-        console.log(`[EventBus] No listeners registered for event ${eventName}.`);
+        // Log if no listeners found, including the data for context
+        console.log(`[EventBus] No listeners registered for event ${eventName}. Data:`, JSON.stringify(data));
     }
   }
 }

@@ -31,3 +31,4 @@ client_secret_1054233721282-tvskc3gdni8v4h2u1k2767a9ngbf4ong.apps.googleusercont
 dist.crx
 dist.pem
 src/model/ggml-model-i2_s.gguf
+*.gguf

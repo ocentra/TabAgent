@@ -60,6 +60,26 @@ function setupThemeToggle() {
     updateThemeButtonText(themeToggleButton);
 }
 
+// Helper function to connect a range slider to its value display span
+function setupSlider(sliderId, valueSpanId) {
+    const slider = document.getElementById(sliderId);
+    const valueSpan = document.getElementById(valueSpanId);
+
+    if (slider && valueSpan) {
+        // Set initial value display
+        valueSpan.textContent = slider.value;
+
+        // Add event listener to update display on slider change
+        slider.addEventListener('input', (event) => {
+            valueSpan.textContent = event.target.value;
+        });
+        console.log(`[SettingsController] Setup slider ${sliderId} with value display ${valueSpanId}`);
+    } else {
+        if (!slider) console.warn(`[SettingsController] Slider element not found: #${sliderId}`);
+        if (!valueSpan) console.warn(`[SettingsController] Value span element not found: #${valueSpanId}`);
+    }
+}
+
 export function initializeSettingsController() {
     if (isInitialized) {
         console.log("[SettingsController] Already initialized.");
@@ -69,6 +89,40 @@ export function initializeSettingsController() {
 
     setupThemeToggle();
     
+    // --- Setup Inference Setting Sliders --- 
+    setupSlider('setting-temperature', 'setting-temperature-value');
+    setupSlider('setting-repeat-penalty', 'setting-repeat-penalty-value');
+    setupSlider('setting-top-p', 'setting-top-p-value');
+    setupSlider('setting-min-p', 'setting-min-p-value');
+    // --- End Setup Inference Setting Sliders ---
+
+    // --- Setup Log Management Buttons ---
+    const viewLogsButton = document.getElementById('viewLogsButton');
+    if (viewLogsButton) {
+        viewLogsButton.addEventListener('click', () => {
+            console.log('[SettingsController] View Logs button clicked. Opening log viewer popup...');
+            try {
+                // Open sidepanel.html with query param for log viewer context
+                const viewerUrl = 'sidepanel.html?view=logs'; 
+                
+                // Use chrome.windows.create for a popup
+                chrome.windows.create({
+                     url: viewerUrl, // Use the modified relative path
+                     type: 'popup',
+                     width: 800, // Specify desired width
+                     height: 600 // Specify desired height
+                 });
+            } catch (error) {
+                console.error('[SettingsController] Error opening log viewer popup:', error);
+                // Optionally show an error to the user in the sidepanel UI
+            }
+        });
+        console.log('[SettingsController] Added listener to View Logs button.');
+    } else {
+        console.warn('[SettingsController] View Logs button (viewLogsButton) not found.');
+    }
+    // --- End Setup Log Management Buttons ---
+
     // Add other settings initialization here if needed
 
     isInitialized = true;

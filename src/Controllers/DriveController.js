@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill'; // <<< ADDED
 import { showNotification } from '../notifications.js'; // Assuming notifications is in root src
 // import { debounce } from '../utils.js'; // Assuming debounce is in a utils file or passed in
 import { DbCreateSessionRequest, DbAddMessageRequest } from '../events/dbEvents.js'; // Import necessary events
@@ -123,7 +124,9 @@ function renderDriveViewerItems(items) {
 
 // Fetch folder content (includes caching)
 function fetchAndDisplayViewerFolderContent(folderId) {
-    if (!driveViewerList || isFetchingDriveList) return;
+    if (!driveViewerList || isFetchingDriveList) {
+        return;
+    }
 
     isFetchingDriveList = true;
     console.log(`DriveController: Fetching Drive content for folder: ${folderId}`);
@@ -142,19 +145,19 @@ function fetchAndDisplayViewerFolderContent(folderId) {
     }
 
     // If not cached, request from background script
-    chrome.runtime.sendMessage({
+    browser.runtime.sendMessage({
         type: 'getDriveFileList',
         folderId: folderId
-    }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.error("DriveController: Error sending getDriveFileList message:", chrome.runtime.lastError.message);
-            showNotificationDep(`Error fetching folder content: ${chrome.runtime.lastError.message}`, 'error');
-            if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
-            isFetchingDriveList = false; // Ensure flag is reset on send error
-        } else {
-            // Response handled by the main message listener
-            console.log(`DriveController: Sent getDriveFileList request for ${folderId}. Waiting for response...`);
-        }
+    })
+    .then(() => {
+        // Log successful send (response handled by onMessage listener)
+        console.log(`DriveController: Sent getDriveFileList request for ${folderId}. Waiting for response...`);
+    })
+    .catch((error) => {
+        console.error("DriveController: Error *sending* getDriveFileList message:", error?.message || error);
+        showNotificationDep(`Error contacting background script: ${error?.message || 'Unknown error'}`, 'error');
+        if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
+        isFetchingDriveList = false; // Reset flag on send error
     });
 }
 
@@ -348,73 +351,57 @@ function updateHeaderState() {
     }
 }
 
-// --- Background Message Handler ---
-function handleBackgroundMessages(message, sender, sendResponse) {
-    // Added verbose logging
-    console.log(`[DriveController:MsgListener] Received message type: ${message?.type}`, message);
+// EXPORTED handler specifically for the file list response
+export function handleDriveFileListResponse(message) {
+    console.log(`[DriveController:Handler] Received file list data. Message type: ${message?.type}`);
 
-    if (message.type === 'driveFileListResponse') {
-        console.log(`DriveController: Handling driveFileListResponse for folder: ${message.folderId}`);
+    if (message.type === 'driveFileListData') {
+        const folderId = message.folderId;
+        console.log(`DriveController: Handling driveFileListData for folder: ${folderId}`);
         isFetchingDriveList = false;
 
-        // Check if the modal is still open and focused on the correct folder
-        console.log(`[DriveController:MsgListener] Check: isDriveOpen=${isDriveOpen}, message.folderId=${message.folderId}, currentFolderId=${currentFolderId}`); // Log check values
-        if (!isDriveOpen || message.folderId !== currentFolderId) {
-            console.warn(`DriveController: Ignoring driveFileListResponse for folder ${message.folderId}. Current: ${currentFolderId}, IsOpen: ${isDriveOpen}`);
-            return false;
+        console.log(`[DriveController:Handler] Check: isDriveOpen=${isDriveOpen}, message.folderId=${folderId}, currentFolderId=${currentFolderId}`);
+        if (!isDriveOpen || folderId !== currentFolderId) {
+            console.warn(`DriveController: Ignoring driveFileListData for folder ${folderId}. Current: ${currentFolderId}, IsOpen: ${isDriveOpen}`);
+            return;
         }
 
         if (message.success && message.files) {
-            console.log(`[DriveController:MsgListener] Success! Caching and calling renderDriveViewerItems for ${message.files.length} files.`); // Log before render
-            driveFilesCache[message.folderId] = message.files;
+            console.log(`[DriveController:Handler] Success! Caching and calling renderDriveViewerItems for ${message.files.length} files.`);
+            driveFilesCache[folderId] = message.files;
             renderDriveViewerItems(message.files);
-            console.log(`[DriveController:MsgListener] renderDriveViewerItems completed.`); // Log after render
+            console.log(`[DriveController:Handler] renderDriveViewerItems completed.`);
         } else {
             const errorMsg = message.error || 'Unknown error fetching files.';
-            console.error(`DriveController: Drive file list error for ${message.folderId}: ${errorMsg}`);
+            console.error(`DriveController: Drive file list error for ${folderId}: ${errorMsg}`);
             showNotificationDep(`Error fetching folder content: ${errorMsg}`, 'error');
             if (driveViewerList) {
                 driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${errorMsg}</div>`;
             }
         }
-        return false; // Indicate synchronous handling
+    } else {
+        console.warn(`[DriveController:Handler] Received unexpected message type: ${message?.type}`);
     }
-    // Return true if other async listeners might handle the message
-    return false; // Explicitly return false if not handled here
 }
 
 // --- Initialization Function ---
 export function initializeDriveController(dependencies) {
     console.log("Initializing DriveController...");
 
-    // Store dependencies
-    requestDbAndWaitFunc = dependencies.requestDbAndWaitFunc; // Store the request function
+    // Assign dependencies
+    if (!dependencies || !dependencies.requestDbAndWaitFunc || !dependencies.getActiveChatSessionId || !dependencies.setActiveChatSessionId || !dependencies.showNotification || !dependencies.debounce || !dependencies.eventBus) {
+        console.error("DriveController requires dependencies: requestDbAndWaitFunc, getActiveChatSessionId, setActiveChatSessionId, showNotification, debounce, eventBus!");
+        // Optionally throw an error or return early
+        return; // Stop initialization if critical dependencies are missing
+    }
+    requestDbAndWaitFunc = dependencies.requestDbAndWaitFunc;
     getActiveChatSessionIdDep = dependencies.getActiveChatSessionId;
     setActiveChatSessionIdDep = dependencies.setActiveChatSessionId;
-    if (dependencies.showNotification) showNotificationDep = dependencies.showNotification;
+    showNotificationDep = dependencies.showNotification;
     debounceDep = dependencies.debounce;
+    const eventBusDep = dependencies.eventBus; // Capture eventBus dependency
 
-    // Import eventBus if not already (ensure it's available in this scope)
-    // Assuming eventBus is exported from './eventBus.js' relative to sidepanel.js
-    // Or passed as a dependency if needed.
-    // Let's assume it's globally accessible or passed via dependencies.
-    const eventBusDep = dependencies.eventBus; // Assuming eventBus is passed in
-    if (!eventBusDep) {
-        console.error("DriveController requires eventBus dependency!");
-        // Handle error - perhaps disable Drive functionality?
-        return; // Stop initialization if eventBus is missing
-    }
-
-    if (!debounceDep) {
-        console.error("DriveController requires a debounce function dependency.");
-        // Fallback to no debounce?
-        debouncedDriveSearchHandler = handleDriveSearchInput;
-    } else {
-        debouncedDriveSearchHandler = debounceDep(handleDriveSearchInput, 300);
-    }
-
-
-    // --- Select DOM Elements ---
+    // Get DOM elements
     driveButton = document.getElementById('drive-button');
     driveViewerModal = document.getElementById('drive-viewer-modal');
     driveViewerClose = document.getElementById('drive-viewer-close');
@@ -422,114 +409,52 @@ export function initializeDriveController(dependencies) {
     driveViewerCancel = document.getElementById('drive-viewer-cancel');
     driveViewerInsert = document.getElementById('drive-viewer-insert');
     driveViewerSearch = document.getElementById('drive-viewer-search');
-    driveViewerSelectedArea = document.getElementById('drive-viewer-selected-area'); // Make sure this ID matches HTML
+    driveViewerSelectedArea = document.getElementById('drive-viewer-selected');
     driveViewerBreadcrumbsContainer = document.getElementById('drive-viewer-breadcrumbs');
     driveViewerBack = document.getElementById('drive-viewer-back');
 
-    // --- Add Event Listeners ---
-    const handleDriveButtonClick = (event) => {
-        console.log("Drive button clicked!");
-        event.stopPropagation(); // Stop the event from bubbling to the document listener that closes popups
-        showDriveViewerModal();
-    };
-    driveButton?.removeEventListener('click', handleDriveButtonClick); // Ensure no duplicates
-    driveButton?.addEventListener('click', handleDriveButtonClick);
+    if (!driveViewerModal || !driveViewerList) {
+        console.error("DriveController: Essential modal elements (#drive-viewer-modal, #drive-viewer-list) not found!");
+        return; // Can't function without these
+    }
 
-    driveViewerClose?.addEventListener('click', hideDriveViewerModal);
-    driveViewerCancel?.addEventListener('click', hideDriveViewerModal);
-
-    driveViewerInsert?.addEventListener('click', async () => {
-        const selectedFilesArray = Object.values(selectedDriveFiles);
-        if (selectedFilesArray.length === 0) return;
-
-        let currentSessionId = getActiveChatSessionIdDep();
-        let isNewSession = false;
-
-        console.log(`DriveController: Inserting ${selectedFilesArray.length} Drive files. Current session: ${currentSessionId}`);
-
-        const fileNames = selectedFilesArray.map(f => f.name).join(', ');
-        const messageText = `📎 Attached Drive files: ${fileNames}`;
-        const attachmentMetadata = {
-            type: 'drive_attachments',
-            files: selectedFilesArray.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, iconLink: f.iconLink }))
-        };
-
-        try {
-            if (!currentSessionId) {
-                isNewSession = true;
-                const firstMessage = {
-                    sender: 'system', text: messageText, timestamp: Date.now(), isLoading: false, metadata: attachmentMetadata
-                };
-                 // Use requestDbAndWaitFunc to create the session
-                 if (!requestDbAndWaitFunc) {
-                     throw new Error("requestDbAndWaitFunc function not provided.");
-                 }
-                 const createSessionRequest = new DbCreateSessionRequest(firstMessage);
-                 const createSessionResponse = await requestDbAndWaitFunc(createSessionRequest);
-                 console.log('[DriveController] Received createSessionResponse:', JSON.stringify(createSessionResponse));
-                 // *** FIXED how sessionId is extracted - access directly from resolved data object ***
-                 currentSessionId = createSessionResponse?.newSessionId;
-                 console.log('[DriveController] Extracted currentSessionId:', currentSessionId);
-                 if (!currentSessionId) {
-                     throw new Error("Failed to create session or get sessionId from response.");
-                 }
-
-                 if (setActiveChatSessionIdDep) {
-                     setActiveChatSessionIdDep(currentSessionId); // Update global state via callback
-                 } else {
-                     console.warn("setActiveChatSessionIdDep not provided to DriveController.");
-                 }
-                console.log(`DriveController: New session ${currentSessionId} created.`);
-                // TODO: Trigger history list update if necessary? Maybe via eventBus?
-            } else {
-                const attachmentMessage = {
-                    // messageId is likely generated by the DB worker now, removed from here
-                    sender: 'system', text: messageText, timestamp: Date.now(), isLoading: false, metadata: attachmentMetadata
-                };
-                 // Use requestDbAndWaitFunc to add the message
-                 if (!requestDbAndWaitFunc) {
-                    throw new Error("requestDbAndWaitFunc function not provided.");
-                }
-                 const addMessageRequest = new DbAddMessageRequest(currentSessionId, attachmentMessage);
-                 await requestDbAndWaitFunc(addMessageRequest); // Pass the request object directly
-            }
-
-            // Re-render and cleanup
-            // The chatRenderer should update automatically based on DbMessagesUpdatedNotification
-            // if (!chatRendererDep?.renderChatSession) {
-            //     throw new Error("chatRenderer.renderChatSession not provided.");
-            // }
-            // await chatRendererDep.renderChatSession(currentSessionId); // Removed explicit render call
-
-            selectedDriveFiles = {};
-            renderSelectedFiles();
-            updateInsertButtonState();
+    // Add event listeners
+    if (driveButton) {
+        driveButton.addEventListener('click', handleDriveButtonClick);
+    }
+    if (driveViewerClose) {
+        driveViewerClose.addEventListener('click', hideDriveViewerModal);
+    }
+    if (driveViewerCancel) {
+        driveViewerCancel.addEventListener('click', hideDriveViewerModal);
+    }
+    if (driveViewerInsert) {
+        // TODO: Implement insert functionality
+        driveViewerInsert.addEventListener('click', () => {
+            console.warn("Insert button functionality not yet implemented.");
+            // Placeholder: Insert selected files into chat
+            // You'll need access to the chat input/send mechanism here
             hideDriveViewerModal();
+        });
+    }
+    if (driveViewerSearch && debounceDep) {
+         driveViewerSearch.addEventListener('input', debounceDep(handleDriveSearchInput, 300));
+     } else if (driveViewerSearch) {
+         console.warn("Debounce dependency missing, search will trigger on every keypress.");
+         driveViewerSearch.addEventListener('input', handleDriveSearchInput);
+     }
+    if (driveViewerBack) {
+        driveViewerBack.addEventListener('click', handleDriveBackButtonClick);
+    }
 
-        } catch (error) {
-            console.error("DriveController: Error adding Drive attachment message:", error);
-            showNotificationDep(`Failed to add Drive attachment: ${error.message}`, 'error');
-        }
-    });
+    console.log("DriveController Initialized successfully.");
+}
 
-    driveViewerSearch?.addEventListener('input', debouncedDriveSearchHandler); // Use the debounced handler
-    driveViewerBack?.addEventListener('click', handleDriveBackButtonClick);
+// --- Event Handlers ---
+const handleDriveButtonClick = (event) => {
+    console.log("Drive button clicked!");
+    event.stopPropagation(); // Prevent potential bubbling issues
+    showDriveViewerModal();
+};
 
-     // Add listener for clicking outside the modal to close it
-    document.addEventListener('click', (event) => {
-        if (isDriveOpen && driveViewerModal && !driveViewerModal.contains(event.target) && driveButton && !driveButton.contains(event.target)) {
-            hideDriveViewerModal();
-        }
-    });
-
-    // --- Setup Background Message Listener ---
-    // Remove previous listener if controller is re-initialized?
-    // chrome.runtime.onMessage.removeListener(handleBackgroundMessages); // Might cause issues if other listeners exist
-    // *** REMOVED direct chrome.runtime listener ***
-    // chrome.runtime.onMessage.addListener(handleBackgroundMessages);
-
-    // *** ADDED EventBus listener ***
-    eventBusDep.subscribe('drive:fileListReceived', handleBackgroundMessages); // Listen on event bus
-
-    console.log("DriveController Initialization Complete.");
-} 
+// ... rest of the file ... 

@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import { initializeNavigation, navigateTo } from './navigation.js';
 import * as uiController from './Home/uiController.js';
 import { initializeRenderer, setActiveSessionId as setRendererSessionId, scrollToBottom } from './Home/chatRenderer.js';
@@ -21,7 +22,7 @@ import { initializeLibraryController } from './Controllers/LibraryController.js'
 import { initializeDiscoverController } from './Controllers/DiscoverController.js';
 import { initializeSettingsController } from './Controllers/SettingsController.js';
 import { initializeSpacesController } from './Controllers/SpacesController.js';
-import { initializeDriveController } from './Controllers/DriveController.js';
+import { initializeDriveController, handleDriveFileListResponse } from './Controllers/DriveController.js';
 
 let currentTab = null;
 let activeSessionId = null;
@@ -89,9 +90,9 @@ async function setActiveChatSessionId(newSessionId) {
     console.log(`[Sidepanel] Setting active session ID to: ${newSessionId}`);
     activeSessionId = newSessionId;
     if (newSessionId) {
-        await chrome.storage.local.set({ lastSessionId: newSessionId });
+        await browser.storage.local.set({ lastSessionId: newSessionId });
     } else {
-        await chrome.storage.local.remove('lastSessionId');
+        await browser.storage.local.remove('lastSessionId');
     }
     // Notify other components
     setRendererSessionId(newSessionId); // From chatRenderer import
@@ -234,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         console.log("[Sidepanel] Message Orchestrator Initialized.");
 
-        chrome.runtime.onMessage.addListener(handleBackgroundMessage);
+        browser.runtime.onMessage.addListener(handleBackgroundMessage);
         console.log("[Sidepanel] Background message listener added.");
 
         const historyPopupElement = document.getElementById('history-popup');
@@ -298,7 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                  return;
             }
             console.log(`[Sidepanel] Received 'ui:requestModelLoad' for ${modelId}. Sending 'loadModel' to background.`);
-            chrome.runtime.sendMessage({ type: 'loadModel', payload: { modelId: modelId } }).catch(err => {
+            browser.runtime.sendMessage({ type: 'loadModel', payload: { modelId: modelId } }).catch(err => {
                  console.error(`[Sidepanel] Error sending 'loadModel' message for ${modelId}:`, err);
                  // Optionally inform UI of the error
                  eventBus.publish('worker:error', `Failed to send load request: ${err.message}`);
@@ -323,7 +324,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             getActiveChatSessionId: getActiveChatSessionId,
             setActiveChatSessionId: setActiveChatSessionId,
             showNotification,
-            debounce
+            debounce,
+            eventBus
         });
         console.log("[Sidepanel] Drive Controller Initialized.");
 
@@ -341,20 +343,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (isPopup && originalTabIdFromPopup) {
             const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
-            const result = await chrome.storage.local.get(storageKey);
+            const result = await browser.storage.local.get(storageKey);
             const detachedSessionId = result[storageKey];
             if (detachedSessionId) {
                 console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
                 await loadAndDisplaySession(detachedSessionId);
                 // Optionally remove the key after loading
-                // await chrome.storage.local.remove(storageKey);
+                // await browser.storage.local.remove(storageKey);
             } else {
                  console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
                  await setActiveChatSessionId(null);
             }
         } else {
             // If not a popup, load last known session or start fresh
-            const { lastSessionId } = await chrome.storage.local.get(['lastSessionId']);
+            const { lastSessionId } = await browser.storage.local.get(['lastSessionId']);
             if (lastSessionId) {
                  console.log(`[Sidepanel] Loading last active session: ${lastSessionId}`);
                  await loadAndDisplaySession(lastSessionId);
@@ -392,6 +394,9 @@ function handleBackgroundMessage(message, sender, sendResponse) {
         // Forward loading status updates from background onto the local event bus
         console.log('[Sidepanel] Forwarding uiLoadingStatusUpdate to eventBus.');
         eventBus.publish('ui:loadingStatusUpdate', message.payload);
+    } else if (message.type === 'driveFileListData') {
+        console.log('[Sidepanel] Received driveFileListData, calling DriveController handler directly.');
+        handleDriveFileListResponse(message);
     } else {
         console.warn('[Sidepanel] Received unknown message type from background:', message.type, message);
     }
@@ -493,31 +498,31 @@ async function handleDetach() {
     const currentSessionId = getActiveChatSessionId();
 
     try {
-        const response = await chrome.runtime.sendMessage({ 
+        const response = await browser.runtime.sendMessage({ 
             type: 'getPopupForTab', 
             tabId: currentTabId 
         });
 
         if (response && response.popupId) {
-            await chrome.windows.update(response.popupId, { focused: true });
+            await browser.windows.update(response.popupId, { focused: true });
             return; 
         }
 
         const storageKey = `detachedSessionId_${currentTabId}`;
-        await chrome.storage.local.set({
+        await browser.storage.local.set({
             [storageKey]: currentSessionId
         });
         console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
 
-        const popup = await chrome.windows.create({
-            url: chrome.runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
+        const popup = await browser.windows.create({
+            url: browser.runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
             type: 'popup',
             width: 400,
             height: 600
         });
 
         if (popup?.id) { 
-            await chrome.runtime.sendMessage({ 
+            await browser.runtime.sendMessage({ 
                 type: 'popupCreated', 
                 tabId: currentTabId,
                 popupId: popup.id
@@ -546,11 +551,11 @@ async function handlePageChange(event) {
     if (event.pageId === 'page-home') {
         console.log("[Sidepanel] Navigated to home page, checking for specific session load signal...");
         try {
-            const { lastSessionId } = await chrome.storage.local.get(['lastSessionId']);
+            const { lastSessionId } = await browser.storage.local.get(['lastSessionId']);
             if (lastSessionId) {
                 console.log(`[Sidepanel] Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
                 await loadAndDisplaySession(lastSessionId);
-                await chrome.storage.local.remove('lastSessionId'); 
+                await browser.storage.local.remove('lastSessionId'); 
             } else {
                 console.log("[Sidepanel] No load signal found. Resetting to welcome state.");
                 await loadAndDisplaySession(null); 

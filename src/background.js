@@ -666,13 +666,17 @@ browser.runtime.onInstalled.addListener(async (details) => {
         .catch((error) => logClient.logError('Error setting side panel behavior:', error));
     logClient.logInfo('Side panel behavior set.');
 
-    browser.storage.local.get(null, (items) => {
+    browser.storage.local.get().then((items) => {
         const keysToRemove = Object.keys(items).filter(key => key.startsWith('detachedState_'));
         if (keysToRemove.length > 0) {
-            browser.storage.local.remove(keysToRemove, () => {
+            browser.storage.local.remove(keysToRemove).then(() => {
                 logClient.logInfo('Cleaned up old storage keys on install/update.');
+            }).catch(err => {
+                logClient.logError('Error removing old storage keys:', err);
             });
         }
+    }).catch(err => {
+         logClient.logError('Error getting storage items for cleanup:', err);
     });
 
     logClient.logInfo('Triggering DB Initialization from onInstalled.');
@@ -934,10 +938,133 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (!isResponseAsync) {
-        logClient.logWarn(`Unhandled message type: ${type}`);
+    if (type === 'getModelWorkerState') {
+        logClient.logInfo(`Handling 'getModelWorkerState' request. Current state: ${modelWorkerState}`);
+        sendResponse({ success: true, state: modelWorkerState });
+        return false;
     }
-    return isResponseAsync;
+
+    if (type === 'scrapeRequest') {
+        logClient.logInfo(`Handling 'scrapeRequest' request. Scraping URL: ${payload?.url}`);
+        isResponseAsync = true;
+        scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId)
+            .then(() => {
+                logClient.logInfo(`scrapeRequest(${payload?.url}) promise resolved successfully.`);
+                sendResponse({ success: true, message: `Scraping orchestrator started for ${payload?.url}.` });
+            })
+            .catch(error => {
+                logClient.logError(`scrapeRequest(${payload?.url}) failed:`, error);
+                sendResponse({ success: false, error: error.message });
+            });
+        return isResponseAsync;
+    }
+
+    if (type === 'getDriveFileList') {
+        const receivedFolderId = message.folderId;
+        logClient.logInfo(`Handling 'getDriveFileList' for folder: ${receivedFolderId}`);
+        isResponseAsync = true;
+        (async () => {
+            try {
+                const token = await getDriveToken();
+                const files = await fetchDriveFileList(token, receivedFolderId);
+                logClient.logInfo(`Successfully fetched ${files?.length || 0} files/folders.`);
+
+                // Send file list via separate sendMessage
+                logClient.logInfo('[Background] Sending driveFileListData...');
+                browser.runtime.sendMessage({
+                    type: 'driveFileListData',
+                    success: true,
+                    files: files,
+                    folderId: receivedFolderId
+                }).catch(err => {
+                     logClient.logWarn('[Background] Failed to send driveFileListData:', err?.message);
+                     browser.runtime.sendMessage({ type: 'driveFileListData', success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
+                });
+
+                logClient.logInfo('[Background] sendResponse for driveFileListResponse skipped (using separate message).');
+
+            } catch (error) {
+                logClient.logError("Error handling getDriveFileList:", error);
+                // Send error via separate message too
+                browser.runtime.sendMessage({
+                     type: 'driveFileListData',
+                     success: false,
+                     error: error.message,
+                     folderId: receivedFolderId
+                 }).catch(err => {
+                     logClient.logWarn('[Background] Failed to send driveFileListData error message:', err?.message);
+                 });
+                 logClient.logInfo('[Background] sendResponse for driveFileListResponse error skipped (using separate message).');
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type.startsWith('db:')) {
+        logClient.logDebug(`Forwarding DB request of type '${type}' to event bus.`);
+        eventBus.publish(type, message);
+        return false;
+    }
+
+    if (type === 'getLogSessions') {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                const { logSessions: sessions } = await browser.storage.local.get('logSessions');
+                sendResponse({ success: true, sessions: sessions || [] });
+            } catch (err) {
+                logClient.logError("Error fetching log sessions:", err);
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type === 'getLogEntries') {
+        isResponseAsync = true;
+        (async () => {
+            const sessionId = payload?.sessionId;
+            if (!sessionId) {
+                sendResponse({ success: false, error: 'Session ID required' });
+                return true;
+            }
+            try {
+                const key = `logs_${sessionId}`;
+                const result = await browser.storage.local.get(key);
+                sendResponse({ success: true, entries: result[key] || [] });
+            } catch (err) {
+                logClient.logError(`Error fetching log entries for ${sessionId}:`, err);
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type === 'detachSidePanel') {
+        isResponseAsync = true;
+        handleDetach(sender.tab?.id).then(result => {
+            sendResponse(result);
+        }).catch(error => {
+            sendResponse({ success: false, error: error.message });
+        });
+        return isResponseAsync;
+    }
+
+    if (type === 'getDetachedState') {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                const { [`detachedState_${sender.tab?.id}`]: state } = await browser.storage.local.get(`detachedState_${sender.tab?.id}`);
+                sendResponse({ success: true, state: state });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    logClient.logWarn(`Unhandled message type: ${type}`);
+    return false;
 });
 
 logClient.logInfo("[Background-Simple] Script loaded and listening.");

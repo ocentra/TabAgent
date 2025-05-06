@@ -32,3 +32,6 @@ dist.crx
 dist.pem
 src/model/ggml-model-i2_s.gguf
 *.gguf
+
+# Backup / Temporary Directories
+BKP/

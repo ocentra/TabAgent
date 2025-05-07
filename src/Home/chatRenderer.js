@@ -6,6 +6,7 @@ import {
     DbSessionUpdatedNotification, 
     DbGetSessionRequest
 } from '../events/dbEvents.js';
+import * as EventNames from '../events/eventNames.js';
 
 let chatBodyElement = null;
 let currentSessionId = null;
@@ -25,9 +26,9 @@ export function initializeRenderer(chatBody, requestDbFunc) {
     chatBodyElement = chatBody;
     requestDbAndWaitFunc = requestDbFunc;
     console.log("[ChatRenderer] Initialized with chat body element and DB request function.");
-    eventBus.subscribe(DbMessagesUpdatedNotification.name, handleMessagesUpdate);
+    eventBus.subscribe(EventNames.DB_MESSAGES_UPDATED_NOTIFICATION, handleMessagesUpdate);
     console.log("[ChatRenderer] Subscribed to DbMessagesUpdatedNotification.");
-    eventBus.subscribe(DbSessionUpdatedNotification.name, handleSessionMetadataUpdate);
+    eventBus.subscribe(EventNames.DB_SESSION_UPDATED_NOTIFICATION, handleSessionMetadataUpdate);
     console.log("[ChatRenderer] Subscribed to DbSessionUpdatedNotification.");
 
     // Initialize MutationObserver to apply syntax highlighting

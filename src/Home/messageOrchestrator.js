@@ -15,6 +15,7 @@ import {
     DbRenameSessionRequest, DbRenameSessionResponse
 } from '../events/dbEvents.js';
 import { clearTemporaryMessages } from './chatRenderer.js';
+import * as EventNames from '../events/eventNames.js';
 
 let getActiveSessionIdFunc = null;
 let onSessionCreatedCallback = null;
@@ -48,28 +49,28 @@ function requestDbAndWait(requestEvent, timeoutMs = 5000) {
         }, timeoutMs);
 
         let responseEventType;
-        if (requestType === DbCreateSessionRequest.name) {
-            responseEventType = DbCreateSessionResponse.name;
-        } else if (requestType === DbAddMessageRequest.name) {
-            responseEventType = DbAddMessageResponse.name;
-        } else if (requestType === DbGetSessionRequest.name) {
-            responseEventType = DbGetSessionResponse.name;
-        } else if (requestType === DbUpdateMessageRequest.name) {
-            responseEventType = DbUpdateMessageResponse.name;
-        } else if (requestType === DbDeleteMessageRequest.name) {
-            responseEventType = DbDeleteMessageResponse.name;
-        } else if (requestType === DbUpdateStatusRequest.name) {
-            responseEventType = DbUpdateStatusResponse.name;
-        } else if (requestType === DbToggleStarRequest.name) {
-            responseEventType = DbToggleStarResponse.name;
-        } else if (requestType === DbGetAllSessionsRequest.name) {
-            responseEventType = DbGetAllSessionsResponse.name;
-        } else if (requestType === DbGetStarredSessionsRequest.name) {
-            responseEventType = DbGetStarredSessionsResponse.name;
-        } else if (requestType === DbDeleteSessionRequest.name) {
-            responseEventType = DbDeleteSessionResponse.name;
-        } else if (requestType === DbRenameSessionRequest.name) {
-            responseEventType = DbRenameSessionResponse.name;
+        if (requestType === EventNames.DB_CREATE_SESSION_REQUEST) {
+            responseEventType = EventNames.DB_CREATE_SESSION_RESPONSE;
+        } else if (requestType === EventNames.DB_ADD_MESSAGE_REQUEST) {
+            responseEventType = EventNames.DB_ADD_MESSAGE_RESPONSE;
+        } else if (requestType === EventNames.DB_GET_SESSION_REQUEST) {
+            responseEventType = EventNames.DB_GET_SESSION_RESPONSE;
+        } else if (requestType === EventNames.DB_UPDATE_MESSAGE_REQUEST) {
+            responseEventType = EventNames.DB_UPDATE_MESSAGE_RESPONSE;
+        } else if (requestType === EventNames.DB_DELETE_MESSAGE_REQUEST) {
+            responseEventType = EventNames.DB_DELETE_MESSAGE_RESPONSE;
+        } else if (requestType === EventNames.DB_UPDATE_STATUS_REQUEST) {
+            responseEventType = EventNames.DB_UPDATE_STATUS_RESPONSE;
+        } else if (requestType === EventNames.DB_TOGGLE_STAR_REQUEST) {
+            responseEventType = EventNames.DB_TOGGLE_STAR_RESPONSE;
+        } else if (requestType === EventNames.DB_GET_ALL_SESSIONS_REQUEST) {
+            responseEventType = EventNames.DB_GET_ALL_SESSIONS_RESPONSE;
+        } else if (requestType === EventNames.DB_GET_STARRED_SESSIONS_REQUEST) {
+            responseEventType = EventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
+        } else if (requestType === EventNames.DB_DELETE_SESSION_REQUEST) {
+            responseEventType = EventNames.DB_DELETE_SESSION_RESPONSE;
+        } else if (requestType === EventNames.DB_RENAME_SESSION_REQUEST) {
+            responseEventType = EventNames.DB_RENAME_SESSION_RESPONSE;
         } else {
             console.error(`[Orchestrator] Unknown request type for response mapping: ${requestType}`);
             responseEventType = requestType.replace('Request', 'Response');

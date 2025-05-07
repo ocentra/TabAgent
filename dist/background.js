@@ -1,4 +1,4 @@
-import { e as eventBus, J as DbInitializationCompleteNotification, E as DbAddLogRequest, b as browser, C as DbInitializeRequest } from "./assets/dbEvents-BEUbKsMb.js";
+import { e as eventBus, T as DB_INITIALIZATION_COMPLETE_NOTIFICATION, ac as DbAddLogRequest, b as browser, ab as DbInitializeRequest } from "./assets/dbEvents-DGCiIYDG.js";
 const hasChromeRuntime = typeof chrome !== "undefined" && chrome.runtime;
 let componentName = "unknown";
 let mirrorToConsoleDefault = true;
@@ -23,7 +23,7 @@ function init(compName, options = {}) {
   mirrorToConsoleDefault = options.mirrorToConsole !== void 0 ? options.mirrorToConsole : true;
   sendToDbDefault = options.sendToDb !== void 0 ? options.sendToDb : true;
   if (eventBus) {
-    eventBus.subscribe(DbInitializationCompleteNotification.name, (notification) => {
+    eventBus.subscribe(DB_INITIALIZATION_COMPLETE_NOTIFICATION, (notification) => {
       if (notification.payload.success) {
         console.log(`[LogClient (${componentName})] Received DB Initialization Complete. Flushing buffer.`);
         isDbReadyForLogs = true;

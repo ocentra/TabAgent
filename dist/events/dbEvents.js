@@ -1,3 +1,5 @@
+import * as EventNames from './eventNames.js';
+
 // Simple UUID generator (replace with a more robust library if needed)
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -35,49 +37,49 @@ class DbNotificationBase {
 export class DbGetSessionResponse extends DbResponseBase {
   constructor(originalRequestId, success, sessionData, error = null) {
     super(originalRequestId, success, sessionData, error);
-    this.type = DbGetSessionResponse.name;
+    this.type = EventNames.DB_GET_SESSION_RESPONSE;
   }
 }
 
 export class DbAddMessageResponse extends DbResponseBase {
   constructor(originalRequestId, success, newMessageId, error = null) {
     super(originalRequestId, success, { newMessageId }, error);
-    this.type = DbAddMessageResponse.name;
+    this.type = EventNames.DB_ADD_MESSAGE_RESPONSE;
   }
 }
 
 export class DbUpdateMessageResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = DbUpdateMessageResponse.name;
+        this.type = EventNames.DB_UPDATE_MESSAGE_RESPONSE;
     }
 }
 
 export class DbUpdateStatusResponse extends DbResponseBase {
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = DbUpdateStatusResponse.name;
+    this.type = EventNames.DB_UPDATE_STATUS_RESPONSE;
   }
 }
 
 export class DbDeleteMessageResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = DbDeleteMessageResponse.name;
+        this.type = EventNames.DB_DELETE_MESSAGE_RESPONSE;
     }
 }
 
 export class DbToggleStarResponse extends DbResponseBase {
     constructor(originalRequestId, success, updatedSessionData, error = null) {
         super(originalRequestId, success, updatedSessionData, error);
-        this.type = DbToggleStarResponse.name;
+        this.type = EventNames.DB_TOGGLE_STAR_RESPONSE;
     }
 }
 
 export class DbCreateSessionResponse extends DbResponseBase {
     constructor(originalRequestId, success, newSessionId, error = null) {
         super(originalRequestId, success, { newSessionId }, error);
-        this.type = DbCreateSessionResponse.name;
+        this.type = EventNames.DB_CREATE_SESSION_RESPONSE;
         console.log(`[dbEvents] DbCreateSessionResponse constructor: type set to ${this.type}`);
     }
 
@@ -89,21 +91,21 @@ export class DbCreateSessionResponse extends DbResponseBase {
 export class DbDeleteSessionResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = DbDeleteSessionResponse.name;
+        this.type = EventNames.DB_DELETE_SESSION_RESPONSE;
     }
 }
 
 export class DbRenameSessionResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = DbRenameSessionResponse.name;
+        this.type = EventNames.DB_RENAME_SESSION_RESPONSE;
     }
 }
 
 export class DbGetAllSessionsResponse extends DbResponseBase {
     constructor(requestId, success, sessions = null, error = null) {
         super(requestId, success, sessions, error);
-        this.type = DbGetAllSessionsResponse.name;
+        this.type = EventNames.DB_GET_ALL_SESSIONS_RESPONSE;
         this.payload = { sessions };
     }
 }
@@ -111,71 +113,71 @@ export class DbGetAllSessionsResponse extends DbResponseBase {
 export class DbGetStarredSessionsResponse extends DbResponseBase {
     constructor(requestId, success, starredSessions = null, error = null) {
         super(requestId, success, starredSessions, error); 
-        this.type = DbGetStarredSessionsResponse.name;
+        this.type = EventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     }
 }
 
 // --- Request Events (Define After Response Events) ---
 
 export class DbGetSessionRequest extends DbEventBase {
-  static responseEventName = DbGetSessionResponse.name;
+  static responseEventName = EventNames.DB_GET_SESSION_RESPONSE;
   constructor(sessionId) {
     super();
-    this.type = DbGetSessionRequest.name;
+    this.type = EventNames.DB_GET_SESSION_REQUEST;
     this.payload = { sessionId };
   }
 }
 
 export class DbAddMessageRequest extends DbEventBase {
-  static responseEventName = DbAddMessageResponse.name;
+  static responseEventName = EventNames.DB_ADD_MESSAGE_RESPONSE;
   constructor(sessionId, messageObject) {
     super();
-    this.type = DbAddMessageRequest.name;
+    this.type = EventNames.DB_ADD_MESSAGE_REQUEST;
     this.payload = { sessionId, messageObject };
   }
 }
 
 export class DbUpdateMessageRequest extends DbEventBase {
-    static responseEventName = DbUpdateMessageResponse.name;
+    static responseEventName = EventNames.DB_UPDATE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId, updates) {
         super();
-        this.type = DbUpdateMessageRequest.name;
+        this.type = EventNames.DB_UPDATE_MESSAGE_REQUEST;
         this.payload = { sessionId, messageId, updates };
     }
 }
 
 export class DbUpdateStatusRequest extends DbEventBase {
-  static responseEventName = DbUpdateStatusResponse.name;
+  static responseEventName = EventNames.DB_UPDATE_STATUS_RESPONSE;
   constructor(sessionId, status) {
     super();
-    this.type = DbUpdateStatusRequest.name;
+    this.type = EventNames.DB_UPDATE_STATUS_REQUEST;
     this.payload = { sessionId, status };
   }
 }
 
 export class DbDeleteMessageRequest extends DbEventBase {
-    static responseEventName = DbDeleteMessageResponse.name;
+    static responseEventName = EventNames.DB_DELETE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId) {
         super();
-        this.type = DbDeleteMessageRequest.name;
+        this.type = EventNames.DB_DELETE_MESSAGE_REQUEST;
         this.payload = { sessionId, messageId };
     }
 }
 
 export class DbToggleStarRequest extends DbEventBase {
-    static responseEventName = DbToggleStarResponse.name;
+    static responseEventName = EventNames.DB_TOGGLE_STAR_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = DbToggleStarRequest.name;
+        this.type = EventNames.DB_TOGGLE_STAR_REQUEST;
         this.payload = { sessionId };
     }
 }
 
 export class DbCreateSessionRequest extends DbEventBase {
-    static responseEventName = DbCreateSessionResponse.name;
+    static responseEventName = EventNames.DB_CREATE_SESSION_RESPONSE;
     constructor(initialMessage) {
         super();
-        this.type = DbCreateSessionRequest.name;
+        this.type = EventNames.DB_CREATE_SESSION_REQUEST;
         this.payload = { initialMessage };
         console.log(`[dbEvents] DbCreateSessionRequest constructor: type set to ${this.type}`);
     }
@@ -185,42 +187,42 @@ export class DbInitializeRequest extends DbEventBase {
     // No response expected via requestDbAndWait, so no responseEventName needed
     constructor() {
         super();
-        this.type = DbInitializeRequest.name;
+        this.type = EventNames.DB_INITIALIZE_REQUEST;
         this.payload = {}; 
     }
 }
 
 export class DbDeleteSessionRequest extends DbEventBase {
-    static responseEventName = DbDeleteSessionResponse.name;
+    static responseEventName = EventNames.DB_DELETE_SESSION_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = DbDeleteSessionRequest.name;
+        this.type = EventNames.DB_DELETE_SESSION_REQUEST;
         this.payload = { sessionId };
     }
 }
 
 export class DbRenameSessionRequest extends DbEventBase {
-    static responseEventName = DbRenameSessionResponse.name;
+    static responseEventName = EventNames.DB_RENAME_SESSION_RESPONSE;
     constructor(sessionId, newName) {
         super();
-        this.type = DbRenameSessionRequest.name;
+        this.type = EventNames.DB_RENAME_SESSION_REQUEST;
         this.payload = { sessionId, newName };
     }
 }
 
 export class DbGetAllSessionsRequest extends DbEventBase {
-    static responseEventName = DbGetAllSessionsResponse.name;
+    static responseEventName = EventNames.DB_GET_ALL_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = DbGetAllSessionsRequest.name;
+        this.type = EventNames.DB_GET_ALL_SESSIONS_REQUEST;
     }
 }
 
 export class DbGetStarredSessionsRequest extends DbEventBase {
-    static responseEventName = DbGetStarredSessionsResponse.name;
+    static responseEventName = EventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = DbGetStarredSessionsRequest.name;
+        this.type = EventNames.DB_GET_STARRED_SESSIONS_REQUEST;
     }
 }
 
@@ -229,7 +231,7 @@ export class DbGetStarredSessionsRequest extends DbEventBase {
 export class DbMessagesUpdatedNotification extends DbNotificationBase {
     constructor(sessionId, messages) {
         super(sessionId);
-        this.type = DbMessagesUpdatedNotification.name;
+        this.type = EventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
         this.payload = { messages }; 
     }
 }
@@ -237,7 +239,7 @@ export class DbMessagesUpdatedNotification extends DbNotificationBase {
 export class DbStatusUpdatedNotification extends DbNotificationBase {
     constructor(sessionId, status) {
         super(sessionId);
-        this.type = DbStatusUpdatedNotification.name;
+        this.type = EventNames.DB_STATUS_UPDATED_NOTIFICATION;
         this.payload = { status };
     }
 }
@@ -245,14 +247,14 @@ export class DbStatusUpdatedNotification extends DbNotificationBase {
 export class DbSessionUpdatedNotification extends DbNotificationBase {
     constructor(sessionId, updatedSessionData) {
         super(sessionId);
-        this.type = DbSessionUpdatedNotification.name;
+        this.type = EventNames.DB_SESSION_UPDATED_NOTIFICATION;
         this.payload = { session: updatedSessionData }; 
     }
 }
 
 export class DbInitializationCompleteNotification {
     constructor({ success, error = null }) {
-        this.type = DbInitializationCompleteNotification.name;
+        this.type = EventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
         this.timestamp = Date.now();
         this.payload = { success, error: error ? (error.message || String(error)) : null };
     }
@@ -263,21 +265,21 @@ export class DbInitializationCompleteNotification {
 export class DbGetLogsResponse extends DbResponseBase {
   constructor(originalRequestId, success, logs, error = null) {
     super(originalRequestId, success, logs, error); // data = logs array
-    this.type = DbGetLogsResponse.name;
+    this.type = EventNames.DB_GET_LOGS_RESPONSE;
   }
 }
 
 export class DbGetUniqueLogValuesResponse extends DbResponseBase {
   constructor(originalRequestId, success, values, error = null) {
     super(originalRequestId, success, values, error); // data = values array
-    this.type = DbGetUniqueLogValuesResponse.name;
+    this.type = EventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   }
 }
 
 export class DbClearLogsResponse extends DbResponseBase {
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = DbClearLogsResponse.name;
+    this.type = EventNames.DB_CLEAR_LOGS_RESPONSE;
   }
 }
 
@@ -285,7 +287,7 @@ export class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
     constructor(originalRequestId, success, ids, error = null) {
       // data = { currentLogSessionId: '...', previousLogSessionId: '...' | null }
       super(originalRequestId, success, ids, error);
-      this.type = DbGetCurrentAndLastLogSessionIdsResponse.name;
+      this.type = EventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     }
   }
 
@@ -299,50 +301,50 @@ export class DbAddLogRequest extends DbEventBase {
     // logEntryData = { level, component, message, chatSessionId (optional) }
     // db service will add id, timestamp, extensionSessionId
     super(); // Generate request ID just for tracking if needed
-    this.type = DbAddLogRequest.name;
+    this.type = EventNames.DB_ADD_LOG_REQUEST;
     this.payload = { logEntryData };
   }
 }
 
 // Request to get logs based on filters
 export class DbGetLogsRequest extends DbEventBase {
-  static responseEventName = DbGetLogsResponse.name;
+  static responseEventName = EventNames.DB_GET_LOGS_RESPONSE;
   constructor(filters) {
     // filters = { extensionSessionId: 'id' | 'current' | 'last' | 'all',
     //             component: 'name' | 'all',
     //             level: 'level' | 'all' }
     super();
-    this.type = DbGetLogsRequest.name;
+    this.type = EventNames.DB_GET_LOGS_REQUEST;
     this.payload = { filters };
   }
 }
 
 // Request to get unique values for a specific field in logs
 export class DbGetUniqueLogValuesRequest extends DbEventBase {
-  static responseEventName = DbGetUniqueLogValuesResponse.name;
+  static responseEventName = EventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   constructor(fieldName) {
     // fieldName = 'extensionSessionId', 'component', 'level'
     super();
-    this.type = DbGetUniqueLogValuesRequest.name;
+    this.type = EventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
     this.payload = { fieldName };
   }
 }
 
 // Request to clear logs (potentially based on filters in future, but maybe just 'all' or 'last_session' for now)
 export class DbClearLogsRequest extends DbEventBase {
-    static responseEventName = DbClearLogsResponse.name;
+    static responseEventName = EventNames.DB_CLEAR_LOGS_RESPONSE;
     constructor(filter = 'all') { // 'all' or potentially 'last_session' or specific session ID later
         super();
-        this.type = DbClearLogsRequest.name;
+        this.type = EventNames.DB_CLEAR_LOGS_REQUEST;
         this.payload = { filter };
     }
 }
 
 // Request to get the actual IDs for 'current' and 'last' sessions
 export class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
-    static responseEventName = DbGetCurrentAndLastLogSessionIdsResponse.name;
+    static responseEventName = EventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     constructor() {
         super();
-        this.type = DbGetCurrentAndLastLogSessionIdsRequest.name;
+        this.type = EventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
     }
 } 

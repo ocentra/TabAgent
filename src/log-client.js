@@ -1,5 +1,6 @@
 import { eventBus } from './eventBus.js';
 import { DbAddLogRequest, DbInitializationCompleteNotification } from './events/dbEvents.js';
+import * as EventNames from './events/eventNames.js';
 
 const hasChromeRuntime = typeof chrome !== 'undefined' && chrome.runtime;
 let componentName = 'unknown';
@@ -32,7 +33,7 @@ function init(compName, options = {}) {
     sendToDbDefault = options.sendToDb !== undefined ? options.sendToDb : true;
 
     if (eventBus) {
-        eventBus.subscribe(DbInitializationCompleteNotification.name, (notification) => {
+        eventBus.subscribe(EventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION, (notification) => {
             if (notification.payload.success) {
                 console.log(`[LogClient (${componentName})] Received DB Initialization Complete. Flushing buffer.`);
                 isDbReadyForLogs = true;

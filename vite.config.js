@@ -38,7 +38,7 @@ export default defineConfig({
         { src: 'src/notifications.js', dest: '.' },
         { src: 'src/downloadFormatter.js', dest: '.' },
         { src: 'icons', dest: '.' },
-        { src: 'src/events/dbEvents.js', dest: 'events' },
+        { src: 'src/events', dest: '.' },
         { src: 'src/assets', dest: '.' },
         {src: 'src/xenova', dest: '.'},
         {src: 'src/model', dest: '.'},

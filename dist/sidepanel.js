@@ -9,7 +9,7 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var _hashFn, _keyMap, _unpack, _options, _root, _local, _operators, _iteratees, _yieldedValues, _getNext, _a, _source, _predicate, _projection, _options2, _operators2, _result, _buffer, _compiled, _options3, _condition;
-import { b as browser, e as eventBus$1, D as DbMessagesUpdatedNotification, a as DbSessionUpdatedNotification, c as DbGetSessionRequest, d as DbStatusUpdatedNotification, f as DbCreateSessionRequest, g as DbAddMessageRequest$1, h as DbUpdateStatusRequest, i as DbUpdateMessageRequest, j as DbCreateSessionResponse, k as DbAddMessageResponse, l as DbGetSessionResponse, m as DbUpdateMessageResponse, n as DbDeleteMessageRequest, o as DbDeleteMessageResponse, p as DbUpdateStatusResponse, q as DbToggleStarRequest, r as DbToggleStarResponse, s as DbGetAllSessionsRequest, t as DbGetAllSessionsResponse, u as DbGetStarredSessionsRequest, v as DbGetStarredSessionsResponse, w as DbDeleteSessionRequest, x as DbDeleteSessionResponse, y as DbRenameSessionRequest, z as DbRenameSessionResponse, A as commonjsGlobal, B as getDefaultExportFromCjs, C as DbInitializeRequest, E as DbAddLogRequest, F as DbGetLogsRequest, G as DbGetUniqueLogValuesRequest, H as DbClearLogsRequest, I as DbGetCurrentAndLastLogSessionIdsRequest, J as DbInitializationCompleteNotification, K as DbGetLogsResponse, L as DbGetUniqueLogValuesResponse, M as DbClearLogsResponse, N as DbGetCurrentAndLastLogSessionIdsResponse } from "./assets/dbEvents-BEUbKsMb.js";
+import { b as browser, e as eventBus$1, D as DB_MESSAGES_UPDATED_NOTIFICATION, a as DB_SESSION_UPDATED_NOTIFICATION, c as DbGetSessionRequest, d as DbStatusUpdatedNotification, f as DbCreateSessionRequest, g as DbAddMessageRequest$1, h as DbUpdateStatusRequest, i as DbUpdateMessageRequest, j as DB_CREATE_SESSION_REQUEST, k as DB_CREATE_SESSION_RESPONSE, l as DB_ADD_MESSAGE_REQUEST, m as DB_ADD_MESSAGE_RESPONSE, n as DB_GET_SESSION_REQUEST, o as DB_GET_SESSION_RESPONSE, p as DB_UPDATE_MESSAGE_REQUEST, q as DB_UPDATE_MESSAGE_RESPONSE, r as DB_DELETE_MESSAGE_REQUEST, s as DB_DELETE_MESSAGE_RESPONSE, t as DB_UPDATE_STATUS_REQUEST, u as DB_UPDATE_STATUS_RESPONSE, v as DB_TOGGLE_STAR_REQUEST, w as DB_TOGGLE_STAR_RESPONSE, x as DB_GET_ALL_SESSIONS_REQUEST, y as DB_GET_ALL_SESSIONS_RESPONSE, z as DB_GET_STARRED_SESSIONS_REQUEST, A as DB_GET_STARRED_SESSIONS_RESPONSE, B as DB_DELETE_SESSION_REQUEST, C as DB_DELETE_SESSION_RESPONSE, E as DB_RENAME_SESSION_REQUEST, F as DB_RENAME_SESSION_RESPONSE, G as DbSessionUpdatedNotification, H as DbGetAllSessionsRequest, I as DbToggleStarRequest, J as DbDeleteSessionRequest, K as DbRenameSessionRequest, L as commonjsGlobal, M as getDefaultExportFromCjs, N as DB_INITIALIZE_REQUEST, O as DB_ADD_LOG_REQUEST, P as DB_GET_LOGS_REQUEST, Q as DB_GET_UNIQUE_LOG_VALUES_REQUEST, R as DB_CLEAR_LOGS_REQUEST, S as DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST, T as DB_INITIALIZATION_COMPLETE_NOTIFICATION, U as DbInitializationCompleteNotification, V as DbMessagesUpdatedNotification, W as DB_STATUS_UPDATED_NOTIFICATION, X as DbCreateSessionResponse, Y as DbGetSessionResponse, Z as DbAddMessageResponse, _ as DbUpdateMessageResponse, $ as DbDeleteMessageResponse, a0 as DbUpdateStatusResponse, a1 as DbToggleStarResponse, a2 as DbGetAllSessionsResponse, a3 as DbGetStarredSessionsResponse, a4 as DbDeleteSessionResponse, a5 as DbRenameSessionResponse, a6 as DbGetLogsResponse, a7 as DbGetUniqueLogValuesResponse, a8 as DbClearLogsResponse, a9 as DbGetCurrentAndLastLogSessionIdsResponse, aa as DbGetStarredSessionsRequest, ab as DbInitializeRequest } from "./assets/dbEvents-DGCiIYDG.js";
 const scriptRel = "modulepreload";
 const assetsURL = function(dep) {
   return "/" + dep;
@@ -125,7 +125,7 @@ async function navigateTo(pageId) {
     }
   });
   const { eventBus: eventBus2 } = await __vitePreload(async () => {
-    const { eventBus: eventBus3 } = await import("./assets/dbEvents-BEUbKsMb.js").then((n) => n.O);
+    const { eventBus: eventBus3 } = await import("./assets/dbEvents-DGCiIYDG.js").then((n) => n.ad);
     return { eventBus: eventBus3 };
   }, true ? [] : void 0);
   eventBus2.publish("navigation:pageChanged", { pageId });
@@ -214,9 +214,9 @@ function initializeRenderer(chatBody2, requestDbFunc) {
   chatBodyElement = chatBody2;
   requestDbAndWaitFunc$2 = requestDbFunc;
   console.log("[ChatRenderer] Initialized with chat body element and DB request function.");
-  eventBus$1.subscribe(DbMessagesUpdatedNotification.name, handleMessagesUpdate);
+  eventBus$1.subscribe(DB_MESSAGES_UPDATED_NOTIFICATION, handleMessagesUpdate);
   console.log("[ChatRenderer] Subscribed to DbMessagesUpdatedNotification.");
-  eventBus$1.subscribe(DbSessionUpdatedNotification.name, handleSessionMetadataUpdate);
+  eventBus$1.subscribe(DB_SESSION_UPDATED_NOTIFICATION, handleSessionMetadataUpdate);
   console.log("[ChatRenderer] Subscribed to DbSessionUpdatedNotification.");
   initializeObserver();
 }
@@ -1021,28 +1021,28 @@ function requestDbAndWait$1(requestEvent, timeoutMs = 5e3) {
       reject(new Error(`DB request timed out for ${requestType}`));
     }, timeoutMs);
     let responseEventType;
-    if (requestType === DbCreateSessionRequest.name) {
-      responseEventType = DbCreateSessionResponse.name;
-    } else if (requestType === DbAddMessageRequest$1.name) {
-      responseEventType = DbAddMessageResponse.name;
-    } else if (requestType === DbGetSessionRequest.name) {
-      responseEventType = DbGetSessionResponse.name;
-    } else if (requestType === DbUpdateMessageRequest.name) {
-      responseEventType = DbUpdateMessageResponse.name;
-    } else if (requestType === DbDeleteMessageRequest.name) {
-      responseEventType = DbDeleteMessageResponse.name;
-    } else if (requestType === DbUpdateStatusRequest.name) {
-      responseEventType = DbUpdateStatusResponse.name;
-    } else if (requestType === DbToggleStarRequest.name) {
-      responseEventType = DbToggleStarResponse.name;
-    } else if (requestType === DbGetAllSessionsRequest.name) {
-      responseEventType = DbGetAllSessionsResponse.name;
-    } else if (requestType === DbGetStarredSessionsRequest.name) {
-      responseEventType = DbGetStarredSessionsResponse.name;
-    } else if (requestType === DbDeleteSessionRequest.name) {
-      responseEventType = DbDeleteSessionResponse.name;
-    } else if (requestType === DbRenameSessionRequest.name) {
-      responseEventType = DbRenameSessionResponse.name;
+    if (requestType === DB_CREATE_SESSION_REQUEST) {
+      responseEventType = DB_CREATE_SESSION_RESPONSE;
+    } else if (requestType === DB_ADD_MESSAGE_REQUEST) {
+      responseEventType = DB_ADD_MESSAGE_RESPONSE;
+    } else if (requestType === DB_GET_SESSION_REQUEST) {
+      responseEventType = DB_GET_SESSION_RESPONSE;
+    } else if (requestType === DB_UPDATE_MESSAGE_REQUEST) {
+      responseEventType = DB_UPDATE_MESSAGE_RESPONSE;
+    } else if (requestType === DB_DELETE_MESSAGE_REQUEST) {
+      responseEventType = DB_DELETE_MESSAGE_RESPONSE;
+    } else if (requestType === DB_UPDATE_STATUS_REQUEST) {
+      responseEventType = DB_UPDATE_STATUS_RESPONSE;
+    } else if (requestType === DB_TOGGLE_STAR_REQUEST) {
+      responseEventType = DB_TOGGLE_STAR_RESPONSE;
+    } else if (requestType === DB_GET_ALL_SESSIONS_REQUEST) {
+      responseEventType = DB_GET_ALL_SESSIONS_RESPONSE;
+    } else if (requestType === DB_GET_STARRED_SESSIONS_REQUEST) {
+      responseEventType = DB_GET_STARRED_SESSIONS_RESPONSE;
+    } else if (requestType === DB_DELETE_SESSION_REQUEST) {
+      responseEventType = DB_DELETE_SESSION_RESPONSE;
+    } else if (requestType === DB_RENAME_SESSION_REQUEST) {
+      responseEventType = DB_RENAME_SESSION_RESPONSE;
     } else {
       console.error(`[Orchestrator] Unknown request type for response mapping: ${requestType}`);
       responseEventType = requestType.replace("Request", "Response");
@@ -18715,32 +18715,32 @@ async function handleInitializeRequest(event) {
     if (isDbInitialized && isLogDbInitialized) {
       const currentSubscriptions = typeof ((_a2 = eventBus$1) == null ? void 0 : _a2.getSubscriptions) === "function" ? eventBus$1.getSubscriptions() : {};
       const chatEventNames = [
-        DbCreateSessionRequest.name,
-        DbGetSessionRequest.name,
-        DbAddMessageRequest$1.name,
-        DbUpdateMessageRequest.name,
-        DbDeleteMessageRequest.name,
-        DbUpdateStatusRequest.name,
-        DbToggleStarRequest.name,
-        DbGetAllSessionsRequest.name,
-        DbGetStarredSessionsRequest.name,
-        DbDeleteSessionRequest.name,
-        DbRenameSessionRequest.name
+        DB_CREATE_SESSION_REQUEST,
+        DB_GET_SESSION_REQUEST,
+        DB_ADD_MESSAGE_REQUEST,
+        DB_UPDATE_MESSAGE_REQUEST,
+        DB_DELETE_MESSAGE_REQUEST,
+        DB_UPDATE_STATUS_REQUEST,
+        DB_TOGGLE_STAR_REQUEST,
+        DB_GET_ALL_SESSIONS_REQUEST,
+        DB_GET_STARRED_SESSIONS_REQUEST,
+        DB_DELETE_SESSION_REQUEST,
+        DB_RENAME_SESSION_REQUEST
       ];
       const needChatSubscription = chatEventNames.some((name) => !currentSubscriptions[name]);
       if (needChatSubscription) {
         const chatSubscriptions = [
-          { event: DbCreateSessionRequest.name, handler: handleDbCreateSessionRequest },
-          { event: DbGetSessionRequest.name, handler: handleDbGetSessionRequest },
-          { event: DbAddMessageRequest$1.name, handler: handleDbAddMessageRequest },
-          { event: DbUpdateMessageRequest.name, handler: handleDbUpdateMessageRequest },
-          { event: DbDeleteMessageRequest.name, handler: handleDbDeleteMessageRequest },
-          { event: DbUpdateStatusRequest.name, handler: handleDbUpdateStatusRequest },
-          { event: DbToggleStarRequest.name, handler: handleDbToggleStarRequest },
-          { event: DbGetAllSessionsRequest.name, handler: handleDbGetAllSessionsRequest },
-          { event: DbGetStarredSessionsRequest.name, handler: handleDbGetStarredSessionsRequest },
-          { event: DbDeleteSessionRequest.name, handler: handleDbDeleteSessionRequest },
-          { event: DbRenameSessionRequest.name, handler: handleDbRenameSessionRequest }
+          { event: DB_CREATE_SESSION_REQUEST, handler: handleDbCreateSessionRequest },
+          { event: DB_GET_SESSION_REQUEST, handler: handleDbGetSessionRequest },
+          { event: DB_ADD_MESSAGE_REQUEST, handler: handleDbAddMessageRequest },
+          { event: DB_UPDATE_MESSAGE_REQUEST, handler: handleDbUpdateMessageRequest },
+          { event: DB_DELETE_MESSAGE_REQUEST, handler: handleDbDeleteMessageRequest },
+          { event: DB_UPDATE_STATUS_REQUEST, handler: handleDbUpdateStatusRequest },
+          { event: DB_TOGGLE_STAR_REQUEST, handler: handleDbToggleStarRequest },
+          { event: DB_GET_ALL_SESSIONS_REQUEST, handler: handleDbGetAllSessionsRequest },
+          { event: DB_GET_STARRED_SESSIONS_REQUEST, handler: handleDbGetStarredSessionsRequest },
+          { event: DB_DELETE_SESSION_REQUEST, handler: handleDbDeleteSessionRequest },
+          { event: DB_RENAME_SESSION_REQUEST, handler: handleDbRenameSessionRequest }
         ];
         chatSubscriptions.forEach(({ event: event2, handler }) => eventBus$1.subscribe(event2, handler));
         initLogger.debug("Chat event bus subscriptions complete", { count: chatSubscriptions.length });
@@ -18748,20 +18748,20 @@ async function handleInitializeRequest(event) {
         initLogger.debug("Chat event bus subscriptions already exist.");
       }
       const logEventNames = [
-        DbAddLogRequest.name,
-        DbGetLogsRequest.name,
-        DbGetUniqueLogValuesRequest.name,
-        DbClearLogsRequest.name,
-        DbGetCurrentAndLastLogSessionIdsRequest.name
+        DB_ADD_LOG_REQUEST,
+        DB_GET_LOGS_REQUEST,
+        DB_GET_UNIQUE_LOG_VALUES_REQUEST,
+        DB_CLEAR_LOGS_REQUEST,
+        DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST
       ];
       const needLogSubscription = logEventNames.some((name) => !currentSubscriptions[name]);
       if (needLogSubscription) {
         const logSubscriptions = [
-          { event: DbAddLogRequest.name, handler: handleDbAddLogRequest },
-          { event: DbGetLogsRequest.name, handler: handleDbGetLogsRequest },
-          { event: DbGetUniqueLogValuesRequest.name, handler: handleDbGetUniqueLogValuesRequest },
-          { event: DbClearLogsRequest.name, handler: handleDbClearLogsRequest },
-          { event: DbGetCurrentAndLastLogSessionIdsRequest.name, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
+          { event: DB_ADD_LOG_REQUEST, handler: handleDbAddLogRequest },
+          { event: DB_GET_LOGS_REQUEST, handler: handleDbGetLogsRequest },
+          { event: DB_GET_UNIQUE_LOG_VALUES_REQUEST, handler: handleDbGetUniqueLogValuesRequest },
+          { event: DB_CLEAR_LOGS_REQUEST, handler: handleDbClearLogsRequest },
+          { event: DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
         ];
         logSubscriptions.forEach(({ event: event2, handler }) => eventBus$1.subscribe(event2, handler));
         initLogger.info("Subscribed to Log Database events", { count: logSubscriptions.length });
@@ -18770,7 +18770,7 @@ async function handleInitializeRequest(event) {
       }
       dbReadyResolve(true);
       initLogger.info("Initialization complete for both databases");
-      await eventBus$1.publish(DbInitializationCompleteNotification.name, new DbInitializationCompleteNotification({ success: true }));
+      await eventBus$1.publish(DB_INITIALIZATION_COMPLETE_NOTIFICATION, new DbInitializationCompleteNotification({ success: true }));
     } else {
       initLogger.warn("Initialization partially complete, something went wrong.");
     }
@@ -18826,7 +18826,7 @@ async function handleInitializeRequest(event) {
     isDbInitialized = false;
     isLogDbInitialized = false;
     dbReadyResolve(false);
-    await eventBus$1.publish(DbInitializationCompleteNotification.name, new DbInitializationCompleteNotification({ success: false, error: appError }));
+    await eventBus$1.publish(DB_INITIALIZATION_COMPLETE_NOTIFICATION, new DbInitializationCompleteNotification({ success: false, error: appError }));
   }
 }
 function generateMessageId(chatId) {
@@ -19082,7 +19082,7 @@ async function publishSessionUpdateNotificationInternal(sessionId, updateType = 
     const updatedSessionData = updatedSessionDoc.toJSON ? updatedSessionDoc.toJSON() : updatedSessionDoc;
     opLogger.info(`Publishing session update notification for ${sessionId}`);
     await eventBus$1.publish(
-      DbSessionUpdatedNotification.name,
+      DB_SESSION_UPDATED_NOTIFICATION,
       new DbSessionUpdatedNotification(sessionId, updatedSessionData, updateType)
     );
     opLogger.debug("Session update published", { sessionId, updateType });
@@ -19105,11 +19105,11 @@ async function handleDbCreateSessionRequest(event) {
     }
     await withTimeout(Promise.all([
       eventBus$1.publish(
-        DbMessagesUpdatedNotification.name,
+        DB_MESSAGES_UPDATED_NOTIFICATION,
         new DbMessagesUpdatedNotification(newSessionDoc.id, newSessionDoc.messages)
       ),
       eventBus$1.publish(
-        DbStatusUpdatedNotification.name,
+        DB_STATUS_UPDATED_NOTIFICATION,
         new DbStatusUpdatedNotification(newSessionDoc.id, newSessionDoc.status)
       )
     ]), 3e3);
@@ -19165,7 +19165,7 @@ async function handleDbAddMessageRequest(event) {
     const plainMessages = updatedDoc.messages.map((m) => m.toJSON ? m.toJSON() : m);
     await withTimeout(
       eventBus$1.publish(
-        DbMessagesUpdatedNotification.name,
+        DB_MESSAGES_UPDATED_NOTIFICATION,
         new DbMessagesUpdatedNotification(updatedDoc.id, plainMessages)
       ),
       3e3
@@ -19195,7 +19195,7 @@ async function handleDbUpdateMessageRequest(event) {
     );
     await withTimeout(
       eventBus$1.publish(
-        DbMessagesUpdatedNotification.name,
+        DB_MESSAGES_UPDATED_NOTIFICATION,
         new DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
       ),
       3e3
@@ -19226,7 +19226,7 @@ async function handleDbDeleteMessageRequest(event) {
     if (deleted) {
       await withTimeout(
         eventBus$1.publish(
-          DbMessagesUpdatedNotification.name,
+          DB_MESSAGES_UPDATED_NOTIFICATION,
           new DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
         ),
         3e3
@@ -19257,7 +19257,7 @@ async function handleDbUpdateStatusRequest(event) {
     );
     await withTimeout(
       eventBus$1.publish(
-        DbStatusUpdatedNotification.name,
+        DB_STATUS_UPDATED_NOTIFICATION,
         new DbStatusUpdatedNotification(updatedDoc.id, updatedDoc.status)
       ),
       3e3
@@ -19273,7 +19273,7 @@ async function handleDbUpdateStatusRequest(event) {
     try {
       await withTimeout(
         eventBus$1.publish(
-          DbStatusUpdatedNotification.name,
+          DB_STATUS_UPDATED_NOTIFICATION,
           new DbStatusUpdatedNotification(event.payload.sessionId, "error")
         ),
         3e3
@@ -19483,7 +19483,7 @@ async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
     opLogger.error("Get current/last log session IDs failed", { requestId, error: appError });
   }
 }
-eventBus$1.subscribe(DbInitializeRequest.name, handleInitializeRequest);
+eventBus$1.subscribe(DB_INITIALIZE_REQUEST, handleInitializeRequest);
 logger.info("Subscribed to DbInitializeRequest");
 async function getAllUniqueLogSessionIdsInternal() {
   const opLogger = new Logger("GetUniqueLogSessionIds");

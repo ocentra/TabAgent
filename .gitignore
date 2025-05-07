@@ -35,3 +35,5 @@ src/model/ggml-model-i2_s.gguf
 
 # Backup / Temporary Directories
 BKP/
+/dist
+tailwindcss-windows-x64.exe

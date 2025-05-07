@@ -386,25 +386,60 @@ function renderSingleMessage(msg) {
     bubbleDiv.classList.add("bg-gray-100", "dark:bg-gray-700", "text-gray-500", "dark:text-gray-400", "italic", "border", "border-gray-300", "dark:border-gray-500");
   } else if (msg.sender === "user") {
     messageDiv.classList.add("justify-end", "min-w-0");
-    bubbleDiv.classList.add("bg-teal-50", "dark:bg-teal-900", "text-teal-900", "dark:text-teal-100", "border", "border-teal-300", "dark:border-teal-700");
+    bubbleDiv.classList.add(
+      "bg-[rgba(236,253,245,0.51)]",
+      // very subtle green tint
+      "dark:bg-[rgba(20,83,45,0.12)]",
+      // subtle dark green tint for dark mode
+      "text-green-900",
+      "dark:text-green-100",
+      "border",
+      "border-green-100",
+      "dark:border-green-900"
+    );
   } else if (msg.sender === "error") {
     messageDiv.classList.add("justify-start");
-    bubbleDiv.classList.add("bg-amber-100", "dark:bg-amber-700", "text-amber-700", "dark:text-amber-200", "border", "border-amber-400", "dark:border-amber-600");
+    bubbleDiv.classList.add(
+      "bg-[rgba(254,226,226,0.37)]",
+      // subtle red tint (light)
+      "dark:bg-[rgba(120,20,20,0.12)]",
+      // subtle red tint (dark)
+      "text-red-700",
+      "dark:text-red-200",
+      "border",
+      "border-red-200",
+      "dark:border-red-700"
+    );
   } else if (msg.sender === "system") {
     messageDiv.classList.add("justify-start");
-    bubbleDiv.classList.add("bg-green-100", "dark:bg-green-800", "text-green-800", "dark:text-green-200", "border", "border-green-300", "dark:border-green-600");
+    bubbleDiv.classList.add(
+      "bg-[rgba(219,234,254,0.5)]",
+      // subtle blue tint
+      "dark:bg-[rgba(30,41,59,0.2)]",
+      // subtle dark blue/gray for dark mode
+      "text-blue-900",
+      "dark:text-blue-100",
+      "border",
+      "border-blue-100",
+      "dark:border-blue-900"
+    );
   } else {
     messageDiv.classList.add("justify-start");
     bubbleDiv.classList.add("bg-gray-100", "dark:bg-gray-700", "text-gray-900", "dark:text-gray-100", "border", "border-gray-300", "dark:border-gray-600");
   }
   console.log("[ChatRenderer] messageDiv classes:", messageDiv.className);
   console.log("[ChatRenderer] bubbleDiv classes:", bubbleDiv.className);
-  bubbleDiv.innerHTML = "";
-  if (specialHeaderHTML) {
-    const headerDiv = document.createElement("div");
-    headerDiv.innerHTML = specialHeaderHTML;
-    bubbleDiv.appendChild(headerDiv);
-  }
+  const headerBar = document.createElement("div");
+  headerBar.className = "bubble-header flex items-center justify-between px-2 py-0.5 min-w-[300px] w-full bg-[rgba(200,200,200,0.18)] dark:bg-[rgba(50,50,50,0.28)] rounded-t-lg border-b border-gray-200 dark:border-gray-700 transition-all duration-150 group";
+  headerBar.onmouseenter = () => headerBar.classList.add("bg-[rgba(200,200,200,0.28)]", "dark:bg-[rgba(50,50,50,0.38)]");
+  headerBar.onmouseleave = () => headerBar.classList.remove("bg-[rgba(200,200,200,0.28)]", "dark:bg-[rgba(50,50,50,0.38)]");
+  const foldoutBtn = document.createElement("button");
+  foldoutBtn.className = "toggle-foldout mr-2 flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition cursor-pointer";
+  foldoutBtn.title = "Expand/collapse message";
+  foldoutBtn.innerHTML = `<svg class="chevron-icon transition-transform duration-150" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8L10 12L14 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  headerBar.appendChild(foldoutBtn);
+  actionsContainer.classList.add("ml-auto", "flex", "items-center", "space-x-1");
+  headerBar.appendChild(actionsContainer);
   const mainContentDiv = document.createElement("div");
   mainContentDiv.className = "message-main-content";
   if (window.marked && window.marked.parse) {
@@ -517,6 +552,21 @@ function renderSingleMessage(msg) {
   } else {
     console.warn("Marked.js not available. Falling back to textContent.");
     mainContentDiv.textContent = contentToParse || "";
+  }
+  let expanded = true;
+  foldoutBtn.onclick = () => {
+    expanded = !expanded;
+    mainContentDiv.style.display = expanded ? "" : "none";
+    const svg = foldoutBtn.querySelector(".chevron-icon");
+    if (svg) svg.style.transform = expanded ? "rotate(0deg)" : "rotate(-90deg)";
+  };
+  mainContentDiv.style.display = "";
+  bubbleDiv.innerHTML = "";
+  bubbleDiv.appendChild(headerBar);
+  if (specialHeaderHTML) {
+    const headerDiv = document.createElement("div");
+    headerDiv.innerHTML = specialHeaderHTML;
+    bubbleDiv.appendChild(headerDiv);
   }
   bubbleDiv.appendChild(mainContentDiv);
   bubbleDiv.appendChild(actionsContainer);

@@ -1,4 +1,5 @@
 import browser from 'webextension-polyfill';
+import './minimaldb.js'; // Static import for service worker compatibility
 
 const OFFSCREEN_DOCUMENT_PATH_SCRAPING = 'scrapingOffscreen.html';
 const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
@@ -6,8 +7,11 @@ const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
 import * as logClient from './log-client.js';
 import { eventBus } from './eventBus.js';
 import { DbInitializeRequest } from './events/dbEvents.js';
+import * as EventNames from './events/eventNames.js';
 
 logClient.init('Background');
+
+eventBus.publish(EventNames.DB_INITIALIZE_REQUEST, new DbInitializeRequest());
 
 let detachedPopups = {};
 let popupIdToTabId = {};
@@ -618,7 +622,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
     });
 
     logClient.logInfo('Triggering DB Initialization from onInstalled.');
-    eventBus.publish(DbInitializeRequest.name, new DbInitializeRequest());
+    eventBus.publish(EventNames.DB_INITIALIZE_REQUEST, new DbInitializeRequest());
 
     ensureWorkerScriptIsReady().catch(err => {
         logClient.logError("Initial worker script readiness check failed after install:", err);
@@ -630,7 +634,7 @@ browser.runtime.onStartup.addListener(async () => {
     await initializeSessionIds();
 
     logClient.logInfo('Triggering DB Initialization from onStartup (may be redundant).');
-    eventBus.publish(DbInitializeRequest.name, new DbInitializeRequest());
+    eventBus.publish(EventNames.DB_INITIALIZE_REQUEST, new DbInitializeRequest());
 
     if (modelWorkerState === 'uninitialized') {
         ensureWorkerScriptIsReady().catch(err => {

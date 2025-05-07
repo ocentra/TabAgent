@@ -1,4 +1,4 @@
-console.log('[DB] db.js initialized in context:', typeof window !== 'undefined' ? 'browser window' : (typeof self !== 'undefined' ? 'worker or background' : 'unknown context'));
+console.log('[Database] minimaldb.js initialized in context:', typeof window !== 'undefined' ? 'browser window' : (typeof self !== 'undefined' ? 'worker or background' : 'unknown context'));
 const ENABLE_LOGGING = true;
 const RESET_DB_ON_ERROR = true;
 const LOG_LEVELS = {
@@ -17,19 +17,19 @@ class Logger {
 
     debug(message, meta = {}) {
         if (this.level >= LOG_LEVELS.DEBUG) {
-            console.debug(`[DB:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
+            console.debug(`[Database:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
         }
     }
 
     info(message, meta = {}) {
         if (this.level >= LOG_LEVELS.INFO) {
-            console.info(`[DB:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
+            console.info(`[Database:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
         }
     }
 
     error(message, meta = {}) {
         if (this.level >= LOG_LEVELS.ERROR) {
-            console.error(`[DB:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
+            console.error(`[Database:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
         }
     }
 
@@ -237,7 +237,7 @@ async function resetDatabase() {
 
         dbReadyResolve(false);
     } catch (error) {
-        console.error("[DB:Reset] CAUGHT RAW ERROR during reset:", error);
+        console.error("[Database:Reset] CAUGHT RAW ERROR during reset:", error);
         resetLogger.error('Failed to reset databases', { error });
         throw new AppError('RESET_FAILED', 'Could not reset databases', { originalError: error });
     }
@@ -245,7 +245,6 @@ async function resetDatabase() {
 
 
 async function handleInitializeRequest(event) {
-    return;
     const initLogger = new Logger('Initialize');
     initLogger.info('Handling initialize request');
 
@@ -413,16 +412,16 @@ async function handleInitializeRequest(event) {
                          }
                      }
                 } catch (pruneError) {
-                    console.error('[DB:Initialize] Error during startup log pruning:', pruneError);
+                    console.error('[Database:Initialize] Error during startup log pruning:', pruneError);
                 }
             }, 100); 
         }
 
     } catch (error) {
-        console.error("[DB:Initialize] Entered CATCH block for init error.");
-        console.error("[DB:Initialize] Raw Error Name:", error?.name);
-        console.error("[DB:Initialize] Raw Error Message:", error?.message);
-        console.error("[DB:Initialize] CAUGHT RAW ERROR OBJECT during init:", error); 
+        console.error("[Database:Initialize] Entered CATCH block for init error.");
+        console.error("[Database:Initialize] Raw Error Name:", error?.name);
+        console.error("[Database:Initialize] Raw Error Message:", error?.message);
+        console.error("[Database:Initialize] CAUGHT RAW ERROR OBJECT during init:", error); 
 
         const appError = error instanceof AppError ? error : new AppError('INIT_FAILED', 'Database initialization failed', { originalError: error });
         initLogger.error('Initialization failed', { error: appError, details: error }); 
@@ -800,13 +799,13 @@ async function handleDbCreateSessionRequest(event) {
         ]), 3000);
 
         const response = new DbCreateSessionResponse(requestId, true, newSessionDoc.id);
-        console.log(`[DB:${opLogger.module}] PRE-PUBLISH Check (Success Path): ReqID ${requestId}, Response Success: ${response?.success}, Response Type: ${response?.type}`);
+        console.log(`[Database:${opLogger.module}] PRE-PUBLISH Check (Success Path): ReqID ${requestId}, Response Success: ${response?.success}, Response Type: ${response?.type}`);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         opLogger.info('Session created successfully', { requestId, sessionId: newSessionDoc.id });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to create session', { originalError: error });
         const response = new DbCreateSessionResponse(requestId, false, null, appError);
-        console.log(`[DB:${opLogger.module}] PRE-PUBLISH Check (Error Path): ReqID ${requestId}, Response Success: ${response?.success}, Response Type: ${response?.type}`);
+        console.log(`[Database:${opLogger.module}] PRE-PUBLISH Check (Error Path): ReqID ${requestId}, Response Success: ${response?.success}, Response Type: ${response?.type}`);
         try {
              await withTimeout(eventBus.publish(response.type, response), 3000);
         } catch (publishError) {

@@ -2,7 +2,35 @@ import { defineConfig } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { resolve } from 'path';
 
+function stripVitePreloadPlugin() {
+  return {
+    name: 'strip-vite-preload',
+    generateBundle(options, bundle) {
+      for (const fileName in bundle) {
+        if (fileName.includes('background') || fileName.includes('dbEvents')) {
+          const file = bundle[fileName];
+          if (file.type === 'chunk' && file.code.includes('__vitePreload')) {
+            file.code = file.code.replace(
+              /__vitePreload\(([^,]+),[^)]+\)/g,
+              (match, moduleFactory) => {
+                // Extract the module factory (e.g., () => import('./db.js'))
+                return moduleFactory.trim(); // Keep the factory as-is (e.g., () => import('./db.js'))
+              }
+            );
+            console.log(`[strip-vite-preload] Replaced __vitePreload in ${fileName}`);
+          }
+        }
+      }
+    }
+  };
+}
+
+const isBackground = process.env.BUILD_TARGET === 'background';
+
 export default defineConfig({
+  define: isBackground
+    ? { document: 'undefined' }
+    : {},
   build: {
     outDir: 'dist',
     sourcemap: true,
@@ -20,11 +48,13 @@ export default defineConfig({
         entryFileNames: `[name].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: `assets/[name]-[hash].[ext]`,
+        ...(isBackground ? { inlineDynamicImports: true } : {})
       }
     },
     emptyOutDir: true,
   },
   plugins: [
+    stripVitePreloadPlugin(),
     viteStaticCopy({
       targets: [
         { src: 'manifest.json', dest: '.' },
@@ -40,9 +70,9 @@ export default defineConfig({
         { src: 'icons', dest: '.' },
         { src: 'src/events', dest: '.' },
         { src: 'src/assets', dest: '.' },
-        {src: 'src/xenova', dest: '.'},
-        {src: 'src/model', dest: '.'},
-        {src: 'src/wasm', dest: '.'}
+        { src: 'src/xenova', dest: '.' },
+        { src: 'src/model', dest: '.' },
+        { src: 'src/wasm', dest: '.' }
       ]
     })
   ]

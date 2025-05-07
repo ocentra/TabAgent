@@ -1,3 +1,928 @@
-import{e as k,I as V,C as J,N as a,B as x}from"./assets/dbEvents-BhofnX1y.js";const Q=typeof chrome<"u"&&chrome.runtime;let y="unknown",P=!0,L=!0,j=!1;const A=[];async function Z(){if(k)for(;A.length>0;){const r=A.shift();if(r)try{await k.publish(r.type,r)}catch(e){console.error(`LogClient (${y}): Error publishing buffered log. Error: ${e}. Event:`,r)}}}function ee(r,e={}){y=r,P=e.mirrorToConsole!==void 0?e.mirrorToConsole:!0,L=e.sendToDb!==void 0?e.sendToDb:!0,k?k.subscribe(V.name,t=>{t.payload.success?(console.log(`[LogClient (${y})] Received DB Initialization Complete. Flushing buffer.`),j=!0,Z()):console.error(`[LogClient (${y})] Received DB Initialization FAILED notification. Logs will not be sent to DB. Error:`,t.payload.error)}):(console.error(`LogClient (${y}): CRITICAL - eventBus not available during init. DB logging disabled.`),L=!1);let n="unknown";typeof k<"u"?n="sendMessage logging (Standard)":(n="console fallback",console.error(`LogClient (${y}): CRITICAL - No logging mechanism available. Falling back to console.`));const i=`Log client initialized for component: ${y}. (${n}, Console Mirror: ${P}, SendToDB: ${L})`;R("info",i,{mirrorToConsole:P,sendToDb:L,skipInitCheck:!0})}async function R(r,...e){var g;const i=(e.length>0&&typeof e[e.length-1]=="object"&&!Array.isArray(e[e.length-1])?e.pop():{})||{},t=i.mirrorToConsole!==void 0?i.mirrorToConsole:P;let u=i.sendToDb!==void 0?i.sendToDb:L;const f=i.skipInitCheck||!1;if(u&&typeof k>"u"&&(console.warn(`LogClient (${y}): Attempted DB log but eventBus is unavailable. Disabling DB log for this call.`),u=!1),!y&&!f){console.error("LogClient: Attempted to log before init() was called. Message:",r,...e);return}if(t||r.toLowerCase()==="error"){const h=[y?`[${y}]`:"[LogClient]",...e];switch(r.toLowerCase()){case"error":console.error(...h);break;case"warn":t&&console.warn(...h);break;case"debug":t&&console.debug(...h);break;case"info":default:t&&console.log(...h);break}}if(!u)return;const c=e.map(m=>{try{return m instanceof Error?`Error: ${m.message}${m.stack?`
-`+m.stack:""}`:typeof m=="object"&&m!==null?"[Object]":String(m)}catch(h){return`[Unstringifiable Object: ${h.message}]`}}).join(" "),o={id:crypto.randomUUID(),timestamp:Date.now(),component:y,level:r.toLowerCase(),message:c};if(Q&&((g=chrome.storage)!=null&&g.local))try{const{currentLogSessionId:m}=await chrome.storage.local.get("currentLogSessionId");m?o.extensionSessionId=m:(console.warn(`LogClient (${y}): Could not retrieve currentLogSessionId from storage.`),o.extensionSessionId="unknown-session")}catch(m){console.error(`LogClient (${y}): Error retrieving session ID from storage:`,m),o.extensionSessionId="storage-error-session"}else o.extensionSessionId="no-storage-session";const l=new J(o);if(j)try{await k.publish(l.type,l)}catch(m){console.error(`LogClient (${y}): Error during eventBus log submission. Error: ${m}. Original message:`,r,...e)}else A.push(l)}function T(...r){R("debug",...r)}function s(...r){R("info",...r)}function w(...r){R("warn",...r)}function p(...r){R("error",...r)}const G="offscreen.html",U="offscreenWorker.html";ee("Background");let C={},_={};const N=1,re=1;let d="uninitialized",$=null,D=null,E=null,b=null,B=null,v=null,M=null,z=null,O=-10;async function H(){s("Initializing log session IDs..."),M=Date.now()+"-"+Math.random().toString(36).substring(2,9),s("Current log session ID:",M),await a.storage.local.set({currentLogSessionId:M});const{previousLogSessionId:r}=await a.storage.local.get("previousLogSessionId");z=r||null,s("Previous log session ID found in storage:",z),await a.storage.local.set({previousLogSessionId:M}),s("Stored new previousLogSessionId for next run.")}async function Y(){const r=a.runtime.getURL(U);return(await a.runtime.getContexts({contextTypes:["OFFSCREEN_DOCUMENT"],documentUrls:[r]})).length>0}async function K(){if(await Y()){s("Model worker offscreen document already exists.");return}s("Creating model worker offscreen document..."),await a.offscreen.createDocument({url:U,reasons:[a.offscreen.Reason.WORKERS],justification:"Run model inference in a separate worker via offscreen document"}),s("Model worker offscreen document created.")}async function F(r){if(r.type!=="init"&&r.type!=="generate"&&r.type!=="interrupt"&&r.type!=="reset")(d==="uninitialized"||!await Y())&&(s(`Background: Ensuring model worker offscreen doc potentially exists before sending ${r==null?void 0:r.type}`),await K());else{T(`Background: Ensuring worker script is ready before sending ${r.type}...`);try{await I(),T(`Background: Worker script confirmed ready. Proceeding to send ${r.type}.`)}catch(e){throw p(`Background: Worker script failed to become ready. Cannot send ${r.type}. Error:`,e),d="error",new Error(`Worker script failed to initialize, cannot send ${r.type}.`)}}T(`Background: Sending message type '${r==null?void 0:r.type}' to model worker offscreen doc`);try{if((await a.runtime.getContexts({contextTypes:["OFFSCREEN_DOCUMENT"],documentUrls:[a.runtime.getURL(U)]})).length>0)return a.runtime.sendMessage(r),T(`Background: Message type '${r==null?void 0:r.type}' sent to offscreen.`),{success:!0};throw p(`Background: Could not find target offscreen document context to send ${r==null?void 0:r.type}.`),new Error("Target offscreen document not found.")}catch(e){throw p(`Background: Error sending message type '${r==null?void 0:r.type}' to offscreen:`,e),d="error",r.type==="init"?(v&&v(new Error(`Failed to send init message: ${e.message}`)),b=null):E&&(d==="uninitialized"||d==="creating_worker")&&(E(new Error(`Failed to send message early: ${e.message}`)),$=null),new Error(`Failed to send message to model worker offscreen: ${e.message}`)}}function I(){if(T(`[ensureWorkerScriptIsReady] Current state: ${d}`),d!=="uninitialized"&&d!=="creating_worker")return d==="error"&&!$?Promise.reject(new Error("Worker script initialization previously failed.")):Promise.resolve();if($)return $;T("[ensureWorkerScriptIsReady] Worker script not ready. Initializing and creating promise."),d="creating_worker",$=new Promise((e,n)=>{D=e,E=n,K().catch(i=>{p("[ensureWorkerScriptIsReady] Error setting up offscreen doc:",i),d="error",E&&E(i),$=null})});const r=3e4;return setTimeout(()=>{d==="creating_worker"&&E&&(p(`[ensureWorkerScriptIsReady] Timeout (${r}ms) waiting for workerScriptReady.`),E(new Error("Timeout waiting for model worker script to load.")),d="error",$=null)},r),$}async function te(r){s(`Request to load model: ${r}. Current state: ${d}`);try{await I(),T(`Worker script confirmed ready (state: ${d}). Proceeding with model load.`)}catch(n){throw p("Failed to ensure worker script readiness:",n),new Error(`Failed to ensure worker script readiness: ${n.message}`)}if(d!=="worker_script_ready"&&d!=="idle"&&d!=="error"){const n=`Cannot load model '${r}'. Worker state is '${d}', expected 'worker_script_ready', 'idle', or 'error'.`;throw p("State check failed loading model:",n),new Error(n)}if(!r)return Promise.reject(new Error("Cannot load model: Model ID not provided."));if(d==="model_ready")return s(`Model appears ready. Assuming it's ${r}.`),Promise.resolve();if(d==="loading_model"&&b)return s(`Model is already loading. Assuming it's ${r}.`),b;if(d!=="worker_script_ready")return p("Cannot load model. Worker script is not ready. State:",d),Promise.reject(new Error(`Cannot load model, worker script not ready (state: ${d})`));s(`Worker script ready. Initiating load for model: ${r}.`),d="loading_model",b=new Promise((n,i)=>{B=n,v=i,T(`Attempting to send 'init' message for model: ${r}`),F({type:"init",payload:{modelId:r}}).catch(t=>{p(`Failed to send 'init' message for ${r}:`,t),d="error",v&&v(t),b=null})});const e=3e5;return setTimeout(()=>{d==="loading_model"&&v&&(p(`Timeout (${e}ms) waiting for model ${r} load completion.`),v(new Error(`Timeout waiting for model ${r} to load.`)),d="error",b=null)},e),b}async function oe(){const e=(await a.declarativeNetRequest.getDynamicRules()).map(t=>t.id),n=[{id:N,priority:re,action:{type:"modifyHeaders",responseHeaders:[{header:"x-frame-options",operation:"remove"},{header:"X-Frame-Options",operation:"remove"},{header:"content-security-policy",operation:"remove"},{header:"Content-Security-Policy",operation:"remove"}]},condition:{resourceTypes:["main_frame"],urlFilter:"|http*://*/*|"}}],i=e.filter(t=>t===N);try{await a.declarativeNetRequest.updateDynamicRules({removeRuleIds:i,addRules:n}),s("Declarative Net Request rules updated successfully.")}catch(t){p("Error updating Declarative Net Request rules:",t)}}oe();async function X(r){const e=r.split("/").pop(),n=a.runtime.getURL(e);return(await a.runtime.getContexts({contextTypes:["OFFSCREEN_DOCUMENT"],documentUrls:[n]})).length>0}async function se(r,e,n){if(await X(r)){s(`Background: Offscreen document at ${r} already exists.`);return}const i=r.split("/").pop();s(`Background: Creating offscreen document using filename: ${i}...`),await a.offscreen.createDocument({url:i,reasons:e,justification:n}),s(`Background: Offscreen document created successfully using ${i}.`)}async function ne(r){s(`[Stage 2] Attempting Offscreen + iframe: ${r}`);const e="offscreen-scrape-",n="offscreenIframeResult",i=3e4;let t=null;const u=async f=>{if(s(`[Stage 2 Cleanup] Starting cleanup for script ID base: ${f}`),f)try{await a.scripting.unregisterContentScripts({ids:[f]}),s(`[Stage 2 Cleanup] Unregistered script: ${f}`)}catch(c){w(`[Stage 2 Cleanup] Failed to unregister script ${f}:`,c)}try{await a.runtime.sendMessage({type:"removeIframe",target:"offscreen"}),s("[Stage 2 Cleanup] Sent removeIframe request to offscreen.")}catch(c){w("[Stage 2 Cleanup] Failed to send removeIframe request: ",c)}};try{await se(G,["DOM_PARSER","IFRAME_SCRIPTING"],"Parse HTML content and manage scraping iframes"),s("[Stage 2] Sending createIframe request to offscreen...");const f=await a.runtime.sendMessage({type:"createIframe",target:"offscreen",url:r});if(!(f!=null&&f.success))throw new Error(`Failed to create iframe in offscreen: ${(f==null?void 0:f.error)||"Unknown error"}`);s("[Stage 2] Iframe creation request successful. Waiting for load and script..."),t=`${e}${Date.now()}`,await a.scripting.registerContentScripts([{id:t,js:["PageExtractor.js","stage2-helper.js"],matches:[r],runAt:"document_idle",world:"ISOLATED",allFrames:!0,persistAcrossSessions:!1}]),s(`[Stage 2] Registered dynamic script(s): ${t} (files: PageExtractor.js, stage2-helper.js)`);let c=null;const l=await new Promise((g,m)=>{const h=setTimeout(()=>{w(`[Stage 2] Timeout (${i/1e3}s) waiting for response from dynamic script.`),c&&a.runtime.onMessage.removeListener(c),m(new Error("Timeout waiting for dynamic script response."))},i);c=(S,ge,fe)=>{var W,q;return(S==null?void 0:S.type)===n&&(s("[Stage 2] Received response from dynamic script:",S.payload),clearTimeout(h),a.runtime.onMessage.removeListener(c),(W=S.payload)!=null&&W.success?g(S.payload):m(new Error(((q=S.payload)==null?void 0:q.error)||"Dynamic script reported failure."))),!1},a.runtime.onMessage.addListener(c),s("[Stage 2] Listener added for dynamic script response.")});return await u(t),l}catch(f){throw p("[Stage 2] Error during Offscreen + iframe process:",f),await u(t),new Error(`Stage 2 (Offscreen + iframe) failed: ${f.message}`)}}async function ae(r){s(`[Stage 3] Attempting Temp Tab + executeScript (using window.scraper.extract): ${r}`);let e=null;const n=3e4;return new Promise(async(i,t)=>{const u=o=>{w(`[Stage 3] Cleanup: ${o}`),e&&(a.tabs.remove(e).catch(l=>w(`[Stage 3] Error removing tab ${e}: ${l.message}`)),e=null),t(new Error(o))};try{if(e=(await a.tabs.create({url:r,active:!1})).id,!e)throw new Error("Failed to get temporary tab ID.");s(`[Stage 3] Created temp tab ${e} for executeScript.`)}catch(o){return t(new Error(`Failed to create temp tab: ${o.message}`))}let f=null;const c=new Promise((o,l)=>{const g=(m,h,S)=>{m===e&&h.status==="complete"&&(s(`[Stage 3] Tab ${e} loaded.`),f&&clearTimeout(f),a.tabs.onUpdated.removeListener(g),o())};a.runtime.onUpdated.addListener(g),f=setTimeout(()=>{a.tabs.onUpdated.removeListener(g),l(new Error(`Timeout (${n/1e3}s) waiting for page load.`))},n)});try{await c}catch(o){return u(`Load failed or timed out: ${o.message}`)}s(`[Stage 3] Injecting PageExtractor.js and calling window.scraper.extract() in tab ${e}`);try{await a.scripting.executeScript({target:{tabId:e},files:["PageExtractor.js"]});const o=await a.scripting.executeScript({target:{tabId:e},func:()=>window.scraper.extract()});if(e&&(a.tabs.remove(e).catch(l=>w(`[Stage 3] Error removing tab ${e} post-execute: ${l.message}`)),e=null),o&&o.length>0&&o[0].result){const l=o[0].result;l&&typeof l=="object"?(s("[Stage 3] window.scraper.extract() succeeded."),i(l)):t(new Error((l==null?void 0:l.error)||"window.scraper.extract() failed or returned null."))}else{const l=a.runtime.lastError?a.runtime.lastError.message:"No result returned";t(new Error(`executeScript failed: ${l}`))}}catch(o){u(`executeScript call failed: ${o.message}`)}})}async function ie(r){s(`[Stage 4] Attempting Temp Tab + Content Script: ${r}`);let e=null;const n=3e4;return new Promise(async(i,t)=>{const u=o=>{e&&(a.tabs.remove(e).catch(l=>w(`[Stage 4] Error removing tab ${e} during cleanup: ${l.message}`)),e=null),t(new Error(o))};try{if(e=(await a.tabs.create({url:r,active:!1})).id,!e)throw new Error("Failed to get temporary tab ID.");s(`[Stage 4] Created temp tab ${e}`)}catch(o){return t(new Error(`Failed to create temp tab: ${o.message}`))}let f=null;const c=new Promise((o,l)=>{const g=(m,h,S)=>{m===e&&h.status==="complete"&&(s(`[Stage 4] Tab ${e} loaded.`),f&&clearTimeout(f),a.tabs.onUpdated.removeListener(g),o())};a.tabs.onUpdated.addListener(g),f=setTimeout(()=>{a.tabs.onUpdated.removeListener(g),l(new Error(`Timeout (${n/1e3}s) waiting for page load.`))},n)});try{await c}catch(o){return u(o.message)}s(`[Stage 4] Sending SCRAPE_PAGE to content script in tab ${e}`);try{const o=await a.tabs.sendMessage(e,{type:"SCRAPE_PAGE"});e&&a.tabs.remove(e).catch(l=>w(`[Stage 4] Error removing tab ${e} post-message: ${l.message}`)),e=null,o!=null&&o.success?(s("[Stage 4] Success from content script."),i(o)):t(new Error((o==null?void 0:o.error)||"Content script failed or gave invalid response."))}catch(o){u(`Messaging content script failed: ${o.message}`)}})}async function ce(r,e,n){var t,u,f;s(`Scraping Orchestrator: Starting for ${r}. ChatID: ${e}, MessageID: ${n}`);const i=c=>{s(`[Orchestrator] Sending STAGE_SCRAPE_RESULT for Stage ${c.stage}, ChatID: ${e}, Success: ${c.success}`),a.runtime.sendMessage({type:"STAGE_SCRAPE_RESULT",payload:c}).catch(o=>w(`[Orchestrator] Failed to send result for Stage ${c.stage}:`,o))};try{try{const c=await ne(r);s(`[Orchestrator Log] Stage 2 (Offscreen + iframe) Succeeded for ${r}.`);const o={stage:2,success:!0,chatId:e,messageId:n,method:"offscreenIframe",url:r,length:((t=c==null?void 0:c.text)==null?void 0:t.length)||0,...c};i(o);return}catch(c){w(`[Orchestrator Log] Stage 2 (Offscreen + iframe) Failed for ${r}: ${c.message}`),i({stage:2,success:!1,chatId:e,messageId:n,error:c.message})}try{const c=await ae(r);s(`[Orchestrator Log] Stage 3 (Temp Tab + executeScript) Succeeded for ${r}.`);const o={stage:3,success:!0,chatId:e,messageId:n,method:"tempTabExecuteScript",url:r,length:((u=c==null?void 0:c.text)==null?void 0:u.length)||0,...c};i(o);return}catch(c){w(`[Orchestrator Log] Stage 3 (Temp Tab + executeScript) Failed for ${r}: ${c.message}`),i({stage:3,success:!1,chatId:e,messageId:n,error:c.message})}try{const c=await ie(r);s(`[Orchestrator Log] Stage 4 (Temp Tab + Content Script) Succeeded for ${r}.`);const o={stage:4,success:!0,chatId:e,messageId:n,method:"tempTabContentScript",url:r,length:((f=c==null?void 0:c.text)==null?void 0:f.length)||0,...c};s("[Orchestrator Log] Stage 4 Payload being sent:",o),i(o);return}catch(c){w(`[Orchestrator Log] Stage 4 (Temp Tab + Content Script) Failed for ${r}: ${c.message}`),i({stage:4,success:!1,chatId:e,messageId:n,error:c.message})}s("[Orchestrator Log] All stages failed.")}finally{s("[Orchestrator Cleanup] Attempting to close offscreen document after multi-stage scrape.");try{await X(G)?(await a.offscreen.closeDocument(),s("[Orchestrator Cleanup] Offscreen document closed successfully.")):s("[Orchestrator Cleanup] No offscreen document found to close.")}catch(c){w("[Orchestrator Cleanup] Error closing offscreen document:",c)}}}async function le(){return new Promise((r,e)=>{a.identity.getAuthToken({interactive:!0},n=>{a.runtime.lastError?e(new Error(a.runtime.lastError.message)):r(n)})})}async function de(r,e="root"){var l;const n="files(id, name, mimeType, iconLink, webViewLink, size, createdTime, modifiedTime)",i=`'${e}' in parents and trashed=false`,t=100,u="folder,modifiedTime desc",f=`https://www.googleapis.com/drive/v3/files?${new URLSearchParams({pageSize:t.toString(),q:i,fields:n,orderBy:u})}`;s(`Background: Fetching Drive list for folder '${e}': ${f}`);const c=await fetch(f,{headers:{Authorization:`Bearer ${r}`,Accept:"application/json"}});if(!c.ok){const g=await c.text();throw p(`Background: Drive API files.list error (Folder: ${e}):`,c.status,g),c.status===404?new Error(`Folder with ID '${e}' not found or access denied.`):new Error(`Drive API Error ${c.status} (Folder: ${e}): ${g||c.statusText}`)}const o=await c.json();return s(`Background: Drive API files.list success (Folder: ${e}). Found ${((l=o.files)==null?void 0:l.length)||0} items.`),o.files||[]}async function ue(r,e){s(`Attempting to forward message type '${r==null?void 0:r.type}' from worker.`);for(const i in C){const t=C[i];s(`Forwarding message to detached popup ID: ${t} (original tab: ${i})`);try{await a.windows.get(t),a.runtime.sendMessage(r)}catch(u){w(`Error sending to detached popup ID ${t}:`,u.message),u.message.includes("No window with id")&&(delete C[i],delete _[t])}}const n=await a.tabs.query({status:"complete"});for(const i of n)if(!C[i.id])try{await a.tabs.sendMessage(i.id,r)}catch(t){!t.message.includes("Could not establish connection")&&!t.message.includes("Receiving end does not exist")&&w(`Error forwarding message to tab ${i.id}:`,t.message)}}a.runtime.onInstalled.addListener(async r=>{s("onInstalled event fired. Reason:",r.reason),await H(),a.sidePanel.setPanelBehavior({openPanelOnActionClick:!0}).catch(e=>p("Error setting side panel behavior:",e)),s("Side panel behavior set."),a.storage.local.get().then(e=>{const n=Object.keys(e).filter(i=>i.startsWith("detachedState_"));n.length>0&&a.storage.local.remove(n).then(()=>{s("Cleaned up old storage keys on install/update.")}).catch(i=>{p("Error removing old storage keys:",i)})}).catch(e=>{p("Error getting storage items for cleanup:",e)}),s("Triggering DB Initialization from onInstalled."),k.publish(x.name,new x),I().catch(e=>{p("Initial worker script readiness check failed after install:",e)})});a.runtime.onStartup.addListener(async()=>{s("onStartup event fired."),await H(),s("Triggering DB Initialization from onStartup (may be redundant)."),k.publish(x.name,new x),d==="uninitialized"&&I().catch(r=>{p("Worker script readiness check failed on startup:",r)})});a.action.onClicked.addListener(async r=>{if(!r.id){p("Action Clicked: Missing tab ID.");return}const e=r.id;s(`Action clicked for tab ${e}`);const n=C[e];if(n){s(`Popup ${n} exists for tab ${e}. Attempting to close popup.`);try{await a.windows.remove(n),s(`Closed popup window ${n} via action click.`)}catch(i){if(w(`Failed to close popup ${n} via action click, maybe already closed?`,i),_[n]){s(`Force cleaning maps and storage for tab ${e} after failed close.`),delete C[e],delete _[n];try{await a.storage.local.remove(`detachedState_${e}`),await a.sidePanel.setOptions({tabId:e,enabled:!0})}catch(t){p("Error during defensive cleanup:",t)}}}}else s(`No popup exists for tab ${e}. Default side panel opening behavior should trigger.`)});a.windows.onRemoved.addListener(async r=>{s(`Window removed: ${r}`);const e=_[r];if(e){s(`Popup window ${r} for tab ${e} was closed.`),delete C[e],delete _[r];try{await a.storage.local.remove(`detachedState_${e}`),s(`Removed detached state from storage for tab ${e}`),await a.sidePanel.setOptions({tabId:e,enabled:!0}),s(`Re-enabled side panel for tab ${e} after popup closed.`)}catch(n){p(`Error cleaning up storage or re-enabling side panel for tab ${e} on popup close:`,n)}}else s(`Window ${r} closed, but it wasn't a tracked popup.`)});a.runtime.onMessage.addListener((r,e,n)=>{var c;const{type:i,payload:t}=r;let u=!1;if(s(`Received message type '${i}' from`,e.tab?`tab ${e.tab.id}`:e.url||e.id),["workerScriptReady","workerReady","loadingStatus","generationStatus","generationUpdate","generationComplete","generationError","resetComplete","error"].includes(i)){switch(s(`Handling message from worker: ${i}`),i){case"workerScriptReady":s("[Background] Worker SCRIPT is ready!"),d="worker_script_ready",D&&(D(),$=null),a.runtime.sendMessage({type:"uiUpdate",payload:{modelStatus:"script_ready"}}).catch(()=>{});break;case"workerReady":s("[Background] Worker MODEL is ready! Model:",t==null?void 0:t.model),d="model_ready",B&&(B(),b=null),a.runtime.sendMessage({type:"uiUpdate",payload:{modelStatus:"model_ready",model:t==null?void 0:t.model}}).catch(()=>{}),D&&(D(),$=null);break;case"loadingStatus":if((t==null?void 0:t.status)==="progress"&&(t!=null&&t.progress)){const l=Math.floor(t.progress);l>=O+10&&(s("[Background] Worker loading status (progress):",t),O=l)}else s("[Background] Worker loading status (other):",t),O=-10;d!=="loading_model"&&(w(`[Background] Received loadingStatus in unexpected state: ${d}`),d="loading_model"),a.runtime.sendMessage({type:"uiLoadingStatusUpdate",payload:t}).catch(l=>{l.message!=="Could not establish connection. Receiving end does not exist."&&w("[Background] Error sending loading status to UI:",l.message)});break;case"generationStatus":s(`[Background] Generation status: ${t==null?void 0:t.status}`),(t==null?void 0:t.status)==="generating"?d="generating":(t==null?void 0:t.status)==="interrupted"&&(d="model_ready");break;case"generationUpdate":d!=="generating"&&w(`[Background] Received generationUpdate in unexpected state: ${d}`),d="generating";break;case"generationComplete":s("[Background] Generation complete."),d="model_ready";break;case"generationError":p("[Background] Generation error from worker:",t),d="error";break;case"resetComplete":s("[Background] Worker reset complete."),d="model_ready";break;case"error":p("[Background] Received generic error from worker/offscreen:",t);const o=d;d="error",o==="creating_worker"&&E?(E(new Error(t||"Generic error during script init")),$=null):o==="loading_model"&&v&&(v(new Error(t||"Generic error during model load")),b=null),a.runtime.sendMessage({type:"uiUpdate",payload:{modelStatus:"error",error:t}}).catch(()=>{});break}return ue(r),!1}if(i==="loadModel"){s("Received 'loadModel' request from sender:",e);const o=t==null?void 0:t.modelId;return s(`Received 'loadModel' request from UI for model: ${o}.`),o?(u=!0,te(o).then(()=>{s(`loadModel(${o}) promise resolved successfully.`),n({success:!0,message:`Model loading initiated or already complete for ${o}.`})}).catch(l=>{p(`loadModel(${o}) failed:`,l),n({success:!1,error:l.message})}),u):(p("[Background] 'loadModel' request missing modelId."),n({success:!1,error:"Model ID not provided in request."}),!1)}if(i==="sendChatMessage"){u=!0;const{chatId:o,messages:l,options:g,messageId:m}=t,h=m||o;return d!=="model_ready"?(p(`Cannot send chat message. Model state is ${d}, not 'model_ready'.`),n({success:!1,error:`Model not ready (state: ${d}). Please load a model first.`}),!1):(s(`Model ready, sending generate request for ${h}`),F({type:"generate",payload:{messages:l,max_new_tokens:g==null?void 0:g.max_new_tokens,temperature:g==null?void 0:g.temperature,top_k:g==null?void 0:g.top_k,correlationId:h}}).then(S=>{if(!S.success)throw new Error("Failed to send generate message initially.");s(`Generate request sent for ${h}. Waiting for worker responses.`),n({success:!0,message:"Generation request forwarded to worker."})}).catch(S=>{p(`Error processing sendChatMessage for ${h}:`,S),d==="generating"&&(d="model_ready"),n({success:!1,error:S.message})}),u)}if(i==="interruptGeneration")return s("[Background] Received interrupt request from UI."),I().then(()=>F({type:"interrupt"})).then(()=>n({success:!0})).catch(o=>n({success:!1,error:o.message})),u=!0,u;if(i==="resetWorker")return s("[Background] Received reset request from UI."),I().then(()=>F({type:"reset"})).then(()=>n({success:!0})).catch(o=>n({success:!1,error:o.message})),u=!0,u;if(i==="getModelWorkerState")return s(`Handling 'getModelWorkerState' request. Current state: ${d}`),n({success:!0,state:d}),!1;if(i==="scrapeRequest")return s(`Handling 'scrapeRequest' request. Scraping URL: ${t==null?void 0:t.url}`),u=!0,ce(t==null?void 0:t.url,t==null?void 0:t.chatId,t==null?void 0:t.messageId).then(()=>{s(`scrapeRequest(${t==null?void 0:t.url}) promise resolved successfully.`),n({success:!0,message:`Scraping orchestrator started for ${t==null?void 0:t.url}.`})}).catch(o=>{p(`scrapeRequest(${t==null?void 0:t.url}) failed:`,o),n({success:!1,error:o.message})}),u;if(i==="getDriveFileList"){const o=r.folderId;return s(`Handling 'getDriveFileList' for folder: ${o}`),u=!0,(async()=>{try{const l=await le(),g=await de(l,o);s(`Successfully fetched ${(g==null?void 0:g.length)||0} files/folders.`),s("[Background] Sending driveFileListData..."),a.runtime.sendMessage({type:"driveFileListData",success:!0,files:g,folderId:o}).catch(m=>{w("[Background] Failed to send driveFileListData:",m==null?void 0:m.message),a.runtime.sendMessage({type:"driveFileListData",success:!1,error:`Failed to send data: ${m==null?void 0:m.message}`,folderId:o})}),s("[Background] sendResponse for driveFileListResponse skipped (using separate message).")}catch(l){p("Error handling getDriveFileList:",l),a.runtime.sendMessage({type:"driveFileListData",success:!1,error:l.message,folderId:o}).catch(g=>{w("[Background] Failed to send driveFileListData error message:",g==null?void 0:g.message)}),s("[Background] sendResponse for driveFileListResponse error skipped (using separate message).")}})(),u}return i.startsWith("db:")?(T(`Forwarding DB request of type '${i}' to event bus.`),k.publish(i,r),!1):i==="getLogSessions"?(u=!0,(async()=>{try{const{logSessions:o}=await a.storage.local.get("logSessions");n({success:!0,sessions:o||[]})}catch(o){p("Error fetching log sessions:",o),n({success:!1,error:o.message})}})(),u):i==="getLogEntries"?(u=!0,(async()=>{const o=t==null?void 0:t.sessionId;if(!o)return n({success:!1,error:"Session ID required"}),!0;try{const l=`logs_${o}`,g=await a.storage.local.get(l);n({success:!0,entries:g[l]||[]})}catch(l){p(`Error fetching log entries for ${o}:`,l),n({success:!1,error:l.message})}})(),u):i==="detachSidePanel"?(u=!0,handleDetach((c=e.tab)==null?void 0:c.id).then(o=>{n(o)}).catch(o=>{n({success:!1,error:o.message})}),u):i==="getDetachedState"?(u=!0,(async()=>{var o,l;try{const{[`detachedState_${(o=e.tab)==null?void 0:o.id}`]:g}=await a.storage.local.get(`detachedState_${(l=e.tab)==null?void 0:l.id}`);n({success:!0,state:g})}catch(g){n({success:!1,error:g.message})}})(),u):(w(`Unhandled message type: ${i}`),!1)});s("[Background-Simple] Script loaded and listening.");
+import { e as eventBus, J as DbInitializationCompleteNotification, E as DbAddLogRequest, b as browser, C as DbInitializeRequest } from "./assets/dbEvents-BEUbKsMb.js";
+const hasChromeRuntime = typeof chrome !== "undefined" && chrome.runtime;
+let componentName = "unknown";
+let mirrorToConsoleDefault = true;
+let sendToDbDefault = true;
+let isDbReadyForLogs = false;
+const logBuffer = [];
+async function flushLogBuffer() {
+  if (!eventBus) return;
+  while (logBuffer.length > 0) {
+    const logEvent = logBuffer.shift();
+    if (logEvent) {
+      try {
+        await eventBus.publish(logEvent.type, logEvent);
+      } catch (error) {
+        console.error(`LogClient (${componentName}): Error publishing buffered log. Error: ${error}. Event:`, logEvent);
+      }
+    }
+  }
+}
+function init(compName, options = {}) {
+  componentName = compName;
+  mirrorToConsoleDefault = options.mirrorToConsole !== void 0 ? options.mirrorToConsole : true;
+  sendToDbDefault = options.sendToDb !== void 0 ? options.sendToDb : true;
+  if (eventBus) {
+    eventBus.subscribe(DbInitializationCompleteNotification.name, (notification) => {
+      if (notification.payload.success) {
+        console.log(`[LogClient (${componentName})] Received DB Initialization Complete. Flushing buffer.`);
+        isDbReadyForLogs = true;
+        flushLogBuffer();
+      } else {
+        console.error(`[LogClient (${componentName})] Received DB Initialization FAILED notification. Logs will not be sent to DB. Error:`, notification.payload.error);
+      }
+    });
+  } else {
+    console.error(`LogClient (${componentName}): CRITICAL - eventBus not available during init. DB logging disabled.`);
+    sendToDbDefault = false;
+  }
+  let logMode = "unknown";
+  if (typeof eventBus !== "undefined") {
+    logMode = "sendMessage logging (Standard)";
+  } else {
+    logMode = "console fallback";
+    console.error(`LogClient (${componentName}): CRITICAL - No logging mechanism available. Falling back to console.`);
+  }
+  const initialLogMessage = `Log client initialized for component: ${componentName}. (${logMode}, Console Mirror: ${mirrorToConsoleDefault}, SendToDB: ${sendToDbDefault})`;
+  _internalLogHelper("info", initialLogMessage, { mirrorToConsole: mirrorToConsoleDefault, sendToDb: sendToDbDefault, skipInitCheck: true });
+}
+async function _internalLogHelper(level, ...args) {
+  var _a;
+  const rawOptions = args.length > 0 && typeof args[args.length - 1] === "object" && !Array.isArray(args[args.length - 1]) ? args.pop() : {};
+  const options = rawOptions || {};
+  const mirrorThisCall = options.mirrorToConsole !== void 0 ? options.mirrorToConsole : mirrorToConsoleDefault;
+  let sendThisCall = options.sendToDb !== void 0 ? options.sendToDb : sendToDbDefault;
+  const skipInitCheck = options.skipInitCheck || false;
+  if (sendThisCall && typeof eventBus === "undefined") {
+    console.warn(`LogClient (${componentName}): Attempted DB log but eventBus is unavailable. Disabling DB log for this call.`);
+    sendThisCall = false;
+  }
+  if (!componentName && !skipInitCheck) {
+    console.error("LogClient: Attempted to log before init() was called. Message:", level, ...args);
+    return;
+  }
+  if (mirrorThisCall || level.toLowerCase() === "error") {
+    const consolePrefix = componentName ? `[${componentName}]` : `[LogClient]`;
+    const consoleArgs = [consolePrefix, ...args];
+    switch (level.toLowerCase()) {
+      case "error":
+        console.error(...consoleArgs);
+        break;
+      case "warn":
+        if (mirrorThisCall) console.warn(...consoleArgs);
+        break;
+      case "debug":
+        if (mirrorThisCall) console.debug(...consoleArgs);
+        break;
+      case "info":
+      default:
+        if (mirrorThisCall) console.log(...consoleArgs);
+        break;
+    }
+  }
+  if (!sendThisCall) return;
+  const formattedMessage = args.map((arg) => {
+    try {
+      if (arg instanceof Error) {
+        return `Error: ${arg.message}${arg.stack ? "\n" + arg.stack : ""}`;
+      }
+      if (typeof arg === "object" && arg !== null) {
+        return "[Object]";
+      }
+      return String(arg);
+    } catch (e) {
+      return `[Unstringifiable Object: ${e.message}]`;
+    }
+  }).join(" ");
+  const logPayload = {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    component: componentName,
+    level: level.toLowerCase(),
+    message: formattedMessage
+  };
+  if (hasChromeRuntime && ((_a = chrome.storage) == null ? void 0 : _a.local)) {
+    try {
+      const { currentLogSessionId: currentLogSessionId2 } = await chrome.storage.local.get("currentLogSessionId");
+      if (currentLogSessionId2) {
+        logPayload.extensionSessionId = currentLogSessionId2;
+      } else {
+        console.warn(`LogClient (${componentName}): Could not retrieve currentLogSessionId from storage.`);
+        logPayload.extensionSessionId = "unknown-session";
+      }
+    } catch (storageError) {
+      console.error(`LogClient (${componentName}): Error retrieving session ID from storage:`, storageError);
+      logPayload.extensionSessionId = "storage-error-session";
+    }
+  } else {
+    logPayload.extensionSessionId = "no-storage-session";
+  }
+  const logEvent = new DbAddLogRequest(logPayload);
+  if (isDbReadyForLogs) {
+    try {
+      await eventBus.publish(logEvent.type, logEvent);
+    } catch (error) {
+      console.error(`LogClient (${componentName}): Error during eventBus log submission. Error: ${error}. Original message:`, level, ...args);
+    }
+  } else {
+    logBuffer.push(logEvent);
+  }
+}
+function logDebug(...args) {
+  _internalLogHelper("debug", ...args);
+}
+function logInfo(...args) {
+  _internalLogHelper("info", ...args);
+}
+function logWarn(...args) {
+  _internalLogHelper("warn", ...args);
+}
+function logError(...args) {
+  _internalLogHelper("error", ...args);
+}
+const MODEL_WORKER_OFFSCREEN_PATH = "modelLoaderWorkerOffscreen.html";
+init("Background");
+let detachedPopups = {};
+let popupIdToTabId = {};
+const DNR_RULE_ID_1 = 1;
+const DNR_RULE_PRIORITY_1 = 1;
+let modelWorkerState = "uninitialized";
+let workerScriptReadyPromise = null;
+let workerScriptReadyResolver = null;
+let workerScriptReadyRejecter = null;
+let modelLoadPromise = null;
+let modelLoadResolver = null;
+let modelLoadRejecter = null;
+let currentLogSessionId = null;
+let previousLogSessionId = null;
+let lastLoggedProgress = -10;
+async function initializeSessionIds() {
+  logInfo("Initializing log session IDs...");
+  currentLogSessionId = Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+  logInfo("Current log session ID:", currentLogSessionId);
+  await browser.storage.local.set({ currentLogSessionId });
+  const { previousLogSessionId: storedPreviousId } = await browser.storage.local.get("previousLogSessionId");
+  previousLogSessionId = storedPreviousId || null;
+  logInfo("Previous log session ID found in storage:", previousLogSessionId);
+  await browser.storage.local.set({ previousLogSessionId: currentLogSessionId });
+  logInfo("Stored new previousLogSessionId for next run.");
+}
+async function hasModelWorkerOffscreenDocument() {
+  const targetUrl = browser.runtime.getURL(MODEL_WORKER_OFFSCREEN_PATH);
+  const existingContexts = await browser.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [targetUrl]
+  });
+  return existingContexts.length > 0;
+}
+async function setupModelWorkerOffscreenDocument() {
+  if (await hasModelWorkerOffscreenDocument()) {
+    logInfo("Model worker offscreen document already exists.");
+    return;
+  }
+  logInfo("Creating model worker offscreen document...");
+  await browser.offscreen.createDocument({
+    url: MODEL_WORKER_OFFSCREEN_PATH,
+    reasons: [browser.offscreen.Reason.WORKERS],
+    justification: "Run model inference in a separate worker via offscreen document"
+  });
+  logInfo("Model worker offscreen document created.");
+}
+async function sendToModelWorkerOffscreen(message) {
+  if (message.type !== "init" && message.type !== "generate" && message.type !== "interrupt" && message.type !== "reset") {
+    if (modelWorkerState === "uninitialized" || !await hasModelWorkerOffscreenDocument()) {
+      logInfo(`Background: Ensuring model worker offscreen doc potentially exists before sending ${message == null ? void 0 : message.type}`);
+      await setupModelWorkerOffscreenDocument();
+    }
+  } else {
+    logDebug(`Background: Ensuring worker script is ready before sending ${message.type}...`);
+    try {
+      await ensureWorkerScriptIsReady();
+      logDebug(`Background: Worker script confirmed ready. Proceeding to send ${message.type}.`);
+    } catch (error) {
+      logError(`Background: Worker script failed to become ready. Cannot send ${message.type}. Error:`, error);
+      modelWorkerState = "error";
+      throw new Error(`Worker script failed to initialize, cannot send ${message.type}.`);
+    }
+  }
+  logDebug(`Background: Sending message type '${message == null ? void 0 : message.type}' to model worker offscreen doc`);
+  try {
+    const contexts = await browser.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [browser.runtime.getURL(MODEL_WORKER_OFFSCREEN_PATH)]
+    });
+    if (contexts.length > 0) {
+      browser.runtime.sendMessage(message);
+      logDebug(`Background: Message type '${message == null ? void 0 : message.type}' sent to offscreen.`);
+      return { success: true };
+    } else {
+      logError(`Background: Could not find target offscreen document context to send ${message == null ? void 0 : message.type}.`);
+      throw new Error(`Target offscreen document not found.`);
+    }
+  } catch (error) {
+    logError(`Background: Error sending message type '${message == null ? void 0 : message.type}' to offscreen:`, error);
+    modelWorkerState = "error";
+    if (message.type === "init") {
+      if (modelLoadRejecter) modelLoadRejecter(new Error(`Failed to send init message: ${error.message}`));
+      modelLoadPromise = null;
+    } else if (workerScriptReadyRejecter && (modelWorkerState === "uninitialized" || modelWorkerState === "creating_worker")) {
+      workerScriptReadyRejecter(new Error(`Failed to send message early: ${error.message}`));
+      workerScriptReadyPromise = null;
+    }
+    throw new Error(`Failed to send message to model worker offscreen: ${error.message}`);
+  }
+}
+function ensureWorkerScriptIsReady() {
+  logDebug(`[ensureWorkerScriptIsReady] Current state: ${modelWorkerState}`);
+  if (modelWorkerState !== "uninitialized" && modelWorkerState !== "creating_worker") {
+    if (modelWorkerState === "error" && !workerScriptReadyPromise) {
+      return Promise.reject(new Error("Worker script initialization previously failed."));
+    }
+    return Promise.resolve();
+  }
+  if (workerScriptReadyPromise) {
+    return workerScriptReadyPromise;
+  }
+  logDebug("[ensureWorkerScriptIsReady] Worker script not ready. Initializing and creating promise.");
+  modelWorkerState = "creating_worker";
+  workerScriptReadyPromise = new Promise((resolve, reject) => {
+    workerScriptReadyResolver = resolve;
+    workerScriptReadyRejecter = reject;
+    setupModelWorkerOffscreenDocument().catch((err) => {
+      logError("[ensureWorkerScriptIsReady] Error setting up offscreen doc:", err);
+      modelWorkerState = "error";
+      if (workerScriptReadyRejecter) workerScriptReadyRejecter(err);
+      workerScriptReadyPromise = null;
+    });
+  });
+  const scriptLoadTimeout = 3e4;
+  setTimeout(() => {
+    if (modelWorkerState === "creating_worker" && workerScriptReadyRejecter) {
+      logError(`[ensureWorkerScriptIsReady] Timeout (${scriptLoadTimeout}ms) waiting for workerScriptReady.`);
+      workerScriptReadyRejecter(new Error("Timeout waiting for model worker script to load."));
+      modelWorkerState = "error";
+      workerScriptReadyPromise = null;
+    }
+  }, scriptLoadTimeout);
+  return workerScriptReadyPromise;
+}
+async function loadModel(modelId) {
+  logInfo(`Request to load model: ${modelId}. Current state: ${modelWorkerState}`);
+  try {
+    await ensureWorkerScriptIsReady();
+    logDebug(`Worker script confirmed ready (state: ${modelWorkerState}). Proceeding with model load.`);
+  } catch (err) {
+    logError("Failed to ensure worker script readiness:", err);
+    throw new Error(`Failed to ensure worker script readiness: ${err.message}`);
+  }
+  if (modelWorkerState !== "worker_script_ready" && modelWorkerState !== "idle" && modelWorkerState !== "error") {
+    const errorMsg = `Cannot load model '${modelId}'. Worker state is '${modelWorkerState}', expected 'worker_script_ready', 'idle', or 'error'.`;
+    logError("State check failed loading model:", errorMsg);
+    throw new Error(errorMsg);
+  }
+  if (!modelId) {
+    return Promise.reject(new Error("Cannot load model: Model ID not provided."));
+  }
+  if (modelWorkerState === "model_ready") {
+    logInfo(`Model appears ready. Assuming it's ${modelId}.`);
+    return Promise.resolve();
+  }
+  if (modelWorkerState === "loading_model" && modelLoadPromise) {
+    logInfo(`Model is already loading. Assuming it's ${modelId}.`);
+    return modelLoadPromise;
+  }
+  if (modelWorkerState !== "worker_script_ready") {
+    logError("Cannot load model. Worker script is not ready. State:", modelWorkerState);
+    return Promise.reject(new Error(`Cannot load model, worker script not ready (state: ${modelWorkerState})`));
+  }
+  logInfo(`Worker script ready. Initiating load for model: ${modelId}.`);
+  modelWorkerState = "loading_model";
+  modelLoadPromise = new Promise((resolve, reject) => {
+    modelLoadResolver = resolve;
+    modelLoadRejecter = reject;
+    logDebug(`Attempting to send 'init' message for model: ${modelId}`);
+    sendToModelWorkerOffscreen({ type: "init", payload: { modelId } }).catch((err) => {
+      logError(`Failed to send 'init' message for ${modelId}:`, err);
+      modelWorkerState = "error";
+      if (modelLoadRejecter) modelLoadRejecter(err);
+      modelLoadPromise = null;
+    });
+  });
+  const modelLoadTimeout = 3e5;
+  setTimeout(() => {
+    if (modelWorkerState === "loading_model" && modelLoadRejecter) {
+      logError(`Timeout (${modelLoadTimeout}ms) waiting for model ${modelId} load completion.`);
+      modelLoadRejecter(new Error(`Timeout waiting for model ${modelId} to load.`));
+      modelWorkerState = "error";
+      modelLoadPromise = null;
+    }
+  }, modelLoadTimeout);
+  return modelLoadPromise;
+}
+async function updateDeclarativeNetRequestRules() {
+  const currentRules = await browser.declarativeNetRequest.getDynamicRules();
+  const currentRuleIds = currentRules.map((rule) => rule.id);
+  const rulesToAdd = [
+    {
+      id: DNR_RULE_ID_1,
+      priority: DNR_RULE_PRIORITY_1,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [
+          { header: "x-frame-options", operation: "remove" },
+          { header: "X-Frame-Options", operation: "remove" },
+          { header: "content-security-policy", operation: "remove" },
+          { header: "Content-Security-Policy", operation: "remove" }
+        ]
+      },
+      condition: {
+        resourceTypes: ["main_frame"],
+        urlFilter: "|http*://*/*|"
+      }
+    }
+  ];
+  const rulesToRemove = currentRuleIds.filter((id) => id === DNR_RULE_ID_1);
+  try {
+    await browser.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: rulesToRemove,
+      addRules: rulesToAdd
+    });
+    logInfo("Declarative Net Request rules updated successfully.");
+  } catch (error) {
+    logError("Error updating Declarative Net Request rules:", error);
+  }
+}
+updateDeclarativeNetRequestRules();
+async function scrapeUrlWithTempTabExecuteScript(url) {
+  logInfo(`[Stage 1 (ExecuteScript)] Attempting Temp Tab + executeScript: ${url}`);
+  let tempTabId = null;
+  const TEMP_TAB_LOAD_TIMEOUT = 3e4;
+  return new Promise(async (resolve, reject) => {
+    const cleanupAndReject = (errorMsg, errorObj = null) => {
+      const finalError = errorObj ? errorObj : new Error(errorMsg);
+      logWarn(`[Stage 1 (ExecuteScript)] Cleanup & Reject: ${errorMsg}`, errorObj);
+      if (tempTabId) {
+        browser.tabs.remove(tempTabId).catch((err) => logWarn(`[Stage 1 (ExecuteScript)] Error removing tab ${tempTabId}: ${err.message}`));
+        tempTabId = null;
+      }
+      reject(finalError);
+    };
+    try {
+      const tab = await browser.tabs.create({ url, active: false });
+      tempTabId = tab.id;
+      if (!tempTabId) {
+        cleanupAndReject("[Stage 1 (ExecuteScript)] Failed to get temporary tab ID.");
+        return;
+      }
+      logInfo(`[Stage 1 (ExecuteScript)] Created temp tab ${tempTabId}.`);
+      let loadTimeoutId = null;
+      const loadPromise = new Promise((resolveLoad, rejectLoad) => {
+        const listener = (tabIdUpdated, changeInfo, updatedTab) => {
+          if (tabIdUpdated === tempTabId && changeInfo.status === "complete") {
+            logInfo(`[Stage 1 (ExecuteScript)] Tab ${tempTabId} loaded.`);
+            if (loadTimeoutId) clearTimeout(loadTimeoutId);
+            browser.tabs.onUpdated.removeListener(listener);
+            resolveLoad();
+          }
+        };
+        browser.tabs.onUpdated.addListener(listener);
+        loadTimeoutId = setTimeout(() => {
+          browser.tabs.onUpdated.removeListener(listener);
+          rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1e3}s) waiting for page load in tab ${tempTabId}.`));
+        }, TEMP_TAB_LOAD_TIMEOUT);
+      });
+      await loadPromise;
+      logInfo(`[Stage 1 (ExecuteScript)] Page loaded. Injecting pageExtractor.js module into tab ${tempTabId}...`);
+      await browser.scripting.executeScript({
+        target: { tabId: tempTabId },
+        files: ["pageExtractor.js"]
+      });
+      logInfo(`[Stage 1 (ExecuteScript)] pageExtractor.js module INJECTED successfully into tab ${tempTabId}.`);
+      logInfo(`[Stage 1 (ExecuteScript)] Executing function to call window.TabAgentPageExtractor.extract in tab ${tempTabId}...`);
+      const injectionResults = await browser.scripting.executeScript({
+        target: { tabId: tempTabId },
+        func: () => {
+          if (window.TabAgentPageExtractor && typeof window.TabAgentPageExtractor.extract === "function") {
+            try {
+              return window.TabAgentPageExtractor.extract(document);
+            } catch (e) {
+              console.error("[In-Tab] Error during execution of PageExtractor.extract:", e);
+              return { error: `Error in PageExtractor.extract: ${e.message} (Stack: ${e.stack})` };
+            }
+          } else {
+            console.error("[In-Tab] TabAgentPageExtractor or its extract function not found on window.");
+            return { error: "TabAgentPageExtractor.extract function not found on window." };
+          }
+        }
+      });
+      logInfo("[Stage 1 (ExecuteScript)] Raw results from executeScript func:", injectionResults);
+      if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
+        cleanupAndReject("[Stage 1 (ExecuteScript)] No result returned from executeScript func.", injectionResults && injectionResults[0] ? injectionResults[0].error : null);
+        return;
+      }
+      const scriptResult = injectionResults[0].result;
+      if (scriptResult && scriptResult.error) {
+        cleanupAndReject(`[Stage 1 (ExecuteScript)] Script execution reported an error: ${scriptResult.error}`, scriptResult);
+        return;
+      }
+      if (scriptResult && typeof scriptResult === "object") {
+        logInfo("[Stage 1 (ExecuteScript)] pageExtractor.js module execution succeeded (returned object).");
+        resolve(scriptResult);
+      } else {
+        cleanupAndReject("[Stage 1 (ExecuteScript)] pageExtractor.js module returned unexpected non-object/error type.", scriptResult);
+      }
+    } catch (error) {
+      cleanupAndReject(`[Stage 1 (ExecuteScript)] Error: ${error.message}`, error);
+    } finally {
+      if (tempTabId) {
+        browser.tabs.remove(tempTabId).catch((err) => logWarn(`[Stage 1 (ExecuteScript)] Error removing tab ${tempTabId} in final catch: ${err.message}`));
+      }
+    }
+  });
+}
+async function scrapeUrlMultiStage(url, chatId, messageId) {
+  var _a;
+  logInfo(`Scraping Orchestrator: Starting for ${url}. ChatID: ${chatId}, MessageID: ${messageId}`);
+  const sendStageResult = (stageResult) => {
+    logInfo(`[Orchestrator] Sending STAGE_SCRAPE_RESULT for Stage ${stageResult.stage}, ChatID: ${chatId}, Success: ${stageResult.success}`);
+    browser.runtime.sendMessage({
+      type: "STAGE_SCRAPE_RESULT",
+      payload: stageResult
+    }).catch((e) => logWarn(`[Orchestrator] Failed to send result for Stage ${stageResult.stage}:`, e));
+  };
+  try {
+    try {
+      const executeScriptResult = await scrapeUrlWithTempTabExecuteScript(url);
+      logInfo(`[Orchestrator Log] Stage 1 (Temp Tab + executeScript) Succeeded for ${url}.`);
+      const stage1SuccessPayload = {
+        stage: 1,
+        success: true,
+        chatId,
+        messageId,
+        method: "tempTabExecuteScript",
+        url,
+        length: ((_a = executeScriptResult == null ? void 0 : executeScriptResult.text) == null ? void 0 : _a.length) || 0,
+        ...executeScriptResult
+      };
+      sendStageResult(stage1SuccessPayload);
+      return;
+    } catch (stage1Error) {
+      logWarn(`[Orchestrator Log] Stage 1 (Temp Tab + executeScript) Failed for ${url}: ${stage1Error.message}`);
+      sendStageResult({ stage: 1, success: false, chatId, messageId, method: "tempTabExecuteScript", error: stage1Error.message });
+      return;
+    }
+    logInfo("[Orchestrator Log] No successful scraping stage completed (should have exited after Stage 1 attempt).");
+  } finally {
+    logInfo(`[Scraping Orchestrator] Finished processing for ${url}.`);
+  }
+}
+async function getDriveToken() {
+  return new Promise((resolve, reject) => {
+    browser.identity.getAuthToken({ interactive: true }, (token) => {
+      if (browser.runtime.lastError) {
+        reject(new Error(browser.runtime.lastError.message));
+      } else {
+        resolve(token);
+      }
+    });
+  });
+}
+async function fetchDriveFileList(token, folderId = "root") {
+  var _a;
+  const fields = "files(id, name, mimeType, iconLink, webViewLink, size, createdTime, modifiedTime)";
+  const query = `'${folderId}' in parents and trashed=false`;
+  const pageSize = 100;
+  const orderBy = "folder,modifiedTime desc";
+  const url = `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
+    pageSize: pageSize.toString(),
+    q: query,
+    fields,
+    orderBy
+  })}`;
+  logInfo(`Background: Fetching Drive list for folder '${folderId}': ${url}`);
+  const response = await fetch(url, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/json"
+    }
+  });
+  if (!response.ok) {
+    const errorData = await response.text();
+    logError(`Background: Drive API files.list error (Folder: ${folderId}):`, response.status, errorData);
+    if (response.status === 404) {
+      throw new Error(`Folder with ID '${folderId}' not found or access denied.`);
+    }
+    throw new Error(`Drive API Error ${response.status} (Folder: ${folderId}): ${errorData || response.statusText}`);
+  }
+  const data = await response.json();
+  logInfo(`Background: Drive API files.list success (Folder: ${folderId}). Found ${((_a = data.files) == null ? void 0 : _a.length) || 0} items.`);
+  return data.files || [];
+}
+async function forwardMessageToSidePanelOrPopup(message, originalSender) {
+  logInfo(`Attempting to forward message type '${message == null ? void 0 : message.type}' from worker.`);
+  for (const tabId in detachedPopups) {
+    const popupId = detachedPopups[tabId];
+    logInfo(`Forwarding message to detached popup ID: ${popupId} (original tab: ${tabId})`);
+    try {
+      await browser.windows.get(popupId);
+      browser.runtime.sendMessage(message);
+    } catch (error) {
+      logWarn(`Error sending to detached popup ID ${popupId}:`, error.message);
+      if (error.message.includes("No window with id")) {
+        delete detachedPopups[tabId];
+        delete popupIdToTabId[popupId];
+      }
+    }
+  }
+  const tabs = await browser.tabs.query({ status: "complete" });
+  for (const tab of tabs) {
+    if (detachedPopups[tab.id]) continue;
+    try {
+      await browser.tabs.sendMessage(tab.id, message);
+    } catch (error) {
+      if (!error.message.includes("Could not establish connection") && !error.message.includes("Receiving end does not exist")) {
+        logWarn(`Error forwarding message to tab ${tab.id}:`, error.message);
+      }
+    }
+  }
+}
+browser.runtime.onInstalled.addListener(async (details) => {
+  logInfo("onInstalled event fired. Reason:", details.reason);
+  await initializeSessionIds();
+  browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => logError("Error setting side panel behavior:", error));
+  logInfo("Side panel behavior set.");
+  browser.storage.local.get().then((items) => {
+    const keysToRemove = Object.keys(items).filter((key) => key.startsWith("detachedState_"));
+    if (keysToRemove.length > 0) {
+      browser.storage.local.remove(keysToRemove).then(() => {
+        logInfo("Cleaned up old storage keys on install/update.");
+      }).catch((err) => {
+        logError("Error removing old storage keys:", err);
+      });
+    }
+  }).catch((err) => {
+    logError("Error getting storage items for cleanup:", err);
+  });
+  logInfo("Triggering DB Initialization from onInstalled.");
+  eventBus.publish(DbInitializeRequest.name, new DbInitializeRequest());
+  ensureWorkerScriptIsReady().catch((err) => {
+    logError("Initial worker script readiness check failed after install:", err);
+  });
+});
+browser.runtime.onStartup.addListener(async () => {
+  logInfo("onStartup event fired.");
+  await initializeSessionIds();
+  logInfo("Triggering DB Initialization from onStartup (may be redundant).");
+  eventBus.publish(DbInitializeRequest.name, new DbInitializeRequest());
+  if (modelWorkerState === "uninitialized") {
+    ensureWorkerScriptIsReady().catch((err) => {
+      logError("Worker script readiness check failed on startup:", err);
+    });
+  }
+});
+browser.action.onClicked.addListener(async (tab) => {
+  if (!tab.id) {
+    logError("Action Clicked: Missing tab ID.");
+    return;
+  }
+  const tabId = tab.id;
+  logInfo(`Action clicked for tab ${tabId}`);
+  const existingPopupId = detachedPopups[tabId];
+  if (existingPopupId) {
+    logInfo(`Popup ${existingPopupId} exists for tab ${tabId}. Attempting to close popup.`);
+    try {
+      await browser.windows.remove(existingPopupId);
+      logInfo(`Closed popup window ${existingPopupId} via action click.`);
+    } catch (error) {
+      logWarn(`Failed to close popup ${existingPopupId} via action click, maybe already closed?`, error);
+      if (popupIdToTabId[existingPopupId]) {
+        logInfo(`Force cleaning maps and storage for tab ${tabId} after failed close.`);
+        delete detachedPopups[tabId];
+        delete popupIdToTabId[existingPopupId];
+        try {
+          await browser.storage.local.remove(`detachedState_${tabId}`);
+          await browser.sidePanel.setOptions({ tabId, enabled: true });
+        } catch (cleanupError) {
+          logError("Error during defensive cleanup:", cleanupError);
+        }
+      }
+    }
+  } else {
+    logInfo(`No popup exists for tab ${tabId}. Default side panel opening behavior should trigger.`);
+  }
+});
+browser.windows.onRemoved.addListener(async (windowId) => {
+  logInfo(`Window removed: ${windowId}`);
+  const tabId = popupIdToTabId[windowId];
+  if (tabId) {
+    logInfo(`Popup window ${windowId} for tab ${tabId} was closed.`);
+    delete detachedPopups[tabId];
+    delete popupIdToTabId[windowId];
+    try {
+      await browser.storage.local.remove(`detachedState_${tabId}`);
+      logInfo(`Removed detached state from storage for tab ${tabId}`);
+      await browser.sidePanel.setOptions({ tabId, enabled: true });
+      logInfo(`Re-enabled side panel for tab ${tabId} after popup closed.`);
+    } catch (error) {
+      logError(`Error cleaning up storage or re-enabling side panel for tab ${tabId} on popup close:`, error);
+    }
+  } else {
+    logInfo(`Window ${windowId} closed, but it wasn't a tracked popup.`);
+  }
+});
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  var _a;
+  const { type, payload } = message;
+  let isResponseAsync = false;
+  logInfo(`Received message type '${type}' from`, sender.tab ? `tab ${sender.tab.id}` : sender.url || sender.id);
+  const workerMessageTypes = [
+    "workerScriptReady",
+    "workerReady",
+    "loadingStatus",
+    "generationStatus",
+    "generationUpdate",
+    "generationComplete",
+    "generationError",
+    "resetComplete",
+    "error"
+  ];
+  if (workerMessageTypes.includes(type)) {
+    logInfo(`Handling message from worker: ${type}`);
+    let uiUpdatePayload = null;
+    switch (type) {
+      case "workerScriptReady":
+        logInfo("[Background] Worker SCRIPT is ready!");
+        modelWorkerState = "worker_script_ready";
+        if (workerScriptReadyResolver) {
+          workerScriptReadyResolver();
+          workerScriptReadyPromise = null;
+        }
+        uiUpdatePayload = { modelStatus: "script_ready" };
+        break;
+      case "workerReady":
+        logInfo("[Background] Worker MODEL is ready! Model:", payload == null ? void 0 : payload.model);
+        modelWorkerState = "model_ready";
+        if (modelLoadResolver) {
+          modelLoadResolver();
+          modelLoadPromise = null;
+        }
+        uiUpdatePayload = { modelStatus: "model_ready", model: payload == null ? void 0 : payload.model };
+        if (workerScriptReadyResolver) {
+          workerScriptReadyResolver();
+          workerScriptReadyPromise = null;
+        }
+        break;
+      case "loadingStatus":
+        if ((payload == null ? void 0 : payload.status) === "progress" && (payload == null ? void 0 : payload.progress)) {
+          const currentProgress = Math.floor(payload.progress);
+          if (currentProgress >= lastLoggedProgress + 10) {
+            logInfo("[Background] Worker loading status (progress):", payload);
+            lastLoggedProgress = currentProgress;
+          }
+        } else {
+          logInfo("[Background] Worker loading status (other):", payload);
+          lastLoggedProgress = -10;
+        }
+        if (modelWorkerState !== "loading_model") {
+          logWarn(`[Background] Received loadingStatus in unexpected state: ${modelWorkerState}`);
+          modelWorkerState = "loading_model";
+        }
+        browser.runtime.sendMessage({ type: "uiLoadingStatusUpdate", payload }).catch((err) => {
+          if (err.message !== "Could not establish connection. Receiving end does not exist.") {
+            logWarn("[Background] Error sending loading status to UI:", err.message);
+          }
+        });
+        break;
+      case "generationStatus":
+        logInfo(`[Background] Generation status: ${payload == null ? void 0 : payload.status}`);
+        if ((payload == null ? void 0 : payload.status) === "generating") modelWorkerState = "generating";
+        else if ((payload == null ? void 0 : payload.status) === "interrupted") modelWorkerState = "model_ready";
+        break;
+      case "generationUpdate":
+        if (modelWorkerState !== "generating") {
+          logWarn(`[Background] Received generationUpdate in unexpected state: ${modelWorkerState}`);
+        }
+        modelWorkerState = "generating";
+        break;
+      case "generationComplete":
+        logInfo("[Background] Generation complete.");
+        modelWorkerState = "model_ready";
+        break;
+      case "generationError":
+        logError("[Background] Generation error from worker:", payload);
+        modelWorkerState = "error";
+        break;
+      case "resetComplete":
+        logInfo("[Background] Worker reset complete.");
+        modelWorkerState = "model_ready";
+        break;
+      case "error":
+        logError("[Background] Received generic error from worker/offscreen:", payload);
+        const previousState = modelWorkerState;
+        modelWorkerState = "error";
+        if (previousState === "creating_worker" && workerScriptReadyRejecter) {
+          workerScriptReadyRejecter(new Error(payload || "Generic error during script init"));
+          workerScriptReadyPromise = null;
+        } else if (previousState === "loading_model" && modelLoadRejecter) {
+          modelLoadRejecter(new Error(payload || "Generic error during model load"));
+          modelLoadPromise = null;
+        }
+        uiUpdatePayload = { modelStatus: "error", error: payload };
+        break;
+    }
+    if (uiUpdatePayload) {
+      logInfo(`[Background] Sending uiUpdate to tabs:`, uiUpdatePayload);
+      browser.tabs.query({}).then((tabs) => {
+        tabs.forEach((tab) => {
+          if (tab.id) {
+            browser.tabs.sendMessage(tab.id, { type: "uiUpdate", payload: uiUpdatePayload }).catch((err) => {
+              if (!err.message.includes("Could not establish connection") && !err.message.includes("Receiving end does not exist")) {
+                logWarn(`[Background] Error sending uiUpdate to tab ${tab.id}:`, err.message);
+              }
+            });
+          }
+        });
+      }).catch((err) => {
+        logError("[Background] Error querying tabs to send uiUpdate:", err);
+      });
+    }
+    forwardMessageToSidePanelOrPopup(message);
+    return false;
+  }
+  if (type === "loadModel") {
+    logInfo(`Received 'loadModel' request from sender:`, sender);
+    const modelId = payload == null ? void 0 : payload.modelId;
+    logInfo(`Received 'loadModel' request from UI for model: ${modelId}.`);
+    if (!modelId) {
+      logError("[Background] 'loadModel' request missing modelId.");
+      sendResponse({ success: false, error: "Model ID not provided in request." });
+      return false;
+    }
+    isResponseAsync = true;
+    loadModel(modelId).then(() => {
+      logInfo(`loadModel(${modelId}) promise resolved successfully.`);
+      sendResponse({ success: true, message: `Model loading initiated or already complete for ${modelId}.` });
+    }).catch((error) => {
+      logError(`loadModel(${modelId}) failed:`, error);
+      sendResponse({ success: false, error: error.message });
+    });
+    return isResponseAsync;
+  }
+  if (type === "sendChatMessage") {
+    isResponseAsync = true;
+    const { chatId, messages, options, messageId } = payload;
+    const correlationId = messageId || chatId;
+    if (modelWorkerState !== "model_ready") {
+      logError(`Cannot send chat message. Model state is ${modelWorkerState}, not 'model_ready'.`);
+      sendResponse({ success: false, error: `Model not ready (state: ${modelWorkerState}). Please load a model first.` });
+      return false;
+    }
+    logInfo(`Model ready, sending generate request for ${correlationId}`);
+    sendToModelWorkerOffscreen({
+      type: "generate",
+      payload: {
+        messages,
+        max_new_tokens: options == null ? void 0 : options.max_new_tokens,
+        temperature: options == null ? void 0 : options.temperature,
+        top_k: options == null ? void 0 : options.top_k,
+        correlationId
+      }
+    }).then((sendResult) => {
+      if (!sendResult.success) throw new Error("Failed to send generate message initially.");
+      logInfo(`Generate request sent for ${correlationId}. Waiting for worker responses.`);
+      sendResponse({ success: true, message: "Generation request forwarded to worker." });
+    }).catch((error) => {
+      logError(`Error processing sendChatMessage for ${correlationId}:`, error);
+      if (modelWorkerState === "generating") modelWorkerState = "model_ready";
+      sendResponse({ success: false, error: error.message });
+    });
+    return isResponseAsync;
+  }
+  if (type === "interruptGeneration") {
+    logInfo("[Background] Received interrupt request from UI.");
+    ensureWorkerScriptIsReady().then(() => sendToModelWorkerOffscreen({ type: "interrupt" })).then(() => sendResponse({ success: true })).catch((err) => sendResponse({ success: false, error: err.message }));
+    isResponseAsync = true;
+    return isResponseAsync;
+  }
+  if (type === "resetWorker") {
+    logInfo("[Background] Received reset request from UI.");
+    ensureWorkerScriptIsReady().then(() => sendToModelWorkerOffscreen({ type: "reset" })).then(() => sendResponse({ success: true })).catch((err) => sendResponse({ success: false, error: err.message }));
+    isResponseAsync = true;
+    return isResponseAsync;
+  }
+  if (type === "getModelWorkerState") {
+    logInfo(`Handling 'getModelWorkerState' request. Current state: ${modelWorkerState}`);
+    sendResponse({ success: true, state: modelWorkerState });
+    return false;
+  }
+  if (type === "scrapeRequest") {
+    logInfo(`Handling 'scrapeRequest' request. Scraping URL: ${payload == null ? void 0 : payload.url}`);
+    isResponseAsync = true;
+    scrapeUrlMultiStage(payload == null ? void 0 : payload.url, payload == null ? void 0 : payload.chatId, payload == null ? void 0 : payload.messageId).then(() => {
+      logInfo(`scrapeRequest(${payload == null ? void 0 : payload.url}) promise resolved successfully.`);
+      sendResponse({ success: true, message: `Scraping orchestrator started for ${payload == null ? void 0 : payload.url}.` });
+    }).catch((error) => {
+      logError(`scrapeRequest(${payload == null ? void 0 : payload.url}) failed:`, error);
+      sendResponse({ success: false, error: error.message });
+    });
+    return isResponseAsync;
+  }
+  if (type === "getDriveFileList") {
+    const receivedFolderId = message.folderId;
+    logInfo(`Handling 'getDriveFileList' for folder: ${receivedFolderId}`);
+    isResponseAsync = true;
+    (async () => {
+      try {
+        const token = await getDriveToken();
+        const files = await fetchDriveFileList(token, receivedFolderId);
+        logInfo(`Successfully fetched ${(files == null ? void 0 : files.length) || 0} files/folders.`);
+        logInfo("[Background] Sending driveFileListData...");
+        browser.runtime.sendMessage({
+          type: "driveFileListData",
+          success: true,
+          files,
+          folderId: receivedFolderId
+        }).catch((err) => {
+          logWarn("[Background] Failed to send driveFileListData:", err == null ? void 0 : err.message);
+          browser.runtime.sendMessage({ type: "driveFileListData", success: false, error: `Failed to send data: ${err == null ? void 0 : err.message}`, folderId: receivedFolderId });
+        });
+        logInfo("[Background] sendResponse for driveFileListResponse skipped (using separate message).");
+      } catch (error) {
+        logError("Error handling getDriveFileList:", error);
+        browser.runtime.sendMessage({
+          type: "driveFileListData",
+          success: false,
+          error: error.message,
+          folderId: receivedFolderId
+        }).catch((err) => {
+          logWarn("[Background] Failed to send driveFileListData error message:", err == null ? void 0 : err.message);
+        });
+        logInfo("[Background] sendResponse for driveFileListResponse error skipped (using separate message).");
+      }
+    })();
+    return isResponseAsync;
+  }
+  if (type.startsWith("db:")) {
+    logDebug(`Forwarding DB request of type '${type}' to event bus.`);
+    eventBus.publish(type, message);
+    return false;
+  }
+  if (type === "getLogSessions") {
+    isResponseAsync = true;
+    (async () => {
+      try {
+        const { logSessions: sessions } = await browser.storage.local.get("logSessions");
+        sendResponse({ success: true, sessions: sessions || [] });
+      } catch (err) {
+        logError("Error fetching log sessions:", err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return isResponseAsync;
+  }
+  if (type === "getLogEntries") {
+    isResponseAsync = true;
+    (async () => {
+      const sessionId = payload == null ? void 0 : payload.sessionId;
+      if (!sessionId) {
+        sendResponse({ success: false, error: "Session ID required" });
+        return true;
+      }
+      try {
+        const key = `logs_${sessionId}`;
+        const result = await browser.storage.local.get(key);
+        sendResponse({ success: true, entries: result[key] || [] });
+      } catch (err) {
+        logError(`Error fetching log entries for ${sessionId}:`, err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return isResponseAsync;
+  }
+  if (type === "detachSidePanel") {
+    isResponseAsync = true;
+    handleDetach((_a = sender.tab) == null ? void 0 : _a.id).then((result) => {
+      sendResponse(result);
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return isResponseAsync;
+  }
+  if (type === "getDetachedState") {
+    isResponseAsync = true;
+    (async () => {
+      var _a2, _b;
+      try {
+        const { [`detachedState_${(_a2 = sender.tab) == null ? void 0 : _a2.id}`]: state } = await browser.storage.local.get(`detachedState_${(_b = sender.tab) == null ? void 0 : _b.id}`);
+        sendResponse({ success: true, state });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return isResponseAsync;
+  }
+  logWarn(`Unhandled message type: ${type}`);
+  return false;
+});
+logInfo("[Background-Simple] Script loaded and listening.");
 //# sourceMappingURL=background.js.map

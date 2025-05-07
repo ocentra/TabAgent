@@ -1,7 +1,7 @@
 import browser from 'webextension-polyfill';
 
-const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
-const MODEL_WORKER_OFFSCREEN_PATH = 'offscreenWorker.html';
+const OFFSCREEN_DOCUMENT_PATH_SCRAPING = 'scrapingOffscreen.html';
+const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
 
 import * as logClient from './log-client.js';
 import { eventBus } from './eventBus.js';
@@ -256,13 +256,14 @@ updateDeclarativeNetRequestRules();
 
 // Offscreen Document Management
 async function hasOffscreenDocument(path) {
-    const filename = path.split('/').pop();
-    const targetUrl = browser.runtime.getURL(filename);
-    const existingContexts = await browser.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT'],
-        documentUrls: [targetUrl]
-    });
-    return existingContexts.length > 0;
+    if (browser.runtime.getContexts) {
+        const contexts = await browser.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT'],
+            documentUrls: [browser.runtime.getURL(path)] 
+        });
+        return contexts.length > 0;
+    }
+    return false;
 }
 
 async function setupOffscreenDocument(path, reasons, justification) {
@@ -277,38 +278,39 @@ async function setupOffscreenDocument(path, reasons, justification) {
         reasons: reasons,
         justification: justification,
     });
+    logClient.logInfo(`Background: <<< Offscreen document ${path} CREATED successfully. Script should now load. >>>`);
     logClient.logInfo(`Background: Offscreen document created successfully using ${filename}.`);
 }
 
 // Scraping Logic
 async function scrapeUrlWithOffscreenIframe(url) {
-    logClient.logInfo(`[Stage 2] Attempting Offscreen + iframe: ${url}`);
+    logClient.logInfo(`[Stage 3] Attempting Offscreen + iframe: ${url}`);
     const DYNAMIC_SCRIPT_ID_PREFIX = 'offscreen-scrape-';
     const DYNAMIC_SCRIPT_MESSAGE_TYPE = 'offscreenIframeResult';
     const IFRAME_LOAD_TIMEOUT = 30000;
     let dynamicScripterId = null;
 
     const cleanup = async (scriptIdBase) => {
-        logClient.logInfo(`[Stage 2 Cleanup] Starting cleanup for script ID base: ${scriptIdBase}`);
+        logClient.logInfo(`[Stage 3 Cleanup] Starting cleanup for script ID base: ${scriptIdBase}`);
         if (scriptIdBase) {
             try {
                 await browser.scripting.unregisterContentScripts({ ids: [scriptIdBase] });
-                logClient.logInfo(`[Stage 2 Cleanup] Unregistered script: ${scriptIdBase}`);
+                logClient.logInfo(`[Stage 3 Cleanup] Unregistered script: ${scriptIdBase}`);
             } catch (error) {
-                logClient.logWarn(`[Stage 2 Cleanup] Failed to unregister script ${scriptIdBase}:`, error);
+                logClient.logWarn(`[Stage 3 Cleanup] Failed to unregister script ${scriptIdBase}:`, error);
             }
         }
         try {
-            await browser.runtime.sendMessage({ type: 'removeIframe', target: 'offscreen' });
-            logClient.logInfo('[Stage 2 Cleanup] Sent removeIframe request to offscreen.');
+            await cleanupOffscreen(OFFSCREEN_DOCUMENT_PATH_SCRAPING);
+            logClient.logInfo('[Stage 3 Cleanup] Sent removeIframe request to offscreen.');
         } catch (error) {
-            logClient.logWarn('[Stage 2 Cleanup] Failed to send removeIframe request: ', error);
+            logClient.logWarn('[Stage 3 Cleanup] Failed to send removeIframe request: ', error);
         }
     };
 
     try {
-        await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH, ['DOM_PARSER', 'IFRAME_SCRIPTING'], 'Parse HTML content and manage scraping iframes');
-        logClient.logInfo('[Stage 2] Sending createIframe request to offscreen...');
+        await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH_SCRAPING, [browser.offscreen.Reason.DOM_PARSER, browser.offscreen.Reason.IFRAME_SCRIPTING], 'Parse HTML content and manage scraping iframes');
+        logClient.logInfo('[Stage 3] Sending createIframe request to offscreen...');
         const createResponse = await browser.runtime.sendMessage({
             type: 'createIframe',
             target: 'offscreen',
@@ -317,22 +319,22 @@ async function scrapeUrlWithOffscreenIframe(url) {
         if (!createResponse?.success) {
             throw new Error(`Failed to create iframe in offscreen: ${createResponse?.error || 'Unknown error'}`);
         }
-        logClient.logInfo('[Stage 2] Iframe creation request successful. Waiting for load and script...');
+        logClient.logInfo('[Stage 3] Iframe creation request successful. Waiting for load and script...');
         dynamicScripterId = `${DYNAMIC_SCRIPT_ID_PREFIX}${Date.now()}`;
         await browser.scripting.registerContentScripts([{
             id: dynamicScripterId,
-            js: ['PageExtractor.js', 'stage2-helper.js'],
+            js: ['pageExtractor.js', 'stage2Helper.js'],
             matches: [url],
             runAt: 'document_idle',
             world: 'ISOLATED',
             allFrames: true,
             persistAcrossSessions: false
         }]);
-        logClient.logInfo(`[Stage 2] Registered dynamic script(s): ${dynamicScripterId} (files: PageExtractor.js, stage2-helper.js)`);
+        logClient.logInfo(`[Stage 3] Registered dynamic script(s): ${dynamicScripterId} (files: pageExtractor.js, stage2Helper.js)`);
         let messageListener = null;
         const scriptResponsePromise = new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => {
-                logClient.logWarn(`[Stage 2] Timeout (${IFRAME_LOAD_TIMEOUT / 1000}s) waiting for response from dynamic script.`);
+                logClient.logWarn(`[Stage 3] Timeout (${IFRAME_LOAD_TIMEOUT / 1000}s) waiting for response from dynamic script.`);
                 if (messageListener) {
                     browser.runtime.onMessage.removeListener(messageListener);
                 }
@@ -341,7 +343,7 @@ async function scrapeUrlWithOffscreenIframe(url) {
 
             messageListener = (message, sender, sendResponse) => {
                 if (message?.type === DYNAMIC_SCRIPT_MESSAGE_TYPE) {
-                    logClient.logInfo('[Stage 2] Received response from dynamic script:', message.payload);
+                    logClient.logInfo('[Stage 3] Received response from dynamic script:', message.payload);
                     clearTimeout(timeoutId);
                     browser.runtime.onMessage.removeListener(messageListener);
                     if (message.payload?.success) {
@@ -354,151 +356,121 @@ async function scrapeUrlWithOffscreenIframe(url) {
                 return false;
             };
             browser.runtime.onMessage.addListener(messageListener);
-            logClient.logInfo('[Stage 2] Listener added for dynamic script response.');
+            logClient.logInfo('[Stage 3] Listener added for dynamic script response.');
         });
         const resultPayload = await scriptResponsePromise;
         await cleanup(dynamicScripterId);
         return resultPayload;
     } catch (error) {
-        logClient.logError(`[Stage 2] Error during Offscreen + iframe process:`, error);
+        logClient.logError(`[Stage 3] Error during Offscreen + iframe process:`, error);
         await cleanup(dynamicScripterId);
-        throw new Error(`Stage 2 (Offscreen + iframe) failed: ${error.message}`);
+        throw new Error(`Stage 3 (Offscreen + iframe) failed: ${error.message}`);
     }
 }
 
 async function scrapeUrlWithTempTabExecuteScript(url) {
-    logClient.logInfo(`[Stage 3] Attempting Temp Tab + executeScript (using window.scraper.extract): ${url}`);
+    logClient.logInfo(`[Stage 1 (ExecuteScript)] Attempting Temp Tab + executeScript: ${url}`);
     let tempTabId = null;
     const TEMP_TAB_LOAD_TIMEOUT = 30000;
 
     return new Promise(async (resolve, reject) => {
-        const cleanupAndReject = (errorMsg) => {
-            logClient.logWarn(`[Stage 3] Cleanup: ${errorMsg}`);
+        const cleanupAndReject = (errorMsg, errorObj = null) => {
+            const finalError = errorObj ? errorObj : new Error(errorMsg);
+            logClient.logWarn(`[Stage 1 (ExecuteScript)] Cleanup & Reject: ${errorMsg}`, errorObj);
             if (tempTabId) {
-                browser.tabs.remove(tempTabId).catch(err => logClient.logWarn(`[Stage 3] Error removing tab ${tempTabId}: ${err.message}`));
+                browser.tabs.remove(tempTabId).catch(err => logClient.logWarn(`[Stage 1 (ExecuteScript)] Error removing tab ${tempTabId}: ${err.message}`));
                 tempTabId = null;
             }
-            reject(new Error(errorMsg));
+            reject(finalError);
         };
+
         try {
             const tab = await browser.tabs.create({ url: url, active: false });
             tempTabId = tab.id;
-            if (!tempTabId) throw new Error('Failed to get temporary tab ID.');
-            logClient.logInfo(`[Stage 3] Created temp tab ${tempTabId} for executeScript.`);
-        } catch (error) {
-            return reject(new Error(`Failed to create temp tab: ${error.message}`));
-        }
-        let loadTimeoutId = null;
-        const loadPromise = new Promise((resolveLoad, rejectLoad) => {
-            const listener = (tabId, changeInfo, updatedTab) => {
-                if (tabId === tempTabId && changeInfo.status === 'complete') {
-                    logClient.logInfo(`[Stage 3] Tab ${tempTabId} loaded.`);
-                    if (loadTimeoutId) clearTimeout(loadTimeoutId);
+            if (!tempTabId) {
+                cleanupAndReject('[Stage 1 (ExecuteScript)] Failed to get temporary tab ID.');
+                return;
+            }
+            logClient.logInfo(`[Stage 1 (ExecuteScript)] Created temp tab ${tempTabId}.`);
+
+            // Wait for the tab to load
+            let loadTimeoutId = null;
+            const loadPromise = new Promise((resolveLoad, rejectLoad) => {
+                const listener = (tabIdUpdated, changeInfo, updatedTab) => {
+                    if (tabIdUpdated === tempTabId && changeInfo.status === 'complete') {
+                        logClient.logInfo(`[Stage 1 (ExecuteScript)] Tab ${tempTabId} loaded.`);
+                        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+                        browser.tabs.onUpdated.removeListener(listener);
+                        resolveLoad();
+                    }
+                };
+                browser.tabs.onUpdated.addListener(listener);
+                loadTimeoutId = setTimeout(() => {
                     browser.tabs.onUpdated.removeListener(listener);
-                    resolveLoad();
-                }
-            };
-            browser.runtime.onUpdated.addListener(listener);
-            loadTimeoutId = setTimeout(() => {
-                browser.tabs.onUpdated.removeListener(listener);
-                rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load.`));
-            }, TEMP_TAB_LOAD_TIMEOUT);
-        });
-        try {
+                    rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load in tab ${tempTabId}.`));
+                }, TEMP_TAB_LOAD_TIMEOUT);
+            });
+
             await loadPromise;
-        } catch (error) {
-            return cleanupAndReject(`Load failed or timed out: ${error.message}`);
-        }
-        logClient.logInfo(`[Stage 3] Injecting PageExtractor.js and calling window.scraper.extract() in tab ${tempTabId}`);
-        try {
+            logClient.logInfo(`[Stage 1 (ExecuteScript)] Page loaded. Injecting pageExtractor.js module into tab ${tempTabId}...`);
+
+            // 1. Inject the PageExtractor.js script
             await browser.scripting.executeScript({
                 target: { tabId: tempTabId },
-                files: ['PageExtractor.js']
+                files: ['pageExtractor.js'] 
             });
-            const results = await browser.scripting.executeScript({
+            logClient.logInfo(`[Stage 1 (ExecuteScript)] pageExtractor.js module INJECTED successfully into tab ${tempTabId}.`);
+
+            // 2. Execute a function that calls the globally exposed extract method
+            logClient.logInfo(`[Stage 1 (ExecuteScript)] Executing function to call window.TabAgentPageExtractor.extract in tab ${tempTabId}...`);
+            const injectionResults = await browser.scripting.executeScript({
                 target: { tabId: tempTabId },
-                func: () => window.scraper.extract(),
+                func: () => { // Arrow function for lexical this, though not strictly needed here
+                    if (window.TabAgentPageExtractor && typeof window.TabAgentPageExtractor.extract === 'function') {
+                        try {
+                            return window.TabAgentPageExtractor.extract(document);
+                        } catch (e) {
+                            console.error('[In-Tab] Error during execution of PageExtractor.extract:', e);
+                            return { error: `Error in PageExtractor.extract: ${e.message} (Stack: ${e.stack})` };
+                        }
+                    } else {
+                        console.error('[In-Tab] TabAgentPageExtractor or its extract function not found on window.');
+                        return { error: 'TabAgentPageExtractor.extract function not found on window.' };
+                    }
+                }
             });
-            if (tempTabId) {
-                browser.tabs.remove(tempTabId).catch(err => logClient.logWarn(`[Stage 3] Error removing tab ${tempTabId} post-execute: ${err.message}`));
-                tempTabId = null;
+
+            logClient.logInfo('[Stage 1 (ExecuteScript)] Raw results from executeScript func:', injectionResults);
+
+            if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
+                cleanupAndReject('[Stage 1 (ExecuteScript)] No result returned from executeScript func.', injectionResults && injectionResults[0] ? injectionResults[0].error : null);
+                return;
             }
-            if (results && results.length > 0 && results[0].result) {
-                const scriptResult = results[0].result;
-                if (scriptResult && typeof scriptResult === 'object') {
-                    logClient.logInfo('[Stage 3] window.scraper.extract() succeeded.');
-                    resolve(scriptResult);
-                } else {
-                    reject(new Error(scriptResult?.error || 'window.scraper.extract() failed or returned null.'));
-                }
+
+            const scriptResult = injectionResults[0].result;
+
+            if (scriptResult && scriptResult.error) {
+                cleanupAndReject(`[Stage 1 (ExecuteScript)] Script execution reported an error: ${scriptResult.error}`, scriptResult);
+                return;
+            }
+            
+            if (scriptResult && typeof scriptResult === 'object') {
+                logClient.logInfo('[Stage 1 (ExecuteScript)] pageExtractor.js module execution succeeded (returned object).');
+                resolve(scriptResult);
             } else {
-                const lastError = browser.runtime.lastError ? browser.runtime.lastError.message : 'No result returned';
-                reject(new Error(`executeScript failed: ${lastError}`));
+                cleanupAndReject('[Stage 1 (ExecuteScript)] pageExtractor.js module returned unexpected non-object/error type.', scriptResult);
             }
+
         } catch (error) {
-            cleanupAndReject(`executeScript call failed: ${error.message}`);
+            cleanupAndReject(`[Stage 1 (ExecuteScript)] Error: ${error.message}`, error);
+        } finally {
+            if (tempTabId) { // Ensure tab is closed if something went wrong before explicit resolve/reject
+                browser.tabs.remove(tempTabId).catch(err => logClient.logWarn(`[Stage 1 (ExecuteScript)] Error removing tab ${tempTabId} in final catch: ${err.message}`));
+            }
         }
     });
 }
 
-async function scrapeUrlWithTempTab_ContentScript(url) {
-    logClient.logInfo(`[Stage 4] Attempting Temp Tab + Content Script: ${url}`);
-    let tempTabId = null;
-    const TEMP_TAB_LOAD_TIMEOUT = 30000;
-
-    return new Promise(async (resolve, reject) => {
-        const cleanupAndReject = (errorMsg) => {
-            if (tempTabId) {
-                browser.tabs.remove(tempTabId).catch(err => logClient.logWarn(`[Stage 4] Error removing tab ${tempTabId} during cleanup: ${err.message}`));
-                tempTabId = null;
-            }
-            reject(new Error(errorMsg));
-        };
-        try {
-            const tab = await browser.tabs.create({ url: url, active: false });
-            tempTabId = tab.id;
-            if (!tempTabId) throw new Error('Failed to get temporary tab ID.');
-            logClient.logInfo(`[Stage 4] Created temp tab ${tempTabId}`);
-        } catch (error) {
-            return reject(new Error(`Failed to create temp tab: ${error.message}`));
-        }
-        let loadTimeoutId = null;
-        const loadPromise = new Promise((resolveLoad, rejectLoad) => {
-            const listener = (tabId, changeInfo, updatedTab) => {
-                if (tabId === tempTabId && changeInfo.status === 'complete') {
-                    logClient.logInfo(`[Stage 4] Tab ${tempTabId} loaded.`);
-                    if (loadTimeoutId) clearTimeout(loadTimeoutId);
-                    browser.tabs.onUpdated.removeListener(listener);
-                    resolveLoad();
-                }
-            };
-            browser.tabs.onUpdated.addListener(listener);
-            loadTimeoutId = setTimeout(() => {
-                browser.tabs.onUpdated.removeListener(listener);
-                rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load.`));
-            }, TEMP_TAB_LOAD_TIMEOUT);
-        });
-        try {
-            await loadPromise;
-        } catch (error) {
-            return cleanupAndReject(error.message);
-        }
-        logClient.logInfo(`[Stage 4] Sending SCRAPE_PAGE to content script in tab ${tempTabId}`);
-        try {
-            const response = await browser.tabs.sendMessage(tempTabId, { type: 'SCRAPE_PAGE' });
-            if (tempTabId) browser.tabs.remove(tempTabId).catch(err => logClient.logWarn(`[Stage 4] Error removing tab ${tempTabId} post-message: ${err.message}`));
-            tempTabId = null;
-            if (response?.success) {
-                logClient.logInfo(`[Stage 4] Success from content script.`);
-                resolve(response);
-            } else {
-                reject(new Error(response?.error || 'Content script failed or gave invalid response.'));
-            }
-        } catch (error) {
-            cleanupAndReject(`Messaging content script failed: ${error.message}`);
-        }
-    });
-}
 
 async function scrapeUrlMultiStage(url, chatId, messageId) {
     logClient.logInfo(`Scraping Orchestrator: Starting for ${url}. ChatID: ${chatId}, MessageID: ${messageId}`);
@@ -510,69 +482,35 @@ async function scrapeUrlMultiStage(url, chatId, messageId) {
         }).catch(e => logClient.logWarn(`[Orchestrator] Failed to send result for Stage ${stageResult.stage}:`, e));
     };
 
+
     try {
         try {
-            const iframeResult = await scrapeUrlWithOffscreenIframe(url);
-            logClient.logInfo(`[Orchestrator Log] Stage 2 (Offscreen + iframe) Succeeded for ${url}.`);
-            const stage2SuccessPayload = {
-                stage: 2, success: true, chatId: chatId, messageId: messageId,
-                method: 'offscreenIframe', url: url,
-                length: iframeResult?.text?.length || 0,
-                ...iframeResult
-            };
-            sendStageResult(stage2SuccessPayload);
-            return;
-        } catch (stage2Error) {
-            logClient.logWarn(`[Orchestrator Log] Stage 2 (Offscreen + iframe) Failed for ${url}: ${stage2Error.message}`);
-            sendStageResult({ stage: 2, success: false, chatId: chatId, messageId: messageId, error: stage2Error.message });
-        }
-
-        try {
             const executeScriptResult = await scrapeUrlWithTempTabExecuteScript(url);
-            logClient.logInfo(`[Orchestrator Log] Stage 3 (Temp Tab + executeScript) Succeeded for ${url}.`);
-            const stage3SuccessPayload = {
-                stage: 3, success: true, chatId: chatId, messageId: messageId,
+            logClient.logInfo(`[Orchestrator Log] Stage 1 (Temp Tab + executeScript) Succeeded for ${url}.`);
+            const stage1SuccessPayload = {
+                stage: 1, success: true, chatId: chatId, messageId: messageId,
                 method: 'tempTabExecuteScript', url: url,
                 length: executeScriptResult?.text?.length || 0,
                 ...executeScriptResult
             };
-            sendStageResult(stage3SuccessPayload);
-            return;
-        } catch (stage3Error) {
-            logClient.logWarn(`[Orchestrator Log] Stage 3 (Temp Tab + executeScript) Failed for ${url}: ${stage3Error.message}`);
-            sendStageResult({ stage: 3, success: false, chatId: chatId, messageId: messageId, error: stage3Error.message });
+            sendStageResult(stage1SuccessPayload);
+            return; // Stop after successful Stage 1
+        } catch (stage1Error) {
+            logClient.logWarn(`[Orchestrator Log] Stage 1 (Temp Tab + executeScript) Failed for ${url}: ${stage1Error.message}`);
+            sendStageResult({ stage: 1, success: false, chatId: chatId, messageId: messageId, method: 'tempTabExecuteScript', error: stage1Error.message });
+            // Do not proceed to other stages if Stage 1 fails, as per new plan
+            return; 
         }
 
-        try {
-            const tempTabResult = await scrapeUrlWithTempTab_ContentScript(url);
-            logClient.logInfo(`[Orchestrator Log] Stage 4 (Temp Tab + Content Script) Succeeded for ${url}.`);
-            const stage4SuccessPayload = {
-                stage: 4, success: true, chatId: chatId, messageId: messageId,
-                method: 'tempTabContentScript', url: url,
-                length: tempTabResult?.text?.length || 0,
-                ...tempTabResult
-            };
-            logClient.logInfo("[Orchestrator Log] Stage 4 Payload being sent:", stage4SuccessPayload);
-            sendStageResult(stage4SuccessPayload);
-            return;
-        } catch (stage4Error) {
-            logClient.logWarn(`[Orchestrator Log] Stage 4 (Temp Tab + Content Script) Failed for ${url}: ${stage4Error.message}`);
-            sendStageResult({ stage: 4, success: false, chatId: chatId, messageId: messageId, error: stage4Error.message });
-        }
+        // All other stages (2, 3, 4) have been removed.
+        // If Stage 1 fails, the orchestrator will have already returned.
+        // This part of the code should ideally not be reached if Stage 1 was the only one.
+        // However, to be safe and explicit:
+        logClient.logInfo("[Orchestrator Log] No successful scraping stage completed (should have exited after Stage 1 attempt).");
 
-        logClient.logInfo("[Orchestrator Log] All stages failed.");
     } finally {
-        logClient.logInfo("[Orchestrator Cleanup] Attempting to close offscreen document after multi-stage scrape.");
-        try {
-            if (await hasOffscreenDocument(OFFSCREEN_DOCUMENT_PATH)) {
-                await browser.offscreen.closeDocument();
-                logClient.logInfo("[Orchestrator Cleanup] Offscreen document closed successfully.");
-            } else {
-                logClient.logInfo("[Orchestrator Cleanup] No offscreen document found to close.");
-            }
-        } catch (error) {
-            logClient.logWarn("[Orchestrator Cleanup] Error closing offscreen document:", error);
-        }
+        // No specific cleanup for scraping stages needed here anymore.
+        logClient.logInfo(`[Scraping Orchestrator] Finished processing for ${url}.`);
     }
 }
 
@@ -774,6 +712,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (workerMessageTypes.includes(type)) {
         logClient.logInfo(`Handling message from worker: ${type}`);
+        let uiUpdatePayload = null;
         switch (type) {
             case 'workerScriptReady':
                 logClient.logInfo("[Background] Worker SCRIPT is ready!");
@@ -782,7 +721,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     workerScriptReadyResolver();
                     workerScriptReadyPromise = null;
                 }
-                browser.runtime.sendMessage({ type: 'uiUpdate', payload: { modelStatus: 'script_ready' } }).catch(() => {});
+                uiUpdatePayload = { modelStatus: 'script_ready' };
                 break;
             case 'workerReady':
                 logClient.logInfo("[Background] Worker MODEL is ready! Model:", payload?.model);
@@ -791,7 +730,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     modelLoadResolver();
                     modelLoadPromise = null;
                 }
-                browser.runtime.sendMessage({ type: 'uiUpdate', payload: { modelStatus: 'model_ready', model: payload?.model } }).catch(() => {});
+                uiUpdatePayload = { modelStatus: 'model_ready', model: payload?.model };
                 if (workerScriptReadyResolver) {
                     workerScriptReadyResolver();
                     workerScriptReadyPromise = null;
@@ -852,9 +791,28 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     modelLoadRejecter(new Error(payload || 'Generic error during model load'));
                     modelLoadPromise = null;
                 }
-                browser.runtime.sendMessage({ type: 'uiUpdate', payload: { modelStatus: 'error', error: payload } }).catch(() => {});
+                uiUpdatePayload = { modelStatus: 'error', error: payload };
                 break;
         }
+        
+        if (uiUpdatePayload) {
+            logClient.logInfo(`[Background] Sending uiUpdate to tabs:`, uiUpdatePayload);
+            browser.tabs.query({}).then(tabs => {
+                tabs.forEach(tab => {
+                    if (tab.id) {
+                        browser.tabs.sendMessage(tab.id, { type: 'uiUpdate', payload: uiUpdatePayload })
+                            .catch(err => { 
+                                if (!err.message.includes('Could not establish connection') && !err.message.includes('Receiving end does not exist')) {
+                                     logClient.logWarn(`[Background] Error sending uiUpdate to tab ${tab.id}:`, err.message);
+                                }
+                            });
+                    }
+                });
+            }).catch(err => {
+                logClient.logError('[Background] Error querying tabs to send uiUpdate:', err);
+            });
+        }
+        
         forwardMessageToSidePanelOrPopup(message, sender);
         return false;
     }

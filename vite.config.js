@@ -6,13 +6,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    minify: false,
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, 'src/sidepanel.js'),
         background: resolve(__dirname, 'src/background.js'),
-        offscreen: resolve(__dirname, 'src/offscreen.js'),
+        modelLoaderWorkerOffscreen: resolve(__dirname, 'src/modelLoaderWorkerOffscreen.js'),
         modelWorker: resolve(__dirname, 'src/model-worker.js'),
-        scriptingReadabilityHelper: resolve(__dirname, 'src/scriptingReadabilityHelper.js')
+        scriptingReadabilityHelper: resolve(__dirname, 'src/scriptingReadabilityHelper.js'),
+        pageExtractor: resolve(__dirname, 'src/PageExtractor.js'),
       },
       output: {
         entryFileNames: `[name].js`,
@@ -27,15 +29,10 @@ export default defineConfig({
       targets: [
         { src: 'manifest.json', dest: '.' },
         { src: 'src/sidepanel.html', dest: '.' },
-        { src: 'src/PageExtractor.js', dest: '.' },
         { src: 'src/content.js', dest: '.' },
         { src: 'src/model-worker.js', dest: '.' },
         { src: 'src/theme-loader.js', dest: '.' },
-        { src: 'src/stage2-helper.js', dest: '.' },
-        { src: 'src/offscreen.html', dest: '.' },
-        { src: 'src/offscreen.js', dest: '.' },
-        { src: 'src/offscreenWorker.html', dest: '.' },
-        { src: 'src/offscreenWorker.js', dest: '.' },
+        { src: 'src/modelLoaderWorkerOffscreen.html', dest: '.' },
         { src: 'src/output.css', dest: '.' },
         { src: 'src/sidepanel.css', dest: '.' },
         { src: 'src/notifications.js', dest: '.' },
@@ -45,6 +42,8 @@ export default defineConfig({
         { src: 'node_modules/prismjs/prism.js', dest: 'assets' },
         { src: 'node_modules/prismjs/components/prism-json.min.js', dest: 'assets' },
         { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' },
+        { src: 'src/assets/marked.min.js', dest: 'assets' },
+        // { src: 'node_modules/webextension-polyfill/dist/browser-polyfill.js', dest: 'assets' },
         {src: 'src/xenova', dest: '.'},
         {src: 'src/model', dest: '.'},
         {src: 'src/wasm', dest: '.'}

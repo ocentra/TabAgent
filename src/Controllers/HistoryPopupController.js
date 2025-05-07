@@ -1,5 +1,6 @@
 // src/Controllers/HistoryPopupController.js
 
+import browser from 'webextension-polyfill';
 import { eventBus } from '../eventBus.js';
 import { 
     DbGetAllSessionsRequest, DbGetAllSessionsResponse,
@@ -143,15 +144,20 @@ async function showPopup() {
     console.log("[HistoryPopupController] Showing popup. Fetching latest history...");
 
     try {
-        // Actively fetch all sessions when the popup is shown
-        // requestDbAndWait now resolves directly with the array of sessions (or null/undefined on failure)
         const sessionsArray = await requestDbAndWaitFunc(new DbGetAllSessionsRequest());
         
-        // Directly assign the received array (or default to empty if null/undefined)
+        console.log("[HistoryPopupController:Debug] Fetched sessionsArray:", sessionsArray); 
+        if (Array.isArray(sessionsArray) && sessionsArray.length > 0) {
+             console.log("[HistoryPopupController:Debug] First session item sample:", sessionsArray[0]);
+        } else if (sessionsArray === null || sessionsArray === undefined) {
+             console.log("[HistoryPopupController:Debug] sessionsArray is null or undefined.");
+        } else {
+             console.log("[HistoryPopupController:Debug] sessionsArray is empty or not an array:", typeof sessionsArray);
+        }
+
         currentHistoryItems = sessionsArray || []; 
-        console.log(`[HistoryPopupController] Fetched ${currentHistoryItems.length} sessions.`);
+        console.log(`[HistoryPopupController] Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
         
-        // Now render the list with the potentially updated data
         renderHistoryList(); 
         historyPopupElement.classList.remove('hidden');
     } catch (error) {
@@ -185,7 +191,7 @@ async function handleLoadClick(sessionId) {
     console.log(`[HistoryPopupController] Load clicked: ${sessionId}`);
     if (!sessionId) return;
     try {
-        await chrome.storage.local.set({ lastSessionId: sessionId });
+        await browser.storage.local.set({ lastSessionId: sessionId });
         navigateTo('page-home');
         hidePopup();
     } catch (error) {

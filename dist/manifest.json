@@ -28,7 +28,6 @@
         "<all_urls>"
       ],
       "js": [
-        "PageExtractor.js",
         "content.js"
       ],
       "type": "module"
@@ -47,20 +46,16 @@
     {
       "resources": [
         "sidepanel.html",
-        "offscreen.html",
-        "offscreen.js",
-        "offscreenWorker.html",
-        "offscreenWorker.js",
+        "modelLoaderWorkerOffscreen.html",
+        "modelLoaderWorkerOffscreen.js",
         "model-worker.js",
-        "PageExtractor.js",
-        "stage2-helper.js",
+        "pageExtractor.js",
         "assets/*",
         "sidepanel.css",
         "icons/*",
         "xenova/*",
         "model/*",
         "wasm/*"
-       
       ],
       "matches": ["<all_urls>"]
     }
@@ -75,5 +70,14 @@
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self';",
     "worker-src": "'self' 'wasm-unsafe-eval' 'blob:';"
+  },
+  "offscreen": {
+    "documents": [
+      {
+        "path": "modelLoaderWorkerOffscreen.html",
+        "reasons": ["WORKERS"],
+        "justification": "Run AI model in a separate worker thread via an offscreen document."
+      }
+    ]
   }
 }

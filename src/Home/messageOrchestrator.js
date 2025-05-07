@@ -1,3 +1,4 @@
+import browser from 'webextension-polyfill';
 import { URL_REGEX, getActiveTab, showError } from '../Utilities/generalUtils.js';
 import { eventBus } from '../eventBus.js';
 import {
@@ -171,11 +172,11 @@ async function handleQuerySubmit(data) {
              const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
             if (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized) {
                 console.log("Orchestrator: Triggering content script scrape.");
-                chrome.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_ACTIVE_TAB' }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        console.error('Orchestrator: Error sending SCRAPE_ACTIVE_TAB:', chrome.runtime.lastError.message);
+                browser.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_ACTIVE_TAB' }, (response) => {
+                    if (browser.runtime.lastError) {
+                        console.error('Orchestrator: Error sending SCRAPE_ACTIVE_TAB:', browser.runtime.lastError.message);
                         const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                            isLoading: false, sender: 'error', text: `Failed to send scrape request: ${chrome.runtime.lastError.message}`
+                            isLoading: false, sender: 'error', text: `Failed to send scrape request: ${browser.runtime.lastError.message}`
                         });
                         requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
                         requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
@@ -183,66 +184,64 @@ async function handleQuerySubmit(data) {
                     } else { console.log("Orchestrator: SCRAPE_ACTIVE_TAB message sent."); }
                 });
             } else {
-                console.log("Orchestrator: Triggering background scrape.");
-                chrome.runtime.sendMessage({
-                    type: 'TEMP_SCRAPE_URL', url: text, tabId: currentTabId, chatId: sessionId, messageId: placeholderMessageId
-                }, (response) => {
-                     if (chrome.runtime.lastError) {
-                        console.error('Orchestrator: Error sending TEMP_SCRAPE_URL:', chrome.runtime.lastError.message);
-                        const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                             isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${chrome.runtime.lastError.message}`
-                        });
-                         requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                         requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                         isSendingMessage = false;
-                     } else { console.log("Orchestrator: TEMP_SCRAPE_URL message sent successfully."); }
-                });
-            }
-        } else {
-            const messagePayload = {
-                type: 'query', tabId: currentTabId, text: text, chatId: sessionId, messageId: placeholderMessageId
-            };
-            console.log('Orchestrator: Sending query to background:', messagePayload);
-            chrome.runtime.sendMessage(messagePayload, (response) => {
-                if (chrome.runtime.lastError) {
-                    console.error('Orchestrator: Error sending query:', chrome.runtime.lastError.message);
-                    const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${chrome.runtime.lastError.message}` };
-                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
+                console.log("Orchestrator: Triggering background scrape via scrapeRequest.");
+                try {
+                    // Send the message and await the response (if any, often undefined for one-way messages)
+                    const response = await browser.runtime.sendMessage({
+                        type: 'scrapeRequest',
+                        payload: {
+                             url: text, 
+                             chatId: sessionId, 
+                             messageId: placeholderMessageId
+                        } 
+                    });
+                    // Process response if needed, or just log success if no specific response is expected
+                    // For instance, background might not send an explicit response back for this type of message.
+                    // If browser.runtime.lastError would have been set, the promise will reject.
+                    console.log("Orchestrator: scrapeRequest message sent successfully.", response);
+
+                } catch (error) {
+                    console.error('Orchestrator: Error sending scrapeRequest:', error.message);
+                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
+                         isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
+                    });
                     requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
                     requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                    isSendingMessage = false; // Reset flag on send error
-                } else {
-                    // Process the response received from background.js
-                    console.log('Orchestrator: Received direct response from background for query:', response);
-                    let updatePayload = {};
-                    let finalStatus = 'idle';
-
-                    if (response && response.success) {
-                        updatePayload = { isLoading: false, sender: 'ai', text: response.data || 'Received empty successful response.' };
-                        finalStatus = 'idle';
-                    } else {
-                        updatePayload = { isLoading: false, sender: 'error', text: `Error: ${response?.error || 'Unknown error from background.'}` };
-                        finalStatus = 'error';
-                        console.error('Orchestrator: Background query processing failed:', response?.error);
-                    }
-
-                    // Update the placeholder message
-                    const updateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, updatePayload);
-                    requestDbAndWait(updateRequest)
-                        .then(() => {
-                             console.log(`[Orchestrator] Setting session ${sessionId} status to '${finalStatus}' after query response via event`);
-                             return requestDbAndWait(new DbUpdateStatusRequest(sessionId, finalStatus));
-                        })
-                        .catch(e => {
-                            console.error("Failed to update placeholder/status after query response:", e);
-                             // Attempt to set error status even if update failed
-                             requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e2 => console.error("Failed to set fallback error status:", e2));
-                        })
-                        .finally(() => {
-                            isSendingMessage = false; // Reset flag after processing response
-                        });
+                    isSendingMessage = false;
                 }
-            });
+            }
+        } else {
+            console.log("Orchestrator: Sending query to background for AI response.");
+            const messagePayload = {
+                type: 'sendChatMessage',
+                payload: {
+                    chatId: sessionId,
+                    messages: [{ role: 'user', content: text }], 
+                    options: { /* model, temp, etc */ },
+                    messageId: placeholderMessageId
+                }
+            };
+            try {
+                const response = await browser.runtime.sendMessage(messagePayload);
+                if (response && response.success) {
+                    console.log('Orchestrator: Background acknowledged forwarding sendChatMessage. Actual AI response will follow separately.', response);
+                } else {
+                    console.error('Orchestrator: Background reported an error while attempting to forward sendChatMessage:', response?.error);
+                    const errorPayload = { isLoading: false, sender: 'error', text: `Error forwarding query: ${response?.error || 'Unknown error'}` };
+                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
+                    await requestDbAndWait(errorUpdateRequest); // Can await here too
+                    await requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error'));
+                    isSendingMessage = false; // Reset flag if forwarding failed
+                }
+            } catch (error) {
+                console.error('Orchestrator: Error sending query to background or processing its direct ack:', error);
+                const errorText = error && typeof error.message === 'string' ? error.message : 'Unknown error during send/ack';
+                const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
+                const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
+                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error (within catch):", e));
+                requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error (within catch):", e));
+                isSendingMessage = false; // Reset flag on send error
+            }
         }
     } catch (error) {
         console.error("Orchestrator: Error processing query submission:", error);
@@ -384,10 +383,10 @@ async function handleBackgroundDirectScrapeResult(message) {
     const updatePayload = { isLoading: false };
      if (success) {
          updatePayload.sender = 'system';
-         updatePayload.text = scrapeData.text || scrapeData.excerpt || 'Scraped content (no text found).';
+         updatePayload.text = `Full Scrape Result: ${scrapeData.title || 'Scraped Content'}`;
          updatePayload.metadata = {
-             type: 'scrape_result', method: scrapeData.method || 'unknown',
-             url: scrapeData.url, title: scrapeData.title,
+             type: 'scrape_result_full', 
+             scrapeData: scrapeData
          };
      } else {
          updatePayload.sender = 'error';

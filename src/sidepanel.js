@@ -24,6 +24,26 @@ import { initializeSettingsController } from './Controllers/SettingsController.j
 import { initializeSpacesController } from './Controllers/SpacesController.js';
 import { initializeDriveController, handleDriveFileListResponse } from './Controllers/DriveController.js';
 
+// Marked.js Setup
+// Ensure this runs after marked.min.js has been loaded from sidepanel.html
+if (window.marked) {
+    window.marked.setOptions({
+        highlight: function (code, lang) {
+            if (Prism.languages[lang]) {
+                return Prism.highlight(code, Prism.languages[lang], lang);
+            }
+            return code; // Return original code if language not found
+        },
+        langPrefix: 'language-',
+        gfm: true,
+        breaks: true
+    });
+    console.log('[Sidepanel] Marked.js globally configured (highlight, gfm, breaks). Custom code rendering will be handled per parse call.');
+} else {
+    console.error("[Sidepanel] Marked.js library (window.marked) not found. Ensure it's loaded before this script.");
+}
+// End Marked.js Setup
+
 let currentTab = null;
 let activeSessionId = null;
 let isPopup = false;
@@ -355,15 +375,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                  await setActiveChatSessionId(null);
             }
         } else {
-            // If not a popup, load last known session or start fresh
-            const { lastSessionId } = await browser.storage.local.get(['lastSessionId']);
-            if (lastSessionId) {
-                 console.log(`[Sidepanel] Loading last active session: ${lastSessionId}`);
-                 await loadAndDisplaySession(lastSessionId);
-             } else {
-                 console.log("[Sidepanel] No last session ID found, starting fresh.");
-                 await setActiveChatSessionId(null);
-             }
+            // If not a popup, always start fresh as per user preference.
+            console.log("[Sidepanel] Always starting fresh. Loading empty/welcome state.");
+            await loadAndDisplaySession(null);
         }
         
         console.log("[Sidepanel] Initialization complete (after DB ready).");
@@ -386,10 +400,13 @@ function handleBackgroundMessage(message, sender, sendResponse) {
     } else if (message.type === 'error') {
         const payload = { chatId: message.chatId, messageId: message.messageId, error: message.error };
         eventBus.publish('background:errorReceived', payload);
+        sendResponse({}); // Acknowledge message
     } else if (message.type === 'STAGE_SCRAPE_RESULT') {
         eventBus.publish('background:scrapeStageResult', message.payload);
+        sendResponse({status: "received", type: message.type}); // Acknowledge STAGE_SCRAPE_RESULT
     } else if (message.type === 'DIRECT_SCRAPE_RESULT') {
         eventBus.publish('background:scrapeResultReceived', message.payload);
+        sendResponse({}); // Acknowledge message
     } else if (message.type === 'uiLoadingStatusUpdate') {
         // Forward loading status updates from background onto the local event bus
         console.log('[Sidepanel] Forwarding uiLoadingStatusUpdate to eventBus.');

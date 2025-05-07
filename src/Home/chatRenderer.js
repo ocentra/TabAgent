@@ -157,119 +157,199 @@ function updateChatHeader(sessionData) {
 
 function renderSingleMessage(msg) {
     if (!chatBodyElement) return;
+
+    console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
+
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('flex', 'mb-2');
     messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random().toString(36).substring(2)}`;
+    
     const bubbleDiv = document.createElement('div');
-    bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group', 'p-2', 'max-w-4xl');
-    const copyButtonContainer = document.createElement('div');
-    copyButtonContainer.className = 'copy-button-container absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity';
+    bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group', 'p-2', 'max-w-4xl'); 
+
+    // Create actions container first
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10'; // Added z-10 to ensure it's on top
+
     const copyButton = document.createElement('button');
-    copyButton.innerHTML = `<svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
-    copyButton.className = 'copy-button p-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600';
-    copyButton.title = 'Copy text';
-    copyButton.onclick = (e) => {
-        e.stopPropagation();
-        const contentElement = bubbleDiv.querySelector('pre code') || bubbleDiv.querySelector('.prose') || bubbleDiv;
-        const textToCopy = contentElement?.textContent || '';
-        navigator.clipboard.writeText(textToCopy)
-            .then(() => showNotification('Copied!', 'success', 1500))
-            .catch(err => {
-                console.error('Failed to copy:', err);
-                showNotification('Copy failed', 'error', 1500);
-            });
+    copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
+    copyButton.title = 'Copy message text';
+    copyButton.onclick = () => {
+        let textToCopy = msg.text;
+        if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
+            textToCopy = JSON.stringify(msg.metadata.scrapeData, null, 2);
+        }
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            // Assuming originalUITooltipController is available globally or passed appropriately
+            if (window.originalUITooltipController) {
+                window.originalUITooltipController.showTooltip(copyButton, 'Copied!');
+            }
+        }).catch(err => console.error('Failed to copy text: ', err));
     };
-    copyButtonContainer.appendChild(copyButton);
-    bubbleDiv.appendChild(copyButtonContainer);
-    let codeElement = null;
-    if (msg.metadata?.type === 'scrape_result') {
+    actionsContainer.appendChild(copyButton);
+
+    if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
+        const downloadButton = document.createElement('button');
+        downloadButton.innerHTML = '<img src="icons/download.svg" alt="Download" class="w-4 h-4">';
+        downloadButton.title = 'Download scrape data as JSON';
+        downloadButton.onclick = () => {
+            console.log('Download clicked for:', msg.metadata.scrapeData); // Placeholder
+            if (window.originalUITooltipController) {
+                window.originalUITooltipController.showTooltip(downloadButton, 'Download (placeholder)');
+            }
+        };
+        actionsContainer.appendChild(downloadButton);
+    }
+    // IMPORTANT: Append actionsContainer AFTER main content is set, or ensure it's not overwritten.
+    // For now, we will append it after other content elements are added to bubbleDiv.
+
+    let contentToParse = msg.text || '';
+    let specialHeaderHTML = ''; // Changed to store HTML string
+
+    if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
+        specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Content:</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${msg.metadata.scrapeData.url || 'N/A'}</p></div>`;
+        const dataForMd = typeof msg.metadata.scrapeData === 'string' ? msg.metadata.scrapeData : JSON.stringify(msg.metadata.scrapeData, null, 2);
+        contentToParse = '```json\n' + dataForMd + '\n```';
+        console.log('[ChatRenderer] Preparing to parse scrape_result_full. Input to marked:', contentToParse);
+    } else if (msg.text) {
+        console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
+    }
+
+    console.log(`[ChatRenderer] Before style application: msg.sender = ${msg.sender}`);
+    // Apply sender-specific alignment and base bubble styling
+    if (msg.isLoading) {
         messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add('bg-gray-200', 'dark:bg-gray-600');
-        const headerDiv = document.createElement('div');
-        headerDiv.classList.add('text-xs', 'font-semibold', 'mb-1', 'text-gray-700', 'dark:text-gray-300', 'pr-6');
-        headerDiv.textContent = `Scraped (${msg.metadata.method || 'N/A'}): ${msg.metadata.title || msg.metadata.url || 'Content'}`;
-        bubbleDiv.appendChild(headerDiv);
-        const contentDiv = document.createElement('div');
-        contentDiv.classList.add('overflow-y-auto', 'max-h-64', 'text-sm', 'prose', 'prose-sm', 'dark:prose-invert', 'whitespace-pre-wrap', 'mt-1');
-        contentDiv.textContent = msg.text || '';
-        bubbleDiv.appendChild(contentDiv);
-    } else if (msg.metadata?.type === 'scrape_stage_result') {
+        bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic', 'border', 'border-gray-300', 'dark:border-gray-500');
+    } else if (msg.sender === 'user') {
+        messageDiv.classList.add('justify-end');
+        bubbleDiv.classList.add('bg-sky-100', 'dark:bg-sky-900', 'text-gray-900', 'dark:text-gray-100', 'border', 'border-sky-300', 'dark:border-sky-700');
+    } else { 
         messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add('border', 'border-gray-300', 'dark:border-gray-600');
-        const stageHeaderDiv = document.createElement('div');
-        stageHeaderDiv.classList.add('text-xs', 'font-semibold', 'mb-1', 'pr-6');
-        if (msg.metadata.success) {
-            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700');
-            stageHeaderDiv.classList.add('text-gray-700', 'dark:text-gray-300');
-            stageHeaderDiv.textContent = `[Stage ${msg.metadata.stage} - ${msg.metadata.method || '?'} - OK] Len: ${msg.metadata.length || 0}`;
-            bubbleDiv.appendChild(stageHeaderDiv);
-            const stageContentContainer = document.createElement('div');
-            stageContentContainer.classList.add('overflow-y-auto', 'max-h-64', 'mt-1');
-            const preElement = document.createElement('pre');
-            preElement.classList.add('bg-gray-800', 'dark:bg-gray-900', 'rounded', 'p-2', 'text-xs');
-            codeElement = document.createElement('code');
-            codeElement.className = 'language-json';
-            const dataToShow = {
-                 title: msg.metadata.title || 'N/A',
-                 links: msg.metadata.links,
-            };
-            codeElement.textContent = JSON.stringify(dataToShow, null, 2);
-            preElement.appendChild(codeElement);
-            stageContentContainer.appendChild(preElement);
-            bubbleDiv.appendChild(stageContentContainer);
-        } else {
-            bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900');
-            stageHeaderDiv.classList.add('text-red-700', 'dark:text-red-300');
-            stageHeaderDiv.textContent = `[Stage ${msg.metadata.stage} - Failed] ${msg.metadata.error || 'Unknown'}`;
-            bubbleDiv.appendChild(stageHeaderDiv);
-        }
-    } else if (msg.metadata?.type === 'scrape_result_full') {
-        messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'border', 'border-gray-300', 'dark:border-gray-600');
-        const headerDiv = document.createElement('div');
-        headerDiv.classList.add('text-xs', 'font-semibold', 'mb-1', 'text-gray-700', 'dark:text-gray-300', 'pr-6');
-        headerDiv.textContent = `Full Scrape Result: ${msg.metadata.scrapeData?.title || 'No Title'}`;
-        bubbleDiv.appendChild(headerDiv);
-        const jsonContainer = document.createElement('div');
-        jsonContainer.classList.add('overflow-y-auto', 'max-h-96', 'mt-1');
-        const preElement = document.createElement('pre');
-        preElement.classList.add('bg-gray-800', 'dark:bg-gray-900', 'rounded', 'p-2', 'text-xs');
-        codeElement = document.createElement('code');
-        codeElement.className = 'language-json';
-        try {
-            codeElement.textContent = JSON.stringify(msg.metadata.scrapeData || { error: "No scrape data found" }, null, 2);
-        } catch (e) {
-            console.error("Error stringifying scrapeData:", e);
-            codeElement.textContent = JSON.stringify({ error: "Failed to stringify scrape data", details: e.message }, null, 2);
-        }
-        preElement.appendChild(codeElement);
-        jsonContainer.appendChild(preElement);
-        bubbleDiv.appendChild(jsonContainer);
-    } else {
-        bubbleDiv.textContent = msg.text || '';
-        if (msg.isLoading) {
-            messageDiv.classList.add('justify-start');
-            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic');
-        } else if (msg.sender === 'user') {
-            messageDiv.classList.add('justify-end');
-            bubbleDiv.classList.add('bg-blue-500/20', 'dark:bg-blue-600/40', 'text-gray-900', 'dark:text-gray-100');
-        } else if (msg.sender === 'error') {
-            messageDiv.classList.add('justify-start');
-            bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-700', 'dark:text-red-300');
-        } else {
-            messageDiv.classList.add('justify-start');
-            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-900', 'dark:text-gray-100');
+        if (msg.sender === 'error') {
+            bubbleDiv.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-700', 'dark:text-red-300', 'border', 'border-red-300', 'dark:border-red-700');
+        } else { 
+            bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-900', 'dark:text-gray-100', 'border', 'border-gray-300', 'dark:border-gray-600');
         }
     }
+    console.log('[ChatRenderer] messageDiv classes:', messageDiv.className);
+    console.log('[ChatRenderer] bubbleDiv classes:', bubbleDiv.className);
+
+    // Clear existing bubble content before adding new structure
+    bubbleDiv.innerHTML = ''; 
+
+    if (specialHeaderHTML) {
+        const headerDiv = document.createElement('div');
+        headerDiv.innerHTML = specialHeaderHTML;
+        bubbleDiv.appendChild(headerDiv); // Prepend header content
+    }
+
+    const mainContentDiv = document.createElement('div');
+    mainContentDiv.className = 'message-main-content'; // Add a class for potential styling
+
+    if (window.marked && window.marked.parse) {
+        try {
+            const localRenderer = new window.marked.Renderer();
+
+            const escapeHtmlEntities = (str) => {
+                if (typeof str !== 'string') return '';
+                return str.replace(/[&<>"'\/]/g, function (match) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '\"': '&quot;',
+                        "'": '&#39;',
+                        '/': '&#x2F;' 
+                    }[match];
+                });
+            };
+
+            // ONLY override the .code() method for now
+            localRenderer.code = (tokenOrCode, languageInfoString, isEscaped) => {
+                // Log what we receive
+                console.log('[ChatRenderer Custom Code] Received arguments:', 
+                    {
+                        tokenOrCode_type: typeof tokenOrCode,
+                        tokenOrCode_value: JSON.parse(JSON.stringify(tokenOrCode)), // Deep copy for logging
+                        languageInfoString_type: typeof languageInfoString,
+                        languageInfoString_value: languageInfoString,
+                        isEscaped_value: isEscaped
+                    }
+                );
+
+                let actualCodeString = '';
+                let actualLanguageString = languageInfoString || '';
+                let actuallyEscaped = isEscaped;
+
+                if (typeof tokenOrCode === 'object' && tokenOrCode !== null && typeof tokenOrCode.text === 'string') {
+                    // It looks like we received the full token object
+                    actualCodeString = tokenOrCode.text;
+                    actualLanguageString = tokenOrCode.lang || actualLanguageString; // Token might have a more accurate lang
+                    // If token.escaped exists, use it. Otherwise, trust the isEscaped argument.
+                    actuallyEscaped = typeof tokenOrCode.escaped === 'boolean' ? tokenOrCode.escaped : isEscaped;
+                    console.log('[ChatRenderer Custom Code] Interpreted as token object. Using token.text and token.lang.');
+                } else if (typeof tokenOrCode === 'string') {
+                    // It looks like we received the code string directly
+                    actualCodeString = tokenOrCode;
+                    console.log('[ChatRenderer Custom Code] Interpreted as direct code string.');
+                } else {
+                    console.warn('[ChatRenderer Custom Code] Received unexpected type for code argument:', tokenOrCode);
+                    actualCodeString = '[Error: Unexpected code content type]';
+                }
+                
+                const safeLanguage = escapeHtmlEntities(actualLanguageString.trim() || 'plaintext');
+                const langClass = `language-${safeLanguage}`;
+                const copyIcon = '<img src="icons/copy.svg" alt="Copy code" class="w-4 h-4">'; 
+                const downloadIcon = '<img src="icons/download.svg" alt="Download code" class="w-4 h-4">';
+                
+                const encodedCodeForAttr = encodeURIComponent(actualCodeString);
+                // If Marked has already escaped it (actuallyEscaped is true), use it directly.
+                // Otherwise, escape it ourselves before display.
+                const codeForDisplay = actuallyEscaped ? actualCodeString : escapeHtmlEntities(actualCodeString);
+
+                return `
+<div class="code-block-wrapper bg-gray-800 dark:bg-gray-900 rounded-md shadow-md my-2 text-sm">
+    <div class="code-block-header flex justify-between items-center px-3 py-1.5 bg-gray-700 dark:bg-gray-800 rounded-t-md border-b border-gray-600 dark:border-gray-700">
+        <span class="code-language text-xs text-gray-300 dark:text-gray-400 font-semibold">${safeLanguage}</span>
+        <div class="code-actions flex space-x-2">
+            <button class="code-action-copy-snippet p-1 rounded text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700" title="Copy code" data-code="${encodedCodeForAttr}">
+                ${copyIcon}
+            </button>
+            <button class="code-action-download-snippet p-1 rounded text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700" title="Download ${safeLanguage} snippet" data-code="${encodedCodeForAttr}" data-lang="${safeLanguage}">
+                ${downloadIcon}
+            </button>
+        </div>
+    </div>
+    <pre class="p-3 overflow-x-auto"><code class="${langClass}">${codeForDisplay}</code></pre>
+</div>`;
+            };
+
+            // DO NOT override .paragraph, .list, .listitem, .heading for this test.
+            // Let Marked.js use its defaults for these.
+
+            const parsedContent = window.marked.parse(contentToParse || '', {
+                renderer: localRenderer, // Use the renderer with only .code overridden
+                gfm: true, 
+                breaks: true 
+            });
+            console.log('[ChatRenderer Minimal Custom Marked.parse() output:]', parsedContent);
+            mainContentDiv.innerHTML = parsedContent;
+            Prism.highlightAllUnder(mainContentDiv);
+        } catch (e) {
+            console.error('Error during marked.parse or Prism highlighting:', e);
+            mainContentDiv.textContent = contentToParse || ''; 
+        }
+    } else {
+        console.warn('Marked.js not available. Falling back to textContent.');
+        mainContentDiv.textContent = contentToParse || '';
+    }
+    bubbleDiv.appendChild(mainContentDiv); // Append main content
+    bubbleDiv.appendChild(actionsContainer); // Append actions container LAST to ensure it's not overwritten and is on top (due to z-10)
+    
     messageDiv.appendChild(bubbleDiv);
     chatBodyElement.appendChild(messageDiv);
-    if (codeElement && window.Prism) {
-        try {
-            Prism.highlightElement(codeElement);
-        } catch (e) {
-            console.warn("Prism highlighting failed:", e);
-        }
-    }
+    scrollToBottom();
+    return messageDiv;
 }
 
 // --- NEW: Functions for Temporary Messages ---
@@ -330,19 +410,13 @@ function initializeObserver() {
         mutations.forEach(mutation => {
             if (mutation.type === 'childList') {
                 mutation.addedNodes.forEach(node => {
-                    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'PRE') {
-                        const codeElement = node.querySelector('code[class*="language-"]');
-                        if (codeElement) {
-                            if (window.Prism) Prism.highlightElement(codeElement);
-                        }
-                    } else if (node.nodeType === Node.ELEMENT_NODE) {
-                        // Also check nodes added within existing messages (e.g., streaming)
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Apply Prism highlighting to any new code blocks
                         const codeBlocks = node.querySelectorAll('pre code[class*="language-"]');
                         codeBlocks.forEach(codeElement => {
-                            // Check if Prism has already highlighted it
                             if (!codeElement.classList.contains('prism-highlighted')) {
                                 if (window.Prism) Prism.highlightElement(codeElement);
-                                codeElement.classList.add('prism-highlighted'); // Mark as highlighted
+                                codeElement.classList.add('prism-highlighted');
                             }
                         });
                     }
@@ -354,7 +428,91 @@ function initializeObserver() {
     if (chatBodyElement) {
         observer.observe(chatBodyElement, { childList: true, subtree: true });
         console.log("[ChatRenderer] MutationObserver initialized and observing chat body.");
+
+        // Event delegation for code block actions
+        chatBodyElement.addEventListener('click', async (event) => {
+            const target = event.target.closest('button');
+            if (!target) return;
+
+            if (target.classList.contains('code-action-copy-snippet')) {
+                const codeToCopy = target.dataset.code;
+                if (codeToCopy) {
+                    try {
+                        await navigator.clipboard.writeText(decodeURIComponent(codeToCopy));
+                        if (window.originalUITooltipController) {
+                            window.originalUITooltipController.showTooltip(target, 'Code Copied!');
+                        } else {
+                            showNotification('Code snippet copied!', 'success', 1500);
+                        }
+                    } catch (err) {
+                        console.error('Failed to copy code snippet:', err);
+                        showError('Failed to copy code snippet.');
+                    }
+                }
+            } else if (target.classList.contains('code-action-download-snippet')) {
+                const codeToDownload = target.dataset.code;
+                const lang = target.dataset.lang || 'txt';
+                const filename = `snippet.${lang}`;
+                if (codeToDownload) {
+                    try {
+                        downloadFile(filename, decodeURIComponent(codeToDownload), getMimeType(lang));
+                        if (window.originalUITooltipController) {
+                            window.originalUITooltipController.showTooltip(target, 'Downloading...');
+                        }
+                    } catch (err) {
+                        console.error('Failed to download code snippet:', err);
+                        showError('Failed to download code snippet.');
+                    }
+                }
+            }
+        });
+        console.log("[ChatRenderer] Event listeners for code block actions (copy/download) added to chatBody.");
+
     } else {
-        console.error("[ChatRenderer] Cannot initialize MutationObserver: chatBody is null.");
+        console.error("[ChatRenderer] Cannot initialize MutationObserver or event listeners: chatBody is null.");
     }
+}
+
+// Helper function to get MIME type from language
+function getMimeType(lang) {
+    const mimeTypes = {
+        json: 'application/json',
+        javascript: 'application/javascript',
+        js: 'application/javascript',
+        html: 'text/html',
+        css: 'text/css',
+        xml: 'application/xml',
+        python: 'text/x-python',
+        py: 'text/x-python',
+        java: 'text/x-java-source',
+        c: 'text/x-csrc',
+        cpp: 'text/x-c++src',
+        cs: 'text/x-csharp',
+        go: 'text/x-go',
+        rb: 'text/x-ruby',
+        php: 'application/x-httpd-php',
+        swift: 'text/x-swift',
+        kt: 'text/x-kotlin',
+        rs: 'text/rust',
+        sql: 'application/sql',
+        sh: 'application/x-sh',
+        bash: 'application/x-sh',
+        // Add more as needed
+        txt: 'text/plain',
+        plaintext: 'text/plain'
+    };
+    return mimeTypes[lang.toLowerCase()] || 'text/plain';
+}
+
+// Helper function to trigger file download
+function downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }

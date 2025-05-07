@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:css": "postcss src/input.css -o src/output.css",
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./src/output.css",
     "echo-tailwind": "echo %npm_package_devDependencies_tailwindcss%",
     "dev": "vite",
     "build": "rimraf dist && vite build",

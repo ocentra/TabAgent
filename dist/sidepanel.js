@@ -336,7 +336,10 @@ function renderSingleMessage(msg) {
   messageDiv.classList.add("flex", "mb-2");
   messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random().toString(36).substring(2)}`;
   const bubbleDiv = document.createElement("div");
-  bubbleDiv.classList.add("rounded-lg", "break-words", "relative", "group", "p-2", "max-w-4xl");
+  bubbleDiv.classList.add("rounded-lg", "break-words", "relative", "group", "p-2", "min-w-0");
+  if (msg.sender !== "user") {
+    bubbleDiv.classList.add("max-w-4xl");
+  }
   const actionsContainer = document.createElement("div");
   actionsContainer.className = "actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10";
   const copyButton = document.createElement("button");
@@ -382,15 +385,17 @@ function renderSingleMessage(msg) {
     messageDiv.classList.add("justify-start");
     bubbleDiv.classList.add("bg-gray-100", "dark:bg-gray-700", "text-gray-500", "dark:text-gray-400", "italic", "border", "border-gray-300", "dark:border-gray-500");
   } else if (msg.sender === "user") {
-    messageDiv.classList.add("justify-end");
-    bubbleDiv.classList.add("bg-sky-100", "dark:bg-sky-900", "text-gray-900", "dark:text-gray-100", "border", "border-sky-300", "dark:border-sky-700");
+    messageDiv.classList.add("justify-end", "min-w-0");
+    bubbleDiv.classList.add("bg-teal-50", "dark:bg-teal-900", "text-teal-900", "dark:text-teal-100", "border", "border-teal-300", "dark:border-teal-700");
+  } else if (msg.sender === "error") {
+    messageDiv.classList.add("justify-start");
+    bubbleDiv.classList.add("bg-amber-100", "dark:bg-amber-700", "text-amber-700", "dark:text-amber-200", "border", "border-amber-400", "dark:border-amber-600");
+  } else if (msg.sender === "system") {
+    messageDiv.classList.add("justify-start");
+    bubbleDiv.classList.add("bg-green-100", "dark:bg-green-800", "text-green-800", "dark:text-green-200", "border", "border-green-300", "dark:border-green-600");
   } else {
     messageDiv.classList.add("justify-start");
-    if (msg.sender === "error") {
-      bubbleDiv.classList.add("bg-red-100", "dark:bg-red-900", "text-red-700", "dark:text-red-300", "border", "border-red-300", "dark:border-red-700");
-    } else {
-      bubbleDiv.classList.add("bg-gray-100", "dark:bg-gray-700", "text-gray-900", "dark:text-gray-100", "border", "border-gray-300", "dark:border-gray-600");
-    }
+    bubbleDiv.classList.add("bg-gray-100", "dark:bg-gray-700", "text-gray-900", "dark:text-gray-100", "border", "border-gray-300", "dark:border-gray-600");
   }
   console.log("[ChatRenderer] messageDiv classes:", messageDiv.className);
   console.log("[ChatRenderer] bubbleDiv classes:", bubbleDiv.className);
@@ -432,11 +437,9 @@ function renderSingleMessage(msg) {
         );
         let actualCodeString = "";
         let actualLanguageString = languageInfoString || "";
-        let actuallyEscaped = isEscaped;
         if (typeof tokenOrCode === "object" && tokenOrCode !== null && typeof tokenOrCode.text === "string") {
           actualCodeString = tokenOrCode.text;
           actualLanguageString = tokenOrCode.lang || actualLanguageString;
-          actuallyEscaped = typeof tokenOrCode.escaped === "boolean" ? tokenOrCode.escaped : isEscaped;
           console.log("[ChatRenderer Custom Code] Interpreted as token object. Using token.text and token.lang.");
         } else if (typeof tokenOrCode === "string") {
           actualCodeString = tokenOrCode;
@@ -445,12 +448,41 @@ function renderSingleMessage(msg) {
           console.warn("[ChatRenderer Custom Code] Received unexpected type for code argument:", tokenOrCode);
           actualCodeString = "[Error: Unexpected code content type]";
         }
-        const safeLanguage = escapeHtmlEntities(actualLanguageString.trim() || "plaintext");
-        const langClass = `language-${safeLanguage}`;
+        let languageHint = actualLanguageString.trim();
+        let safeLanguage = escapeHtmlEntities(languageHint || "plaintext");
+        let langClass = `language-${safeLanguage}`;
         const copyIcon = '<img src="icons/copy.svg" alt="Copy code" class="w-4 h-4">';
         const downloadIcon = '<img src="icons/download.svg" alt="Download code" class="w-4 h-4">';
         const encodedCodeForAttr = encodeURIComponent(actualCodeString);
-        const codeForDisplay = actuallyEscaped ? actualCodeString : escapeHtmlEntities(actualCodeString);
+        let highlightedCodeForDisplay = "";
+        if (window.hljs) {
+          if (actualLanguageString && window.hljs.getLanguage(actualLanguageString)) {
+            try {
+              highlightedCodeForDisplay = window.hljs.highlight(actualCodeString, { language: actualLanguageString, ignoreIllegals: true }).value;
+              console.log("[ChatRenderer Custom Code] Highlighted with specified language:", actualLanguageString);
+            } catch (e) {
+              console.error("[ChatRenderer Custom Code] hljs.highlight error:", e);
+              highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
+            }
+          } else {
+            try {
+              const autoResult = window.hljs.highlightAuto(actualCodeString);
+              highlightedCodeForDisplay = autoResult.value;
+              const detectedLang = autoResult.language;
+              console.log("[ChatRenderer Custom Code] Highlighted with auto-detection. Detected:", detectedLang);
+              if (detectedLang) {
+                safeLanguage = escapeHtmlEntities(detectedLang);
+                langClass = `language-${safeLanguage}`;
+              }
+            } catch (e) {
+              console.error("[ChatRenderer Custom Code] hljs.highlightAuto error:", e);
+              highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
+            }
+          }
+        } else {
+          console.warn("[ChatRenderer Custom Code] window.hljs not found. Falling back to escaped code.");
+          highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
+        }
         return `
 <div class="code-block-wrapper bg-gray-800 dark:bg-gray-900 rounded-md shadow-md my-2 text-sm">
     <div class="code-block-header flex justify-between items-center px-3 py-1.5 bg-gray-700 dark:bg-gray-800 rounded-t-md border-b border-gray-600 dark:border-gray-700">
@@ -464,7 +496,7 @@ function renderSingleMessage(msg) {
             </button>
         </div>
     </div>
-    <pre class="p-3 overflow-x-auto"><code class="${langClass}">${codeForDisplay}</code></pre>
+    <pre class="p-3 overflow-x-auto"><code class="${langClass}">${highlightedCodeForDisplay}</code></pre>
 </div>`;
       };
       const parsedContent = window.marked.parse(contentToParse || "", {
@@ -475,9 +507,11 @@ function renderSingleMessage(msg) {
       });
       console.log("[ChatRenderer Minimal Custom Marked.parse() output:]", parsedContent);
       mainContentDiv.innerHTML = parsedContent;
-      Prism.highlightAllUnder(mainContentDiv);
+      if (window.hljs) {
+        console.log("[ChatRenderer] Content set. highlight.js should have processed via Marked.js config.");
+      }
     } catch (e) {
-      console.error("Error during marked.parse or Prism highlighting:", e);
+      console.error("Error during marked.parse:", e);
       mainContentDiv.textContent = contentToParse || "";
     }
   } else {
@@ -525,15 +559,7 @@ function initializeObserver() {
     mutations.forEach((mutation) => {
       if (mutation.type === "childList") {
         mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const codeBlocks = node.querySelectorAll('pre code[class*="language-"]');
-            codeBlocks.forEach((codeElement) => {
-              if (!codeElement.classList.contains("prism-highlighted")) {
-                if (window.Prism) Prism.highlightElement(codeElement);
-                codeElement.classList.add("prism-highlighted");
-              }
-            });
-          }
+          if (node.nodeType === Node.ELEMENT_NODE) ;
         });
       }
     });
@@ -20131,16 +20157,29 @@ const handleDriveButtonClick = (event) => {
 if (window.marked) {
   window.marked.setOptions({
     highlight: function(code, lang) {
-      if (Prism.languages[lang]) {
-        return Prism.highlight(code, Prism.languages[lang], lang);
+      if (lang && window.hljs && window.hljs.getLanguage(lang)) {
+        try {
+          return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+        } catch (e) {
+          console.error("hljs error:", e);
+        }
+      } else if (window.hljs) {
+        try {
+          return window.hljs.highlightAuto(code).value;
+        } catch (e) {
+          console.error("hljs auto error:", e);
+        }
       }
-      return code;
+      const escapeHtml = (htmlStr) => {
+        return htmlStr.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      };
+      return escapeHtml(code);
     },
     langPrefix: "language-",
     gfm: true,
     breaks: true
   });
-  console.log("[Sidepanel] Marked.js globally configured (highlight, gfm, breaks). Custom code rendering will be handled per parse call.");
+  console.log("[Sidepanel] Marked.js globally configured to use highlight.js.");
 } else {
   console.error("[Sidepanel] Marked.js library (window.marked) not found. Ensure it's loaded before this script.");
 }

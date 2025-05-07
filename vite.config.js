@@ -39,11 +39,7 @@ export default defineConfig({
         { src: 'src/downloadFormatter.js', dest: '.' },
         { src: 'icons', dest: '.' },
         { src: 'src/events/dbEvents.js', dest: 'events' },
-        { src: 'node_modules/prismjs/prism.js', dest: 'assets' },
-        { src: 'node_modules/prismjs/components/prism-json.min.js', dest: 'assets' },
-        { src: 'node_modules/prismjs/themes/prism-okaidia.css', dest: 'assets' },
-        { src: 'src/assets/marked.min.js', dest: 'assets' },
-        // { src: 'node_modules/webextension-polyfill/dist/browser-polyfill.js', dest: 'assets' },
+        { src: 'src/assets', dest: '.' },
         {src: 'src/xenova', dest: '.'},
         {src: 'src/model', dest: '.'},
         {src: 'src/wasm', dest: '.'}

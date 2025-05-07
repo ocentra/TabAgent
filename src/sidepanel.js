@@ -29,16 +29,30 @@ import { initializeDriveController, handleDriveFileListResponse } from './Contro
 if (window.marked) {
     window.marked.setOptions({
         highlight: function (code, lang) {
-            if (Prism.languages[lang]) {
-                return Prism.highlight(code, Prism.languages[lang], lang);
+            if (lang && window.hljs && window.hljs.getLanguage(lang)) {
+                try {
+                    return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+                } catch (e) {
+                    console.error('hljs error:', e);
+                }
+            } else if (window.hljs) {
+                try {
+                    return window.hljs.highlightAuto(code).value;
+                } catch (e) {
+                    console.error('hljs auto error:', e);
+                }
             }
-            return code; // Return original code if language not found
+            // Fallback for no lang or hljs error
+            const escapeHtml = (htmlStr) => {
+                return htmlStr.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+            };
+            return escapeHtml(code);
         },
         langPrefix: 'language-',
         gfm: true,
         breaks: true
     });
-    console.log('[Sidepanel] Marked.js globally configured (highlight, gfm, breaks). Custom code rendering will be handled per parse call.');
+    console.log('[Sidepanel] Marked.js globally configured to use highlight.js.');
 } else {
     console.error("[Sidepanel] Marked.js library (window.marked) not found. Ensure it's loaded before this script.");
 }

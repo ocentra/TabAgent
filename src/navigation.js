@@ -1,3 +1,5 @@
+import { UIEventNames } from './events/eventNames.js';
+
 let pageContainers = [];
 let navButtons = [];
 let mainHeaderTitle = null;
@@ -10,7 +12,6 @@ const pageTitles = {
 };
 
 
-// Function to handle navigation
 async function navigateTo(pageId) { 
     console.log(`Navigating to ${pageId}`);
    
@@ -19,7 +20,6 @@ async function navigateTo(pageId) {
         container.classList.remove('active-page');
     });
 
-    // Show the target page
     const targetPage = document.getElementById(pageId);
     if (targetPage) {
         targetPage.classList.remove('hidden');
@@ -34,7 +34,6 @@ async function navigateTo(pageId) {
         pageId = 'page-home'; 
     }
     
-    // Update header title
     if (mainHeaderTitle && pageTitles[pageId]) {
          mainHeaderTitle.textContent = pageTitles[pageId];
     } else if (mainHeaderTitle) {
@@ -50,9 +49,8 @@ async function navigateTo(pageId) {
         }
     });
 
-    // *** Publish page change event ***
     const { eventBus } = await import('./eventBus.js'); 
-    eventBus.publish('navigation:pageChanged', { pageId: pageId });
+    eventBus.publish(UIEventNames.NAVIGATION_PAGE_CHANGED, { pageId: pageId });
     console.log(`[Navigation] Published navigation:pageChanged event for ${pageId}`);
 
     const queryInput = document.getElementById('query-input');
@@ -61,7 +59,6 @@ async function navigateTo(pageId) {
      }
 }
 
-// Initialization function for navigation
 function initializeNavigation() {
     console.log("Initializing navigation...");
 

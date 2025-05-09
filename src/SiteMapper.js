@@ -1,3 +1,8 @@
+import { SiteMapperMessageTypes } from './events/eventNames.js';
+
+// Polyfill for browser API if only chrome is available
+const browser = typeof window.browser !== 'undefined' ? window.browser : (typeof window.chrome !== 'undefined' ? window.chrome : undefined);
+
 (function () {
   /**
    * Structure of navigation element
@@ -167,41 +172,41 @@
     allUrls.add(startUrl); // Include the page itself in sitemap
 
     const result = await new Promise(resolve => {
-      chrome.runtime.sendMessage({ type: 'openTab', url: startUrl }, response => {
-        if (chrome.runtime.lastError || !response || !response.tabId) {
-          console.error('[SiteMapper] Failed to open tab for:', startUrl, chrome.runtime.lastError?.message);
+      browser.runtime.sendMessage({ type: SiteMapperMessageTypes.OPEN_TAB, url: startUrl }, response => {
+        if ((browser.runtime.lastError || !response || !response.tabId)) {
+          console.error('[SiteMapper] Failed to open tab for:', startUrl, browser.runtime.lastError?.message);
           resolve(null);
           return;
         }
 
         const tabId = response.tabId;
 
-        chrome.tabs.onUpdated.addListener(function listener(tabIdUpdated, changeInfo) {
+        browser.tabs.onUpdated.addListener(function listener(tabIdUpdated, changeInfo) {
           if (tabIdUpdated === tabId && changeInfo.status === 'complete') {
-            chrome.tabs.onUpdated.removeListener(listener);
+            browser.tabs.onUpdated.removeListener(listener);
 
-            chrome.scripting.executeScript({
+            browser.scripting.executeScript({
               target: { tabId: tabId },
               func: (url) => {
                 const content = window.mapper.crawlSingle(url);
-                chrome.runtime.sendMessage({ type: 'mapped', content: content, url: url });
+                browser.runtime.sendMessage({ type: SiteMapperMessageTypes.MAPPED, content: content, url: url });
               },
               args: [startUrl]
             });
 
             setTimeout(() => {
-              chrome.tabs.remove(tabId, () => {
-                if (chrome.runtime.lastError) {
-                  console.warn('[SiteMapper] Failed to close tab:', chrome.runtime.lastError.message);
+              browser.tabs.remove(tabId, () => {
+                if (browser.runtime.lastError) {
+                  console.warn('[SiteMapper] Failed to close tab:', browser.runtime.lastError.message);
                 }
               });
             }, 2000);
           }
         });
 
-        chrome.runtime.onMessage.addListener(function handler(message) {
-          if (message.type === 'mapped' && message.url === startUrl) {
-            chrome.runtime.onMessage.removeListener(handler);
+        browser.runtime.onMessage.addListener(function handler(message) {
+          if (message.type === SiteMapperMessageTypes.MAPPED && message.url === startUrl) {
+            browser.runtime.onMessage.removeListener(handler);
             resolve(message.content);
           }
         });
@@ -292,13 +297,13 @@
     });
   }
 
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === 'openTab') {
-        chrome.tabs.create({ url: message.url, active: false }, tab => {
-          if (chrome.runtime.lastError) {
-            console.error('[SiteMapper] Tab creation failed:', chrome.runtime.lastError.message);
-            sendResponse({ error: chrome.runtime.lastError.message });
+  if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessage) {
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === SiteMapperMessageTypes.OPEN_TAB) {
+        browser.tabs.create({ url: message.url, active: false }, tab => {
+          if (browser.runtime.lastError) {
+            console.error('[SiteMapper] Tab creation failed:', browser.runtime.lastError.message);
+            sendResponse({ error: browser.runtime.lastError.message });
           } else {
             sendResponse({ tabId: tab.id });
           }

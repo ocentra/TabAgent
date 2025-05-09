@@ -1,14 +1,13 @@
 // src/Controllers/LogViewerController.js
 
-// Note: This code assumes it runs within sidepanel.html context
-// and the necessary HTML elements (#page-log-viewer, #log-viewer-control-bar, 
-// #log-viewer-display-area, and the buttons/selects within) exist.
+import { eventBus } from '../eventBus.js';
+import { DBEventNames } from '../events/eventNames.js';
+import { DbGetLogsRequest, DbGetUniqueLogValuesRequest } from '../events/dbEvents.js';
 
 console.log('[LogViewerController] Script loaded.');
 
 let currentlyDisplayedLogs = []; 
 
-// Element references - use IDs specific to the integrated section
 let logContainer, sessionSelect, componentSelect, levelSelect, refreshButton, copyButton, downloadButton, clearButton;
 
 /**
@@ -17,7 +16,6 @@ let logContainer, sessionSelect, componentSelect, levelSelect, refreshButton, co
  */
 function formatLogEntryToHTML(log) {
     const timestamp = log.timestamp ? new Date(log.timestamp).toISOString() : 'NO_TIMESTAMP';
-    // Assuming logEntryData passed from db has extensionSessionId, not sessionId directly
     const session = log.extensionSessionId ? log.extensionSessionId.slice(-8) : 'NO_SESSION'; 
     const component = log.component || 'NO_COMPONENT';
     const level = (log.level || 'NO_LEVEL').toLowerCase();
@@ -25,7 +23,6 @@ function formatLogEntryToHTML(log) {
     const levelClass = `log-level-${level}`;
     const escapedMessage = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    // Use consistent class name for styling
     return `<div class="log-line ${levelClass}">[${timestamp}][${session}][${component}][${level.toUpperCase()}] ${escapedMessage}</div>`;
 }
 
@@ -34,7 +31,6 @@ function formatLogEntryToHTML(log) {
  */
 function displayLogs(logsArray) {
     currentlyDisplayedLogs = logsArray || []; 
-    // Use the specific display area ID
     logContainer = document.getElementById('log-viewer-display-area'); 
     if (!logContainer) {
         console.error("[LogViewerController] Cannot find log display area #log-viewer-display-area");
@@ -52,7 +48,7 @@ function displayLogs(logsArray) {
 
 /**
  * @param {string} selectElementId 
- * @param {string} fieldName - Field in the log schema (e.g., 'extensionSessionId', 'component', 'level')
+ * @param {string} fieldName 
  * @param {string} [defaultValue='all'] 
  */
 async function populateViewerDropdown(selectElementId, fieldName, defaultValue = 'all') {
@@ -64,37 +60,33 @@ async function populateViewerDropdown(selectElementId, fieldName, defaultValue =
 
     console.debug(`[LogViewerController] Populating viewer dropdown ${selectElementId} for ${fieldName}, default: ${defaultValue}`);
     try {
-        // Send message to background/db script to get unique values
-        const response = await chrome.runtime.sendMessage({
-            type: 'getUniqueFilterValuesRequest', // Ensure db.js handles this event
-            payload: { field: fieldName }
-        });
+        const resultArr = await eventBus.publish(
+            DBEventNames.GET_UNIQUE_LOG_VALUES_REQUEST,
+            new DbGetUniqueLogValuesRequest(fieldName)
+        );
+        const response = Array.isArray(resultArr) ? resultArr[0] : resultArr;
 
         if (!response || !response.success) {
             throw new Error(response?.error || `Background script failed for ${fieldName}`);
         }
 
-        // Clear existing options (except the first "All")
         while (selectElement.options.length > 1) {
             selectElement.remove(1);
         }
 
-        // Populate with new options
         (response.data || []).forEach(value => {
             const option = document.createElement('option');
             option.value = value;
-            // Shorten session IDs for display
             option.textContent = (fieldName === 'extensionSessionId' && value && value.length > 10) ? `...${value.slice(-8)}` : value;
             selectElement.appendChild(option);
         });
-        selectElement.value = defaultValue; // Set the default/initial value
+        selectElement.value = defaultValue; 
 
     } catch (error) {
         console.error(`[LogViewerController] Error populating dropdown ${selectElementId} (field: ${fieldName}):`, error);
         if(logContainer) logContainer.innerHTML += `<div class="log-line log-level-error">Error populating ${fieldName} filter: ${error.message}</div>`;
     }
 }
-
 
 async function fetchAndDisplayLogs() {
     logContainer = document.getElementById('log-viewer-display-area'); 
@@ -103,11 +95,10 @@ async function fetchAndDisplayLogs() {
         return;
     }
     
-    // Make sure elements are selected before accessing .value
     sessionSelect = document.getElementById('viewerSessionSelect');
     componentSelect = document.getElementById('viewerComponentSelect');
     levelSelect = document.getElementById('viewerLevelSelect');
-    refreshButton = document.getElementById('viewerRefreshButton'); // Needed for disabling
+    refreshButton = document.getElementById('viewerRefreshButton');
 
      if (!sessionSelect || !componentSelect || !levelSelect || !refreshButton) {
          console.error("[LogViewerController] One or more filter controls not found.");
@@ -115,9 +106,7 @@ async function fetchAndDisplayLogs() {
          return;
      }
 
-
     const filters = {
-        // Use correct field name based on schema
         sessionIds: [sessionSelect.value || 'all'], 
         components: [componentSelect.value || 'all'],
         levels: [levelSelect.value || 'all']
@@ -128,21 +117,21 @@ async function fetchAndDisplayLogs() {
     refreshButton.disabled = true;
 
     try {
-         // Send message to background/db script to get logs based on filters
-        const response = await chrome.runtime.sendMessage({
-            type: 'getLogsRequest', // Ensure db.js handles this event
-            payload: { filters }
-        });
+        const resultArr = await eventBus.publish(
+            DBEventNames.GET_LOGS_REQUEST,
+            new DbGetLogsRequest(filters)
+        );
+        const response = Array.isArray(resultArr) ? resultArr[0] : resultArr;
 
         if (!response || !response.success) {
             throw new Error(response?.error || 'Background script failed to fetch logs.');
         }
 
-        displayLogs(response.data || []); // Display the logs
+        displayLogs(response.data || []);
 
     } catch (error) {
         console.error('[LogViewerController] Error fetching or displaying logs:', error);
-        displayLogs([]); // Clear display on error
+        displayLogs([]);
         logContainer.innerHTML = `<div class="log-line log-level-error">Error fetching logs: ${error.message}</div>`;
     } finally {
          if (refreshButton) refreshButton.disabled = false;

@@ -1,17 +1,13 @@
 import browser from 'webextension-polyfill';
 import './minimaldb.js'; // Static import for service worker compatibility
-
-const OFFSCREEN_DOCUMENT_PATH_SCRAPING = 'scrapingOffscreen.html';
 const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
 
 import * as logClient from './log-client.js';
 import { eventBus } from './eventBus.js';
-import { DbInitializeRequest } from './events/dbEvents.js';
-import * as EventNames from './events/eventNames.js';
+import { UIEventNames, WorkerEventNames, ModelWorkerStates, RuntimeMessageTypes, DriveMessageTypes, DBEventNames } from './events/eventNames.js';
 
 logClient.init('Background');
 
-eventBus.publish(EventNames.DB_INITIALIZE_REQUEST, new DbInitializeRequest());
 
 let detachedPopups = {};
 let popupIdToTabId = {};
@@ -19,7 +15,7 @@ let popupIdToTabId = {};
 const DNR_RULE_ID_1 = 1;
 const DNR_RULE_PRIORITY_1 = 1;
 
-let modelWorkerState = 'uninitialized';
+let modelWorkerState = ModelWorkerStates.UNINITIALIZED;
 let workerScriptReadyPromise = null;
 let workerScriptReadyResolver = null;
 let workerScriptReadyRejecter = null;
@@ -34,13 +30,22 @@ let previousLogSessionId = null;
 
 let lastLoggedProgress = -10;
 
+
 // Log Session Management
 async function initializeSessionIds() {
-    logClient.logInfo('Initializing log session IDs...');
+    let { currentLogSessionId: storedCurrentId, previousLogSessionId: storedPreviousId } = await browser.storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
+    if (storedCurrentId) {
+        // Already initialized for this session
+        currentLogSessionId = storedCurrentId;
+        previousLogSessionId = storedPreviousId || null;
+        logClient.logInfo('Current log session ID (already set):', currentLogSessionId);
+        logClient.logInfo('Previous log session ID (already set):', previousLogSessionId);
+        return;
+    }
+    // Not set yet, so generate new
     currentLogSessionId = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-    logClient.logInfo('Current log session ID:', currentLogSessionId);
+    logClient.logInfo('Current log session ID (new):', currentLogSessionId);
     await browser.storage.local.set({ currentLogSessionId: currentLogSessionId });
-    const { previousLogSessionId: storedPreviousId } = await browser.storage.local.get('previousLogSessionId');
     previousLogSessionId = storedPreviousId || null;
     logClient.logInfo('Previous log session ID found in storage:', previousLogSessionId);
     await browser.storage.local.set({ previousLogSessionId: currentLogSessionId });
@@ -73,7 +78,7 @@ async function setupModelWorkerOffscreenDocument() {
 
 async function sendToModelWorkerOffscreen(message) {
     if (message.type !== 'init' && message.type !== 'generate' && message.type !== 'interrupt' && message.type !== 'reset') {
-        if (modelWorkerState === 'uninitialized' || !(await hasModelWorkerOffscreenDocument())) {
+        if (modelWorkerState === ModelWorkerStates.UNINITIALIZED || !(await hasModelWorkerOffscreenDocument())) {
             logClient.logInfo(`Background: Ensuring model worker offscreen doc potentially exists before sending ${message?.type}`);
             await setupModelWorkerOffscreenDocument();
         }
@@ -84,7 +89,7 @@ async function sendToModelWorkerOffscreen(message) {
             logClient.logDebug(`Background: Worker script confirmed ready. Proceeding to send ${message.type}.`);
         } catch (error) {
             logClient.logError(`Background: Worker script failed to become ready. Cannot send ${message.type}. Error:`, error);
-            modelWorkerState = 'error';
+            modelWorkerState = ModelWorkerStates.ERROR;
             throw new Error(`Worker script failed to initialize, cannot send ${message.type}.`);
         }
     }
@@ -105,11 +110,11 @@ async function sendToModelWorkerOffscreen(message) {
         }
     } catch (error) {
         logClient.logError(`Background: Error sending message type '${message?.type}' to offscreen:`, error);
-        modelWorkerState = 'error';
+        modelWorkerState = ModelWorkerStates.ERROR;
         if (message.type === 'init') {
             if (modelLoadRejecter) modelLoadRejecter(new Error(`Failed to send init message: ${error.message}`));
             modelLoadPromise = null;
-        } else if (workerScriptReadyRejecter && (modelWorkerState === 'uninitialized' || modelWorkerState === 'creating_worker')) {
+        } else if (workerScriptReadyRejecter && (modelWorkerState === ModelWorkerStates.UNINITIALIZED || modelWorkerState === ModelWorkerStates.CREATING_WORKER)) {
             workerScriptReadyRejecter(new Error(`Failed to send message early: ${error.message}`));
             workerScriptReadyPromise = null;
         }
@@ -119,8 +124,8 @@ async function sendToModelWorkerOffscreen(message) {
 
 function ensureWorkerScriptIsReady() {
     logClient.logDebug(`[ensureWorkerScriptIsReady] Current state: ${modelWorkerState}`);
-    if (modelWorkerState !== 'uninitialized' && modelWorkerState !== 'creating_worker') {
-        if (modelWorkerState === 'error' && !workerScriptReadyPromise) {
+    if (modelWorkerState !== ModelWorkerStates.UNINITIALIZED && modelWorkerState !== ModelWorkerStates.CREATING_WORKER) {
+        if (modelWorkerState === ModelWorkerStates.ERROR && !workerScriptReadyPromise) {
             return Promise.reject(new Error("Worker script initialization previously failed."));
         }
         return Promise.resolve();
@@ -130,14 +135,14 @@ function ensureWorkerScriptIsReady() {
     }
 
     logClient.logDebug("[ensureWorkerScriptIsReady] Worker script not ready. Initializing and creating promise.");
-    modelWorkerState = 'creating_worker';
+    modelWorkerState = ModelWorkerStates.CREATING_WORKER;
     workerScriptReadyPromise = new Promise((resolve, reject) => {
         workerScriptReadyResolver = resolve;
         workerScriptReadyRejecter = reject;
 
         setupModelWorkerOffscreenDocument().catch(err => {
             logClient.logError("[ensureWorkerScriptIsReady] Error setting up offscreen doc:", err);
-            modelWorkerState = 'error';
+            modelWorkerState = ModelWorkerStates.ERROR;
             if (workerScriptReadyRejecter) workerScriptReadyRejecter(err);
             workerScriptReadyPromise = null;
         });
@@ -145,10 +150,10 @@ function ensureWorkerScriptIsReady() {
 
     const scriptLoadTimeout = 30000;
     setTimeout(() => {
-        if (modelWorkerState === 'creating_worker' && workerScriptReadyRejecter) {
+        if (modelWorkerState === ModelWorkerStates.CREATING_WORKER && workerScriptReadyRejecter) {
             logClient.logError(`[ensureWorkerScriptIsReady] Timeout (${scriptLoadTimeout}ms) waiting for workerScriptReady.`);
             workerScriptReadyRejecter(new Error('Timeout waiting for model worker script to load.'));
-            modelWorkerState = 'error';
+            modelWorkerState = ModelWorkerStates.ERROR;
             workerScriptReadyPromise = null;
         }
     }, scriptLoadTimeout);
@@ -166,7 +171,7 @@ async function loadModel(modelId) {
         throw new Error(`Failed to ensure worker script readiness: ${err.message}`);
     }
 
-    if (modelWorkerState !== 'worker_script_ready' && modelWorkerState !== 'idle' && modelWorkerState !== 'error') {
+    if (modelWorkerState !== ModelWorkerStates.WORKER_SCRIPT_READY && modelWorkerState !== ModelWorkerStates.IDLE && modelWorkerState !== ModelWorkerStates.ERROR) {
         const errorMsg = `Cannot load model '${modelId}'. Worker state is '${modelWorkerState}', expected 'worker_script_ready', 'idle', or 'error'.`;
         logClient.logError("State check failed loading model:", errorMsg);
         throw new Error(errorMsg);
@@ -176,21 +181,21 @@ async function loadModel(modelId) {
         return Promise.reject(new Error("Cannot load model: Model ID not provided."));
     }
 
-    if (modelWorkerState === 'model_ready') {
+    if (modelWorkerState === ModelWorkerStates.MODEL_READY) {
         logClient.logInfo(`Model appears ready. Assuming it's ${modelId}.`);
         return Promise.resolve();
     }
-    if (modelWorkerState === 'loading_model' && modelLoadPromise) {
+    if (modelWorkerState === ModelWorkerStates.LOADING_MODEL && modelLoadPromise) {
         logClient.logInfo(`Model is already loading. Assuming it's ${modelId}.`);
         return modelLoadPromise;
     }
-    if (modelWorkerState !== 'worker_script_ready') {
+    if (modelWorkerState !== ModelWorkerStates.WORKER_SCRIPT_READY) {
         logClient.logError("Cannot load model. Worker script is not ready. State:", modelWorkerState);
         return Promise.reject(new Error(`Cannot load model, worker script not ready (state: ${modelWorkerState})`));
     }
 
     logClient.logInfo(`Worker script ready. Initiating load for model: ${modelId}.`);
-    modelWorkerState = 'loading_model';
+    modelWorkerState = ModelWorkerStates.LOADING_MODEL;
     // TODO: Store the modelId being loaded
     modelLoadPromise = new Promise((resolve, reject) => {
         modelLoadResolver = resolve;
@@ -200,7 +205,7 @@ async function loadModel(modelId) {
         sendToModelWorkerOffscreen({ type: 'init', payload: { modelId: modelId } })
             .catch(err => {
                 logClient.logError(`Failed to send 'init' message for ${modelId}:`, err);
-                modelWorkerState = 'error';
+                modelWorkerState = ModelWorkerStates.ERROR;
                 if (modelLoadRejecter) modelLoadRejecter(err);
                 modelLoadPromise = null;
             });
@@ -208,10 +213,10 @@ async function loadModel(modelId) {
 
     const modelLoadTimeout = 300000;
     setTimeout(() => {
-        if (modelWorkerState === 'loading_model' && modelLoadRejecter) {
+        if (modelWorkerState === ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
             logClient.logError(`Timeout (${modelLoadTimeout}ms) waiting for model ${modelId} load completion.`);
             modelLoadRejecter(new Error(`Timeout waiting for model ${modelId} to load.`));
-            modelWorkerState = 'error';
+            modelWorkerState = ModelWorkerStates.ERROR;
             modelLoadPromise = null;
         }
     }, modelLoadTimeout);
@@ -287,90 +292,7 @@ async function setupOffscreenDocument(path, reasons, justification) {
 }
 
 // Scraping Logic
-async function scrapeUrlWithOffscreenIframe(url) {
-    logClient.logInfo(`[Stage 3] Attempting Offscreen + iframe: ${url}`);
-    const DYNAMIC_SCRIPT_ID_PREFIX = 'offscreen-scrape-';
-    const DYNAMIC_SCRIPT_MESSAGE_TYPE = 'offscreenIframeResult';
-    const IFRAME_LOAD_TIMEOUT = 30000;
-    let dynamicScripterId = null;
 
-    const cleanup = async (scriptIdBase) => {
-        logClient.logInfo(`[Stage 3 Cleanup] Starting cleanup for script ID base: ${scriptIdBase}`);
-        if (scriptIdBase) {
-            try {
-                await browser.scripting.unregisterContentScripts({ ids: [scriptIdBase] });
-                logClient.logInfo(`[Stage 3 Cleanup] Unregistered script: ${scriptIdBase}`);
-            } catch (error) {
-                logClient.logWarn(`[Stage 3 Cleanup] Failed to unregister script ${scriptIdBase}:`, error);
-            }
-        }
-        try {
-            await cleanupOffscreen(OFFSCREEN_DOCUMENT_PATH_SCRAPING);
-            logClient.logInfo('[Stage 3 Cleanup] Sent removeIframe request to offscreen.');
-        } catch (error) {
-            logClient.logWarn('[Stage 3 Cleanup] Failed to send removeIframe request: ', error);
-        }
-    };
-
-    try {
-        await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH_SCRAPING, [browser.offscreen.Reason.DOM_PARSER, browser.offscreen.Reason.IFRAME_SCRIPTING], 'Parse HTML content and manage scraping iframes');
-        logClient.logInfo('[Stage 3] Sending createIframe request to offscreen...');
-        const createResponse = await browser.runtime.sendMessage({
-            type: 'createIframe',
-            target: 'offscreen',
-            url: url
-        });
-        if (!createResponse?.success) {
-            throw new Error(`Failed to create iframe in offscreen: ${createResponse?.error || 'Unknown error'}`);
-        }
-        logClient.logInfo('[Stage 3] Iframe creation request successful. Waiting for load and script...');
-        dynamicScripterId = `${DYNAMIC_SCRIPT_ID_PREFIX}${Date.now()}`;
-        await browser.scripting.registerContentScripts([{
-            id: dynamicScripterId,
-            js: ['pageExtractor.js', 'stage2Helper.js'],
-            matches: [url],
-            runAt: 'document_idle',
-            world: 'ISOLATED',
-            allFrames: true,
-            persistAcrossSessions: false
-        }]);
-        logClient.logInfo(`[Stage 3] Registered dynamic script(s): ${dynamicScripterId} (files: pageExtractor.js, stage2Helper.js)`);
-        let messageListener = null;
-        const scriptResponsePromise = new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                logClient.logWarn(`[Stage 3] Timeout (${IFRAME_LOAD_TIMEOUT / 1000}s) waiting for response from dynamic script.`);
-                if (messageListener) {
-                    browser.runtime.onMessage.removeListener(messageListener);
-                }
-                reject(new Error('Timeout waiting for dynamic script response.'));
-            }, IFRAME_LOAD_TIMEOUT);
-
-            messageListener = (message, sender, sendResponse) => {
-                if (message?.type === DYNAMIC_SCRIPT_MESSAGE_TYPE) {
-                    logClient.logInfo('[Stage 3] Received response from dynamic script:', message.payload);
-                    clearTimeout(timeoutId);
-                    browser.runtime.onMessage.removeListener(messageListener);
-                    if (message.payload?.success) {
-                        resolve(message.payload);
-                    } else {
-                        reject(new Error(message.payload?.error || 'Dynamic script reported failure.'));
-                    }
-                    return false;
-                }
-                return false;
-            };
-            browser.runtime.onMessage.addListener(messageListener);
-            logClient.logInfo('[Stage 3] Listener added for dynamic script response.');
-        });
-        const resultPayload = await scriptResponsePromise;
-        await cleanup(dynamicScripterId);
-        return resultPayload;
-    } catch (error) {
-        logClient.logError(`[Stage 3] Error during Offscreen + iframe process:`, error);
-        await cleanup(dynamicScripterId);
-        throw new Error(`Stage 3 (Offscreen + iframe) failed: ${error.message}`);
-    }
-}
 
 async function scrapeUrlWithTempTabExecuteScript(url) {
     logClient.logInfo(`[Stage 1 (ExecuteScript)] Attempting Temp Tab + executeScript: ${url}`);
@@ -498,22 +420,15 @@ async function scrapeUrlMultiStage(url, chatId, messageId) {
                 ...executeScriptResult
             };
             sendStageResult(stage1SuccessPayload);
-            return; // Stop after successful Stage 1
+            return; 
         } catch (stage1Error) {
             logClient.logWarn(`[Orchestrator Log] Stage 1 (Temp Tab + executeScript) Failed for ${url}: ${stage1Error.message}`);
             sendStageResult({ stage: 1, success: false, chatId: chatId, messageId: messageId, method: 'tempTabExecuteScript', error: stage1Error.message });
-            // Do not proceed to other stages if Stage 1 fails, as per new plan
             return; 
         }
 
-        // All other stages (2, 3, 4) have been removed.
-        // If Stage 1 fails, the orchestrator will have already returned.
-        // This part of the code should ideally not be reached if Stage 1 was the only one.
-        // However, to be safe and explicit:
-        logClient.logInfo("[Orchestrator Log] No successful scraping stage completed (should have exited after Stage 1 attempt).");
 
     } finally {
-        // No specific cleanup for scraping stages needed here anymore.
         logClient.logInfo(`[Scraping Orchestrator] Finished processing for ${url}.`);
     }
 }
@@ -562,12 +477,8 @@ async function fetchDriveFileList(token, folderId = 'root') {
     return data.files || [];
 }
 
-async function fetchDriveFileContent(token, fileId) {
-    logClient.logWarn(`Background: fetchDriveFileContent not implemented yet for fileId: ${fileId}`);
-    return `(Content fetch not implemented for ${fileId})`;
-}
 
-// Message Forwarding
+
 async function forwardMessageToSidePanelOrPopup(message, originalSender) {
     logClient.logInfo(`Attempting to forward message type '${message?.type}' from worker.`);
     for (const tabId in detachedPopups) {
@@ -598,16 +509,14 @@ async function forwardMessageToSidePanelOrPopup(message, originalSender) {
     }
 }
 
-// Extension Lifecycle Listeners
 browser.runtime.onInstalled.addListener(async (details) => {
     logClient.logInfo('onInstalled event fired. Reason:', details.reason);
     await initializeSessionIds();
-
+    await eventBus.autoEnsureDbInitialized();
     browser.sidePanel
         .setPanelBehavior({ openPanelOnActionClick: true })
         .catch((error) => logClient.logError('Error setting side panel behavior:', error));
     logClient.logInfo('Side panel behavior set.');
-
     browser.storage.local.get().then((items) => {
         const keysToRemove = Object.keys(items).filter(key => key.startsWith('detachedState_'));
         if (keysToRemove.length > 0) {
@@ -620,10 +529,6 @@ browser.runtime.onInstalled.addListener(async (details) => {
     }).catch(err => {
          logClient.logError('Error getting storage items for cleanup:', err);
     });
-
-    logClient.logInfo('Triggering DB Initialization from onInstalled.');
-    eventBus.publish(EventNames.DB_INITIALIZE_REQUEST, new DbInitializeRequest());
-
     ensureWorkerScriptIsReady().catch(err => {
         logClient.logError("Initial worker script readiness check failed after install:", err);
     });
@@ -632,11 +537,8 @@ browser.runtime.onInstalled.addListener(async (details) => {
 browser.runtime.onStartup.addListener(async () => {
     logClient.logInfo('onStartup event fired.');
     await initializeSessionIds();
-
-    logClient.logInfo('Triggering DB Initialization from onStartup (may be redundant).');
-    eventBus.publish(EventNames.DB_INITIALIZE_REQUEST, new DbInitializeRequest());
-
-    if (modelWorkerState === 'uninitialized') {
+    await eventBus.autoEnsureDbInitialized();
+    if (modelWorkerState === ModelWorkerStates.UNINITIALIZED) {
         ensureWorkerScriptIsReady().catch(err => {
             logClient.logError("Worker script readiness check failed on startup:", err);
         });
@@ -697,39 +599,28 @@ browser.windows.onRemoved.addListener(async (windowId) => {
 
 // Message Handling
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('[Background] Received message:', message, 'type:', message?.type);
     const { type, payload } = message;
     let isResponseAsync = false;
 
     logClient.logInfo(`Received message type '${type}' from`, sender.tab ? `tab ${sender.tab.id}` : sender.url || sender.id);
 
-    const workerMessageTypes = [
-        'workerScriptReady',
-        'workerReady',
-        'loadingStatus',
-        'generationStatus',
-        'generationUpdate',
-        'generationComplete',
-        'generationError',
-        'resetComplete',
-        'error'
-    ];
-
-    if (workerMessageTypes.includes(type)) {
+    if (Object.values(WorkerEventNames).includes(type)) {
         logClient.logInfo(`Handling message from worker: ${type}`);
         let uiUpdatePayload = null;
         switch (type) {
-            case 'workerScriptReady':
+            case WorkerEventNames.WORKER_SCRIPT_READY:
                 logClient.logInfo("[Background] Worker SCRIPT is ready!");
-                modelWorkerState = 'worker_script_ready';
+                modelWorkerState = ModelWorkerStates.WORKER_SCRIPT_READY;
                 if (workerScriptReadyResolver) {
                     workerScriptReadyResolver();
                     workerScriptReadyPromise = null;
                 }
                 uiUpdatePayload = { modelStatus: 'script_ready' };
                 break;
-            case 'workerReady':
+            case WorkerEventNames.WORKER_READY:
                 logClient.logInfo("[Background] Worker MODEL is ready! Model:", payload?.model);
-                modelWorkerState = 'model_ready';
+                modelWorkerState = ModelWorkerStates.MODEL_READY;
                 if (modelLoadResolver) {
                     modelLoadResolver();
                     modelLoadPromise = null;
@@ -740,7 +631,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     workerScriptReadyPromise = null;
                 }
                 break;
-            case 'loadingStatus':
+            case WorkerEventNames.LOADING_STATUS:
                 if (payload?.status === 'progress' && payload?.progress) {
                     const currentProgress = Math.floor(payload.progress);
                     if (currentProgress >= lastLoggedProgress + 10) {
@@ -751,47 +642,47 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     logClient.logInfo("[Background] Worker loading status (other):", payload);
                     lastLoggedProgress = -10;
                 }
-                if (modelWorkerState !== 'loading_model') {
+                if (modelWorkerState !== ModelWorkerStates.LOADING_MODEL) {
                     logClient.logWarn(`[Background] Received loadingStatus in unexpected state: ${modelWorkerState}`);
-                    modelWorkerState = 'loading_model';
+                    modelWorkerState = ModelWorkerStates.LOADING_MODEL;
                 }
-                browser.runtime.sendMessage({ type: 'uiLoadingStatusUpdate', payload: payload }).catch(err => {
+                browser.runtime.sendMessage({ type: UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, payload: payload }).catch(err => {
                     if (err.message !== "Could not establish connection. Receiving end does not exist.") {
                         logClient.logWarn("[Background] Error sending loading status to UI:", err.message);
                     }
                 });
                 break;
-            case 'generationStatus':
+            case WorkerEventNames.GENERATION_STATUS:
                 logClient.logInfo(`[Background] Generation status: ${payload?.status}`);
-                if (payload?.status === 'generating') modelWorkerState = 'generating';
-                else if (payload?.status === 'interrupted') modelWorkerState = 'model_ready';
+                if (payload?.status === 'generating') modelWorkerState = ModelWorkerStates.GENERATING;
+                else if (payload?.status === 'interrupted') modelWorkerState = ModelWorkerStates.MODEL_READY;
                 break;
-            case 'generationUpdate':
-                if (modelWorkerState !== 'generating') {
+            case WorkerEventNames.GENERATION_UPDATE:
+                if (modelWorkerState !== ModelWorkerStates.GENERATING) {
                     logClient.logWarn(`[Background] Received generationUpdate in unexpected state: ${modelWorkerState}`);
                 }
-                modelWorkerState = 'generating';
+                modelWorkerState = ModelWorkerStates.GENERATING;
                 break;
-            case 'generationComplete':
+            case WorkerEventNames.GENERATION_COMPLETE:
                 logClient.logInfo("[Background] Generation complete.");
-                modelWorkerState = 'model_ready';
+                modelWorkerState = ModelWorkerStates.MODEL_READY;
                 break;
-            case 'generationError':
+            case WorkerEventNames.GENERATION_ERROR:
                 logClient.logError("[Background] Generation error from worker:", payload);
-                modelWorkerState = 'error';
+                modelWorkerState = ModelWorkerStates.ERROR;
                 break;
-            case 'resetComplete':
+            case WorkerEventNames.RESET_COMPLETE:
                 logClient.logInfo("[Background] Worker reset complete.");
-                modelWorkerState = 'model_ready';
+                modelWorkerState = ModelWorkerStates.MODEL_READY;
                 break;
-            case 'error':
+            case WorkerEventNames.ERROR:
                 logClient.logError("[Background] Received generic error from worker/offscreen:", payload);
                 const previousState = modelWorkerState;
-                modelWorkerState = 'error';
-                if (previousState === 'creating_worker' && workerScriptReadyRejecter) {
+                modelWorkerState = ModelWorkerStates.ERROR;
+                if (previousState === ModelWorkerStates.CREATING_WORKER && workerScriptReadyRejecter) {
                     workerScriptReadyRejecter(new Error(payload || 'Generic error during script init'));
                     workerScriptReadyPromise = null;
-                } else if (previousState === 'loading_model' && modelLoadRejecter) {
+                } else if (previousState === ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
                     modelLoadRejecter(new Error(payload || 'Generic error during model load'));
                     modelLoadPromise = null;
                 }
@@ -804,7 +695,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             browser.tabs.query({}).then(tabs => {
                 tabs.forEach(tab => {
                     if (tab.id) {
-                        browser.tabs.sendMessage(tab.id, { type: 'uiUpdate', payload: uiUpdatePayload })
+                        browser.tabs.sendMessage(tab.id, { type: UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload: uiUpdatePayload })
                             .catch(err => { 
                                 if (!err.message.includes('Could not establish connection') && !err.message.includes('Receiving end does not exist')) {
                                      logClient.logWarn(`[Background] Error sending uiUpdate to tab ${tab.id}:`, err.message);
@@ -821,7 +712,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false;
     }
 
-    if (type === 'loadModel') {
+    if (type === RuntimeMessageTypes.LOAD_MODEL) {
         logClient.logInfo(`Received 'loadModel' request from sender:`, sender);
         const modelId = payload?.modelId;
         logClient.logInfo(`Received 'loadModel' request from UI for model: ${modelId}.`);
@@ -844,12 +735,12 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'sendChatMessage') {
+    if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
         isResponseAsync = true;
         const { chatId, messages, options, messageId } = payload;
         const correlationId = messageId || chatId;
 
-        if (modelWorkerState !== 'model_ready') {
+        if (modelWorkerState !== ModelWorkerStates.MODEL_READY) {
             logClient.logError(`Cannot send chat message. Model state is ${modelWorkerState}, not 'model_ready'.`);
             sendResponse({ success: false, error: `Model not ready (state: ${modelWorkerState}). Please load a model first.` });
             return false;
@@ -873,14 +764,14 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch(error => {
             logClient.logError(`Error processing sendChatMessage for ${correlationId}:`, error);
-            if (modelWorkerState === 'generating') modelWorkerState = 'model_ready';
+            if (modelWorkerState === ModelWorkerStates.GENERATING) modelWorkerState = ModelWorkerStates.MODEL_READY;
             sendResponse({ success: false, error: error.message });
         });
 
         return isResponseAsync;
     }
 
-    if (type === 'interruptGeneration') {
+    if (type === RuntimeMessageTypes.INTERRUPT_GENERATION) {
         logClient.logInfo("[Background] Received interrupt request from UI.");
         ensureWorkerScriptIsReady()
             .then(() => sendToModelWorkerOffscreen({ type: 'interrupt' }))
@@ -890,7 +781,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'resetWorker') {
+    if (type === RuntimeMessageTypes.RESET_WORKER) {
         logClient.logInfo("[Background] Received reset request from UI.");
         ensureWorkerScriptIsReady()
             .then(() => sendToModelWorkerOffscreen({ type: 'reset' }))
@@ -900,13 +791,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'getModelWorkerState') {
+    if (type === RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
         logClient.logInfo(`Handling 'getModelWorkerState' request. Current state: ${modelWorkerState}`);
         sendResponse({ success: true, state: modelWorkerState });
         return false;
     }
 
-    if (type === 'scrapeRequest') {
+    if (type === RuntimeMessageTypes.SCRAPE_REQUEST) {
         logClient.logInfo(`Handling 'scrapeRequest' request. Scraping URL: ${payload?.url}`);
         isResponseAsync = true;
         scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId)
@@ -921,7 +812,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'getDriveFileList') {
+    if (type === RuntimeMessageTypes.GET_DRIVE_FILE_LIST) {
         const receivedFolderId = message.folderId;
         logClient.logInfo(`Handling 'getDriveFileList' for folder: ${receivedFolderId}`);
         isResponseAsync = true;
@@ -934,13 +825,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // Send file list via separate sendMessage
                 logClient.logInfo('[Background] Sending driveFileListData...');
                 browser.runtime.sendMessage({
-                    type: 'driveFileListData',
+                    type: DriveMessageTypes.DRIVE_FILE_LIST_DATA,
                     success: true,
                     files: files,
                     folderId: receivedFolderId
                 }).catch(err => {
                      logClient.logWarn('[Background] Failed to send driveFileListData:', err?.message);
-                     browser.runtime.sendMessage({ type: 'driveFileListData', success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
+                     browser.runtime.sendMessage({ type: DriveMessageTypes.DRIVE_FILE_LIST_DATA, success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
                 });
 
                 logClient.logInfo('[Background] sendResponse for driveFileListResponse skipped (using separate message).');
@@ -949,7 +840,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 logClient.logError("Error handling getDriveFileList:", error);
                 // Send error via separate message too
                 browser.runtime.sendMessage({
-                     type: 'driveFileListData',
+                     type: DriveMessageTypes.DRIVE_FILE_LIST_DATA,
                      success: false,
                      error: error.message,
                      folderId: receivedFolderId
@@ -962,13 +853,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type.startsWith('db:')) {
-        logClient.logDebug(`Forwarding DB request of type '${type}' to event bus.`);
-        eventBus.publish(type, message);
-        return false;
-    }
-
-    if (type === 'getLogSessions') {
+    if (type === RuntimeMessageTypes.GET_LOG_SESSIONS) {
         isResponseAsync = true;
         (async () => {
             try {
@@ -982,7 +867,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'getLogEntries') {
+    if (type === RuntimeMessageTypes.GET_LOG_ENTRIES) {
         isResponseAsync = true;
         (async () => {
             const sessionId = payload?.sessionId;
@@ -1002,7 +887,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'detachSidePanel') {
+    if (type === RuntimeMessageTypes.DETACH_SIDE_PANEL) {
         isResponseAsync = true;
         handleDetach(sender.tab?.id).then(result => {
             sendResponse(result);
@@ -1012,7 +897,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return isResponseAsync;
     }
 
-    if (type === 'getDetachedState') {
+    if (type === RuntimeMessageTypes.GET_DETACHED_STATE) {
         isResponseAsync = true;
         (async () => {
             try {
@@ -1023,6 +908,19 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })();
         return isResponseAsync;
+    }
+
+    if (type === RuntimeMessageTypes.GET_DB_READY_STATE) {
+        sendResponse({ ready: isDbReady() });
+        return false;
+    }
+
+    // Handle DB events
+    if (Object.values(DBEventNames).includes(type)) {
+        eventBus.publish(type, payload)
+            .then(result => sendResponse(result))
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true; // Indicates async response
     }
 
     logClient.logWarn(`Unhandled message type: ${type}`);

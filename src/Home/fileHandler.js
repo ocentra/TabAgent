@@ -1,4 +1,5 @@
 import { showError } from '../Utilities/generalUtils.js';
+import { DBEventNames } from '../events/eventNames.js';
 
 let db = null;
 let renderer = null;
@@ -6,13 +7,10 @@ let getActiveSessionIdFunc = null;
 let ui = null;
 
 export function initializeFileHandling(dependencies) {
-    // db = dependencies.dbFunctions; // Remove dependency
-    // renderer = dependencies.chatRenderer; // Remove dependency
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
     ui = dependencies.uiController;
 
-    // Adjust check
-    if (/*!db || !renderer ||*/ !getActiveSessionIdFunc || !ui) {
+    if (!getActiveSessionIdFunc || !ui) {
         console.error("FileHandler: Missing getActiveSessionIdFunc or uiController dependency!");
     } else {
         console.log("[FileHandler] Initialized (Note: DB/Renderer interaction via events assumed).");
@@ -20,8 +18,7 @@ export function initializeFileHandling(dependencies) {
 }
 
 export async function handleFileSelected(event) {
-    // Adjust check
-    if (/*!db || !renderer || */!getActiveSessionIdFunc) {
+    if (!getActiveSessionIdFunc) {
          console.error("FileHandler: Not initialized properly (missing getActiveSessionIdFunc).");
          return;
     }
@@ -47,18 +44,11 @@ export async function handleFileSelected(event) {
         text: `📎 Attached file: ${file.name}`,
         timestamp: Date.now(),
         isLoading: false,
-        // TODO: Add file metadata if needed
     };
 
     try {
-        // **** Replace direct DB/Renderer call with event publishing ****
-        // await db.addMessageToChat(sessionId, fileMessage);
-        // if (sessionId === getActiveSessionIdFunc()) {
-        //     await renderer.renderChatSession(sessionId);
-        // }
-        // Publish an event for the orchestrator instead
         const request = new DbAddMessageRequest(sessionId, fileMessage);
-        eventBus.publish(DbAddMessageRequest.name, request);
+        eventBus.publish(DBEventNames.ADD_MESSAGE_REQUEST, request);
         console.log("[FileHandler] Published DbAddMessageRequest for file attachment.");
 
     } catch (error) {

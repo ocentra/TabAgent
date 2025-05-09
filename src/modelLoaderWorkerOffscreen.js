@@ -1,121 +1,106 @@
+import { WorkerEventNames, ModelLoaderMessageTypes } from './events/eventNames.js';
+import browser from 'webextension-polyfill';
+
 let modelWorker = null;
 let workerInitialized = false;
 
+const allowedTypes = new Set(Object.values(ModelLoaderMessageTypes));
+
 function initializeModelWorker() {
-  if (!modelWorker && !workerInitialized) { // Prevent re-entry if already initializing
-    console.log("[OffscreenWorker-Simple] Creating Model Worker...");
+  if (!modelWorker && !workerInitialized) { 
+    console.log("Modal Loader Creating Model Worker...");
     try {
-      const wasmPath = chrome.runtime.getURL('xenova/transformers/dist/');
-      modelWorker = new globalThis.Worker(chrome.runtime.getURL('model-worker.js'), { type: 'module' });
-      console.log("[OffscreenWorker-Simple] Model Worker instance created.");
+      const wasmPath = browser.runtime.getURL('xenova/transformers/dist/');
+      modelWorker = new globalThis.Worker(browser.runtime.getURL('model-worker.js'), { type: 'module' });
+      console.log("Modal Loader Model Worker instance created.");
 
       modelWorker.onmessage = (event) => {
         const { type, payload } = event.data;
-        // Shorten log for frequent updates
-        if (type !== 'generationUpdate' && type !== 'loadingStatus') { // Also quiet loadingStatus
-          console.log("[OffscreenWorker-Simple] Received message from Model Worker:", type);
+        if (type !== WorkerEventNames.GENERATION_UPDATE && type !== WorkerEventNames.LOADING_STATUS) { 
+          console.log("Modal Loader Received message from Model Worker:", type);
         }
 
-        // Define message types to forward back to background
         const typesToForward = [
-          'workerScriptReady', // Added script ready signal
-          'workerReady', 'error', 'loadingStatus',
-          'generationStatus', 'generationUpdate', 'generationComplete', 'generationError',
-          'resetComplete'
+          WorkerEventNames.WORKER_SCRIPT_READY, 
+          WorkerEventNames.WORKER_READY, WorkerEventNames.ERROR, WorkerEventNames.LOADING_STATUS,
+          WorkerEventNames.GENERATION_STATUS, WorkerEventNames.GENERATION_UPDATE, WorkerEventNames.GENERATION_COMPLETE, WorkerEventNames.GENERATION_ERROR,
+          WorkerEventNames.RESET_COMPLETE
         ];
 
         if (typesToForward.includes(type)) {
-          // Shorten log for frequent updates
-           if (type !== 'generationUpdate' && type !== 'loadingStatus') { // Also quiet loadingStatus
-             console.log(`[OffscreenWorker-Simple] Forwarding \`${type}\` message to background.`);
+           if (type !== WorkerEventNames.GENERATION_UPDATE && type !== WorkerEventNames.LOADING_STATUS) { 
+             console.log(`Modal Loader Forwarding \`${type}\` message to background.`);
            }
-          chrome.runtime.sendMessage({ type, payload }).catch(error => {
-            console.error("[OffscreenWorker-Simple] Error sending message to background:", error);
+          browser.runtime.sendMessage({ type, payload }).catch(error => {
+            console.error("Modal Loader Error sending message to background:", error);
           });
         } else {
-          console.log(`[OffscreenWorker-Simple] Not forwarding message type \`${type}\` from worker.`);
+          console.log(`Modal Loader Not forwarding message type \`${type}\` from worker. (Consider adding to eventNames.js)`);
         }
 
-        // Mark worker as initialized *after* receiving the SCRIPT ready signal
-        if (type === 'workerScriptReady') {
+        if (type === WorkerEventNames.WORKER_SCRIPT_READY) {
           workerInitialized = true;
-          console.log("[OffscreenWorker-Simple] Worker script initialized.");
+          console.log("Modal Loader Worker script initialized.");
         }
       };
 
       modelWorker.onerror = (errorEvent) => {
-        console.error("[OffscreenWorker-Simple] Model Worker onerror EVENT:", errorEvent);
+        console.error("Modal Loader Worker onerror EVENT:", errorEvent);
         const errorMessage = errorEvent.message || 'Unknown worker error';
         const errorDetails = `Error in worker: ${errorMessage} (File: ${errorEvent.filename}, Line: ${errorEvent.lineno})`;
-        console.error("[OffscreenWorker-Simple] Model Worker onerror DETAILS:", errorDetails);
-        chrome.runtime.sendMessage({ type: 'error', payload: errorDetails })
-        .catch(err => console.error("[OffscreenWorker-Simple] Error sending worker error to background:", err));
-        modelWorker = null; // Reset on error
-        workerInitialized = false; // Reset init flag
+        console.error("Modal Loader  Worker onerror DETAILS:", errorDetails);
+        browser.runtime.sendMessage({ type: WorkerEventNames.ERROR, payload: errorDetails })
+        .catch(err => console.error("Modal Loader Error sending worker error to background:", err));
+        modelWorker = null; 
+        workerInitialized = false; 
       };
 
     } catch (error) {
-        console.error("[OffscreenWorker-Simple] FATAL: Failed to create Model Worker instance:", error);
-        chrome.runtime.sendMessage({ type: 'error', payload: `Failed to instantiate model worker: ${error.message}` })
-         .catch(err => console.error("[OffscreenWorker-Simple] Error sending instantiation error to background:", err));
+        console.error("Modal Loader  Failed to create Model Worker instance:", error);
+        browser.runtime.sendMessage({ type: WorkerEventNames.ERROR, payload: `Failed to instantiate model worker: ${error.message}` })
+         .catch(err => console.error("Modal Loader  sending instantiation error to background:", err));
         modelWorker = null;
     }
   }
   return modelWorker;
 }
 
-// Listen for messages from background.js
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("[OffscreenWorker] Received message from background:", message.type);
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!allowedTypes.has(message.type)) {
+    console.warn("Modal Loader Cannot handle message, message type is not in allowedTypes.");
+    return false;
+  }
 
   const workerInstance = initializeModelWorker();
 
-  if (!workerInstance && message.type !== 'init') { 
-      console.error("[OffscreenWorker-Simple] Cannot handle message, worker instance is not available and message is not 'init'.");
-      sendResponse({ success: false, error: "Model worker instance failed to initialize." });
+  if (!workerInstance && message.type !== ModelLoaderMessageTypes.INIT) { 
+      console.error("Modal Loader Cannot handle message, worker instance is not available and message is not 'init'.");
+      sendResponse([{ success: false, error: "Model worker instance failed to initialize." }]);
       return false; 
   }
 
-  const modelWorkerForwardableTypes = ['init', 'generate', 'interrupt', 'reset'];
-  const knownIgnoredTypes = [
-    'uiLoadingStatusUpdate', 
-    'scrapeRequest', 
-    'STAGE_SCRAPE_RESULT', 
-    'driveFileListData',
-    'getDriveFileList',
-    'db:log',
-    'createIframe', 
-    'removeIframe'
-  ];
-
-  if (modelWorkerForwardableTypes.includes(message.type)) {
+  if (allowedTypes.has(message.type)) {
       if (!workerInstance) {
-          console.error("[OffscreenWorker-Simple] Cannot forward " + message.type + ", worker instance is still not available.");
-          sendResponse({ success: false, error: "Model worker instance unavailable for forwarding." });
+          console.error("Modal Loader Cannot forward " + message.type + ", worker instance is still not available.");
+          sendResponse([{ success: false, error: "Model worker instance unavailable for forwarding." }]);
           return false;
       }
-      console.log(`[OffscreenWorker-Simple] Forwarding '${message.type}' message to actual model worker.`);
+      console.log(`Modal Loader Forwarding '${message.type}' message to actual model worker.`);
       try {
-          const wasmPath = chrome.runtime.getURL('xenova/transformers/dist/');
-          const localModelPath = chrome.runtime.getURL('models/');
+          const wasmPath = browser.runtime.getURL('xenova/transformers/dist/');
+          const localModelPath = browser.runtime.getURL('models/');
           console.log(`[OffscreenWorker] Calculated WASM Path: ${wasmPath}`);
           console.log(`[OffscreenWorker] Calculated Local Model Path: ${localModelPath}`);
 
           workerInstance.postMessage({ type: message.type, payload: { ...message.payload, wasmPath, localModelPath } });
-          sendResponse({ success: true, message: `Command '${message.type}' forwarded to model worker.` });
+          sendResponse([{ success: true, message: `Command '${message.type}' forwarded to model worker.` }]);
       } catch (error) {
-          console.error("[OffscreenWorker-Simple] Error posting message to actual model worker:", error);
-          sendResponse({ success: false, error: `Error posting message to model worker: ${error.message}` });
+          console.error("Modal Loader Error posting message to actual model worker:", error);
+          sendResponse([{ success: false, error: `Error posting message to model worker: ${error.message}` }]);
       }
-  } else if (knownIgnoredTypes.includes(message.type)) {
-      console.log(`[OffscreenWorker-Simple] Ignoring known message type not handled here: ${message.type}`);
-      // DO NOT call sendResponse. Let the appropriate handler in background.js or elsewhere respond.
-  } else {
-      console.warn("[OffscreenWorker-Simple] Received unhandled/unexpected message type:", message.type);
-      sendResponse({ success: false, error: `Model worker offscreen document does not handle unexpected message type '${message.type}'.` });
   }
   return true;
 });
 
-console.log("[OffscreenWorker-Simple] Script loaded and ready.");
-initializeModelWorker(); // Attempt to initialize worker eagerly 
+console.log("Modal Loader Script loaded and ready.");
+initializeModelWorker(); 

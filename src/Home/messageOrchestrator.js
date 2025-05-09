@@ -15,7 +15,7 @@ import {
     DbRenameSessionRequest, DbRenameSessionResponse
 } from '../events/dbEvents.js';
 import { clearTemporaryMessages } from './chatRenderer.js';
-import * as EventNames from '../events/eventNames.js';
+import { UIEventNames, RuntimeMessageTypes } from '../events/eventNames.js';
 
 let getActiveSessionIdFunc = null;
 let onSessionCreatedCallback = null;
@@ -25,87 +25,27 @@ let isSendingMessage = false; // TODO: Remove this and rely on status check via 
 const pendingDbRequests = new Map();
 
 function requestDbAndWait(requestEvent, timeoutMs = 5000) { 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         const { requestId, type: requestType } = requestEvent;
-        const responseHandler = (responseEvent) => {
-            if (responseEvent && responseEvent.requestId === requestId) {
-                console.log(`[Orchestrator] Received DB response for ${requestType} (Req ID: ${requestId})`);
-                console.log(`[Orchestrator] RAW Received Response Event Object (Req ID: ${requestId}):`, JSON.stringify(responseEvent));
-                eventBus.unsubscribe(responseEventType, responseHandler);
-                pendingDbRequests.delete(requestId);
-                clearTimeout(timeoutId);
-                if (responseEvent.success) {
-                    resolve(responseEvent.data);
-                } else {
-                    reject(new Error(responseEvent.error || `DB operation ${requestType} failed`));
-                }
+        let timeoutId;
+        try {
+            timeoutId = setTimeout(() => {
+                console.error(`[Orchestrator] DB request timed out for ${requestType} (Req ID: ${requestId})`);
+                reject(new Error(`DB request timed out for ${requestType}`));
+            }, timeoutMs);
+            const resultArr = await eventBus.publish(requestEvent.type, requestEvent);
+            const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
+            clearTimeout(timeoutId);
+            if (result && (result.success || result.error === undefined)) {
+                resolve(result.data);
+            } else {
+                reject(new Error(result?.error || `DB operation ${requestType} failed`));
             }
-        };
-        const timeoutId = setTimeout(() => {
-            console.error(`[Orchestrator] DB request timed out for ${requestType} (Req ID: ${requestId})`);
-            eventBus.unsubscribe(responseEventType, responseHandler);
-            pendingDbRequests.delete(requestId);
-            reject(new Error(`DB request timed out for ${requestType}`));
-        }, timeoutMs);
-
-        let responseEventType;
-        if (requestType === EventNames.DB_CREATE_SESSION_REQUEST) {
-            responseEventType = EventNames.DB_CREATE_SESSION_RESPONSE;
-        } else if (requestType === EventNames.DB_ADD_MESSAGE_REQUEST) {
-            responseEventType = EventNames.DB_ADD_MESSAGE_RESPONSE;
-        } else if (requestType === EventNames.DB_GET_SESSION_REQUEST) {
-            responseEventType = EventNames.DB_GET_SESSION_RESPONSE;
-        } else if (requestType === EventNames.DB_UPDATE_MESSAGE_REQUEST) {
-            responseEventType = EventNames.DB_UPDATE_MESSAGE_RESPONSE;
-        } else if (requestType === EventNames.DB_DELETE_MESSAGE_REQUEST) {
-            responseEventType = EventNames.DB_DELETE_MESSAGE_RESPONSE;
-        } else if (requestType === EventNames.DB_UPDATE_STATUS_REQUEST) {
-            responseEventType = EventNames.DB_UPDATE_STATUS_RESPONSE;
-        } else if (requestType === EventNames.DB_TOGGLE_STAR_REQUEST) {
-            responseEventType = EventNames.DB_TOGGLE_STAR_RESPONSE;
-        } else if (requestType === EventNames.DB_GET_ALL_SESSIONS_REQUEST) {
-            responseEventType = EventNames.DB_GET_ALL_SESSIONS_RESPONSE;
-        } else if (requestType === EventNames.DB_GET_STARRED_SESSIONS_REQUEST) {
-            responseEventType = EventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
-        } else if (requestType === EventNames.DB_DELETE_SESSION_REQUEST) {
-            responseEventType = EventNames.DB_DELETE_SESSION_RESPONSE;
-        } else if (requestType === EventNames.DB_RENAME_SESSION_REQUEST) {
-            responseEventType = EventNames.DB_RENAME_SESSION_RESPONSE;
-        } else {
-            console.error(`[Orchestrator] Unknown request type for response mapping: ${requestType}`);
-            responseEventType = requestType.replace('Request', 'Response');
-            if (responseEventType === requestType) {
-                 reject(new Error(`Cannot determine response event type for request: ${requestType}`));
-                 return;
-            }
+        } catch (error) {
+            clearTimeout(timeoutId);
+            reject(error);
         }
-
-        console.log(`[Orchestrator] Subscribing responseHandler for ReqID ${requestId} to event type: ${responseEventType}`);
-        eventBus.subscribe(responseEventType, responseHandler);
-
-        pendingDbRequests.set(requestId, { handler: responseHandler, timeoutId });
-
-        eventBus.publish(requestEvent.type, requestEvent);
     });
-}
-
-export function initializeOrchestrator(dependencies) {
-    getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    onSessionCreatedCallback = dependencies.onSessionCreatedCallback;
-    getCurrentTabIdFunc = dependencies.getCurrentTabIdFunc;
-
-    if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
-        console.error("Orchestrator: Missing one or more dependencies during initialization!");
-        return;
-    }
-
-    console.log("[Orchestrator] Initializing and subscribing to application events...");
-    eventBus.subscribe('ui:querySubmitted', handleQuerySubmit);
-    eventBus.subscribe('background:responseReceived', handleBackgroundMsgResponse);
-    eventBus.subscribe('background:errorReceived', handleBackgroundMsgError);
-    eventBus.subscribe('background:scrapeStageResult', handleBackgroundScrapeStage);
-    eventBus.subscribe('background:scrapeResultReceived', handleBackgroundDirectScrapeResult);
-    console.log("[Orchestrator] Event subscriptions complete.");
 }
 
 async function handleQuerySubmit(data) {
@@ -173,7 +113,7 @@ async function handleQuerySubmit(data) {
              const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
             if (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized) {
                 console.log("Orchestrator: Triggering content script scrape.");
-                browser.tabs.sendMessage(activeTab.id, { type: 'SCRAPE_ACTIVE_TAB' }, (response) => {
+                browser.tabs.sendMessage(activeTab.id, { type: UIEventNames.SCRAPE_ACTIVE_TAB }, (response) => {
                     if (browser.runtime.lastError) {
                         console.error('Orchestrator: Error sending SCRAPE_ACTIVE_TAB:', browser.runtime.lastError.message);
                         const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
@@ -189,7 +129,7 @@ async function handleQuerySubmit(data) {
                 try {
                     // Send the message and await the response (if any, often undefined for one-way messages)
                     const response = await browser.runtime.sendMessage({
-                        type: 'scrapeRequest',
+                        type: RuntimeMessageTypes.SCRAPE_REQUEST,
                         payload: {
                              url: text, 
                              chatId: sessionId, 
@@ -214,7 +154,7 @@ async function handleQuerySubmit(data) {
         } else {
             console.log("Orchestrator: Sending query to background for AI response.");
             const messagePayload = {
-                type: 'sendChatMessage',
+                type: RuntimeMessageTypes.SEND_CHAT_MESSAGE,
                 payload: {
                     chatId: sessionId,
                     messages: [{ role: 'user', content: text }], 
@@ -408,4 +348,24 @@ async function handleBackgroundDirectScrapeResult(message) {
     } finally {
          isSendingMessage = false; // TODO: Remove later
     }
+}
+
+eventBus.subscribe(UIEventNames.QUERY_SUBMITTED, handleQuerySubmit);
+eventBus.subscribe(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, handleBackgroundMsgResponse);
+eventBus.subscribe(UIEventNames.BACKGROUND_ERROR_RECEIVED, handleBackgroundMsgError);
+eventBus.subscribe(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
+eventBus.subscribe(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
+
+export function initializeOrchestrator(dependencies) {
+    getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
+    onSessionCreatedCallback = dependencies.onSessionCreatedCallback;
+    getCurrentTabIdFunc = dependencies.getCurrentTabIdFunc;
+
+    if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
+        console.error("Orchestrator: Missing one or more dependencies during initialization!");
+        return;
+    }
+
+    console.log("[Orchestrator] Initializing and subscribing to application events...");
+    console.log("[Orchestrator] Event subscriptions complete.");
 }

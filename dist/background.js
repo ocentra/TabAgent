@@ -38814,11 +38814,39 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   eventBus: () => (/* binding */ eventBus)
+/* harmony export */   eventBus: () => (/* binding */ eventBus),
+/* harmony export */   isBackgroundContext: () => (/* binding */ isBackgroundContext),
+/* harmony export */   isDbEvent: () => (/* binding */ isDbEvent)
 /* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
+
+
+
+
+function isDbEvent(eventName) {
+  return Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(eventName);
+}
+
+function isBackgroundContext() {
+  return (typeof window === 'undefined') && (typeof self !== 'undefined') && !!self.registration;
+}
+
+function getContextName() {
+  if (isBackgroundContext()) return 'Background';
+  // You can add more checks here for popup, content script, etc.
+  // For now, default to 'Sidepanel' for non-background
+  return 'Sidepanel';
+}
+
+let dbInitPromise = null;
+
 class EventBus {
   constructor() {
     this.listeners = new Map();
+    this.isDbInitInProgress = false;
   }
 
   subscribe(eventName, callback) {
@@ -38842,30 +38870,81 @@ class EventBus {
     }
   }
 
-  publish(eventName, data) {
-    const listeners = this.listeners.get(eventName); // Get the specific listeners first
+  async autoEnsureDbInitialized() {
+    if (this.isDbInitInProgress) {
+      console.warn('[EventBus][autoEnsureDbInitialized] Initialization already in progress, returning existing promise.');
+      return dbInitPromise;
+    }
+    if (!dbInitPromise) {
+      this.isDbInitInProgress = true;
+      console.info('[EventBus][autoEnsureDbInitialized] Starting DB initialization...');
+      dbInitPromise = (async () => {
+        try {
+          const [response] = await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_GET_READY_STATE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
+          if (response?.data?.ready) {
+            console.info('[EventBus][autoEnsureDbInitialized] DB is already ready.');
+            return true;
+          }
+          await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest());
+          for (let i = 0; i < 5; i++) {
+            const [check] = await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_GET_READY_STATE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
+            if (check?.data?.ready) {
+              console.info(`[EventBus][autoEnsureDbInitialized] DB became ready after ${i+1} checks.`);
+              return true;
+            }
+            await new Promise(res => setTimeout(res, 300));
+          }
+          console.error('[EventBus][autoEnsureDbInitialized] Database failed to initialize after retries.');
+          throw new Error('Database failed to initialize');
+        } catch (err) {
+          console.error('[EventBus][autoEnsureDbInitialized] Initialization failed:', err);
+          throw err;
+        } finally {
+          this.isDbInitInProgress = false;
+        }
+      })();
+    }
+    return dbInitPromise;
+  }
+
+  async publish(eventName, data) {
+   
+     console.log(`[EventBus][${getContextName()}] eventName`, eventName,'data:', data);
+
+    if (isDbEvent(eventName) && !isBackgroundContext()) {
+      console.log(`[EventBus][${getContextName()}] Forwarding DB event to background:`, eventName, data);
+      const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data });
+      console.log(`[EventBus][${getContextName()}] Received response from background for`, eventName, result);
+      return result;
+    }
+    if (isDbEvent(eventName) && isBackgroundContext()) {
+      console.log(`[EventBus][${getContextName()}] Handling DB event locally:`, eventName, data);
+    }
+    const listeners = this.listeners.get(eventName);
     if (listeners && listeners.length > 0) {
       try {
-        const eventData = structuredClone(data); // Clone the data for this event
-        // --> Log intent BEFORE loop <--
+        const eventData = structuredClone(data);
         console.log(`[EventBus] Publishing ${eventName}. Found ${listeners.length} listeners. Data to send:`, JSON.stringify(eventData));
-
-        listeners.forEach((callback, index) => {
-          try {
-            // --> Log intent INSIDE loop for EACH listener <--
-            console.log(`[EventBus] Calling listener #${index + 1} for ${eventName} with data:`, JSON.stringify(eventData));
-            callback(eventData); // Pass the cloned data
-          } catch (error) {
-            // Log error for specific listener
-            console.error(`[EventBus] Error in listener #${index + 1} for ${eventName}:`, error);
-          }
-        });
+        const results = await Promise.all(
+          listeners.map((callback, index) => {
+            try {
+              console.log(`[EventBus] Calling listener #${index + 1} for ${eventName} with data:`, JSON.stringify(eventData));
+              return callback(eventData);
+            } catch (error) {
+              console.error(`[EventBus] Error in listener #${index + 1} for ${eventName}:`, error);
+              return undefined;
+            }
+          })
+        );
+        console.log('[EventBus] Returning results for', eventName, results);
+        return results;
       } catch (cloneError) {
-          console.error(`[EventBus] Failed to structuredClone data for event ${eventName}:`, cloneError, data);
+        console.error(`[EventBus] Failed to structuredClone data for event ${eventName}:`, cloneError, data);
+        return Promise.reject(cloneError);
       }
     } else {
-        // Log if no listeners found, including the data for context
-        console.log(`[EventBus] No listeners registered for event ${eventName}. Data:`, JSON.stringify(data));
+      console.log(`[EventBus] No listeners registered for event ${eventName}. Data:`, JSON.stringify(data));
+      return Promise.resolve([]);
     }
   }
 }
@@ -38901,6 +38980,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
 /* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
 /* harmony export */   DbGetLogsResponse: () => (/* binding */ DbGetLogsResponse),
+/* harmony export */   DbGetReadyStateRequest: () => (/* binding */ DbGetReadyStateRequest),
+/* harmony export */   DbGetReadyStateResponse: () => (/* binding */ DbGetReadyStateResponse),
 /* harmony export */   DbGetSessionRequest: () => (/* binding */ DbGetSessionRequest),
 /* harmony export */   DbGetSessionResponse: () => (/* binding */ DbGetSessionResponse),
 /* harmony export */   DbGetStarredSessionsRequest: () => (/* binding */ DbGetStarredSessionsRequest),
@@ -38962,49 +39043,49 @@ class DbNotificationBase {
 class DbGetSessionResponse extends DbResponseBase {
   constructor(originalRequestId, success, sessionData, error = null) {
     super(originalRequestId, success, sessionData, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_SESSION_RESPONSE;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
   }
 }
 
 class DbAddMessageResponse extends DbResponseBase {
   constructor(originalRequestId, success, newMessageId, error = null) {
     super(originalRequestId, success, { newMessageId }, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_ADD_MESSAGE_RESPONSE;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
   }
 }
 
 class DbUpdateMessageResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_UPDATE_MESSAGE_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
     }
 }
 
 class DbUpdateStatusResponse extends DbResponseBase {
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_UPDATE_STATUS_RESPONSE;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
   }
 }
 
 class DbDeleteMessageResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_DELETE_MESSAGE_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
     }
 }
 
 class DbToggleStarResponse extends DbResponseBase {
     constructor(originalRequestId, success, updatedSessionData, error = null) {
         super(originalRequestId, success, updatedSessionData, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_TOGGLE_STAR_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
     }
 }
 
 class DbCreateSessionResponse extends DbResponseBase {
     constructor(originalRequestId, success, newSessionId, error = null) {
         super(originalRequestId, success, { newSessionId }, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_CREATE_SESSION_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
         console.log(`[dbEvents] DbCreateSessionResponse constructor: type set to ${this.type}`);
     }
 
@@ -39016,21 +39097,21 @@ class DbCreateSessionResponse extends DbResponseBase {
 class DbDeleteSessionResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_DELETE_SESSION_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
     }
 }
 
 class DbRenameSessionResponse extends DbResponseBase {
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_RENAME_SESSION_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
     }
 }
 
 class DbGetAllSessionsResponse extends DbResponseBase {
     constructor(requestId, success, sessions = null, error = null) {
         super(requestId, success, sessions, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_ALL_SESSIONS_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
         this.payload = { sessions };
     }
 }
@@ -39038,71 +39119,79 @@ class DbGetAllSessionsResponse extends DbResponseBase {
 class DbGetStarredSessionsResponse extends DbResponseBase {
     constructor(requestId, success, starredSessions = null, error = null) {
         super(requestId, success, starredSessions, error); 
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_STARRED_SESSIONS_RESPONSE;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
+    }
+}
+
+class DbGetReadyStateResponse extends DbResponseBase {
+    constructor(originalRequestId, success, ready, error = null) {
+        super(originalRequestId, success, { ready }, error);
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
+        this.payload = { ready };
     }
 }
 
 // --- Request Events (Define After Response Events) ---
 
 class DbGetSessionRequest extends DbEventBase {
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_SESSION_RESPONSE;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
   constructor(sessionId) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_SESSION_REQUEST;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_REQUEST;
     this.payload = { sessionId };
   }
 }
 
 class DbAddMessageRequest extends DbEventBase {
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_ADD_MESSAGE_RESPONSE;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
   constructor(sessionId, messageObject) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_ADD_MESSAGE_REQUEST;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_REQUEST;
     this.payload = { sessionId, messageObject };
   }
 }
 
 class DbUpdateMessageRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_UPDATE_MESSAGE_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId, updates) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_UPDATE_MESSAGE_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
         this.payload = { sessionId, messageId, updates };
     }
 }
 
 class DbUpdateStatusRequest extends DbEventBase {
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_UPDATE_STATUS_RESPONSE;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
   constructor(sessionId, status) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_UPDATE_STATUS_REQUEST;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_REQUEST;
     this.payload = { sessionId, status };
   }
 }
 
 class DbDeleteMessageRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_DELETE_MESSAGE_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_DELETE_MESSAGE_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_REQUEST;
         this.payload = { sessionId, messageId };
     }
 }
 
 class DbToggleStarRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_TOGGLE_STAR_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_TOGGLE_STAR_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_REQUEST;
         this.payload = { sessionId };
     }
 }
 
 class DbCreateSessionRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_CREATE_SESSION_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
     constructor(initialMessage) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_CREATE_SESSION_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_REQUEST;
         this.payload = { initialMessage };
         console.log(`[dbEvents] DbCreateSessionRequest constructor: type set to ${this.type}`);
     }
@@ -39112,42 +39201,51 @@ class DbInitializeRequest extends DbEventBase {
     // No response expected via requestDbAndWait, so no responseEventName needed
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_INITIALIZE_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.INITIALIZE_REQUEST;
         this.payload = {}; 
     }
 }
 
 class DbDeleteSessionRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_DELETE_SESSION_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_DELETE_SESSION_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_REQUEST;
         this.payload = { sessionId };
     }
 }
 
 class DbRenameSessionRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_RENAME_SESSION_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
     constructor(sessionId, newName) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_RENAME_SESSION_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_REQUEST;
         this.payload = { sessionId, newName };
     }
 }
 
 class DbGetAllSessionsRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_ALL_SESSIONS_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_ALL_SESSIONS_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
+        console.log('[DEBUG][Create] DbGetAllSessionsRequest:', this, this.type);
     }
 }
 
 class DbGetStarredSessionsRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_STARRED_SESSIONS_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_STARRED_SESSIONS_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
+    }
+}
+
+class DbGetReadyStateRequest extends DbEventBase {
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
+    constructor() {
+        super();
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_REQUEST;
     }
 }
 
@@ -39156,7 +39254,7 @@ class DbGetStarredSessionsRequest extends DbEventBase {
 class DbMessagesUpdatedNotification extends DbNotificationBase {
     constructor(sessionId, messages) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_MESSAGES_UPDATED_NOTIFICATION;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
         this.payload = { messages }; 
     }
 }
@@ -39164,7 +39262,7 @@ class DbMessagesUpdatedNotification extends DbNotificationBase {
 class DbStatusUpdatedNotification extends DbNotificationBase {
     constructor(sessionId, status) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_STATUS_UPDATED_NOTIFICATION;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
         this.payload = { status };
     }
 }
@@ -39172,14 +39270,14 @@ class DbStatusUpdatedNotification extends DbNotificationBase {
 class DbSessionUpdatedNotification extends DbNotificationBase {
     constructor(sessionId, updatedSessionData) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_SESSION_UPDATED_NOTIFICATION;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
         this.payload = { session: updatedSessionData }; 
     }
 }
 
 class DbInitializationCompleteNotification {
     constructor({ success, error = null }) {
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
         this.timestamp = Date.now();
         this.payload = { success, error: error ? (error.message || String(error)) : null };
     }
@@ -39190,21 +39288,21 @@ class DbInitializationCompleteNotification {
 class DbGetLogsResponse extends DbResponseBase {
   constructor(originalRequestId, success, logs, error = null) {
     super(originalRequestId, success, logs, error); // data = logs array
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_LOGS_RESPONSE;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
   }
 }
 
 class DbGetUniqueLogValuesResponse extends DbResponseBase {
   constructor(originalRequestId, success, values, error = null) {
     super(originalRequestId, success, values, error); // data = values array
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   }
 }
 
 class DbClearLogsResponse extends DbResponseBase {
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_CLEAR_LOGS_RESPONSE;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
   }
 }
 
@@ -39212,7 +39310,7 @@ class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
     constructor(originalRequestId, success, ids, error = null) {
       // data = { currentLogSessionId: '...', previousLogSessionId: '...' | null }
       super(originalRequestId, success, ids, error);
-      this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
+      this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     }
   }
 
@@ -39226,51 +39324,51 @@ class DbAddLogRequest extends DbEventBase {
     // logEntryData = { level, component, message, chatSessionId (optional) }
     // db service will add id, timestamp, extensionSessionId
     super(); // Generate request ID just for tracking if needed
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_ADD_LOG_REQUEST;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_LOG_REQUEST;
     this.payload = { logEntryData };
   }
 }
 
 // Request to get logs based on filters
 class DbGetLogsRequest extends DbEventBase {
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_LOGS_RESPONSE;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
   constructor(filters) {
     // filters = { extensionSessionId: 'id' | 'current' | 'last' | 'all',
     //             component: 'name' | 'all',
     //             level: 'level' | 'all' }
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_LOGS_REQUEST;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_REQUEST;
     this.payload = { filters };
   }
 }
 
 // Request to get unique values for a specific field in logs
 class DbGetUniqueLogValuesRequest extends DbEventBase {
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   constructor(fieldName) {
     // fieldName = 'extensionSessionId', 'component', 'level'
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
+    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
     this.payload = { fieldName };
   }
 }
 
 // Request to clear logs (potentially based on filters in future, but maybe just 'all' or 'last_session' for now)
 class DbClearLogsRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_CLEAR_LOGS_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
     constructor(filter = 'all') { // 'all' or potentially 'last_session' or specific session ID later
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_CLEAR_LOGS_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_REQUEST;
         this.payload = { filter };
     }
 }
 
 // Request to get the actual IDs for 'current' and 'last' sessions
 class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
+    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
+        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
     }
 } 
 
@@ -39285,82 +39383,126 @@ class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   DB_ADD_LOG_REQUEST: () => (/* binding */ DB_ADD_LOG_REQUEST),
-/* harmony export */   DB_ADD_LOG_RESPONSE: () => (/* binding */ DB_ADD_LOG_RESPONSE),
-/* harmony export */   DB_ADD_MESSAGE_REQUEST: () => (/* binding */ DB_ADD_MESSAGE_REQUEST),
-/* harmony export */   DB_ADD_MESSAGE_RESPONSE: () => (/* binding */ DB_ADD_MESSAGE_RESPONSE),
-/* harmony export */   DB_CLEAR_LOGS_REQUEST: () => (/* binding */ DB_CLEAR_LOGS_REQUEST),
-/* harmony export */   DB_CLEAR_LOGS_RESPONSE: () => (/* binding */ DB_CLEAR_LOGS_RESPONSE),
-/* harmony export */   DB_CREATE_SESSION_REQUEST: () => (/* binding */ DB_CREATE_SESSION_REQUEST),
-/* harmony export */   DB_CREATE_SESSION_RESPONSE: () => (/* binding */ DB_CREATE_SESSION_RESPONSE),
-/* harmony export */   DB_DELETE_MESSAGE_REQUEST: () => (/* binding */ DB_DELETE_MESSAGE_REQUEST),
-/* harmony export */   DB_DELETE_MESSAGE_RESPONSE: () => (/* binding */ DB_DELETE_MESSAGE_RESPONSE),
-/* harmony export */   DB_DELETE_SESSION_REQUEST: () => (/* binding */ DB_DELETE_SESSION_REQUEST),
-/* harmony export */   DB_DELETE_SESSION_RESPONSE: () => (/* binding */ DB_DELETE_SESSION_RESPONSE),
-/* harmony export */   DB_GET_ALL_SESSIONS_REQUEST: () => (/* binding */ DB_GET_ALL_SESSIONS_REQUEST),
-/* harmony export */   DB_GET_ALL_SESSIONS_RESPONSE: () => (/* binding */ DB_GET_ALL_SESSIONS_RESPONSE),
-/* harmony export */   DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: () => (/* binding */ DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST),
-/* harmony export */   DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: () => (/* binding */ DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE),
-/* harmony export */   DB_GET_LOGS_REQUEST: () => (/* binding */ DB_GET_LOGS_REQUEST),
-/* harmony export */   DB_GET_LOGS_RESPONSE: () => (/* binding */ DB_GET_LOGS_RESPONSE),
-/* harmony export */   DB_GET_SESSION_REQUEST: () => (/* binding */ DB_GET_SESSION_REQUEST),
-/* harmony export */   DB_GET_SESSION_RESPONSE: () => (/* binding */ DB_GET_SESSION_RESPONSE),
-/* harmony export */   DB_GET_STARRED_SESSIONS_REQUEST: () => (/* binding */ DB_GET_STARRED_SESSIONS_REQUEST),
-/* harmony export */   DB_GET_STARRED_SESSIONS_RESPONSE: () => (/* binding */ DB_GET_STARRED_SESSIONS_RESPONSE),
-/* harmony export */   DB_GET_UNIQUE_LOG_VALUES_REQUEST: () => (/* binding */ DB_GET_UNIQUE_LOG_VALUES_REQUEST),
-/* harmony export */   DB_GET_UNIQUE_LOG_VALUES_RESPONSE: () => (/* binding */ DB_GET_UNIQUE_LOG_VALUES_RESPONSE),
-/* harmony export */   DB_INITIALIZATION_COMPLETE_NOTIFICATION: () => (/* binding */ DB_INITIALIZATION_COMPLETE_NOTIFICATION),
-/* harmony export */   DB_INITIALIZE_REQUEST: () => (/* binding */ DB_INITIALIZE_REQUEST),
-/* harmony export */   DB_MESSAGES_UPDATED_NOTIFICATION: () => (/* binding */ DB_MESSAGES_UPDATED_NOTIFICATION),
-/* harmony export */   DB_RENAME_SESSION_REQUEST: () => (/* binding */ DB_RENAME_SESSION_REQUEST),
-/* harmony export */   DB_RENAME_SESSION_RESPONSE: () => (/* binding */ DB_RENAME_SESSION_RESPONSE),
-/* harmony export */   DB_SESSION_UPDATED_NOTIFICATION: () => (/* binding */ DB_SESSION_UPDATED_NOTIFICATION),
-/* harmony export */   DB_STATUS_UPDATED_NOTIFICATION: () => (/* binding */ DB_STATUS_UPDATED_NOTIFICATION),
-/* harmony export */   DB_TOGGLE_STAR_REQUEST: () => (/* binding */ DB_TOGGLE_STAR_REQUEST),
-/* harmony export */   DB_TOGGLE_STAR_RESPONSE: () => (/* binding */ DB_TOGGLE_STAR_RESPONSE),
-/* harmony export */   DB_UPDATE_MESSAGE_REQUEST: () => (/* binding */ DB_UPDATE_MESSAGE_REQUEST),
-/* harmony export */   DB_UPDATE_MESSAGE_RESPONSE: () => (/* binding */ DB_UPDATE_MESSAGE_RESPONSE),
-/* harmony export */   DB_UPDATE_STATUS_REQUEST: () => (/* binding */ DB_UPDATE_STATUS_REQUEST),
-/* harmony export */   DB_UPDATE_STATUS_RESPONSE: () => (/* binding */ DB_UPDATE_STATUS_RESPONSE)
+/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DriveMessageTypes: () => (/* binding */ DriveMessageTypes),
+/* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
+/* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
+/* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
+/* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
+/* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
+/* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
-// Event name constants for DB events
-const DB_GET_SESSION_REQUEST = 'DbGetSessionRequest';
-const DB_GET_SESSION_RESPONSE = 'DbGetSessionResponse';
-const DB_ADD_MESSAGE_REQUEST = 'DbAddMessageRequest';
-const DB_ADD_MESSAGE_RESPONSE = 'DbAddMessageResponse';
-const DB_UPDATE_MESSAGE_REQUEST = 'DbUpdateMessageRequest';
-const DB_UPDATE_MESSAGE_RESPONSE = 'DbUpdateMessageResponse';
-const DB_UPDATE_STATUS_REQUEST = 'DbUpdateStatusRequest';
-const DB_UPDATE_STATUS_RESPONSE = 'DbUpdateStatusResponse';
-const DB_DELETE_MESSAGE_REQUEST = 'DbDeleteMessageRequest';
-const DB_DELETE_MESSAGE_RESPONSE = 'DbDeleteMessageResponse';
-const DB_TOGGLE_STAR_REQUEST = 'DbToggleStarRequest';
-const DB_TOGGLE_STAR_RESPONSE = 'DbToggleStarResponse';
-const DB_CREATE_SESSION_REQUEST = 'DbCreateSessionRequest';
-const DB_CREATE_SESSION_RESPONSE = 'DbCreateSessionResponse';
-const DB_DELETE_SESSION_REQUEST = 'DbDeleteSessionRequest';
-const DB_DELETE_SESSION_RESPONSE = 'DbDeleteSessionResponse';
-const DB_RENAME_SESSION_REQUEST = 'DbRenameSessionRequest';
-const DB_RENAME_SESSION_RESPONSE = 'DbRenameSessionResponse';
-const DB_GET_ALL_SESSIONS_REQUEST = 'DbGetAllSessionsRequest';
-const DB_GET_ALL_SESSIONS_RESPONSE = 'DbGetAllSessionsResponse';
-const DB_GET_STARRED_SESSIONS_REQUEST = 'DbGetStarredSessionsRequest';
-const DB_GET_STARRED_SESSIONS_RESPONSE = 'DbGetStarredSessionsResponse';
-const DB_MESSAGES_UPDATED_NOTIFICATION = 'DbMessagesUpdatedNotification';
-const DB_STATUS_UPDATED_NOTIFICATION = 'DbStatusUpdatedNotification';
-const DB_SESSION_UPDATED_NOTIFICATION = 'DbSessionUpdatedNotification';
-const DB_INITIALIZE_REQUEST = 'DbInitializeRequest';
-const DB_INITIALIZATION_COMPLETE_NOTIFICATION = 'DbInitializationCompleteNotification';
-const DB_GET_LOGS_REQUEST = 'DbGetLogsRequest';
-const DB_GET_LOGS_RESPONSE = 'DbGetLogsResponse';
-const DB_GET_UNIQUE_LOG_VALUES_REQUEST = 'DbGetUniqueLogValuesRequest';
-const DB_GET_UNIQUE_LOG_VALUES_RESPONSE = 'DbGetUniqueLogValuesResponse';
-const DB_CLEAR_LOGS_REQUEST = 'DbClearLogsRequest';
-const DB_CLEAR_LOGS_RESPONSE = 'DbClearLogsResponse';
-const DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST = 'DbGetCurrentAndLastLogSessionIdsRequest';
-const DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE = 'DbGetCurrentAndLastLogSessionIdsResponse';
-const DB_ADD_LOG_REQUEST = 'DbAddLogRequest';
-const DB_ADD_LOG_RESPONSE = 'DbAddLogResponse'; 
+const DBEventNames = Object.freeze({
+  GET_SESSION_REQUEST: 'DbGetSessionRequest',
+  GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+  ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+  ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+  UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+  UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+  UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+  UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+  DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+  DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+  TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+  TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+  DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
+  DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
+  DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+  DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+  RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+  RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+  DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
+  DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
+  DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
+  DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
+  MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+  STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+  SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+  INITIALIZE_REQUEST: 'DbInitializeRequest',
+  INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+  GET_LOGS_REQUEST: 'DbGetLogsRequest',
+  GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+  GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+  GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+  CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+  CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+  ADD_LOG_REQUEST: 'DbAddLogRequest',
+  ADD_LOG_RESPONSE: 'DbAddLogResponse',
+  DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
+  DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+});
+
+const UIEventNames = Object.freeze({
+  QUERY_SUBMITTED: 'ui:querySubmitted',
+  BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
+  BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
+  BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
+  BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
+  BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
+  REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
+  WORKER_READY: 'worker:ready',
+  WORKER_ERROR: 'worker:error',
+  NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+  SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
+  DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+  // Add more as needed
+});
+
+const WorkerEventNames = Object.freeze({
+  WORKER_SCRIPT_READY: 'workerScriptReady',
+  WORKER_READY: 'workerReady',
+  LOADING_STATUS: 'loadingStatus',
+  GENERATION_STATUS: 'generationStatus',
+  GENERATION_UPDATE: 'generationUpdate',
+  GENERATION_COMPLETE: 'generationComplete',
+  GENERATION_ERROR: 'generationError',
+  RESET_COMPLETE: 'resetComplete',
+  ERROR: 'error',
+});
+
+const ModelWorkerStates = Object.freeze({
+  UNINITIALIZED: 'uninitialized',
+  CREATING_WORKER: 'creating_worker',
+  WORKER_SCRIPT_READY: 'worker_script_ready',
+  LOADING_MODEL: 'loading_model',
+  MODEL_READY: 'model_ready',
+  GENERATING: 'generating',
+  ERROR: 'error',
+  IDLE: 'idle',
+});
+
+const RuntimeMessageTypes = Object.freeze({
+  LOAD_MODEL: 'loadModel',
+  SEND_CHAT_MESSAGE: 'sendChatMessage',
+  INTERRUPT_GENERATION: 'interruptGeneration',
+  RESET_WORKER: 'resetWorker',
+  GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+  SCRAPE_REQUEST: 'scrapeRequest',
+  GET_DRIVE_FILE_LIST: 'getDriveFileList',
+  GET_LOG_SESSIONS: 'getLogSessions',
+  GET_LOG_ENTRIES: 'getLogEntries',
+  DETACH_SIDE_PANEL: 'detachSidePanel',
+  GET_DETACHED_STATE: 'getDetachedState',
+  GET_DB_READY_STATE: 'getDbReadyState',
+});
+
+const SiteMapperMessageTypes = Object.freeze({
+  OPEN_TAB: 'openTab',
+  MAPPED: 'mapped',
+});
+
+const DriveMessageTypes = Object.freeze({
+  DRIVE_FILE_LIST_DATA: 'driveFileListData',
+});
+
+const ModelLoaderMessageTypes = Object.freeze({
+  INIT: 'init',
+  GENERATE: 'generate',
+  INTERRUPT: 'interrupt',
+  RESET: 'reset',
+}); 
 
 /***/ }),
 
@@ -39418,11 +39560,11 @@ function init(compName, options = {}) {
     sendToDbDefault = options.sendToDb !== undefined ? options.sendToDb : true;
 
     if (_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus) {
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_INITIALIZATION_COMPLETE_NOTIFICATION, (notification) => {
+        _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.INITIALIZATION_COMPLETE_NOTIFICATION, (notification) => {
             if (notification.payload.success) {
                 console.log(`[LogClient (${componentName})] Received DB Initialization Complete. Flushing buffer.`);
                 isDbReadyForLogs = true;
-                flushLogBuffer();
+                 flushLogBuffer(); 
             } else {
                 console.error(`[LogClient (${componentName})] Received DB Initialization FAILED notification. Logs will not be sent to DB. Error:`, notification.payload.error);
             }
@@ -39559,56 +39701,34 @@ function logError(...args) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/plugin.js");
-/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/rx-database.js");
-/* harmony import */ var rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! rxdb/plugins/storage-dexie */ "./node_modules/rxdb/dist/esm/plugins/storage-dexie/rx-storage-dexie.js");
-/* harmony import */ var rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! rxdb/plugins/query-builder */ "./node_modules/rxdb/dist/esm/plugins/query-builder/index.js");
-/* harmony import */ var rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! rxdb/plugins/migration-schema */ "./node_modules/rxdb/dist/esm/plugins/migration-schema/index.js");
-/* harmony import */ var rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! rxdb/plugins/update */ "./node_modules/rxdb/dist/esm/plugins/update/index.js");
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
-console.log('[Database] minimaldb.js initialized in context:', typeof window !== 'undefined' ? 'browser window' : (typeof self !== 'undefined' ? 'worker or background' : 'unknown context'));
-const ENABLE_LOGGING = true;
-const RESET_DB_ON_ERROR = true;
-const LOG_LEVELS = {
-    OFF: 0,
-    ERROR: 1,
-    INFO: 2,
-    DEBUG: 3
-};
-
-
-class Logger {
-    constructor(module, defaultLevel = 'debug') {
-        this.module = module;
-        this.level = ENABLE_LOGGING ? LOG_LEVELS[defaultLevel.toUpperCase()] : LOG_LEVELS.OFF;
-    }
-
-    debug(message, meta = {}) {
-        if (this.level >= LOG_LEVELS.DEBUG) {
-            console.debug(`[Database:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
-        }
-    }
-
-    info(message, meta = {}) {
-        if (this.level >= LOG_LEVELS.INFO) {
-            console.info(`[Database:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
-        }
-    }
-
-    error(message, meta = {}) {
-        if (this.level >= LOG_LEVELS.ERROR) {
-            console.error(`[Database:${this.module}] ${message}`, { ...meta, timestamp: new Date().toISOString() });
-        }
-    }
-
-    setLevel(level) {
-        this.level = LOG_LEVELS[level.toUpperCase()] || LOG_LEVELS.OFF;
-    }
+/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/plugin.js");
+/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/rx-database.js");
+/* harmony import */ var rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! rxdb/plugins/storage-dexie */ "./node_modules/rxdb/dist/esm/plugins/storage-dexie/rx-storage-dexie.js");
+/* harmony import */ var rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! rxdb/plugins/query-builder */ "./node_modules/rxdb/dist/esm/plugins/query-builder/index.js");
+/* harmony import */ var rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! rxdb/plugins/migration-schema */ "./node_modules/rxdb/dist/esm/plugins/migration-schema/index.js");
+/* harmony import */ var rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! rxdb/plugins/update */ "./node_modules/rxdb/dist/esm/plugins/update/index.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+console.log('[DB] minimaldb.js context check:', {
+  typeofWindow: typeof window,
+  typeofSelf: typeof self,
+  hasRegistration: typeof self !== 'undefined' && !!self.registration,
+  locationHref: typeof location !== 'undefined' ? location.href : 'N/A'
+});
+if (typeof window !== 'undefined') {
+  console.trace('[DB] minimaldb.js loaded in window context! (trace below)');
+}
+// Throw if loaded in sidepanel or any non-background context
+if (typeof window !== 'undefined' && typeof location !== 'undefined' && location.href.includes('sidepanel.html')) {
+  throw new Error('[DB] FATAL: minimaldb.js loaded in sidepanel context!');
 }
 
-
+if (!(0,_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.isBackgroundContext)()) {
+  throw new Error('[DB] FATAL: minimaldb.js loaded outside background context!');
+}
 class AppError extends Error {
     constructor(code, message, details = {}) {
         super(message);
@@ -39616,7 +39736,6 @@ class AppError extends Error {
         this.details = details;
     }
 }
-
 
 async function withTimeout(promise, ms, errorMessage = `Operation timed out after ${ms}ms`) {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new AppError('TIMEOUT', errorMessage)), ms));
@@ -39631,10 +39750,9 @@ async function withTimeout(promise, ms, errorMessage = `Operation timed out afte
 
 
 
+
  
 
-
-const logger = new Logger('Main');
 
 
 let db = null;
@@ -39647,6 +39765,8 @@ let dbReadyResolve;
 const dbReadyPromise = new Promise(resolve => { dbReadyResolve = resolve; });
 let currentExtensionSessionId = null;
 let previousExtensionSessionId = null;
+let isDbReadyFlag = false;
+
 
 
 const chatHistorySchema = {
@@ -39723,6 +39843,16 @@ const logSchema = {
   required: ['id', 'timestamp', 'level', 'component', 'extensionSessionId', 'message']
 };
 
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.INITIALIZE_REQUEST, handleInitializeRequest);
+console.log('[DB] Subscribed to DbInitializeRequest');
+
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_READY_STATE_REQUEST, handleDbGetReadyStateRequest);
+
+async function handleDbGetReadyStateRequest(event) {
+    const requestId = event?.requestId || crypto.randomUUID();
+    console.log('[DB] handleDbGetReadyStateRequest: ready=' + isDbReadyFlag);
+    return { success: true, data: { ready: isDbReadyFlag } };
+}
 
 async function ensureDbReady(type = 'chat') {
     const isReady = await withTimeout(dbReadyPromise, 5000, 'Database initialization timeout');
@@ -39742,16 +39872,15 @@ async function ensureDbReady(type = 'chat') {
 
 
 async function resetDatabase() {
-    const resetLogger = new Logger('Reset');
-    resetLogger.info('Resetting databases due to initialization failure');
+    console.log('[DB] Resetting databases due to initialization failure');
     try {
         if (db) {
             await db.destroy();
-            resetLogger.debug('Main database instance destroyed');
+            console.log('[DB] Main database instance destroyed');
         }
         if (logDbInstance) {
             await logDbInstance.destroy();
-            resetLogger.debug('Log database instance destroyed');
+            console.log('[DB] Log database instance destroyed');
         }
         db = null;
         chatHistoryCollection = null;
@@ -39763,231 +39892,287 @@ async function resetDatabase() {
 
         try {
 
-            const mainStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagentdb');
+            const mainStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)('tabagentdb');
             if (mainStorage && typeof mainStorage.remove === 'function') {
                  await mainStorage.remove();
-                 resetLogger.info('Removed tabagentdb storage');
+                 console.log('[DB] Removed tabagentdb storage');
             } else {
-                 resetLogger.warn('Could not get main storage or remove method.');
+                 console.warn('[DB] Could not get main storage or remove method.');
             }
-        } catch (e) { resetLogger.warn('Could not remove tabagentdb storage (might not exist)', { error: e?.message }); }
+        } catch (e) { console.warn('[DB] Could not remove tabagentdb storage (might not exist)', { error: e?.message }); }
          try {
 
-             const logStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagent_logs_db');
+             const logStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)('tabagent_logs_db');
              if (logStorage && typeof logStorage.remove === 'function') {
                  await logStorage.remove();
-                 resetLogger.info('Removed tabagent_logs_db storage');
+                 console.log('[DB] Removed tabagent_logs_db storage');
              } else {
-                  resetLogger.warn('Could not get log storage or remove method.');
+                  console.warn('[DB] Could not get log storage or remove method.');
              }
-        } catch (e) { resetLogger.warn('Could not remove tabagent_logs_db storage (might not exist)', { error: e?.message }); }
+        } catch (e) { console.warn('[DB] Could not remove tabagent_logs_db storage (might not exist)', { error: e?.message }); }
 
         dbReadyResolve(false);
     } catch (error) {
-        console.error("[Database:Reset] CAUGHT RAW ERROR during reset:", error);
-        resetLogger.error('Failed to reset databases', { error });
+        console.error('[DB] [Database:Reset] CAUGHT RAW ERROR during reset:', error);
+        console.error('[DB] Failed to reset databases', { error });
         throw new AppError('RESET_FAILED', 'Could not reset databases', { originalError: error });
     }
 }
 
 
 async function handleInitializeRequest(event) {
-    const initLogger = new Logger('Initialize');
-    initLogger.info('Handling initialize request');
+    console.log('[DB] handleInitializeRequest ENTRY', {
+        dbReadyPromiseExists: !!dbReadyPromise,
+        dbReadyPromiseType: typeof dbReadyPromise,
+        isDbReadyFlag,
+        isDbInitialized,
+        isLogDbInitialized,
+        eventType: event?.type,
+        eventRequestId: event?.requestId
+    });
 
-
+    // 1. Try to get session IDs
+    let ids;
     try {
-        const ids = await chrome.storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
+        ids = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
         currentExtensionSessionId = ids.currentLogSessionId || null;
         previousExtensionSessionId = ids.previousLogSessionId || null;
+        console.log('[DB] Retrieved log session IDs', { current: currentExtensionSessionId, previous: previousExtensionSessionId });
         if (!currentExtensionSessionId) {
-            initLogger.error('CRITICAL: currentLogSessionId not found in storage during DB init!');
+            const msg = 'CRITICAL: currentLogSessionId not found in storage during DB init!';
+            console.error('[DB] Database:Initialize]', msg);
+            console.log('[DB] About to resolve dbReadyPromise with value: false (missing session ID)');
+            dbReadyResolve(false);
+            console.log('[DB] dbReadyPromise resolved (missing session ID)');
+            console.log('[DB] handleInitializeRequest EXIT (missing session ID)');
+            return { success: false, error: msg };
         }
-         initLogger.info('Retrieved log session IDs', { current: currentExtensionSessionId, previous: previousExtensionSessionId });
     } catch (storageError) {
-         initLogger.error('Failed to retrieve log session IDs from storage', { error: storageError });
-
+        console.error('[DB] Failed to retrieve log session IDs from storage', { error: storageError });
+        console.log('[DB] About to resolve dbReadyPromise with value: false (storage error)');
+        dbReadyResolve(false);
+        console.log('[DB] dbReadyPromise resolved (storage error)');
+        console.log('[DB] handleInitializeRequest EXIT (storage error)');
+        return { success: false, error: storageError.message || String(storageError) };
     }
 
-
+    // 2. Already initialized?
     if (isDbInitialized && isLogDbInitialized) {
-        initLogger.info('Both databases already initialized, skipping');
-        return; 
+        console.log('[DB] Both databases already initialized, skipping');
+        isDbReadyFlag = true;
+        console.log('[DB] About to resolve dbReadyPromise with value: true (already initialized)');
+        dbReadyResolve(true);
+        console.log('[DB] dbReadyPromise resolved (already initialized)');
+        console.log('[DB] handleInitializeRequest EXIT (already initialized)');
+        return { success: true };
     }
-    
+
+    // 3. In progress?
+    if (dbReadyPromise && !isDbReadyFlag) {
+        console.log('[DB] Initialization already in progress, waiting for completion');
+       // await dbReadyPromise;
+       // console.log('[DB] dbReadyPromise finished waiting (in progress check)');
+       // console.log('[DB] handleInitializeRequest EXIT (in progress check)');
+       // return { success: isDbReadyFlag };
+    }
+
+    // 4. Main initialization
     try {
-        (0,rxdb__WEBPACK_IMPORTED_MODULE_4__.addRxPlugin)(rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_5__.RxDBQueryBuilderPlugin);
-        (0,rxdb__WEBPACK_IMPORTED_MODULE_4__.addRxPlugin)(rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_6__.RxDBMigrationSchemaPlugin);
-        (0,rxdb__WEBPACK_IMPORTED_MODULE_4__.addRxPlugin)(rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_7__.RxDBUpdatePlugin);
+        console.log('[DB][Init Step 1] About to add plugins');
+        (0,rxdb__WEBPACK_IMPORTED_MODULE_5__.addRxPlugin)(rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_6__.RxDBQueryBuilderPlugin);
+        (0,rxdb__WEBPACK_IMPORTED_MODULE_5__.addRxPlugin)(rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_7__.RxDBMigrationSchemaPlugin);
+        (0,rxdb__WEBPACK_IMPORTED_MODULE_5__.addRxPlugin)(rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_8__.RxDBUpdatePlugin);
+        console.log('[DB][Init Step 1] Plugins added');
+      
 
         if (!isDbInitialized) {
-        db = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_8__.createRxDatabase)({
-            name: 'tabagentdb',
-            storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)()
-        }), 10000);
-            initLogger.debug('Main database instance created', { name: db.name });
+            console.log('[DB][Init Step 2] About to create main database');
+            db = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_9__.createRxDatabase)({
+                name: 'tabagentdb',
+                storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)()
+            }), 10000);
+            console.log('[DB][Init Step 2] Main database instance created', { name: db.name });
 
-            const chatCollections = await db.addCollections({
-            chatHistory: {
-                schema: chatHistorySchema
+            console.log('[DB][Init Step 3] About to add chat collections');
+            try {
+                const chatCollections = await db.addCollections({
+                    chatHistory: {
+                        schema: chatHistorySchema
+                    }
+                });
+                chatHistoryCollection = chatCollections.chatHistory;
+                console.log('[DB][Init Step 3] Chat history collection initialized');
+                isDbInitialized = true;
+             
+            } catch (e) {
+                console.error('[DB][Init Step 3] Error adding chat collections:', e);
+                throw e;
             }
-        });
-            chatHistoryCollection = chatCollections.chatHistory;
-        initLogger.debug('Chat history collection initialized');
-            isDbInitialized = true;
         } else {
-             initLogger.info('Main database already initialized');
+            console.log('[DB][Init Step 2/3] Main database and chat collections already initialized');
         }
-        
-        if (!isLogDbInitialized) {
-            logDbInstance = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_8__.createRxDatabase)({
-                 name: 'tabagent_logs_db',
-                 storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)()
-             }), 10000);
-             initLogger.debug('Log database instance created', { name: logDbInstance.name });
 
+        // Step 4: Log DB
+        console.log('[DB][Init Step 4] Checking if log DB needs to be initialized:', isLogDbInitialized);
+        if (!isLogDbInitialized) {
+            console.log('[DB][Init Step 4] About to create log database');
+            try {
+                logDbInstance = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_9__.createRxDatabase)({
+                    name: 'tabagent_logs_db',
+                    storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)()
+                }), 10000);
+                console.log('[DB][Init Step 4] Log database instance created', { name: logDbInstance.name });
+            } catch (e) {
+                console.error('[DB][Init Step 4] Error creating log database:', e);
+                throw e;
+            }
+
+            console.log('[DB][Init Step 5] About to add log collections');
             const logCollections = await logDbInstance.addCollections({
                 logs: {
                     schema: logSchema
                 }
             });
             logsCollection = logCollections.logs;
-            initLogger.debug('Logs collection initialized');
+            console.log('[DB][Init Step 5] Logs collection initialized');
             isLogDbInitialized = true;
+            console.log('[DB] After Step 5, before subscriptions');
+          
         } else {
-            initLogger.info('Log database already initialized');
+            console.log('[DB][Init Step 4/5] Log database and log collections already initialized');
         }
 
-        if (isDbInitialized && isLogDbInitialized) {
-            const currentSubscriptions = (typeof _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus?.getSubscriptions === 'function') 
-                ? _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.getSubscriptions() 
-                : {}; 
-            const chatEventNames = [
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_CREATE_SESSION_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_SESSION_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_ADD_MESSAGE_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_UPDATE_MESSAGE_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_DELETE_MESSAGE_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_UPDATE_STATUS_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_TOGGLE_STAR_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_ALL_SESSIONS_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_STARRED_SESSIONS_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_DELETE_SESSION_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_RENAME_SESSION_REQUEST
-             ];
-             const needChatSubscription = chatEventNames.some(name => !currentSubscriptions[name]);
-            
-             if (needChatSubscription) {
-                 const chatSubscriptions = [
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_CREATE_SESSION_REQUEST, handler: handleDbCreateSessionRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_SESSION_REQUEST, handler: handleDbGetSessionRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_ADD_MESSAGE_REQUEST, handler: handleDbAddMessageRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_UPDATE_MESSAGE_REQUEST, handler: handleDbUpdateMessageRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_DELETE_MESSAGE_REQUEST, handler: handleDbDeleteMessageRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_UPDATE_STATUS_REQUEST, handler: handleDbUpdateStatusRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_TOGGLE_STAR_REQUEST, handler: handleDbToggleStarRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_ALL_SESSIONS_REQUEST, handler: handleDbGetAllSessionsRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_STARRED_SESSIONS_REQUEST, handler: handleDbGetStarredSessionsRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_DELETE_SESSION_REQUEST, handler: handleDbDeleteSessionRequest },
-            { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_RENAME_SESSION_REQUEST, handler: handleDbRenameSessionRequest }
+        console.log('[DB] Before getting currentSubscriptions');
+       
+        const currentSubscriptions = (typeof _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus?.getSubscriptions === 'function') 
+            ? _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.getSubscriptions() 
+            : {}; 
+        console.log('[DB] After getting currentSubscriptions', currentSubscriptions);
+
+       
+
+        const chatEventNames = [
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CREATE_SESSION_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_SESSION_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_MESSAGE_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_MESSAGE_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_STATUS_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_TOGGLE_STAR_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_SESSION_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_RENAME_SESSION_REQUEST
         ];
-                 chatSubscriptions.forEach(({ event, handler }) => _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(event, handler));
-                 initLogger.debug('Chat event bus subscriptions complete', { count: chatSubscriptions.length });
-             } else {
-                 initLogger.debug('Chat event bus subscriptions already exist.');
-             }
+        console.log('[DB][DEBUG] Before checking needChatSubscription');
 
-            const logEventNames = [
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_ADD_LOG_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_LOGS_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_UNIQUE_LOG_VALUES_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_CLEAR_LOGS_REQUEST,
-                 _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST
-             ];
-             const needLogSubscription = logEventNames.some(name => !currentSubscriptions[name]);
+       
 
-             if (needLogSubscription) {
-                 const logSubscriptions = [
-                     { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_ADD_LOG_REQUEST, handler: handleDbAddLogRequest },
-                     { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_LOGS_REQUEST, handler: handleDbGetLogsRequest },
-                     { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_UNIQUE_LOG_VALUES_REQUEST, handler: handleDbGetUniqueLogValuesRequest },
-                     { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_CLEAR_LOGS_REQUEST, handler: handleDbClearLogsRequest },
-                     { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
-                 ];
-                 logSubscriptions.forEach(({ event, handler }) => _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(event, handler));
-                 initLogger.info('Subscribed to Log Database events', { count: logSubscriptions.length });
-             } else {
-                 initLogger.info('Log Database event subscriptions already exist.');
-             }
-
-        dbReadyResolve(true);
-            initLogger.info('Initialization complete for both databases');
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_INITIALIZATION_COMPLETE_NOTIFICATION, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification({ success: true }));
+        const needChatSubscription = chatEventNames.some(name => !currentSubscriptions[name]);
+        if (needChatSubscription) {
+            const chatSubscriptions = [
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CREATE_SESSION_REQUEST, handler: handleDbCreateSessionRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_SESSION_REQUEST, handler: handleDbGetSessionRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_MESSAGE_REQUEST, handler: handleDbAddMessageRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST, handler: handleDbUpdateMessageRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_MESSAGE_REQUEST, handler: handleDbDeleteMessageRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_STATUS_REQUEST, handler: handleDbUpdateStatusRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_TOGGLE_STAR_REQUEST, handler: handleDbToggleStarRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST, handler: handleDbGetAllSessionsRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST, handler: handleDbGetStarredSessionsRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_SESSION_REQUEST, handler: handleDbDeleteSessionRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_RENAME_SESSION_REQUEST, handler: handleDbRenameSessionRequest }
+            ];
+            chatSubscriptions.forEach(({ event, handler }) => _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(event, handler));
+            console.log('[DB] Chat event bus subscriptions complete', { count: chatSubscriptions.length });
         } else {
-            initLogger.warn('Initialization partially complete, something went wrong.');
+            console.log('[DB] Chat event bus subscriptions already exist.');
         }
+        console.log('[DB][DEBUG] After chat event bus subscriptions');
 
-        if (isDbInitialized && isLogDbInitialized) {
-            setTimeout(async () => {
-                initLogger.info('Running startup log pruning (delayed)...');
-                initLogger.debug('Current/Previous IDs for pruning', { current: currentExtensionSessionId, previous: previousExtensionSessionId });
-                try {
-                     const currentId = currentExtensionSessionId;
-                     const previousId = previousExtensionSessionId; 
+       
 
-                     if (!currentId) {
-                         initLogger.warn('Cannot prune logs, currentExtensionSessionId is not set!');
-                     } else {
-                         initLogger.debug('Attempting to get all unique log session IDs...');
-                         const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
-                         initLogger.debug('Found unique log session IDs in DB', { ids: allLogSessionIds });
-                         
-                         const sessionsToKeep = new Set();
-                         sessionsToKeep.add(currentId);
-                         if (previousId) sessionsToKeep.add(previousId);
-                         initLogger.debug('Session IDs to keep', { ids: Array.from(sessionsToKeep) });
+        const logEventNames = [
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_LOG_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_LOGS_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CLEAR_LOGS_REQUEST,
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST
+        ];
+        console.log('[DB][DEBUG] Before checking needLogSubscription');
+        const needLogSubscription = logEventNames.some(name => !currentSubscriptions[name]);
+        if (needLogSubscription) {
+            const logSubscriptions = [
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_LOG_REQUEST, handler: handleDbAddLogRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_LOGS_REQUEST, handler: handleDbGetLogsRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST, handler: handleDbGetUniqueLogValuesRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CLEAR_LOGS_REQUEST, handler: handleDbClearLogsRequest },
+                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
+            ];
+            logSubscriptions.forEach(({ event, handler }) => _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(event, handler));
+            console.log('[DB] Subscribed to Log Database events', { count: logSubscriptions.length });
+        } else {
+            console.log('[DB] Log Database event subscriptions already exist.');
+        }
+        console.log('[DB][DEBUG] After log event bus subscriptions');
 
-                         const sessionIdsToDelete = Array.from(allLogSessionIds).filter(id => !sessionsToKeep.has(id));
-                         initLogger.debug('Session IDs to delete', { ids: sessionIdsToDelete });
+        console.log('[DB][DEBUG] Before pruning');
 
-                         if (sessionIdsToDelete.length > 0) {
-                             initLogger.info(`Attempting to clear logs for ${sessionIdsToDelete.length} old session(s).`);
-                             const { deletedCount } = await clearLogsInternal(sessionIdsToDelete);
-                             initLogger.info(`Startup pruning removed ${deletedCount} logs from old session(s).`);
-                         } else {
-                             initLogger.info('No old log sessions found to prune during startup.');
-                         }
-                     }
-                } catch (pruneError) {
-                    console.error('[Database:Initialize] Error during startup log pruning:', pruneError);
+       
+        setTimeout(async () => {
+            console.log('[DB] Running startup log pruning (delayed)...');
+            console.log('[DB] Current/Previous IDs for pruning', { current: currentExtensionSessionId, previous: previousExtensionSessionId });
+            try {
+                const currentId = currentExtensionSessionId;
+                const previousId = previousExtensionSessionId; 
+
+                if (!currentId) {
+                    console.log('[DB] Cannot prune logs, currentExtensionSessionId is not set!');
+                } else {
+                    console.log('[DB] Attempting to get all unique log session IDs...');
+                    const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
+                    console.log('[DB] Found unique log session IDs in DB', { ids: allLogSessionIds });
+                    const sessionsToKeep = new Set();
+                    sessionsToKeep.add(currentId);
+                    if (previousId) sessionsToKeep.add(previousId);
+                    console.log('[DB] Session IDs to keep', { ids: Array.from(sessionsToKeep) });
+                    const sessionIdsToDelete = Array.from(allLogSessionIds).filter(id => !sessionsToKeep.has(id));
+                    console.log('[DB] Session IDs to delete', { ids: sessionIdsToDelete });
+                    if (sessionIdsToDelete.length > 0) {
+                        console.log('[DB] Attempting to clear logs for', sessionIdsToDelete.length, 'old session(s).');
+                        const { deletedCount } = await clearLogsInternal(sessionIdsToDelete);
+                        console.log('[DB] Startup pruning removed', deletedCount, 'logs from old session(s).');
+                    } else {
+                        console.log('[DB] No old log sessions found to prune during startup.');
+                    }
                 }
-            }, 100); 
-        }
+            } catch (pruneError) {
+                console.error('[DB] Error during startup log pruning:', pruneError);
+            }
+            console.log('[DB][DEBUG] After pruning');
+        }, 100);
 
+        console.log('[DB][DEBUG] Before setting isDbReadyFlag and resolving dbReadyPromise');
+       
+        isDbReadyFlag = true;
+        console.log('[DB] About to resolve dbReadyPromise with value: true (init complete)');
+        dbReadyResolve(true);
+        console.log('[DB] dbReadyPromise resolved (init complete)');
+        return { success: true };
     } catch (error) {
-        console.error("[Database:Initialize] Entered CATCH block for init error.");
-        console.error("[Database:Initialize] Raw Error Name:", error?.name);
-        console.error("[Database:Initialize] Raw Error Message:", error?.message);
-        console.error("[Database:Initialize] CAUGHT RAW ERROR OBJECT during init:", error); 
+        console.error("[DB] Entered CATCH block for init error.");
+        console.error("[DB] Raw Error Name:", error?.name);
+        console.error("[DB] Raw Error Message:", error?.message);
+        console.error("[DB] CAUGHT RAW ERROR OBJECT during init:", error); 
 
         const appError = error instanceof AppError ? error : new AppError('INIT_FAILED', 'Database initialization failed', { originalError: error });
-        initLogger.error('Initialization failed', { error: appError, details: error }); 
-
-        if (RESET_DB_ON_ERROR) {
-            try {
-                await resetDatabase();
-                initLogger.info('Attempting reinitialization after reset');
-                await handleInitializeRequest(event); 
-                return;
-            } catch (resetError) {
-                initLogger.error('Reinitialization after reset failed', { error: resetError });
-            }
-        }
-
+        console.error('[DB] Initialization failed', { error: appError, details: error }); 
         isDbInitialized = false;
         isLogDbInitialized = false;
+        isDbReadyFlag = false;
+        console.log('[DB] About to resolve dbReadyPromise with value: false (init error)');
         dbReadyResolve(false); 
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_INITIALIZATION_COMPLETE_NOTIFICATION, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification({ success: false, error: appError }));
+        return { success: false, error: appError.message || String(appError) };
     }
 }
 
@@ -40007,322 +40192,318 @@ function sanitizeInput(input) {
 
 // Internal database operations
 async function createChatSessionInternal(initialMessage) {
-    const opLogger = new Logger('CreateSession');
-    opLogger.debug('Creating new chat session', { initialMessage });
-
-    const collection = await ensureDbReady();
-    if (!initialMessage || !initialMessage.text) {
-        throw new AppError('INVALID_INPUT', 'Initial message with text is required');
-    }
-
+    console.log('[DB] Creating new chat session', { initialMessage });
+    try {
+        const collection = await ensureDbReady();
+        if (!initialMessage || !initialMessage.text) {
+            return { success: false, error: 'Initial message with text is required' };
+        }
         const timestamp = Date.now();
-    const sessionId = crypto.randomUUID();
-    const message = {
+        const sessionId = crypto.randomUUID();
+        const message = {
             ...initialMessage,
-        text: sanitizeInput(initialMessage.text),
+            text: sanitizeInput(initialMessage.text),
             messageId: generateMessageId(sessionId),
-        timestamp: initialMessage.timestamp || timestamp,
-        sender: initialMessage.sender || 'user'
+            timestamp: initialMessage.timestamp || timestamp,
+            sender: initialMessage.sender || 'user'
         };
-    const sessionData = {
+        const sessionData = {
             id: sessionId,
             tabId: null,
-        timestamp,
-        title: sanitizeInput(message.text.substring(0, 30)) + '...',
-        messages: [message],
-        isStarred: false,
-        status: 'idle'
+            timestamp,
+            title: sanitizeInput(message.text.substring(0, 30)) + '...',
+            messages: [message],
+            isStarred: false,
+            status: 'idle'
         };
-
-    opLogger.debug('Inserting session', { sessionId });
-    const newSessionDoc = await withTimeout(collection.insert(sessionData), 3000);
-    opLogger.info('Session created', { sessionId });
-
-    await publishSessionUpdateNotificationInternal(sessionId);
-    return newSessionDoc;
+        console.log('[DB] Inserting session', { sessionId });
+        const newSessionDoc = await withTimeout(collection.insert(sessionData), 3000);
+        await publishSessionUpdateNotificationInternal(sessionId);
+        return { success: true, data: newSessionDoc };
+    } catch (error) {
+        console.error('[DB] Failed to create chat session', { error });
+        return { success: false, error: error.message || String(error) };
+    }
 }
 
 async function getChatSessionByIdInternal(sessionId) {
-    const opLogger = new Logger('GetSession');
-    opLogger.debug('Getting session', { sessionId });
-
-    if (!sessionId) {
-        throw new AppError('INVALID_INPUT', 'Session ID is required');
+    console.log('[DB] Getting session', { sessionId });
+    try {
+        if (!sessionId) {
+            return { success: false, error: 'Session ID is required' };
+        }
+        const collection = await ensureDbReady();
+        const doc = await withTimeout(collection.findOne(sessionId).exec(), 3000);
+        if (!doc) {
+            console.log('[DB] Session not found', { sessionId });
+            return { success: false, error: `Session ${sessionId} not found` };
+        }
+        console.log('[DB] Session retrieved', { sessionId });
+        return { success: true, data: doc };
+    } catch (error) {
+        console.error('[DB] Failed to get session', { sessionId, error });
+        return { success: false, error: error.message || String(error) };
     }
-
-    const collection = await ensureDbReady();
-    const doc = await withTimeout(collection.findOne(sessionId).exec(), 3000);
-    if (!doc) {
-        opLogger.info('Session not found', { sessionId });
-        return null;
-    }
-
-    opLogger.debug('Session retrieved', { sessionId });
-    return doc;
 }
 
 async function addMessageToChatInternal(chatId, messageObject) {
-    const opLogger = new Logger('AddMessage');
-    opLogger.debug('Adding message', { chatId });
-
-    if (!chatId || !messageObject || !messageObject.text) {
-        throw new AppError('INVALID_INPUT', 'Chat ID and message with text are required');
+    console.log('[DB] Adding message', { chatId });
+    try {
+        if (!chatId || !messageObject || !messageObject.text) {
+            return { success: false, error: 'Chat ID and message with text are required' };
         }
-
-    const collection = await ensureDbReady();
-    const chatDoc = await withTimeout(collection.findOne(chatId).exec(), 3000);
+        const collection = await ensureDbReady();
+        const chatDoc = await withTimeout(collection.findOne(chatId).exec(), 3000);
         if (!chatDoc) {
-        throw new AppError('NOT_FOUND', `Chat session ${chatId} not found`);
+            return { success: false, error: `Chat session ${chatId} not found` };
         }
-
         const newMessage = {
             ...messageObject,
-        text: sanitizeInput(messageObject.text),
+            text: sanitizeInput(messageObject.text),
             messageId: messageObject.messageId || generateMessageId(chatId),
             timestamp: messageObject.timestamp || Date.now(),
-        isLoading: messageObject.isLoading ?? false
-    };
-
-    const updatedDoc = await withTimeout(
-        chatDoc.incrementalPatch({ messages: [...chatDoc.messages, newMessage] }),
-        3000
-    );
-    opLogger.info('Message added', { chatId, messageId: newMessage.messageId });
-
-    return { updatedDoc, newMessageId: newMessage.messageId };
+            isLoading: messageObject.isLoading ?? false
+        };
+        const updatedDoc = await withTimeout(
+            chatDoc.incrementalPatch({ messages: [...chatDoc.messages, newMessage] }),
+            3000
+        );
+        console.log('[DB] Message added', { chatId, messageId: newMessage.messageId });
+        return { success: true, data: { updatedDoc, newMessageId: newMessage.messageId } };
+    } catch (error) {
+        console.error('[DB] Failed to add message', { chatId, error });
+        return { success: false, error: error.message || String(error) };
+    }
 }
 
 async function updateMessageInChatInternal(chatId, messageId, updates) {
-    const opLogger = new Logger('UpdateMessage');
-    opLogger.debug('Updating message', { chatId, messageId });
-
-    if (!chatId || !messageId || !updates || !updates.text) {
-        throw new AppError('INVALID_INPUT', 'Chat ID, message ID, and updates with text are required');
+    console.log('[DB] Updating message', { chatId, messageId });
+    try {
+        if (!chatId || !messageId || !updates || !updates.text) {
+            return { success: false, error: 'Chat ID, message ID, and updates with text are required' };
         }
-
-    const collection = await ensureDbReady();
-    const chatDoc = await withTimeout(collection.findOne(chatId).exec(), 3000);
+        const collection = await ensureDbReady();
+        const chatDoc = await withTimeout(collection.findOne(chatId).exec(), 3000);
         if (!chatDoc) {
-        throw new AppError('NOT_FOUND', `Chat session ${chatId} not found`);
+            return { success: false, error: `Chat session ${chatId} not found` };
         }
-
-    let messageFound = false;
-    const updatedDoc = await withTimeout(
-        chatDoc.incrementalModify((docData) => {
-            const messageIndex = docData.messages.findIndex(m => m.messageId === messageId);
-            if (messageIndex === -1) return docData;
-            messageFound = true;
+        let messageFound = false;
+        const updatedDoc = await withTimeout(
+            chatDoc.incrementalModify((docData) => {
+                const messageIndex = docData.messages.findIndex(m => m.messageId === messageId);
+                if (messageIndex === -1) return docData;
+                messageFound = true;
                 const currentMessage = docData.messages[messageIndex];
-            docData.messages[messageIndex] = {
-                ...currentMessage,
-                ...updates,
-                text: sanitizeInput(updates.text),
-                messageId: currentMessage.messageId
-            };
-            return docData;
-        }),
-        3000
-    );
-
-    if (!messageFound) {
-        throw new AppError('NOT_FOUND', `Message ${messageId} not found in chat ${chatId}`);
-    }
-
-    opLogger.info('Message updated', { chatId, messageId });
-    await publishSessionUpdateNotificationInternal(chatId);
-    return updatedDoc;
+                docData.messages[messageIndex] = {
+                    ...currentMessage,
+                    ...updates,
+                    text: sanitizeInput(updates.text),
+                    messageId: currentMessage.messageId
+                };
+                return docData;
+            }),
+            3000
+        );
+        if (!messageFound) {
+            return { success: false, error: `Message ${messageId} not found in chat ${chatId}` };
         }
-        
+        console.log('[DB] Message updated', { chatId, messageId });
+        await publishSessionUpdateNotificationInternal(chatId);
+        return { success: true, data: updatedDoc };
+    } catch (error) {
+        console.error('[DB] Failed to update message', { chatId, messageId, error });
+        return { success: false, error: error.message || String(error) };
+    }
+}
+
 async function deleteMessageFromChatInternal(sessionId, messageId) {
-    const opLogger = new Logger('DeleteMessage');
-    opLogger.debug('Deleting message', { sessionId, messageId });
-
-    if (!sessionId || !messageId) {
-        throw new AppError('INVALID_INPUT', 'Session ID and message ID are required');
+    console.log('[DB] Deleting message', { sessionId, messageId });
+    try {
+        if (!sessionId || !messageId) {
+            return { success: false, error: 'Session ID and message ID are required' };
+        }
+        const collection = await ensureDbReady();
+        const sessionDoc = await withTimeout(collection.findOne(sessionId).exec(), 3000);
+        if (!sessionDoc) {
+            return { success: false, error: `Session ${sessionId} not found` };
+        }
+        const initialLength = sessionDoc.messages.length;
+        const updatedMessages = sessionDoc.messages.filter(msg => msg.messageId !== messageId);
+        if (updatedMessages.length === initialLength) {
+            console.log('[DB] Message not found', { sessionId, messageId });
+            return { success: false, error: `Message ${messageId} not found in session ${sessionId}` };
+        }
+        const updatedDoc = await withTimeout(
+            sessionDoc.incrementalPatch({ messages: updatedMessages }),
+            3000
+        );
+        console.log('[DB] Message deleted', { sessionId, messageId });
+        await publishSessionUpdateNotificationInternal(sessionId);
+        return { success: true, data: { updatedDoc, deleted: true } };
+    } catch (error) {
+        console.error('[DB] Failed to delete message', { sessionId, messageId, error });
+        return { success: false, error: error.message || String(error) };
     }
-
-    const collection = await ensureDbReady();
-    const sessionDoc = await withTimeout(collection.findOne(sessionId).exec(), 3000);
-    if (!sessionDoc) {
-        throw new AppError('NOT_FOUND', `Session ${sessionId} not found`);
-    }
-
-    const initialLength = sessionDoc.messages.length;
-    const updatedMessages = sessionDoc.messages.filter(msg => msg.messageId !== messageId);
-    if (updatedMessages.length === initialLength) {
-        opLogger.info('Message not found', { sessionId, messageId });
-        return { updatedDoc: sessionDoc, deleted: false };
-    }
-
-    const updatedDoc = await withTimeout(
-        sessionDoc.incrementalPatch({ messages: updatedMessages }),
-        3000
-    );
-    opLogger.info('Message deleted', { sessionId, messageId });
-
-    await publishSessionUpdateNotificationInternal(sessionId);
-    return { updatedDoc, deleted: true };
 }
 
 async function updateSessionStatusInternal(sessionId, newStatus) {
-    const opLogger = new Logger('UpdateStatus');
-    opLogger.debug('Updating status', { sessionId, newStatus });
-
-    const validStatuses = ['idle', 'processing', 'complete', 'error'];
-    if (!sessionId || !validStatuses.includes(newStatus)) {
-        throw new AppError('INVALID_INPUT', `Invalid session ID or status: ${newStatus}`);
+    console.log('[DB] Updating status', { sessionId, newStatus });
+    try {
+        const validStatuses = ['idle', 'processing', 'complete', 'error'];
+        if (!sessionId || !validStatuses.includes(newStatus)) {
+            return { success: false, error: `Invalid session ID or status: ${newStatus}` };
         }
-
-    const collection = await ensureDbReady();
-    const chatDoc = await withTimeout(collection.findOne(sessionId).exec(), 3000);
-    if (!chatDoc) {
-        throw new AppError('NOT_FOUND', `Session ${sessionId} not found`);
+        const collection = await ensureDbReady();
+        const chatDoc = await withTimeout(collection.findOne(sessionId).exec(), 3000);
+        if (!chatDoc) {
+            return { success: false, error: `Session ${sessionId} not found` };
+        }
+        const updatedDoc = await withTimeout(
+            chatDoc.incrementalPatch({ status: newStatus }),
+            3000
+        );
+        console.log('[DB] Status updated', { sessionId, newStatus });
+        await publishSessionUpdateNotificationInternal(sessionId);
+        return { success: true, data: updatedDoc };
+    } catch (error) {
+        console.error('[DB] Failed to update status', { sessionId, newStatus, error });
+        return { success: false, error: error.message || String(error) };
     }
-
-    const updatedDoc = await withTimeout(
-        chatDoc.incrementalPatch({ status: newStatus }),
-        3000
-    );
-    opLogger.info('Status updated', { sessionId, newStatus });
-
-    await publishSessionUpdateNotificationInternal(sessionId);
-    return updatedDoc;
 }
 
 async function toggleItemStarredInternal(itemId) {
-    const opLogger = new Logger('ToggleStar');
-    opLogger.debug('Toggling starred status', { itemId });
-
-    if (!itemId) {
-        throw new AppError('INVALID_INPUT', 'Item ID is required');
-    }
-
-    const collection = await ensureDbReady();
-    const entryDoc = await withTimeout(collection.findOne(itemId).exec(), 3000);
+    console.log('[DB] Toggling starred status', { itemId });
+    try {
+        if (!itemId) {
+            return { success: false, error: 'Item ID is required' };
+        }
+        const collection = await ensureDbReady();
+        const entryDoc = await withTimeout(collection.findOne(itemId).exec(), 3000);
         if (!entryDoc) {
-        throw new AppError('NOT_FOUND', `Item ${itemId} not found`);
+            return { success: false, error: `Item ${itemId} not found` };
+        }
+        const currentStarredStatus = entryDoc.get('isStarred') || false;
+        const updatedDoc = await withTimeout(
+            entryDoc.incrementalPatch({ isStarred: !currentStarredStatus }),
+            3000
+        );
+        console.log('[DB] Starred status toggled', { itemId, isStarred: !currentStarredStatus });
+        await publishSessionUpdateNotificationInternal(itemId);
+        return { success: true, data: updatedDoc };
+    } catch (error) {
+        console.error('[DB] Failed to toggle starred status', { itemId, error });
+        return { success: false, error: error.message || String(error) };
     }
-
-    const currentStarredStatus = entryDoc.get('isStarred') || false;
-    const updatedDoc = await withTimeout(
-        entryDoc.incrementalPatch({ isStarred: !currentStarredStatus }),
-        3000
-    );
-    opLogger.info('Starred status toggled', { itemId, isStarred: !currentStarredStatus });
-
-    await publishSessionUpdateNotificationInternal(itemId);
-    return updatedDoc;
 }
 
 async function deleteHistoryItemInternal(itemId) {
-    const opLogger = new Logger('DeleteHistory');
-    opLogger.debug('Deleting history item', { itemId });
-
-    if (!itemId) {
-        throw new AppError('INVALID_INPUT', 'Item ID is required');
+    console.log('[DB] Deleting history item', { itemId });
+    try {
+        if (!itemId) {
+            return { success: false, error: 'Item ID is required' };
+        }
+        const collection = await ensureDbReady();
+        const entryDoc = await withTimeout(collection.findOne(itemId).exec(), 3000);
+        if (!entryDoc) {
+            console.log('[DB] Item not found', { itemId });
+            return { success: false, error: `Item ${itemId} not found` };
+        }
+        await withTimeout(entryDoc.remove(), 3000);
+        console.log('[DB] Item deleted', { itemId });
+        await publishSessionUpdateNotificationInternal(itemId);
+        return { success: true, data: true };
+    } catch (error) {
+        console.error('[DB] Failed to delete history item', { itemId, error });
+        return { success: false, error: error.message || String(error) };
     }
-
-    const collection = await ensureDbReady();
-    const entryDoc = await withTimeout(collection.findOne(itemId).exec(), 3000);
-    if (!entryDoc) {
-        opLogger.info('Item not found', { itemId });
-        return false;
-    }
-
-    await withTimeout(entryDoc.remove(), 3000);
-    opLogger.info('Item deleted', { itemId });
-
-    await publishSessionUpdateNotificationInternal(itemId);
-    return true;
 }
 
 async function renameHistoryItemInternal(itemId, newTitle) {
-    const opLogger = new Logger('RenameHistory');
-    opLogger.debug('Renaming history item', { itemId, newTitle });
-
-    if (!itemId || !newTitle) {
-        throw new AppError('INVALID_INPUT', 'Item ID and new title are required');
+    console.log('[DB] Renaming history item', { itemId, newTitle });
+    try {
+        if (!itemId || !newTitle) {
+            return { success: false, error: 'Item ID and new title are required' };
         }
-
-    const collection = await ensureDbReady();
-    const entryDoc = await withTimeout(collection.findOne(itemId).exec(), 3000);
-    if (!entryDoc) {
-        throw new AppError('NOT_FOUND', `Item ${itemId} not found`);
+        const collection = await ensureDbReady();
+        const entryDoc = await withTimeout(collection.findOne(itemId).exec(), 3000);
+        if (!entryDoc) {
+            return { success: false, error: `Item ${itemId} not found` };
+        }
+        const updatedDoc = await withTimeout(
+            entryDoc.incrementalPatch({ title: sanitizeInput(newTitle) }),
+            3000
+        );
+        console.log('[DB] Item renamed', { itemId, newTitle });
+        await publishSessionUpdateNotificationInternal(itemId);
+        return { success: true, data: updatedDoc };
+    } catch (error) {
+        console.error('[DB] Failed to rename history item', { itemId, newTitle, error });
+        return { success: false, error: error.message || String(error) };
     }
-
-    const updatedDoc = await withTimeout(
-        entryDoc.incrementalPatch({ title: sanitizeInput(newTitle) }),
-        3000
-    );
-    opLogger.info('Item renamed', { itemId, newTitle });
-
-    await publishSessionUpdateNotificationInternal(itemId);
-    return updatedDoc;
 }
 
 async function getAllSessionsInternal() {
-    const opLogger = new Logger('GetAllSessions');
-    opLogger.debug('Getting all sessions');
-
-    const collection = await ensureDbReady();
-    const sessionsDocs = await withTimeout(
-        collection.find().sort({ timestamp: 'desc' }).exec(),
-        5000
-    );
-    
-    const plainSessions = sessionsDocs.map(doc => doc.toJSON());
-
-    opLogger.info('Retrieved sessions', { count: plainSessions.length });
-
-    return plainSessions; 
+    console.log('[DB] Getting all sessions');
+    try {
+        const collection = await ensureDbReady();
+        const sessionsDocs = await withTimeout(
+            collection.find().sort({ timestamp: 'desc' }).exec(),
+            5000
+        );
+        const plainSessions = sessionsDocs.map(doc => doc.toJSON());
+        console.log('[DB] Retrieved sessions', { count: plainSessions.length });
+        return { success: true, data: plainSessions };
+    } catch (error) {
+        console.error('[DB] Failed to get all sessions', { error });
+        return { success: false, error: error.message || String(error) };
+    }
 }
 
 async function getStarredSessionsInternal() {
-    const opLogger = new Logger('GetStarredSessions');
-    opLogger.debug('Getting starred sessions');
-
-    const collection = await ensureDbReady();
-    const sessions = await withTimeout(
-        collection.find({ selector: { isStarred: true } }).sort({ timestamp: 'desc' }).exec(),
-        5000
-    );
-    opLogger.info('Retrieved starred sessions', { count: sessions.length });
-
-    return sessions;
+    console.log('[DB] Getting starred sessions');
+    try {
+        const collection = await ensureDbReady();
+        const sessions = await withTimeout(
+            collection.find({ selector: { isStarred: true } }).sort({ timestamp: 'desc' }).exec(),
+            5000
+        );
+        console.log('[DB] Retrieved starred sessions', { count: sessions.length });
+        return { success: true, data: sessions };
+    } catch (error) {
+        console.error('[DB] Failed to get starred sessions', { error });
+        return { success: false, error: error.message || String(error) };
     }
-
+}
 
 async function publishSessionUpdateNotificationInternal(sessionId, updateType = 'update') { 
-    const opLogger = new Logger('SessionUpdate');
-    opLogger.debug(`Attempting to publish session update for ${sessionId}, type: ${updateType}`);
+    console.log('[DB] Attempting to publish session update for ' + sessionId + ', type: ' + updateType);
     try {
         await ensureDbReady();
 
         const updatedSessionDoc = await getChatSessionByIdInternal(sessionId);
 
         if (!updatedSessionDoc) {
-            opLogger.error('Session not found after update, cannot publish notification', { sessionId });
+            console.error('[DB] Session not found after update, cannot publish notification', { sessionId });
             return; 
         }
 
         const updatedSessionData = updatedSessionDoc.toJSON ? updatedSessionDoc.toJSON() : updatedSessionDoc;
         
-        opLogger.info(`Publishing session update notification for ${sessionId}`); 
+        console.log('[DB] Publishing session update notification for ' + sessionId); 
         
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_SESSION_UPDATED_NOTIFICATION, 
-            new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification(sessionId, updatedSessionData, updateType)
+            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION, 
+            new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification(sessionId, updatedSessionData, updateType)
         );
-        opLogger.debug('Session update published', { sessionId, updateType });
+        console.log('[DB] Session update published', { sessionId, updateType });
     } catch (error) {
-        opLogger.error('Failed to publish session update', { sessionId, error });
+        console.error('[DB] Failed to publish session update', { sessionId, error });
     }
 }
 
 async function handleDbCreateSessionRequest(event) {
-    const opLogger = new Logger('CreateSessionHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling session creation', { requestId });
+    console.log('[DB] Handling session creation', { requestId });
 
     try {
         if (!event?.requestId || !event?.payload?.initialMessage || !event.payload.initialMessage.text) {
@@ -40336,36 +40517,35 @@ async function handleDbCreateSessionRequest(event) {
 
         await withTimeout(Promise.all([
             _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(newSessionDoc.id, newSessionDoc.messages)
+                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
+                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(newSessionDoc.id, newSessionDoc.messages)
             ),
             _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_STATUS_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(newSessionDoc.id, newSessionDoc.status)
+                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
+                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(newSessionDoc.id, newSessionDoc.status)
             )
         ]), 3000);
 
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionResponse(requestId, true, newSessionDoc.id);
-        console.log(`[Database:${opLogger.module}] PRE-PUBLISH Check (Success Path): ReqID ${requestId}, Response Success: ${response?.success}, Response Type: ${response?.type}`);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionResponse(requestId, true, newSessionDoc.id);
+        console.log('[DB] PRE-PUBLISH Check (Success Path): ReqID ' + requestId + ', Response Success: ' + response?.success + ', Response Type: ' + response?.type);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Session created successfully', { requestId, sessionId: newSessionDoc.id });
+        console.log('[DB] Session created successfully', { requestId, sessionId: newSessionDoc.id });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to create session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionResponse(requestId, false, null, appError);
-        console.log(`[Database:${opLogger.module}] PRE-PUBLISH Check (Error Path): ReqID ${requestId}, Response Success: ${response?.success}, Response Type: ${response?.type}`);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionResponse(requestId, false, null, appError);
+        console.log('[DB] PRE-PUBLISH Check (Error Path): ReqID ' + requestId + ', Response Success: ' + response?.success + ', Response Type: ' + response?.type);
         try {
              await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         } catch (publishError) {
-             opLogger.error('FATAL: Failed even to publish error response!', { requestId, publishError });
+             console.error('[DB] FATAL: Failed even to publish error response!', { requestId, publishError });
         }
-        opLogger.error('Session creation failed', { requestId, error: appError });
+        console.error('[DB] Session creation failed', { requestId, error: appError });
     }
 }
 
 async function handleDbGetSessionRequest(event) {
-    const opLogger = new Logger('GetSessionHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling get session', { requestId });
+    console.log('[DB] Handling get session', { requestId });
 
     try {
         if (!event?.payload?.sessionId) {
@@ -40373,21 +40553,20 @@ async function handleDbGetSessionRequest(event) {
         }
 
         const doc = await withTimeout(getChatSessionByIdInternal(event.payload.sessionId), 5000);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionResponse(requestId, true, doc ? doc.toJSON() : null);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionResponse(requestId, true, doc ? doc.toJSON() : null);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Session retrieved', { requestId, sessionId: event.payload.sessionId });
+        console.log('[DB] Session retrieved', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Get session failed', { requestId, error: appError });
+        console.error('[DB] Get session failed', { requestId, error: appError });
     }
 }
 
 async function handleDbAddMessageRequest(event) {
-    const opLogger = new Logger('AddMessageHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling add message', { requestId });
+    console.log('[DB] Handling add message', { requestId });
 
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageObject || !event.payload.messageObject.text) {
@@ -40402,27 +40581,26 @@ async function handleDbAddMessageRequest(event) {
         const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m); // Ensure plain messages
         await withTimeout(
             _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(updatedDoc.id, plainMessages)
+                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
+                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(updatedDoc.id, plainMessages)
             ),
             3000
         );
 
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageResponse(requestId, true, newMessageId);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageResponse(requestId, true, newMessageId);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Message added', { requestId, sessionId: event.payload.sessionId, messageId: newMessageId });
+        console.log('[DB] Message added', { requestId, sessionId: event.payload.sessionId, messageId: newMessageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to add message', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Add message failed', { requestId, error: appError });
+        console.error('[DB] Add message failed', { requestId, error: appError });
     }
 }
 
 async function handleDbUpdateMessageRequest(event) {
-    const opLogger = new Logger('UpdateMessageHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling update message', { requestId });
+    console.log('[DB] Handling update message', { requestId });
 
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageId || !event?.payload?.updates || !event.payload.updates.text) {
@@ -40435,26 +40613,25 @@ async function handleDbUpdateMessageRequest(event) {
         );
         await withTimeout(
             _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
+                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
+                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
             ),
             3000
         );
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageResponse(requestId, true);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Message updated', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
+        console.log('[DB] Message updated', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to update message', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageResponse(requestId, false, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Update message failed', { requestId, error: appError });
+        console.error('[DB] Update message failed', { requestId, error: appError });
     }
 }
 
 async function handleDbDeleteMessageRequest(event) {
-    const opLogger = new Logger('DeleteMessageHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling delete message', { requestId });
+    console.log('[DB] Handling delete message', { requestId });
 
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageId) {
@@ -40468,27 +40645,26 @@ async function handleDbDeleteMessageRequest(event) {
         if (deleted) {
             await withTimeout(
                 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                    _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_MESSAGES_UPDATED_NOTIFICATION,
-                    new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
+                    _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
+                    new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
                 ),
                 3000
             );
         }
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageResponse(requestId, true);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Message deleted', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
+        console.log('[DB] Message deleted', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to delete message', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageResponse(requestId, false, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Delete message failed', { requestId, error: appError });
+        console.error('[DB] Delete message failed', { requestId, error: appError });
     }
 }
 
 async function handleDbUpdateStatusRequest(event) {
-    const opLogger = new Logger('UpdateStatusHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling update status', { requestId });
+    console.log('[DB] Handling update status', { requestId });
 
     try {
         if (!event?.payload?.sessionId || !event?.payload?.status) {
@@ -40501,37 +40677,36 @@ async function handleDbUpdateStatusRequest(event) {
         );
         await withTimeout(
             _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_STATUS_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(updatedDoc.id, updatedDoc.status)
+                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
+                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(updatedDoc.id, updatedDoc.status)
             ),
             3000
         );
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusResponse(requestId, true);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Status updated', { requestId, sessionId: event.payload.sessionId, status: event.payload.status });
+        console.log('[DB] Status updated', { requestId, sessionId: event.payload.sessionId, status: event.payload.status });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to update status', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusResponse(requestId, false, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Update status failed', { requestId, error: appError });
+        console.error('[DB] Update status failed', { requestId, error: appError });
     try {
             await withTimeout(
                 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                    _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_STATUS_UPDATED_NOTIFICATION,
-                    new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(event.payload.sessionId, 'error')
+                    _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
+                    new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(event.payload.sessionId, 'error')
                 ),
                 3000
             );
         } catch (notificationError) {
-            opLogger.error('Failed to publish error status notification', { requestId, error: notificationError });
+            console.error('Failed to publish error status notification', { requestId, error: notificationError });
         }
     }
 }
 
 async function handleDbToggleStarRequest(event) {
-    const opLogger = new Logger('ToggleStarHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling toggle star', { requestId });
+    console.log('[DB] Handling toggle star', { requestId });
 
     try {
         if (!event?.payload?.sessionId) {
@@ -40539,43 +40714,41 @@ async function handleDbToggleStarRequest(event) {
         }
 
         const updatedDoc = await withTimeout(toggleItemStarredInternal(event.payload.sessionId), 5000);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarResponse(requestId, true, updatedDoc.toJSON());
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarResponse(requestId, true, updatedDoc.toJSON());
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Star toggled', { requestId, sessionId: event.payload.sessionId });
+        console.log('[DB] Star toggled', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to toggle star', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Toggle star failed', { requestId, error: appError });
+        console.error('[DB] Toggle star failed', { requestId, error: appError });
     }
 }
 
 async function handleDbGetAllSessionsRequest(event) {
-    const opLogger = new Logger('GetAllSessionsHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling get all sessions', { requestId });
+    console.log('[DB] Handling get all sessions', { requestId });
 
     try {
         const sessionsRaw = await withTimeout(getAllSessionsInternal(), 5000);        
         const sortedSessions = sessionsRaw.sort((a, b) => b.timestamp - a.timestamp); 
 
-        opLogger.debug('Using plain sessions directly', { count: sortedSessions.length });
+        console.log('Using plain sessions directly', { count: sortedSessions.length });
         
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsResponse(requestId, true, sortedSessions);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsResponse(requestId, true, sortedSessions);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Sessions retrieved', { requestId, count: sortedSessions.length });
+        console.log('[DB] Sessions retrieved', { requestId, count: sortedSessions.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get all sessions', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Get all sessions failed', { requestId, error: appError });
+        console.error('[DB] Get all sessions failed', { requestId, error: appError });
     }
 }
 
 async function handleDbGetStarredSessionsRequest(event) {
-    const opLogger = new Logger('GetStarredSessionsHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling get starred sessions', { requestId });
+    console.log('[DB] Handling get starred sessions', { requestId });
 
     try {
         const sessionsRaw = await withTimeout(getStarredSessionsInternal(), 5000);
@@ -40586,22 +40759,21 @@ async function handleDbGetStarredSessionsRequest(event) {
             isStarred: s.isStarred
         })).sort((a, b) => b.lastUpdated - a.lastUpdated);
 
-        opLogger.debug('Retrieved starred sessions', { count: starredSessions.length });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsResponse(requestId, true, starredSessions);
+        console.log('Retrieved starred sessions', { count: starredSessions.length });
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsResponse(requestId, true, starredSessions);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Starred sessions retrieved', { requestId, count: starredSessions.length });
+        console.log('[DB] Starred sessions retrieved', { requestId, count: starredSessions.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get starred sessions', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Get starred sessions failed', { requestId, error: appError });
+        console.error('[DB] Get starred sessions failed', { requestId, error: appError });
     }
 }
 
 async function handleDbDeleteSessionRequest(event) {
-    const opLogger = new Logger('DeleteSessionHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling delete session', { requestId });
+    console.log('[DB] Handling delete session', { requestId });
 
     try {
         if (!event?.payload?.sessionId) {
@@ -40609,21 +40781,20 @@ async function handleDbDeleteSessionRequest(event) {
         }
 
         const deleted = await withTimeout(deleteHistoryItemInternal(event.payload.sessionId), 5000);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionResponse(requestId, true);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Session deleted', { requestId, sessionId: event.payload.sessionId });
+        console.log('[DB] Session deleted', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to delete session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionResponse(requestId, false, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Delete session failed', { requestId, error: appError });
+        console.error('[DB] Delete session failed', { requestId, error: appError });
     }
 }
 
 async function handleDbRenameSessionRequest(event) {
-    const opLogger = new Logger('RenameSessionHandler');
     const requestId = event?.requestId || crypto.randomUUID();
-    opLogger.info('Handling rename session', { requestId });
+    console.log('[DB] Handling rename session', { requestId });
 
     try {
         if (!event?.payload?.sessionId || !event?.payload?.newName) {
@@ -40634,20 +40805,19 @@ async function handleDbRenameSessionRequest(event) {
             renameHistoryItemInternal(event.payload.sessionId, event.payload.newName),
             5000
         );
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionResponse(requestId, true);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.info('Session renamed', { requestId, sessionId: event.payload.sessionId });
+        console.log('[DB] Session renamed', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to rename session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionResponse(requestId, false, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
-        opLogger.error('Rename session failed', { requestId, error: appError });
+        console.error('[DB] Rename session failed', { requestId, error: appError });
     }
 }
 
 
 async function handleDbAddLogRequest(event) {
-    const opLogger = new Logger('AddLogHandler');
     try {
         if (!event?.payload?.logEntryData) {
             throw new AppError('INVALID_INPUT', 'Missing logEntryData in payload');
@@ -40655,57 +40825,54 @@ async function handleDbAddLogRequest(event) {
         
         const collection = await ensureDbReady('log');
         await withTimeout(collection.insert(event.payload.logEntryData), 3000); 
-        opLogger.debug('Log entry added successfully', { logId: event.payload.logEntryData.id });
+        console.log('Log entry added successfully', { logId: event.payload.logEntryData.id });
 
     } catch (error) {
-        opLogger.error('Failed to handle add log request', { requestId: event?.requestId, error });
+        console.error('Failed to handle add log request', { requestId: event?.requestId, error });
     }
 }
 
 async function handleDbGetLogsRequest(event) {
-    const opLogger = new Logger('GetLogsHandler');
     const requestId = event?.requestId || crypto.randomUUID();
     try {
         if (!event?.payload?.filters) {
             throw new AppError('INVALID_INPUT', 'Missing filters in payload');
         }
         const logs = await getLogsInternal(event.payload.filters);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsResponse(requestId, true, logs);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsResponse(requestId, true, logs);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
-        opLogger.info('Log retrieval successful', { requestId, count: logs.length });
+        console.log('Log retrieval successful', { requestId, count: logs.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get logs', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsResponse(requestId, false, null, appError);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
-        opLogger.error('Get logs failed', { requestId, error: appError });
+        console.error('Get logs failed', { requestId, error: appError });
     }
 }
 
 async function handleDbGetUniqueLogValuesRequest(event) {
-    const opLogger = new Logger('GetUniqueLogValuesHandler');
     const requestId = event?.requestId || crypto.randomUUID();
     try {
         if (!event?.payload?.fieldName) {
             throw new AppError('INVALID_INPUT', 'Missing fieldName in payload');
         }
         const values = await getUniqueLogValuesInternal(event.payload.fieldName);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesResponse(requestId, true, values);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesResponse(requestId, true, values);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
-        opLogger.info('Unique value retrieval successful', { requestId, field: event.payload.fieldName, count: values.length });
+        console.log('Unique value retrieval successful', { requestId, field: event.payload.fieldName, count: values.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get unique log values', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesResponse(requestId, false, null, appError);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
-        opLogger.error('Get unique log values failed', { requestId, error: appError });
+        console.error('Get unique log values failed', { requestId, error: appError });
     }
 }
 
 async function handleDbClearLogsRequest(event) {
-    const opLogger = new Logger('ClearLogsHandler');
     const requestId = event?.requestId || crypto.randomUUID();
     try {
 
-        opLogger.info('ClearLogs request received. Performing pruning of non-current/last sessions.');
+        console.log('ClearLogs request received. Performing pruning of non-current/last sessions.');
         
         const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
         const sessionsToKeep = new Set();
@@ -40715,90 +40882,82 @@ async function handleDbClearLogsRequest(event) {
 
         if (sessionIdsToDelete.length > 0) {
             const { deletedCount } = await clearLogsInternal(sessionIdsToDelete);
-            opLogger.info(`ClearLogs request resulted in pruning ${deletedCount} logs from old sessions.`);
+            console.log('[DB] ClearLogs request resulted in pruning ' + deletedCount + ' logs from old sessions.');
         } else {
-             opLogger.info('ClearLogs request found no old sessions to prune.');
+             console.log('ClearLogs request found no old sessions to prune.');
         }
         
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse(requestId, true);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsResponse(requestId, true);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
         
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to clear logs', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse(requestId, false, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsResponse(requestId, false, appError);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
-        opLogger.error('Clear logs failed', { requestId, error: appError });
+        console.error('Clear logs failed', { requestId, error: appError });
     }
 }
 
 async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
-    const opLogger = new Logger('GetCurrentAndLastIdsHandler');
     const requestId = event?.requestId || crypto.randomUUID();
     try {
         const ids = {
              currentLogSessionId: currentExtensionSessionId,
              previousLogSessionId: previousExtensionSessionId // This might be null if it's the first run
         };
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
-        opLogger.info('Current/Last session ID retrieval successful', { requestId });
+        console.log('Current/Last session ID retrieval successful', { requestId });
     } catch (error) { 
         const appError = new AppError('UNKNOWN', 'Failed to get current/last log session IDs', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
+        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
         await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
-        opLogger.error('Get current/last log session IDs failed', { requestId, error: appError });
+        console.error('Get current/last log session IDs failed', { requestId, error: appError });
     }
 }
 
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DB_INITIALIZE_REQUEST, handleInitializeRequest);
-logger.info('Subscribed to DbInitializeRequest');
-
-
-
 async function getAllUniqueLogSessionIdsInternal() {
-    const opLogger = new Logger('GetUniqueLogSessionIds');
-    opLogger.debug('Starting retrieval of unique session IDs...');
-    const collection = await ensureDbReady('log');
-    opLogger.debug('Log collection ensured ready.');
-
+    console.log('Starting retrieval of unique session IDs...');
     try {
-        opLogger.debug('Executing find().select(extensionSessionId).exec()...');
+        const collection = await ensureDbReady('log');
+        console.log('Log collection ensured ready.');
         const results = await collection.find().exec();
-        opLogger.debug(`Found ${results.length} log documents.`);
+        console.log('Found ' + results.length + ' log documents.');
         
         const uniqueIds = new Set(results.map(doc => doc.get('extensionSessionId')));
-        opLogger.debug('Unique session IDs calculated', { count: uniqueIds.size });
-        return uniqueIds; 
+        console.log('Unique session IDs calculated', { count: uniqueIds.size });
+        return { success: true, data: uniqueIds };
     } catch (error) {
-        opLogger.error('Error during find().select().exec() for unique session IDs', { error });
-        throw new AppError('DB_QUERY_FAILED', 'Failed to retrieve unique log session IDs', { originalError: error });
+        console.error('Error during find().select().exec() for unique session IDs', { error });
+        return { success: false, error: error.message || String(error) };
     }
 }
 
 
 async function clearLogsInternal(sessionIdsToDelete) {
-    const opLogger = new Logger('ClearLogs');
-    opLogger.info('ClearLogs request received. Performing pruning of non-current/last sessions.');
+    console.log('ClearLogs request received. Performing pruning of non-current/last sessions.');
     
     const collection = await ensureDbReady('log');
-    opLogger.debug('Log collection ensured ready.');
+    console.log('Log collection ensured ready.');
 
     const results = await collection.find().exec();
-    opLogger.debug(`Found ${results.length} log documents.`);
+    console.log('Found ' + results.length + ' log documents.');
     
     const filteredResults = results.filter(doc => {
         const sessionId = doc.get('extensionSessionId');
         return sessionId && !sessionIdsToDelete.includes(sessionId);
     });
 
-    opLogger.debug(`Filtered results count: ${filteredResults.length}`);
+    console.log('Filtered results count: ' + filteredResults.length);
     const deletedCount = filteredResults.length;
     await withTimeout(collection.bulkRemove(filteredResults), 3000);
-    opLogger.info(`ClearLogs request resulted in pruning ${deletedCount} logs from old sessions.`);
+    console.log('ClearLogs request resulted in pruning ' + deletedCount + ' logs from old sessions.');
 
-    return { deletedCount };
+    return { success: true, data: { deletedCount } };
 }
+
+
 
 /***/ })
 
@@ -40895,14 +41054,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _minimaldb_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./minimaldb.js */ "./src/minimaldb.js");
 /* harmony import */ var _log_client_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./log-client.js */ "./src/log-client.js");
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
 
  // Static import for service worker compatibility
-
-const OFFSCREEN_DOCUMENT_PATH_SCRAPING = 'scrapingOffscreen.html';
 const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
-
 
 
 
@@ -40910,7 +41065,6 @@ const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
 
 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.init('Background');
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.DB_INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbInitializeRequest());
 
 let detachedPopups = {};
 let popupIdToTabId = {};
@@ -40918,7 +41072,7 @@ let popupIdToTabId = {};
 const DNR_RULE_ID_1 = 1;
 const DNR_RULE_PRIORITY_1 = 1;
 
-let modelWorkerState = 'uninitialized';
+let modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.UNINITIALIZED;
 let workerScriptReadyPromise = null;
 let workerScriptReadyResolver = null;
 let workerScriptReadyRejecter = null;
@@ -40933,13 +41087,22 @@ let previousLogSessionId = null;
 
 let lastLoggedProgress = -10;
 
+
 // Log Session Management
 async function initializeSessionIds() {
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Initializing log session IDs...');
+    let { currentLogSessionId: storedCurrentId, previousLogSessionId: storedPreviousId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
+    if (storedCurrentId) {
+        // Already initialized for this session
+        currentLogSessionId = storedCurrentId;
+        previousLogSessionId = storedPreviousId || null;
+        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Current log session ID (already set):', currentLogSessionId);
+        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Previous log session ID (already set):', previousLogSessionId);
+        return;
+    }
+    // Not set yet, so generate new
     currentLogSessionId = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Current log session ID:', currentLogSessionId);
+    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Current log session ID (new):', currentLogSessionId);
     await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ currentLogSessionId: currentLogSessionId });
-    const { previousLogSessionId: storedPreviousId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get('previousLogSessionId');
     previousLogSessionId = storedPreviousId || null;
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Previous log session ID found in storage:', previousLogSessionId);
     await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ previousLogSessionId: currentLogSessionId });
@@ -40972,7 +41135,7 @@ async function setupModelWorkerOffscreenDocument() {
 
 async function sendToModelWorkerOffscreen(message) {
     if (message.type !== 'init' && message.type !== 'generate' && message.type !== 'interrupt' && message.type !== 'reset') {
-        if (modelWorkerState === 'uninitialized' || !(await hasModelWorkerOffscreenDocument())) {
+        if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.UNINITIALIZED || !(await hasModelWorkerOffscreenDocument())) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Background: Ensuring model worker offscreen doc potentially exists before sending ${message?.type}`);
             await setupModelWorkerOffscreenDocument();
         }
@@ -40983,7 +41146,7 @@ async function sendToModelWorkerOffscreen(message) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logDebug(`Background: Worker script confirmed ready. Proceeding to send ${message.type}.`);
         } catch (error) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Background: Worker script failed to become ready. Cannot send ${message.type}. Error:`, error);
-            modelWorkerState = 'error';
+            modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
             throw new Error(`Worker script failed to initialize, cannot send ${message.type}.`);
         }
     }
@@ -41004,11 +41167,11 @@ async function sendToModelWorkerOffscreen(message) {
         }
     } catch (error) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Background: Error sending message type '${message?.type}' to offscreen:`, error);
-        modelWorkerState = 'error';
+        modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
         if (message.type === 'init') {
             if (modelLoadRejecter) modelLoadRejecter(new Error(`Failed to send init message: ${error.message}`));
             modelLoadPromise = null;
-        } else if (workerScriptReadyRejecter && (modelWorkerState === 'uninitialized' || modelWorkerState === 'creating_worker')) {
+        } else if (workerScriptReadyRejecter && (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.UNINITIALIZED || modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.CREATING_WORKER)) {
             workerScriptReadyRejecter(new Error(`Failed to send message early: ${error.message}`));
             workerScriptReadyPromise = null;
         }
@@ -41018,8 +41181,8 @@ async function sendToModelWorkerOffscreen(message) {
 
 function ensureWorkerScriptIsReady() {
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logDebug(`[ensureWorkerScriptIsReady] Current state: ${modelWorkerState}`);
-    if (modelWorkerState !== 'uninitialized' && modelWorkerState !== 'creating_worker') {
-        if (modelWorkerState === 'error' && !workerScriptReadyPromise) {
+    if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.UNINITIALIZED && modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.CREATING_WORKER) {
+        if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR && !workerScriptReadyPromise) {
             return Promise.reject(new Error("Worker script initialization previously failed."));
         }
         return Promise.resolve();
@@ -41029,14 +41192,14 @@ function ensureWorkerScriptIsReady() {
     }
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logDebug("[ensureWorkerScriptIsReady] Worker script not ready. Initializing and creating promise.");
-    modelWorkerState = 'creating_worker';
+    modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.CREATING_WORKER;
     workerScriptReadyPromise = new Promise((resolve, reject) => {
         workerScriptReadyResolver = resolve;
         workerScriptReadyRejecter = reject;
 
         setupModelWorkerOffscreenDocument().catch(err => {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("[ensureWorkerScriptIsReady] Error setting up offscreen doc:", err);
-            modelWorkerState = 'error';
+            modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
             if (workerScriptReadyRejecter) workerScriptReadyRejecter(err);
             workerScriptReadyPromise = null;
         });
@@ -41044,10 +41207,10 @@ function ensureWorkerScriptIsReady() {
 
     const scriptLoadTimeout = 30000;
     setTimeout(() => {
-        if (modelWorkerState === 'creating_worker' && workerScriptReadyRejecter) {
+        if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.CREATING_WORKER && workerScriptReadyRejecter) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`[ensureWorkerScriptIsReady] Timeout (${scriptLoadTimeout}ms) waiting for workerScriptReady.`);
             workerScriptReadyRejecter(new Error('Timeout waiting for model worker script to load.'));
-            modelWorkerState = 'error';
+            modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
             workerScriptReadyPromise = null;
         }
     }, scriptLoadTimeout);
@@ -41065,7 +41228,7 @@ async function loadModel(modelId) {
         throw new Error(`Failed to ensure worker script readiness: ${err.message}`);
     }
 
-    if (modelWorkerState !== 'worker_script_ready' && modelWorkerState !== 'idle' && modelWorkerState !== 'error') {
+    if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.WORKER_SCRIPT_READY && modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.IDLE && modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR) {
         const errorMsg = `Cannot load model '${modelId}'. Worker state is '${modelWorkerState}', expected 'worker_script_ready', 'idle', or 'error'.`;
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("State check failed loading model:", errorMsg);
         throw new Error(errorMsg);
@@ -41075,21 +41238,21 @@ async function loadModel(modelId) {
         return Promise.reject(new Error("Cannot load model: Model ID not provided."));
     }
 
-    if (modelWorkerState === 'model_ready') {
+    if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Model appears ready. Assuming it's ${modelId}.`);
         return Promise.resolve();
     }
-    if (modelWorkerState === 'loading_model' && modelLoadPromise) {
+    if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL && modelLoadPromise) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Model is already loading. Assuming it's ${modelId}.`);
         return modelLoadPromise;
     }
-    if (modelWorkerState !== 'worker_script_ready') {
+    if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.WORKER_SCRIPT_READY) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Cannot load model. Worker script is not ready. State:", modelWorkerState);
         return Promise.reject(new Error(`Cannot load model, worker script not ready (state: ${modelWorkerState})`));
     }
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Worker script ready. Initiating load for model: ${modelId}.`);
-    modelWorkerState = 'loading_model';
+    modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL;
     // TODO: Store the modelId being loaded
     modelLoadPromise = new Promise((resolve, reject) => {
         modelLoadResolver = resolve;
@@ -41099,7 +41262,7 @@ async function loadModel(modelId) {
         sendToModelWorkerOffscreen({ type: 'init', payload: { modelId: modelId } })
             .catch(err => {
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Failed to send 'init' message for ${modelId}:`, err);
-                modelWorkerState = 'error';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
                 if (modelLoadRejecter) modelLoadRejecter(err);
                 modelLoadPromise = null;
             });
@@ -41107,10 +41270,10 @@ async function loadModel(modelId) {
 
     const modelLoadTimeout = 300000;
     setTimeout(() => {
-        if (modelWorkerState === 'loading_model' && modelLoadRejecter) {
+        if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Timeout (${modelLoadTimeout}ms) waiting for model ${modelId} load completion.`);
             modelLoadRejecter(new Error(`Timeout waiting for model ${modelId} to load.`));
-            modelWorkerState = 'error';
+            modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
             modelLoadPromise = null;
         }
     }, modelLoadTimeout);
@@ -41186,90 +41349,7 @@ async function setupOffscreenDocument(path, reasons, justification) {
 }
 
 // Scraping Logic
-async function scrapeUrlWithOffscreenIframe(url) {
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Stage 3] Attempting Offscreen + iframe: ${url}`);
-    const DYNAMIC_SCRIPT_ID_PREFIX = 'offscreen-scrape-';
-    const DYNAMIC_SCRIPT_MESSAGE_TYPE = 'offscreenIframeResult';
-    const IFRAME_LOAD_TIMEOUT = 30000;
-    let dynamicScripterId = null;
 
-    const cleanup = async (scriptIdBase) => {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Stage 3 Cleanup] Starting cleanup for script ID base: ${scriptIdBase}`);
-        if (scriptIdBase) {
-            try {
-                await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().scripting.unregisterContentScripts({ ids: [scriptIdBase] });
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Stage 3 Cleanup] Unregistered script: ${scriptIdBase}`);
-            } catch (error) {
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Stage 3 Cleanup] Failed to unregister script ${scriptIdBase}:`, error);
-            }
-        }
-        try {
-            await cleanupOffscreen(OFFSCREEN_DOCUMENT_PATH_SCRAPING);
-            _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Stage 3 Cleanup] Sent removeIframe request to offscreen.');
-        } catch (error) {
-            _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn('[Stage 3 Cleanup] Failed to send removeIframe request: ', error);
-        }
-    };
-
-    try {
-        await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH_SCRAPING, [(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().offscreen).Reason.DOM_PARSER, (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().offscreen).Reason.IFRAME_SCRIPTING], 'Parse HTML content and manage scraping iframes');
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Stage 3] Sending createIframe request to offscreen...');
-        const createResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-            type: 'createIframe',
-            target: 'offscreen',
-            url: url
-        });
-        if (!createResponse?.success) {
-            throw new Error(`Failed to create iframe in offscreen: ${createResponse?.error || 'Unknown error'}`);
-        }
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Stage 3] Iframe creation request successful. Waiting for load and script...');
-        dynamicScripterId = `${DYNAMIC_SCRIPT_ID_PREFIX}${Date.now()}`;
-        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().scripting.registerContentScripts([{
-            id: dynamicScripterId,
-            js: ['pageExtractor.js', 'stage2Helper.js'],
-            matches: [url],
-            runAt: 'document_idle',
-            world: 'ISOLATED',
-            allFrames: true,
-            persistAcrossSessions: false
-        }]);
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Stage 3] Registered dynamic script(s): ${dynamicScripterId} (files: pageExtractor.js, stage2Helper.js)`);
-        let messageListener = null;
-        const scriptResponsePromise = new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Stage 3] Timeout (${IFRAME_LOAD_TIMEOUT / 1000}s) waiting for response from dynamic script.`);
-                if (messageListener) {
-                    webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.removeListener(messageListener);
-                }
-                reject(new Error('Timeout waiting for dynamic script response.'));
-            }, IFRAME_LOAD_TIMEOUT);
-
-            messageListener = (message, sender, sendResponse) => {
-                if (message?.type === DYNAMIC_SCRIPT_MESSAGE_TYPE) {
-                    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Stage 3] Received response from dynamic script:', message.payload);
-                    clearTimeout(timeoutId);
-                    webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.removeListener(messageListener);
-                    if (message.payload?.success) {
-                        resolve(message.payload);
-                    } else {
-                        reject(new Error(message.payload?.error || 'Dynamic script reported failure.'));
-                    }
-                    return false;
-                }
-                return false;
-            };
-            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener(messageListener);
-            _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Stage 3] Listener added for dynamic script response.');
-        });
-        const resultPayload = await scriptResponsePromise;
-        await cleanup(dynamicScripterId);
-        return resultPayload;
-    } catch (error) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`[Stage 3] Error during Offscreen + iframe process:`, error);
-        await cleanup(dynamicScripterId);
-        throw new Error(`Stage 3 (Offscreen + iframe) failed: ${error.message}`);
-    }
-}
 
 async function scrapeUrlWithTempTabExecuteScript(url) {
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Stage 1 (ExecuteScript)] Attempting Temp Tab + executeScript: ${url}`);
@@ -41397,22 +41477,15 @@ async function scrapeUrlMultiStage(url, chatId, messageId) {
                 ...executeScriptResult
             };
             sendStageResult(stage1SuccessPayload);
-            return; // Stop after successful Stage 1
+            return; 
         } catch (stage1Error) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Orchestrator Log] Stage 1 (Temp Tab + executeScript) Failed for ${url}: ${stage1Error.message}`);
             sendStageResult({ stage: 1, success: false, chatId: chatId, messageId: messageId, method: 'tempTabExecuteScript', error: stage1Error.message });
-            // Do not proceed to other stages if Stage 1 fails, as per new plan
             return; 
         }
 
-        // All other stages (2, 3, 4) have been removed.
-        // If Stage 1 fails, the orchestrator will have already returned.
-        // This part of the code should ideally not be reached if Stage 1 was the only one.
-        // However, to be safe and explicit:
-        logClient.logInfo("[Orchestrator Log] No successful scraping stage completed (should have exited after Stage 1 attempt).");
 
     } finally {
-        // No specific cleanup for scraping stages needed here anymore.
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Scraping Orchestrator] Finished processing for ${url}.`);
     }
 }
@@ -41461,12 +41534,8 @@ async function fetchDriveFileList(token, folderId = 'root') {
     return data.files || [];
 }
 
-async function fetchDriveFileContent(token, fileId) {
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`Background: fetchDriveFileContent not implemented yet for fileId: ${fileId}`);
-    return `(Content fetch not implemented for ${fileId})`;
-}
 
-// Message Forwarding
+
 async function forwardMessageToSidePanelOrPopup(message, originalSender) {
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Attempting to forward message type '${message?.type}' from worker.`);
     for (const tabId in detachedPopups) {
@@ -41497,16 +41566,14 @@ async function forwardMessageToSidePanelOrPopup(message, originalSender) {
     }
 }
 
-// Extension Lifecycle Listeners
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled.addListener(async (details) => {
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('onInstalled event fired. Reason:', details.reason);
     await initializeSessionIds();
-
+    await _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.autoEnsureDbInitialized();
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().sidePanel
         .setPanelBehavior({ openPanelOnActionClick: true })
         .catch((error) => _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError('Error setting side panel behavior:', error));
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Side panel behavior set.');
-
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get().then((items) => {
         const keysToRemove = Object.keys(items).filter(key => key.startsWith('detachedState_'));
         if (keysToRemove.length > 0) {
@@ -41519,10 +41586,6 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled
     }).catch(err => {
          _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError('Error getting storage items for cleanup:', err);
     });
-
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Triggering DB Initialization from onInstalled.');
-    _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.DB_INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbInitializeRequest());
-
     ensureWorkerScriptIsReady().catch(err => {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Initial worker script readiness check failed after install:", err);
     });
@@ -41531,11 +41594,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onStartup.addListener(async () => {
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('onStartup event fired.');
     await initializeSessionIds();
-
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Triggering DB Initialization from onStartup (may be redundant).');
-    _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.DB_INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbInitializeRequest());
-
-    if (modelWorkerState === 'uninitialized') {
+    await _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.autoEnsureDbInitialized();
+    if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.UNINITIALIZED) {
         ensureWorkerScriptIsReady().catch(err => {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Worker script readiness check failed on startup:", err);
         });
@@ -41596,39 +41656,28 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.onRemoved.a
 
 // Message Handling
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('[Background] Received message:', message, 'type:', message?.type);
     const { type, payload } = message;
     let isResponseAsync = false;
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Received message type '${type}' from`, sender.tab ? `tab ${sender.tab.id}` : sender.url || sender.id);
 
-    const workerMessageTypes = [
-        'workerScriptReady',
-        'workerReady',
-        'loadingStatus',
-        'generationStatus',
-        'generationUpdate',
-        'generationComplete',
-        'generationError',
-        'resetComplete',
-        'error'
-    ];
-
-    if (workerMessageTypes.includes(type)) {
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames).includes(type)) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Handling message from worker: ${type}`);
         let uiUpdatePayload = null;
         switch (type) {
-            case 'workerScriptReady':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.WORKER_SCRIPT_READY:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker SCRIPT is ready!");
-                modelWorkerState = 'worker_script_ready';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.WORKER_SCRIPT_READY;
                 if (workerScriptReadyResolver) {
                     workerScriptReadyResolver();
                     workerScriptReadyPromise = null;
                 }
                 uiUpdatePayload = { modelStatus: 'script_ready' };
                 break;
-            case 'workerReady':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.WORKER_READY:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker MODEL is ready! Model:", payload?.model);
-                modelWorkerState = 'model_ready';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
                 if (modelLoadResolver) {
                     modelLoadResolver();
                     modelLoadPromise = null;
@@ -41639,7 +41688,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                     workerScriptReadyPromise = null;
                 }
                 break;
-            case 'loadingStatus':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.LOADING_STATUS:
                 if (payload?.status === 'progress' && payload?.progress) {
                     const currentProgress = Math.floor(payload.progress);
                     if (currentProgress >= lastLoggedProgress + 10) {
@@ -41650,47 +41699,47 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker loading status (other):", payload);
                     lastLoggedProgress = -10;
                 }
-                if (modelWorkerState !== 'loading_model') {
+                if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL) {
                     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Background] Received loadingStatus in unexpected state: ${modelWorkerState}`);
-                    modelWorkerState = 'loading_model';
+                    modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL;
                 }
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: 'uiLoadingStatusUpdate', payload: payload }).catch(err => {
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, payload: payload }).catch(err => {
                     if (err.message !== "Could not establish connection. Receiving end does not exist.") {
                         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn("[Background] Error sending loading status to UI:", err.message);
                     }
                 });
                 break;
-            case 'generationStatus':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_STATUS:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background] Generation status: ${payload?.status}`);
-                if (payload?.status === 'generating') modelWorkerState = 'generating';
-                else if (payload?.status === 'interrupted') modelWorkerState = 'model_ready';
+                if (payload?.status === 'generating') modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING;
+                else if (payload?.status === 'interrupted') modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
                 break;
-            case 'generationUpdate':
-                if (modelWorkerState !== 'generating') {
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_UPDATE:
+                if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING) {
                     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Background] Received generationUpdate in unexpected state: ${modelWorkerState}`);
                 }
-                modelWorkerState = 'generating';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING;
                 break;
-            case 'generationComplete':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_COMPLETE:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Generation complete.");
-                modelWorkerState = 'model_ready';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
                 break;
-            case 'generationError':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_ERROR:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("[Background] Generation error from worker:", payload);
-                modelWorkerState = 'error';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
                 break;
-            case 'resetComplete':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.RESET_COMPLETE:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker reset complete.");
-                modelWorkerState = 'model_ready';
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
                 break;
-            case 'error':
+            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.ERROR:
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("[Background] Received generic error from worker/offscreen:", payload);
                 const previousState = modelWorkerState;
-                modelWorkerState = 'error';
-                if (previousState === 'creating_worker' && workerScriptReadyRejecter) {
+                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
+                if (previousState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.CREATING_WORKER && workerScriptReadyRejecter) {
                     workerScriptReadyRejecter(new Error(payload || 'Generic error during script init'));
                     workerScriptReadyPromise = null;
-                } else if (previousState === 'loading_model' && modelLoadRejecter) {
+                } else if (previousState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
                     modelLoadRejecter(new Error(payload || 'Generic error during model load'));
                     modelLoadPromise = null;
                 }
@@ -41703,7 +41752,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
             webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.query({}).then(tabs => {
                 tabs.forEach(tab => {
                     if (tab.id) {
-                        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(tab.id, { type: 'uiUpdate', payload: uiUpdatePayload })
+                        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(tab.id, { type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload: uiUpdatePayload })
                             .catch(err => { 
                                 if (!err.message.includes('Could not establish connection') && !err.message.includes('Receiving end does not exist')) {
                                      _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Background] Error sending uiUpdate to tab ${tab.id}:`, err.message);
@@ -41720,7 +41769,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return false;
     }
 
-    if (type === 'loadModel') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.LOAD_MODEL) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Received 'loadModel' request from sender:`, sender);
         const modelId = payload?.modelId;
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Received 'loadModel' request from UI for model: ${modelId}.`);
@@ -41743,12 +41792,12 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'sendChatMessage') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
         isResponseAsync = true;
         const { chatId, messages, options, messageId } = payload;
         const correlationId = messageId || chatId;
 
-        if (modelWorkerState !== 'model_ready') {
+        if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY) {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Cannot send chat message. Model state is ${modelWorkerState}, not 'model_ready'.`);
             sendResponse({ success: false, error: `Model not ready (state: ${modelWorkerState}). Please load a model first.` });
             return false;
@@ -41772,14 +41821,14 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         })
         .catch(error => {
             _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Error processing sendChatMessage for ${correlationId}:`, error);
-            if (modelWorkerState === 'generating') modelWorkerState = 'model_ready';
+            if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING) modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
             sendResponse({ success: false, error: error.message });
         });
 
         return isResponseAsync;
     }
 
-    if (type === 'interruptGeneration') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Received interrupt request from UI.");
         ensureWorkerScriptIsReady()
             .then(() => sendToModelWorkerOffscreen({ type: 'interrupt' }))
@@ -41789,7 +41838,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'resetWorker') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.RESET_WORKER) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Received reset request from UI.");
         ensureWorkerScriptIsReady()
             .then(() => sendToModelWorkerOffscreen({ type: 'reset' }))
@@ -41799,13 +41848,13 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'getModelWorkerState') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Handling 'getModelWorkerState' request. Current state: ${modelWorkerState}`);
         sendResponse({ success: true, state: modelWorkerState });
         return false;
     }
 
-    if (type === 'scrapeRequest') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.SCRAPE_REQUEST) {
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Handling 'scrapeRequest' request. Scraping URL: ${payload?.url}`);
         isResponseAsync = true;
         scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId)
@@ -41820,7 +41869,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'getDriveFileList') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST) {
         const receivedFolderId = message.folderId;
         _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Handling 'getDriveFileList' for folder: ${receivedFolderId}`);
         isResponseAsync = true;
@@ -41833,13 +41882,13 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                 // Send file list via separate sendMessage
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Background] Sending driveFileListData...');
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                    type: 'driveFileListData',
+                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DriveMessageTypes.DRIVE_FILE_LIST_DATA,
                     success: true,
                     files: files,
                     folderId: receivedFolderId
                 }).catch(err => {
                      _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn('[Background] Failed to send driveFileListData:', err?.message);
-                     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: 'driveFileListData', success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
+                     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DriveMessageTypes.DRIVE_FILE_LIST_DATA, success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
                 });
 
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Background] sendResponse for driveFileListResponse skipped (using separate message).');
@@ -41848,7 +41897,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Error handling getDriveFileList:", error);
                 // Send error via separate message too
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                     type: 'driveFileListData',
+                     type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DriveMessageTypes.DRIVE_FILE_LIST_DATA,
                      success: false,
                      error: error.message,
                      folderId: receivedFolderId
@@ -41861,13 +41910,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type.startsWith('db:')) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logDebug(`Forwarding DB request of type '${type}' to event bus.`);
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.publish(type, message);
-        return false;
-    }
-
-    if (type === 'getLogSessions') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.GET_LOG_SESSIONS) {
         isResponseAsync = true;
         (async () => {
             try {
@@ -41881,7 +41924,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'getLogEntries') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.GET_LOG_ENTRIES) {
         isResponseAsync = true;
         (async () => {
             const sessionId = payload?.sessionId;
@@ -41901,7 +41944,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'detachSidePanel') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.DETACH_SIDE_PANEL) {
         isResponseAsync = true;
         handleDetach(sender.tab?.id).then(result => {
             sendResponse(result);
@@ -41911,7 +41954,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
 
-    if (type === 'getDetachedState') {
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.GET_DETACHED_STATE) {
         isResponseAsync = true;
         (async () => {
             try {
@@ -41922,6 +41965,19 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
             }
         })();
         return isResponseAsync;
+    }
+
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.RuntimeMessageTypes.GET_DB_READY_STATE) {
+        sendResponse({ ready: isDbReady() });
+        return false;
+    }
+
+    // Handle DB events
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DBEventNames).includes(type)) {
+        _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.publish(type, payload)
+            .then(result => sendResponse(result))
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true; // Indicates async response
     }
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`Unhandled message type: ${type}`);

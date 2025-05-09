@@ -6,13 +6,57 @@ import {
     DbSessionUpdatedNotification, 
     DbGetSessionRequest
 } from '../events/dbEvents.js';
-import * as EventNames from '../events/eventNames.js';
+import { DBEventNames } from '../events/eventNames.js';
 
 let chatBodyElement = null;
 let currentSessionId = null;
 let requestDbAndWaitFunc = null;
 let observer = null; // MutationObserver
 const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
+
+function handleMessagesUpdate(notification) {
+    if (!notification || !notification.sessionId || !notification.payload) return;
+    
+    if (notification.sessionId === currentSessionId) {
+        console.log(`[ChatRenderer] Received message update notification for active session ${currentSessionId}. Rendering.`);
+        
+        let messages = notification.payload.messages;
+        if (!Array.isArray(messages)) {
+            if (Array.isArray(notification.payload)) {
+                 console.warn('[ChatRenderer] Payload did not have .messages, using payload directly as array.');
+                 messages = notification.payload;
+            } else {
+                 console.error(`[ChatRenderer] Invalid messages structure: Expected array, got:`, notification.payload);
+                 return;
+            }
+        }
+
+        console.log(`[ChatRenderer] Messages array received:`, JSON.stringify(messages));
+        if (!chatBodyElement) return;
+        chatBodyElement.innerHTML = '';
+        if (messages.length === 0) {
+            console.log(`[ChatRenderer] Active session ${currentSessionId} has no messages. Displaying welcome.`);
+            displayWelcomeMessage();
+        } else {
+            messages.forEach(msg => renderSingleMessage(msg));
+            scrollToBottom();
+        }
+    }
+}
+
+function handleSessionMetadataUpdate(notification) {
+    if (!notification || !notification.sessionId || !notification.payload?.session) return;
+
+    if (notification.sessionId === currentSessionId) {
+        const updatedSessionData = notification.payload.session;
+        console.log(`[ChatRenderer] Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
+        
+        updateChatHeader(updatedSessionData);
+    }
+}
+
+eventBus.subscribe(DBEventNames.MESSAGES_UPDATED_NOTIFICATION, handleMessagesUpdate);
+eventBus.subscribe(DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionMetadataUpdate);
 
 export function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
@@ -26,12 +70,6 @@ export function initializeRenderer(chatBody, requestDbFunc) {
     chatBodyElement = chatBody;
     requestDbAndWaitFunc = requestDbFunc;
     console.log("[ChatRenderer] Initialized with chat body element and DB request function.");
-    eventBus.subscribe(EventNames.DB_MESSAGES_UPDATED_NOTIFICATION, handleMessagesUpdate);
-    console.log("[ChatRenderer] Subscribed to DbMessagesUpdatedNotification.");
-    eventBus.subscribe(EventNames.DB_SESSION_UPDATED_NOTIFICATION, handleSessionMetadataUpdate);
-    console.log("[ChatRenderer] Subscribed to DbSessionUpdatedNotification.");
-
-    // Initialize MutationObserver to apply syntax highlighting
     initializeObserver();
 }
 
@@ -104,47 +142,6 @@ async function loadAndRenderMessages(sessionId) {
         console.error(`[ChatRenderer] Failed to load messages for session ${sessionId}:`, error);
         showError(`Failed to load chat: ${error.message}`);
         if (chatBodyElement) chatBodyElement.innerHTML = `<div class="p-4 text-red-500">Failed to load chat: ${error.message}</div>`;
-    }
-}
-
-function handleMessagesUpdate(notification) {
-    if (!notification || !notification.sessionId || !notification.payload) return;
-    
-    if (notification.sessionId === currentSessionId) {
-        console.log(`[ChatRenderer] Received message update notification for active session ${currentSessionId}. Rendering.`);
-        
-        let messages = notification.payload.messages;
-        if (!Array.isArray(messages)) {
-            if (Array.isArray(notification.payload)) {
-                 console.warn('[ChatRenderer] Payload did not have .messages, using payload directly as array.');
-                 messages = notification.payload;
-            } else {
-                 console.error(`[ChatRenderer] Invalid messages structure: Expected array, got:`, notification.payload);
-                 return;
-            }
-        }
-
-        console.log(`[ChatRenderer] Messages array received:`, JSON.stringify(messages));
-        if (!chatBodyElement) return;
-        chatBodyElement.innerHTML = '';
-        if (messages.length === 0) {
-            console.log(`[ChatRenderer] Active session ${currentSessionId} has no messages. Displaying welcome.`);
-            displayWelcomeMessage();
-        } else {
-            messages.forEach(msg => renderSingleMessage(msg));
-            scrollToBottom();
-        }
-    }
-}
-
-function handleSessionMetadataUpdate(notification) {
-    if (!notification || !notification.sessionId || !notification.payload?.session) return;
-
-    if (notification.sessionId === currentSessionId) {
-        const updatedSessionData = notification.payload.session;
-        console.log(`[ChatRenderer] Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
-        
-        updateChatHeader(updatedSessionData);
     }
 }
 

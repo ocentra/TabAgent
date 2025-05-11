@@ -4,7 +4,7 @@ const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
 
 import * as logClient from './log-client.js';
 import { eventBus } from './eventBus.js';
-import { UIEventNames, WorkerEventNames, ModelWorkerStates, RuntimeMessageTypes, DriveMessageTypes, DBEventNames } from './events/eventNames.js';
+import { UIEventNames, WorkerEventNames, ModelWorkerStates, RuntimeMessageTypes, DBEventNames } from './events/eventNames.js';
 
 logClient.init('Background');
 
@@ -821,33 +821,18 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const token = await getDriveToken();
                 const files = await fetchDriveFileList(token, receivedFolderId);
                 logClient.logInfo(`Successfully fetched ${files?.length || 0} files/folders.`);
-
-                // Send file list via separate sendMessage
-                logClient.logInfo('[Background] Sending driveFileListData...');
-                browser.runtime.sendMessage({
-                    type: DriveMessageTypes.DRIVE_FILE_LIST_DATA,
+                sendResponse({
                     success: true,
                     files: files,
                     folderId: receivedFolderId
-                }).catch(err => {
-                     logClient.logWarn('[Background] Failed to send driveFileListData:', err?.message);
-                     browser.runtime.sendMessage({ type: DriveMessageTypes.DRIVE_FILE_LIST_DATA, success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
                 });
-
-                logClient.logInfo('[Background] sendResponse for driveFileListResponse skipped (using separate message).');
-
             } catch (error) {
                 logClient.logError("Error handling getDriveFileList:", error);
-                // Send error via separate message too
-                browser.runtime.sendMessage({
-                     type: DriveMessageTypes.DRIVE_FILE_LIST_DATA,
-                     success: false,
-                     error: error.message,
-                     folderId: receivedFolderId
-                 }).catch(err => {
-                     logClient.logWarn('[Background] Failed to send driveFileListData error message:', err?.message);
-                 });
-                 logClient.logInfo('[Background] sendResponse for driveFileListResponse error skipped (using separate message).');
+                sendResponse({
+                    success: false,
+                    error: error.message,
+                    folderId: receivedFolderId
+                });
             }
         })();
         return isResponseAsync;
@@ -915,12 +900,9 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false;
     }
 
-    // Handle DB events
     if (Object.values(DBEventNames).includes(type)) {
-        eventBus.publish(type, payload)
-            .then(result => sendResponse(result))
-            .catch(error => sendResponse({ success: false, error: error.message }));
-        return true; // Indicates async response
+       
+        return false;
     }
 
     logClient.logWarn(`Unhandled message type: ${type}`);

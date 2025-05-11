@@ -1248,7 +1248,7 @@ __webpack_require__.r(__webpack_exports__);
 const previewIconSvg = `<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`;
 const trashIconSvg = `<svg class="w-4 h-4 action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 17.8798 20.1818C17.1169 21 15.8356 21 13.2731 21H10.7269C8.16438 21 6.8831 21 6.12019 20.1818C5.35728 19.3671 5.27811 18.0864 5.11973 15.5251L4.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 5.5H21M16.5 5.5L16.1733 3.57923C16.0596 2.8469 15.9989 2.48073 15.8184 2.21449C15.638 1.94825 15.362 1.75019 15.039 1.67153C14.7158 1.59286 14.3501 1.59286 13.6186 1.59286H10.3814C9.64993 1.59286 9.28419 1.59286 8.96099 1.67153C8.63796 1.75019 8.36201 1.94825 8.18156 2.21449C8.00111 2.48073 7.9404 2.8469 7.82672 3.57923L7.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 action-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`;
-const shareIconSvg = `<img src="icons/broken-link-chain-svgrepo-com.svg" alt="Share" class="w-4 h-4 action-icon-img">`; // Keep as img for now
+const shareIconSvg = `<img src="icons/LinkChain.png" alt="Share" class="w-4 h-4 action-icon-img">`;
 
 // --- Helper functions for inline editing UI ---
 
@@ -1579,13 +1579,14 @@ function initializeDiscoverController(/* Pass necessary elements or functions if
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   handleDriveFileListResponse: () => (/* binding */ handleDriveFileListResponse),
 /* harmony export */   initializeDriveController: () => (/* binding */ initializeDriveController)
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
  
+
 
 
 
@@ -1716,17 +1717,29 @@ function fetchAndDisplayViewerFolderContent(folderId) {
     }
 
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-        type: 'getDriveFileList',
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST,
         folderId: folderId
     })
-    .then(() => {
-        console.log(`DriveController: Sent getDriveFileList request for ${folderId}. Waiting for response...`);
+    .then((response) => {
+        isFetchingDriveList = false;
+        if (response && response.success && response.files) {
+            console.log(`[DriveController] Success! Caching and rendering ${response.files.length} files.`);
+            driveFilesCache[folderId] = response.files;
+            renderDriveViewerItems(response.files);
+        } else {
+            const errorMsg = response?.error || 'Unknown error fetching files.';
+            console.error(`[DriveController] Drive file list error for ${folderId}: ${errorMsg}`);
+            showNotificationDep(`Error fetching folder content: ${errorMsg}`, 'error');
+            if (driveViewerList) {
+                driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${errorMsg}</div>`;
+            }
+        }
     })
     .catch((error) => {
-        console.error("DriveController: Error *sending* getDriveFileList message:", error?.message || error);
+        isFetchingDriveList = false;
+        console.error("[DriveController] Error sending getDriveFileList message:", error?.message || error);
         showNotificationDep(`Error contacting background script: ${error?.message || 'Unknown error'}`, 'error');
         if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
-        isFetchingDriveList = false; 
     });
 }
 
@@ -1895,38 +1908,6 @@ function updateHeaderState() {
     }
 }
 
-function handleDriveFileListResponse(message) {
-    console.log(`[DriveController:Handler] Received file list data. Message type: ${message?.type}`);
-
-    if (message.type === 'driveFileListData') {
-        const folderId = message.folderId;
-        console.log(`DriveController: Handling driveFileListData for folder: ${folderId}`);
-        isFetchingDriveList = false;
-
-        console.log(`[DriveController:Handler] Check: isDriveOpen=${isDriveOpen}, message.folderId=${folderId}, currentFolderId=${currentFolderId}`);
-        if (!isDriveOpen || folderId !== currentFolderId) {
-            console.warn(`DriveController: Ignoring driveFileListData for folder ${folderId}. Current: ${currentFolderId}, IsOpen: ${isDriveOpen}`);
-            return;
-        }
-
-        if (message.success && message.files) {
-            console.log(`[DriveController:Handler] Success! Caching and calling renderDriveViewerItems for ${message.files.length} files.`);
-            driveFilesCache[folderId] = message.files;
-            renderDriveViewerItems(message.files);
-            console.log(`[DriveController:Handler] renderDriveViewerItems completed.`);
-        } else {
-            const errorMsg = message.error || 'Unknown error fetching files.';
-            console.error(`DriveController: Drive file list error for ${folderId}: ${errorMsg}`);
-            showNotificationDep(`Error fetching folder content: ${errorMsg}`, 'error');
-            if (driveViewerList) {
-                driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${errorMsg}</div>`;
-            }
-        }
-    } else {
-        console.warn(`[DriveController:Handler] Received unexpected message type: ${message?.type}`);
-    }
-}
-
 function initializeDriveController(dependencies) {
     console.log("Initializing DriveController...");
 
@@ -2013,7 +1994,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
 /* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
 /* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
 // src/Controllers/HistoryPopupController.js
 
 
@@ -2038,13 +2018,13 @@ let currentHistoryItems = [];
 let currentSearchTerm = '';
 
 function handleSessionUpdate(notification) {
-    if (!isInitialized || !notification || !notification.sessionId || !notification.payload) {
+    if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
         console.warn("[HistoryPopupController] Invalid session update notification received.", notification);
         return;
     }
 
     const updatedSessionData = notification.payload.session; 
-    const sessionId = notification.sessionId;
+    const sessionId = updatedSessionData.id;
     const updateType = notification.payload.updateType || 'update'; 
 
     if (!updatedSessionData) {
@@ -2299,7 +2279,7 @@ async function handlePreviewClick(sessionId, contentElement) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_1__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_8__.DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionUpdate);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_1__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type, handleSessionUpdate);
 function initializeHistoryPopup(elements, requestFunc) {
     console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
 
@@ -2363,7 +2343,7 @@ __webpack_require__.r(__webpack_exports__);
  
  
  
-
+ // Adjust path if necessary
 
 let isInitialized = false;
 let starredListElement = null;
@@ -2491,13 +2471,13 @@ async function fetchAndRenderLibrary() {
 }
 
 function handleSessionUpdate(notification) {
-    if (!isInitialized || !notification || !notification.sessionId || !notification.payload) {
+    if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
         console.warn("[LibraryController] Invalid session update notification received.", notification);
         return;
     }
 
     const updatedSessionData = notification.payload.session; 
-    const sessionId = notification.sessionId;
+    const sessionId = updatedSessionData.id;
 
     if (!updatedSessionData) {
          console.warn(`[LibraryController] Session update notification for ${sessionId} missing session data in payload.session.`, notification);
@@ -2547,7 +2527,7 @@ function handleSessionUpdate(notification) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_7__.DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionUpdate);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, handleSessionUpdate);
 
 function renderLibraryList(filter = '') {
     if (!isInitialized || !starredListElement) return;
@@ -2617,7 +2597,7 @@ function initializeLibraryController(elements, requestFunc) {
     requestDbAndWaitFunc = requestFunc;
     console.log("[LibraryController] Elements and request function assigned.");
 
-    _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe('navigation:pageChanged', handleNavigationChange);
+    _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_7__.UIEventNames.NAVIGATION_PAGE_CHANGED, handleNavigationChange);
     console.log("[LibraryController] Subscribed to navigation:pageChanged.");
     isInitialized = true;
     console.log("[LibraryController] Initialization successful. Library will render when activated.");
@@ -2640,13 +2620,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   initializeSettingsController: () => (/* binding */ initializeSettingsController)
 /* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
 // src/Controllers/SettingsController.js
 
-// No imports needed for current logic, but keep in mind for future additions
+
 
 let isInitialized = false;
 
-// Function to update theme toggle button text based on current theme
 const updateThemeButtonText = (button) => {
     if (!button) return;
     const isDarkMode = document.documentElement.classList.contains('dark');
@@ -2660,13 +2641,12 @@ function setupThemeToggle() {
         return;
     }
 
-    // Check if button already exists (e.g., from HMR)
     let themeToggleButton = settingsPageContainer.querySelector('#theme-toggle-button');
 
     if (!themeToggleButton) {
         console.log("[SettingsController] Creating theme toggle button.");
         themeToggleButton = document.createElement('button');
-        themeToggleButton.id = 'theme-toggle-button'; // Give it an ID
+        themeToggleButton.id = 'theme-toggle-button';
         themeToggleButton.className = 'p-2 border rounded bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 mt-4'; // Standard styling
 
         themeToggleButton.onclick = () => {
@@ -2674,7 +2654,6 @@ function setupThemeToggle() {
             const isCurrentlyDark = htmlElement.classList.contains('dark');
             console.log(`[SettingsToggle] Before toggle - isDark: ${isCurrentlyDark}`);
 
-            // Toggle theme
             if (isCurrentlyDark) {
                 htmlElement.classList.remove('dark');
                 localStorage.setItem('theme', 'light');
@@ -2684,34 +2663,28 @@ function setupThemeToggle() {
                 localStorage.setItem('theme', 'dark');
                 console.log(`[SettingsToggle] Added dark class, set localStorage to dark`);
             }
-            updateThemeButtonText(themeToggleButton); // Update text after toggle
+            updateThemeButtonText(themeToggleButton); 
         };
         
-        // Find a place to insert the button, e.g., after the placeholder paragraph
         const placeholderText = settingsPageContainer.querySelector('p');
         if (placeholderText) {
             placeholderText.insertAdjacentElement('afterend', themeToggleButton);
         } else {
-            settingsPageContainer.appendChild(themeToggleButton); // Fallback append
+            settingsPageContainer.appendChild(themeToggleButton);
         }
     } else {
         console.log("[SettingsController] Theme toggle button already exists.");
     }
 
-    // Initial setup for the button text
     updateThemeButtonText(themeToggleButton);
 }
 
-// Helper function to connect a range slider to its value display span
 function setupSlider(sliderId, valueSpanId) {
     const slider = document.getElementById(sliderId);
     const valueSpan = document.getElementById(valueSpanId);
 
     if (slider && valueSpan) {
-        // Set initial value display
         valueSpan.textContent = slider.value;
-
-        // Add event listener to update display on slider change
         slider.addEventListener('input', (event) => {
             valueSpan.textContent = event.target.value;
         });
@@ -2731,46 +2704,39 @@ function initializeSettingsController() {
 
     setupThemeToggle();
     
-    // --- Setup Inference Setting Sliders --- 
     setupSlider('setting-temperature', 'setting-temperature-value');
     setupSlider('setting-repeat-penalty', 'setting-repeat-penalty-value');
     setupSlider('setting-top-p', 'setting-top-p-value');
     setupSlider('setting-min-p', 'setting-min-p-value');
-    // --- End Setup Inference Setting Sliders ---
 
-    // --- Setup Log Management Buttons ---
     const viewLogsButton = document.getElementById('viewLogsButton');
     if (viewLogsButton) {
         viewLogsButton.addEventListener('click', () => {
             console.log('[SettingsController] View Logs button clicked. Opening log viewer popup...');
             try {
-                // Open sidepanel.html with query param for log viewer context
                 const viewerUrl = 'sidepanel.html?view=logs'; 
                 
-                // Use chrome.windows.create for a popup
-                chrome.windows.create({
-                     url: viewerUrl, // Use the modified relative path
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.create({
+                     url: viewerUrl,
                      type: 'popup',
-                     width: 800, // Specify desired width
-                     height: 600 // Specify desired height
+                     width: 800,
+                     height: 600
                  });
             } catch (error) {
                 console.error('[SettingsController] Error opening log viewer popup:', error);
-                // Optionally show an error to the user in the sidepanel UI
+
             }
         });
         console.log('[SettingsController] Added listener to View Logs button.');
     } else {
         console.warn('[SettingsController] View Logs button (viewLogsButton) not found.');
     }
-    // --- End Setup Log Management Buttons ---
 
-    // Add other settings initialization here if needed
 
     isInitialized = true;
     console.log("[SettingsController] Initialized successfully.");
 
-    return {}; // No public methods needed for now
+    return {}; 
 } 
 
 /***/ }),
@@ -2839,7 +2805,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
 /* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
 
 
 
@@ -2853,27 +2818,31 @@ let observer = null; // MutationObserver
 const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
 
 function handleMessagesUpdate(notification) {
-    if (!notification || !notification.sessionId || !notification.payload) return;
+    console.log('[ChatRenderer handleMessagesUpdate] handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
+    if (!notification || !notification.sessionId || !notification.payload) {
+        console.warn('[ChatRenderer][DEBUG] handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
+        return;
+    }
     
     if (notification.sessionId === currentSessionId) {
-        console.log(`[ChatRenderer] Received message update notification for active session ${currentSessionId}. Rendering.`);
+        console.log(`[ChatRenderer handleMessagesUpdate] Received message update notification for active session ${currentSessionId}. Rendering.`);
         
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
             if (Array.isArray(notification.payload)) {
-                 console.warn('[ChatRenderer] Payload did not have .messages, using payload directly as array.');
+                 console.warn('[ChatRenderer handleMessagesUpdate] Payload did not have .messages, using payload directly as array.');
                  messages = notification.payload;
             } else {
-                 console.error(`[ChatRenderer] Invalid messages structure: Expected array, got:`, notification.payload);
+                 console.error(`[ChatRenderer handleMessagesUpdate] Invalid messages structure: Expected array, got:`, notification.payload);
                  return;
             }
         }
 
-        console.log(`[ChatRenderer] Messages array received:`, JSON.stringify(messages));
+        console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
         if (!chatBodyElement) return;
         chatBodyElement.innerHTML = '';
         if (messages.length === 0) {
-            console.log(`[ChatRenderer] Active session ${currentSessionId} has no messages. Displaying welcome.`);
+            console.log(`[ChatRenderer handleMessagesUpdate] Active session ${currentSessionId} has no messages. Displaying welcome.`);
             displayWelcomeMessage();
         } else {
             messages.forEach(msg => renderSingleMessage(msg));
@@ -2893,8 +2862,8 @@ function handleSessionMetadataUpdate(notification) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DBEventNames.MESSAGES_UPDATED_NOTIFICATION, handleMessagesUpdate);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionMetadataUpdate);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbMessagesUpdatedNotification.type, handleMessagesUpdate);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbSessionUpdatedNotification.type, handleSessionMetadataUpdate);
 
 function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
@@ -3464,8 +3433,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeFileHandling: () => (/* binding */ initializeFileHandling)
 /* harmony export */ });
 /* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
-
 
 
 let db = null;
@@ -3515,7 +3482,7 @@ async function handleFileSelected(event) {
 
     try {
         const request = new DbAddMessageRequest(sessionId, fileMessage);
-        eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.ADD_MESSAGE_REQUEST, request);
+        eventBus.publish(DbAddMessageRequest.type, request);
         console.log("[FileHandler] Published DbAddMessageRequest for file attachment.");
 
     } catch (error) {
@@ -3574,20 +3541,24 @@ function requestDbAndWait(requestEvent, timeoutMs = 5000) {
         const { requestId, type: requestType } = requestEvent;
         let timeoutId;
         try {
+            console.log(`[ Orchestrator: requestDbAndWait] Sending DB request: ${requestType} (Req ID: ${requestId})`, requestEvent);
             timeoutId = setTimeout(() => {
-                console.error(`[Orchestrator] DB request timed out for ${requestType} (Req ID: ${requestId})`);
+                console.error(`[ Orchestrator: requestDbAndWait] DB request timed out for ${requestType} (Req ID: ${requestId})`);
                 reject(new Error(`DB request timed out for ${requestType}`));
             }, timeoutMs);
             const resultArr = await _eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.publish(requestEvent.type, requestEvent);
             const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
             clearTimeout(timeoutId);
+            console.log(`[ Orchestrator: requestDbAndWait] Received DB response for ${requestType} (Req ID: ${requestId})`, result);
             if (result && (result.success || result.error === undefined)) {
                 resolve(result.data);
             } else {
+                console.error(`[ Orchestrator: requestDbAndWait] DB request failed for ${requestType} (Req ID: ${requestId})`, result);
                 reject(new Error(result?.error || `DB operation ${requestType} failed`));
             }
         } catch (error) {
             clearTimeout(timeoutId);
+            console.error(`[ Orchestrator: requestDbAndWait] Exception for ${requestType} (Req ID: ${requestId})`, error);
             reject(error);
         }
     });
@@ -3595,9 +3566,9 @@ function requestDbAndWait(requestEvent, timeoutMs = 5000) {
 
 async function handleQuerySubmit(data) {
     const { text } = data;
-    console.log(`Orchestrator: handleQuerySubmit received event with text: "${text}"`);
+    console.log(`[Orchestrator: handleQuerySubmit] received event with text: "${text}"`);
     if (isSendingMessage) {
-        console.warn("Orchestrator: Already processing a previous submission.");
+        console.warn("[Orchestrator handleQuerySubmit]: Already processing a previous submission.");
         return;
     }
     isSendingMessage = true;
@@ -3606,30 +3577,30 @@ async function handleQuerySubmit(data) {
     const currentTabId = getCurrentTabIdFunc();
     let placeholderMessageId = null;
 
-    console.log(`Orchestrator: Processing submission. Text: "${text}". Session: ${sessionId}`);
+    console.log(`[Orchestrator: handleQuerySubmit] Processing submission. Text: "${text}". Session: ${sessionId}`);
     const isURL = _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.URL_REGEX.test(text);
 
     try {
         (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
         const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
         if (!sessionId) {
-            console.log("Orchestrator: No active session, creating new one via event.");
+            console.log("[Orchestrator: handleQuerySubmit] No active session, creating new one via event.");
             const createRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbCreateSessionRequest(userMessage);
             const createResponse = await requestDbAndWait(createRequest);
             sessionId = createResponse.newSessionId;
             if (onSessionCreatedCallback) {
                 onSessionCreatedCallback(sessionId);
             } else {
-                 console.error("Orchestrator: onSessionCreatedCallback is missing!");
+                 console.error("[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!");
                  throw new Error("Configuration error: Cannot notify about new session.");
             }
         } else {
-            console.log(`Orchestrator: Adding user message to existing session ${sessionId} via event.`);
+            console.log(`[Orchestrator: handleQuerySubmit] Adding user message to existing session ${sessionId} via event.`);
             (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
             const addRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, userMessage);
             await requestDbAndWait(addRequest);
         }
-        console.log(`[Orchestrator] Setting session ${sessionId} status to 'processing' via event`);
+        console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'processing' via event`);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'processing');
         await requestDbAndWait(statusRequest);
         let placeholder;
@@ -3646,10 +3617,11 @@ async function handleQuerySubmit(data) {
         } else {
             placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
         }
-        console.log(`[Orchestrator] Adding placeholder to session ${sessionId} via event.`);
+        console.log(`[Orchestrator: handleQuerySubmit] Adding placeholder to session ${sessionId} via event.`);
         const addPlaceholderRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, placeholder);
         const placeholderResponse = await requestDbAndWait(addPlaceholderRequest);
         placeholderMessageId = placeholderResponse.newMessageId;
+        
         if (isURL) {
              const activeTab = await (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.getActiveTab)();
              const activeTabUrl = activeTab?.url;
@@ -3657,20 +3629,20 @@ async function handleQuerySubmit(data) {
              const inputUrlNormalized = normalizeUrl(text);
              const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
             if (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized) {
-                console.log("Orchestrator: Triggering content script scrape.");
+                console.log("[Orchestrator: handleQuerySubmit] Triggering content script scrape.");
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(activeTab.id, { type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.SCRAPE_ACTIVE_TAB }, (response) => {
                     if ((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError) {
-                        console.error('Orchestrator: Error sending SCRAPE_ACTIVE_TAB:', (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message);
+                        console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_ACTIVE_TAB:', (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message);
                         const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
                             isLoading: false, sender: 'error', text: `Failed to send scrape request: ${(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message}`
                         });
                         requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
                         requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
                         isSendingMessage = false;
-                    } else { console.log("Orchestrator: SCRAPE_ACTIVE_TAB message sent."); }
+                    } else { console.log("[Orchestrator: handleQuerySubmit] SCRAPE_ACTIVE_TAB message sent."); }
                 });
             } else {
-                console.log("Orchestrator: Triggering background scrape via scrapeRequest.");
+                console.log("[Orchestrator: handleQuerySubmit] Triggering background scrape via scrapeRequest.");
                 try {
                     // Send the message and await the response (if any, often undefined for one-way messages)
                     const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
@@ -3684,10 +3656,10 @@ async function handleQuerySubmit(data) {
                     // Process response if needed, or just log success if no specific response is expected
                     // For instance, background might not send an explicit response back for this type of message.
                     // If browser.runtime.lastError would have been set, the promise will reject.
-                    console.log("Orchestrator: scrapeRequest message sent successfully.", response);
+                    console.log("[Orchestrator: handleQuerySubmit] scrapeRequest message sent successfully.", response);
 
                 } catch (error) {
-                    console.error('Orchestrator: Error sending scrapeRequest:', error.message);
+                    console.error('[Orchestrator: handleQuerySubmit] Error sending scrapeRequest:', error.message);
                     const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
                          isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
                     });
@@ -3697,7 +3669,7 @@ async function handleQuerySubmit(data) {
                 }
             }
         } else {
-            console.log("Orchestrator: Sending query to background for AI response.");
+            console.log("[Orchestrator: handleQuerySubmit] Sending query to background for AI response.");
             const messagePayload = {
                 type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SEND_CHAT_MESSAGE,
                 payload: {
@@ -3710,9 +3682,9 @@ async function handleQuerySubmit(data) {
             try {
                 const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(messagePayload);
                 if (response && response.success) {
-                    console.log('Orchestrator: Background acknowledged forwarding sendChatMessage. Actual AI response will follow separately.', response);
+                    console.log('[Orchestrator: handleQuerySubmit] Background acknowledged forwarding sendChatMessage. Actual AI response will follow separately.', response);
                 } else {
-                    console.error('Orchestrator: Background reported an error while attempting to forward sendChatMessage:', response?.error);
+                    console.error('[Orchestrator: handleQuerySubmit] Background reported an error while attempting to forward sendChatMessage:', response?.error);
                     const errorPayload = { isLoading: false, sender: 'error', text: `Error forwarding query: ${response?.error || 'Unknown error'}` };
                     const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
                     await requestDbAndWait(errorUpdateRequest); // Can await here too
@@ -3720,7 +3692,7 @@ async function handleQuerySubmit(data) {
                     isSendingMessage = false; // Reset flag if forwarding failed
                 }
             } catch (error) {
-                console.error('Orchestrator: Error sending query to background or processing its direct ack:', error);
+                console.error('[Orchestrator: handleQuerySubmit] Error sending query to background or processing its direct ack:', error);
                 const errorText = error && typeof error.message === 'string' ? error.message : 'Unknown error during send/ack';
                 const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
                 const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
@@ -3730,13 +3702,13 @@ async function handleQuerySubmit(data) {
             }
         }
     } catch (error) {
-        console.error("Orchestrator: Error processing query submission:", error);
+        console.error("[Orchestrator: handleQuerySubmit] Error processing query submission:", error);
         (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error: ${error.message || error}`);
         if (sessionId) {
-            console.log(`[Orchestrator] Setting session ${sessionId} status to 'error' due to processing failure via event`);
+            console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'error' due to processing failure via event`);
             requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on processing error:", e));
         } else {
-            console.error("Orchestrator: Error occurred before session ID was established.");
+            console.error("[Orchestrator: handleQuerySubmit] Error occurred before session ID was established.");
         }
         isSendingMessage = false;
     }
@@ -3744,16 +3716,16 @@ async function handleQuerySubmit(data) {
 
 async function handleBackgroundMsgResponse(message) {
     const { chatId, messageId, text } = message;
-    console.log(`Orchestrator: handleBackgroundMsgResponse for chat ${chatId}, placeholder ${messageId}`);
+    console.log(`[Orchestrator: handleBackgroundMsgResponse] for chat ${chatId}, placeholder ${messageId}`);
     try {
         const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
         const updateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
         await requestDbAndWait(updateRequest);
-        console.log(`[Orchestrator] Setting session ${chatId} status to 'idle' after response via event`);
+        console.log(`[Orchestrator: handleBackgroundMsgResponse] Setting session ${chatId} status to 'idle' after response via event`);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'idle');
         await requestDbAndWait(statusRequest);
     } catch (error) {
-        console.error(`Orchestrator: Error handling background response for chat ${chatId}:`, error);
+        console.error(`[Orchestrator: handleBackgroundMsgResponse] Error handling background response for chat ${chatId}:`, error);
         (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with response: ${error.message || error}`);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
         requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on response processing error:", e));
@@ -3763,35 +3735,35 @@ async function handleBackgroundMsgResponse(message) {
 }
 
 async function handleBackgroundMsgError(message) {
-    console.error(`Orchestrator: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
+    console.error(`[Orchestrator: handleBackgroundMsgError] Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
     (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`); // Show global error regardless
 
     const sessionId = getActiveSessionIdFunc(); // Get current session ID
 
     if (sessionId && message.chatId === sessionId && message.messageId) {
         // Only update DB if the error belongs to the *active* session and has a message ID
-        console.log(`Orchestrator: Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
+        console.log(`[Orchestrator: handleBackgroundMsgError] Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
         const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
         const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error');
         try {
             await requestDbAndWait(errorUpdateRequest);
-            console.log(`Orchestrator: Error message update successful for session ${sessionId}.`);
+            console.log(`[Orchestrator: handleBackgroundMsgError] Error message update successful for session ${sessionId}.`);
             await requestDbAndWait(statusRequest);
-            console.log(`Orchestrator: Session ${sessionId} status set to 'error'.`);
+            console.log(`[Orchestrator: handleBackgroundMsgError] Session ${sessionId} status set to 'error'.`);
         } catch (dbError) {
-            console.error('Orchestrator: Error updating chat/status on background error:', dbError);
+            console.error('[Orchestrator: handleBackgroundMsgError] Error updating chat/status on background error:', dbError);
             // Show a more specific UI error if DB update fails
             (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with error status: ${dbError.message}`);
             // Attempt to set status to error even if message update failed
             try {
                  await requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
             } catch (statusError) {
-                 console.error('Failed to set session status on error handling error:', statusError);
+                 console.error('[Orchestrator: handleBackgroundMsgError] Failed to set session status on error handling error:', statusError);
             }
         }
     } else {
-         console.warn(`Orchestrator: Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
+         console.warn(`[Orchestrator: handleBackgroundMsgError] Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
          // If the error is specifically a model load error (we might need a better way to signal this)
          // ensure the UI controller knows. The direct worker:error event might be better.
     }
@@ -3801,13 +3773,13 @@ async function handleBackgroundMsgError(message) {
 
 async function handleBackgroundScrapeStage(payload) {
     const { stage, success, chatId, messageId, error, ...rest } = payload;
-    console.log(`Orchestrator: handleBackgroundScrapeStage Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
+    console.log(`[Orchestrator: handleBackgroundScrapeStage] Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
 
     let updatePayload = {};
     let finalStatus = 'idle'; // Default to idle on success
 
     if (success) {
-        console.log(`Orchestrator: Scrape stage ${stage} succeeded for chat ${chatId}.`);
+        console.log(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} succeeded for chat ${chatId}.`);
         // Construct a success message matching the 'scrape_result_full' style
         const successText = `Full Scrape Result: ${rest.title || 'No Title'}`; // Use title for the text part
         // Use the 'scrape_result_full' type and structure
@@ -3825,25 +3797,25 @@ async function handleBackgroundScrapeStage(payload) {
     } else {
         // If a stage fails, update the message immediately with the error
         const errorText = error || `Scraping failed (Stage ${stage}). Unknown error.`;
-        console.error(`Orchestrator: Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
+        console.error(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
         updatePayload = { isLoading: false, sender: 'error', text: `Scraping failed (Stage ${stage}): ${errorText}` };
         finalStatus = 'error';
     }
 
     // --- Update DB regardless of success/failure based on this stage result --- 
     try {
-        console.log(`Orchestrator: Updating message ${messageId} for stage ${stage} result.`);
+        console.log(`[Orchestrator: handleBackgroundScrapeStage] Updating message ${messageId} for stage ${stage} result.`);
         const updateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
         await requestDbAndWait(updateRequest);
-        console.log(`Orchestrator: Updated placeholder ${messageId} with stage ${stage} result.`);
+        console.log(`[Orchestrator: handleBackgroundScrapeStage] Updated placeholder ${messageId} with stage ${stage} result.`);
 
         // Also set final session status based on this stage outcome
-        console.log(`[Orchestrator] Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
+        console.log(`[Orchestrator: handleBackgroundScrapeStage] Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
         await requestDbAndWait(statusRequest);
 
     } catch (dbError) {
-        console.error(`Orchestrator: Failed to update DB after stage ${stage} result:`, dbError);
+        console.error(`[Orchestrator: handleBackgroundScrapeStage] Failed to update DB after stage ${stage} result:`, dbError);
         (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with scrape result: ${dbError.message || dbError}`);
         // If DB update fails, maybe try setting status to error anyway?
         if (finalStatus !== 'error') {
@@ -3859,13 +3831,13 @@ async function handleBackgroundScrapeStage(payload) {
         // This assumes the background script won't send more results for this specific scrape
         // Might need adjustment if background sends a final DIRECT_SCRAPE_RESULT later
          isSendingMessage = false; 
-         console.log("Orchestrator: Resetting isSendingMessage after processing scrape stage result.");
+         console.log("[Orchestrator: handleBackgroundScrapeStage] Resetting isSendingMessage after processing scrape stage result.");
     }
 }
 
 async function handleBackgroundDirectScrapeResult(message) {
     const { chatId, messageId, success, error, ...scrapeData } = message;
-    console.log(`Orchestrator: handleBackgroundDirectScrapeResult for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
+    console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
     const updatePayload = { isLoading: false };
      if (success) {
          updatePayload.sender = 'system';
@@ -3882,11 +3854,11 @@ async function handleBackgroundDirectScrapeResult(message) {
         const updateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
         await requestDbAndWait(updateRequest);
         const finalStatus = success ? 'idle' : 'error';
-        console.log(`[Orchestrator] Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
+        console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
         await requestDbAndWait(statusRequest);
     } catch (error) {
-        console.error(`Orchestrator: Error handling direct scrape result for chat ${chatId}:`, error);
+        console.error(`[Orchestrator: handleBackgroundDirectScrapeResult] Error handling direct scrape result for chat ${chatId}:`, error);
         (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with direct scrape result: ${error.message || error}`);
         const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
         requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on direct scrape processing error:", e));
@@ -3938,6 +3910,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
 /* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
 /* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
 
 
 
@@ -3950,6 +3923,7 @@ let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElem
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
+
 
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -4129,7 +4103,7 @@ function handleLoadingProgress(payload) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.STATUS_UPDATED_NOTIFICATION, handleStatusUpdate);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbStatusUpdatedNotification.type, handleStatusUpdate);
 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, handleLoadingProgress);
 
 async function initializeUI(callbacks) {
@@ -4465,6 +4439,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   downloadHtmlFile: () => (/* binding */ downloadHtmlFile),
 /* harmony export */   formatChatToHtml: () => (/* binding */ formatChatToHtml)
 /* harmony export */ });
+
+
 /**
  * Formats a chat session object into a self-contained HTML string.
  * @param {object} sessionData - The chat session object from the database.
@@ -4599,8 +4575,7 @@ function downloadHtmlFile(htmlContent, filename, onError) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   eventBus: () => (/* binding */ eventBus),
-/* harmony export */   isBackgroundContext: () => (/* binding */ isBackgroundContext),
-/* harmony export */   isDbEvent: () => (/* binding */ isDbEvent)
+/* harmony export */   isBackgroundContext: () => (/* binding */ isBackgroundContext)
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
@@ -4610,22 +4585,24 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-function isDbEvent(eventName) {
-  return Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(eventName);
-}
-
 function isBackgroundContext() {
   return (typeof window === 'undefined') && (typeof self !== 'undefined') && !!self.registration;
 }
 
 function getContextName() {
-  if (isBackgroundContext()) return 'Background';
-  // You can add more checks here for popup, content script, etc.
-  // For now, default to 'Sidepanel' for non-background
-  return 'Sidepanel';
+  if (isBackgroundContext()) return _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.Contexts.BACKGROUND;
+  if (typeof window !== 'undefined' && window.EXTENSION_CONTEXT) return window.EXTENSION_CONTEXT;
+  return _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.Contexts.UNKNOWN; // Fallback
 }
 
 let dbInitPromise = null;
+
+const broadcastableEventTypes = [
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION,
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION
+];
 
 class EventBus {
   constructor() {
@@ -4647,41 +4624,72 @@ class EventBus {
       if (index > -1) {
         eventListeners.splice(index, 1);
       }
-      // Optional: Clean up the event name if no listeners remain
       if (eventListeners.length === 0) {
         this.listeners.delete(eventName);
       }
     }
   }
 
+  dispatchToLocalListeners(eventName, data, context) {
+
+
+
+    console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Dispatching locally: ${eventName}`, data);
+    const localListeners = this.listeners.get(eventName);
+    const promises = [];
+    if (localListeners && localListeners.length > 0) {
+      try {
+        const eventData = structuredClone(data);
+        console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Found ${localListeners.length} listeners for ${eventName}.`);
+        localListeners.forEach(callback => {
+          try {
+            const result = callback(eventData);
+            if (result && typeof result.then === 'function') {
+              promises.push(result);
+            }
+          } catch (error) {
+            console.error(`[EventBus][${getContextName()}] Error in local listener for ${eventName}:`, error);
+            promises.push(Promise.reject(error));
+          }
+        });
+      } catch (cloneError) {
+        console.error(`[EventBus][${getContextName()}] Failed to structuredClone data for local dispatch of ${eventName}:`, cloneError, data);
+        return Promise.reject(cloneError);
+      }
+    } else {
+      console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> No local listeners for ${eventName}.`);
+    }
+    return Promise.all(promises);
+  }
+
   async autoEnsureDbInitialized() {
+    const context = getContextName();
     if (this.isDbInitInProgress) {
-      console.warn('[EventBus][autoEnsureDbInitialized] Initialization already in progress, returning existing promise.');
       return dbInitPromise;
     }
     if (!dbInitPromise) {
       this.isDbInitInProgress = true;
-      console.info('[EventBus][autoEnsureDbInitialized] Starting DB initialization...');
+      console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> Starting DB initialization...`);
       dbInitPromise = (async () => {
         try {
-          const [response] = await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_GET_READY_STATE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
+          const [response] = await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
           if (response?.data?.ready) {
-            console.info('[EventBus][autoEnsureDbInitialized] DB is already ready.');
+            console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> DB is already ready.`);
             return true;
           }
-          await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest());
+          await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest());
           for (let i = 0; i < 5; i++) {
-            const [check] = await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_GET_READY_STATE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
+            const [check] = await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
             if (check?.data?.ready) {
-              console.info(`[EventBus][autoEnsureDbInitialized] DB became ready after ${i+1} checks.`);
+              console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> DB became ready after ${i+1} checks.`);
               return true;
             }
             await new Promise(res => setTimeout(res, 300));
           }
-          console.error('[EventBus][autoEnsureDbInitialized] Database failed to initialize after retries.');
+          console.error(`[EventBus][${context}] : autoEnsureDbInitialized -> Database failed to initialize after retries.`);
           throw new Error('Database failed to initialize');
         } catch (err) {
-          console.error('[EventBus][autoEnsureDbInitialized] Initialization failed:', err);
+          console.error(`[EventBus][${context}] : autoEnsureDbInitialized -> Initialization failed:`, err);
           throw err;
         } finally {
           this.isDbInitInProgress = false;
@@ -4691,49 +4699,129 @@ class EventBus {
     return dbInitPromise;
   }
 
-  async publish(eventName, data) {
-   
-     console.log(`[EventBus][${getContextName()}] eventName`, eventName,'data:', data);
+  async publish(eventName, data, contextName = getContextName()) {
+    const context = contextName;
+    console.log(`[EventBus][${context}] : publish -> Event: ${eventName}`, data);
+  
 
-    if (isDbEvent(eventName) && !isBackgroundContext()) {
-      console.log(`[EventBus][${getContextName()}] Forwarding DB event to background:`, eventName, data);
-      const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data });
-      console.log(`[EventBus][${getContextName()}] Received response from background for`, eventName, result);
-      return result;
-    }
-    if (isDbEvent(eventName) && isBackgroundContext()) {
-      console.log(`[EventBus][${getContextName()}] Handling DB event locally:`, eventName, data);
-    }
-    const listeners = this.listeners.get(eventName);
-    if (listeners && listeners.length > 0) {
-      try {
-        const eventData = structuredClone(data);
-        console.log(`[EventBus] Publishing ${eventName}. Found ${listeners.length} listeners. Data to send:`, JSON.stringify(eventData));
-        const results = await Promise.all(
-          listeners.map((callback, index) => {
-            try {
-              console.log(`[EventBus] Calling listener #${index + 1} for ${eventName} with data:`, JSON.stringify(eventData));
-              return callback(eventData);
-            } catch (error) {
-              console.error(`[EventBus] Error in listener #${index + 1} for ${eventName}:`, error);
-              return undefined;
-            }
-          })
-        );
-        console.log('[EventBus] Returning results for', eventName, results);
-        return results;
-      } catch (cloneError) {
-        console.error(`[EventBus] Failed to structuredClone data for event ${eventName}:`, cloneError, data);
-        return Promise.reject(cloneError);
+    if (!isBackgroundContext()) { // UI Context
+      
+      // background event broadcast, no need to forward
+      if (eventName === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+        return Promise.resolve([]); 
       }
-    } else {
-      console.log(`[EventBus] No listeners registered for event ${eventName}. Data:`, JSON.stringify(data));
-      return Promise.resolve([]);
+      
+      // db event, forward to background
+      if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(eventName)) {            
+        console.log(`[EventBus][${context}] : publish -> Forwarding event to background: ${eventName}`);
+        const resultFromBg = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data , originalContext: context, crossContext: false});
+        console.log(`[EventBus][${context}] : publish -> Received response from background for ${eventName}:`, resultFromBg);
+        return resultFromBg;
+
+      }
+
+      // same context, dispatch locally
+      if (getContextName() === context) {    
+        return this.dispatchToLocalListeners(eventName, data, context);
+      }
+
+      // different context, forward to background
+
+      if (getContextName() != context) {    
+        console.log(`[EventBus][${context}] : publish -> Forwarding event to background: ${eventName}`);
+        const resultFromBg = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data , originalContext: context, crossContext: true});
+        console.log(`[EventBus][${context}] : publish -> Received response from background for ${eventName}:`, resultFromBg);
+        return resultFromBg;
+      }
+
+
+
+    } else { // Background Context
+      if (broadcastableEventTypes.includes(eventName)) {
+        console.log(`[EventBus][${context}] :: publish -> Event ${eventName} is broadcastable. Sending wrapper.`);
+        const broadcastPayload = {
+          type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST,
+          payload: {
+            eventName: eventName,
+            data: structuredClone(data),
+            originalContext: context,
+            crossContext: false
+          }
+        };
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(broadcastPayload)
+          .catch(error => {
+            if (error.message.includes("Could not establish connection") ||
+              error.message.includes("Receiving end does not exist") ||
+              error.message.includes("The message port closed before a response was received")) {
+              console.warn(`[EventBus][${context}] :publish Failed to broadcast ${eventName} to UI: No active receiver.`);
+            } else {
+              console.error(`[EventBus][${context}] : publish Error broadcasting event ${eventName}:`, error);
+            }
+          });
+        console.log(`[EventBus][${context}] : publish -> Dispatching broadcastable event ${eventName} locally in background as well.`);
+        return this.dispatchToLocalListeners(eventName, data, context);
+      } else {
+        console.log(`[EventBus][${context}] : : publish -> Event ${eventName} is not broadcastable. Dispatching locally in background.`);
+        return this.dispatchToLocalListeners(eventName, data, context);
+      }
     }
   }
 }
 
-const eventBus = new EventBus(); 
+const eventBus = new EventBus();
+
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || !message.type) {
+    return false;
+  }
+  const context = getContextName();
+
+  if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+    console.log(`[EventBus][${context}] : onMessage -> Received BACKGROUND_EVENT_BROADCAST. Original event: ${message.payload?.eventName}`);
+    if (message.payload && broadcastableEventTypes.includes(message.payload.eventName)) {
+      eventBus.dispatchToLocalListeners(message.payload.eventName, message.payload.data);
+    } 
+    return false; 
+  }
+
+  if (message.crossContext === true && !isBackgroundContext()) {
+    eventBus.dispatchToLocalListeners(message.type, message.payload, message.originalContext);
+    return false;
+  }
+
+  if (isBackgroundContext()) {
+    if (message.crossContext === true && message.originalContext) {
+      webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+        type: message.type,
+        payload: message.payload,
+        originalContext: message.originalContext,
+        crossContext: true
+      });
+      return false;
+    }
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(message.type)) { 
+      console.log(`[EventBus][${context}] : onMessage -> Received direct DBEvent (request): ${message.type}. Publishing to local BG eventBus.`);
+      eventBus.publish(message.type, message.payload) 
+        .then(result => {
+            try {
+                console.log(`[EventBus][${context}] : onMessage -> DBEvent ${message.type} processed. Sending response.`);
+                sendResponse(structuredClone(result));
+            } catch(e) {
+                console.error(`[EventBus][${context}] :onMessage Failed to clone response for DBEvent ${message.type}:`, e);
+                sendResponse({success: false, error: "Failed to clone response in background"});
+            }
+        })
+        .catch(error => {
+            console.error(`[EventBus][${context}] : onMessage Error processing DBEvent ${message.type}:`, error);
+            sendResponse({ success: false, error: error.message });
+        });
+      return true; 
+    }
+  }
+
+  console.log(`[EventBus][${context}] : onMessage -> Message type ${message.type} not handled by eventBus onMessage logic.`);
+  return false; 
+});
 
 /***/ }),
 
@@ -4777,6 +4865,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
 /* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
 /* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
+/* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
+/* harmony export */   DbResetDatabaseResponse: () => (/* binding */ DbResetDatabaseResponse),
 /* harmony export */   DbResponseBase: () => (/* binding */ DbResponseBase),
 /* harmony export */   DbSessionUpdatedNotification: () => (/* binding */ DbSessionUpdatedNotification),
 /* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
@@ -4790,7 +4880,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventNames.js */ "./src/events/eventNames.js");
 
 
-// Simple UUID generator (replace with a more robust library if needed)
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -4798,7 +4887,7 @@ function generateUUID() {
   });
 }
 
-// --- Base Classes ---
+
 class DbEventBase {
   constructor(requestId = null) {
     this.requestId = requestId || generateUUID();
@@ -4822,54 +4911,61 @@ class DbNotificationBase {
     }
 }
 
-// --- Response Events (Define Before Request Events) ---
+
 
 class DbGetSessionResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
   constructor(originalRequestId, success, sessionData, error = null) {
     super(originalRequestId, success, sessionData, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
+    this.type = DbGetSessionResponse.type;
   }
 }
 
 class DbAddMessageResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
   constructor(originalRequestId, success, newMessageId, error = null) {
     super(originalRequestId, success, { newMessageId }, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
+    this.type = DbAddMessageResponse.type;
   }
 }
 
 class DbUpdateMessageResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
+        this.type = DbUpdateMessageResponse.type;
     }
 }
 
 class DbUpdateStatusResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
+    this.type = DbUpdateStatusResponse.type;
   }
 }
 
 class DbDeleteMessageResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
+        this.type = DbDeleteMessageResponse.type;
     }
 }
 
 class DbToggleStarResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
     constructor(originalRequestId, success, updatedSessionData, error = null) {
         super(originalRequestId, success, updatedSessionData, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
+        this.type = DbToggleStarResponse.type;
     }
 }
 
 class DbCreateSessionResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
     constructor(originalRequestId, success, newSessionId, error = null) {
         super(originalRequestId, success, { newSessionId }, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
+        this.type = DbCreateSessionResponse.type;
         console.log(`[dbEvents] DbCreateSessionResponse constructor: type set to ${this.type}`);
     }
 
@@ -4879,38 +4975,43 @@ class DbCreateSessionResponse extends DbResponseBase {
 }
 
 class DbDeleteSessionResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
+        this.type = DbDeleteSessionResponse.type;
     }
 }
 
 class DbRenameSessionResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
+        this.type = DbRenameSessionResponse.type;
     }
 }
 
 class DbGetAllSessionsResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
     constructor(requestId, success, sessions = null, error = null) {
         super(requestId, success, sessions, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
+        this.type = DbGetAllSessionsResponse.type;
         this.payload = { sessions };
     }
 }
 
 class DbGetStarredSessionsResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     constructor(requestId, success, starredSessions = null, error = null) {
         super(requestId, success, starredSessions, error); 
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
+        this.type = DbGetStarredSessionsResponse.type;
     }
 }
 
 class DbGetReadyStateResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
     constructor(originalRequestId, success, ready, error = null) {
         super(originalRequestId, success, { ready }, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
+        this.type = DbGetReadyStateResponse.type;
         this.payload = { ready };
     }
 }
@@ -4918,150 +5019,166 @@ class DbGetReadyStateResponse extends DbResponseBase {
 // --- Request Events (Define After Response Events) ---
 
 class DbGetSessionRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
   constructor(sessionId) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_REQUEST;
+    this.type = DbGetSessionRequest.type;
     this.payload = { sessionId };
   }
 }
 
 class DbAddMessageRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
   constructor(sessionId, messageObject) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_REQUEST;
+    this.type = DbAddMessageRequest.type;
     this.payload = { sessionId, messageObject };
   }
 }
 
 class DbUpdateMessageRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId, updates) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
+        this.type = DbUpdateMessageRequest.type;
         this.payload = { sessionId, messageId, updates };
     }
 }
 
 class DbUpdateStatusRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
   constructor(sessionId, status) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_REQUEST;
+    this.type = DbUpdateStatusRequest.type;
     this.payload = { sessionId, status };
   }
 }
 
 class DbDeleteMessageRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_REQUEST;
+        this.type = DbDeleteMessageRequest.type;
         this.payload = { sessionId, messageId };
     }
 }
 
 class DbToggleStarRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_REQUEST;
+        this.type = DbToggleStarRequest.type;
         this.payload = { sessionId };
     }
 }
 
 class DbCreateSessionRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
     constructor(initialMessage) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_REQUEST;
+        this.type = DbCreateSessionRequest.type;
         this.payload = { initialMessage };
         console.log(`[dbEvents] DbCreateSessionRequest constructor: type set to ${this.type}`);
     }
 }
 
 class DbInitializeRequest extends DbEventBase {
-    // No response expected via requestDbAndWait, so no responseEventName needed
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZE_REQUEST;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.INITIALIZE_REQUEST;
+        this.type = DbInitializeRequest.type;
         this.payload = {}; 
     }
 }
 
 class DbDeleteSessionRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_REQUEST;
+        this.type = DbDeleteSessionRequest.type;
         this.payload = { sessionId };
     }
 }
 
 class DbRenameSessionRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
     constructor(sessionId, newName) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_REQUEST;
+        this.type = DbRenameSessionRequest.type;
         this.payload = { sessionId, newName };
     }
 }
 
 class DbGetAllSessionsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
+        this.type = DbGetAllSessionsRequest.type;
         console.log('[DEBUG][Create] DbGetAllSessionsRequest:', this, this.type);
     }
 }
 
 class DbGetStarredSessionsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
+        this.type = DbGetStarredSessionsRequest.type;
     }
 }
 
 class DbGetReadyStateRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_REQUEST;
+        this.type = DbGetReadyStateRequest.type;
     }
 }
 
 // --- Notification Events ---
 
 class DbMessagesUpdatedNotification extends DbNotificationBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
     constructor(sessionId, messages) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
+        this.type = DbMessagesUpdatedNotification.type;
         this.payload = { messages }; 
     }
 }
 
 class DbStatusUpdatedNotification extends DbNotificationBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
     constructor(sessionId, status) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
+        this.type = DbStatusUpdatedNotification.type;
         this.payload = { status };
     }
 }
 
 class DbSessionUpdatedNotification extends DbNotificationBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
     constructor(sessionId, updatedSessionData) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
+        this.type = DbSessionUpdatedNotification.type;
         this.payload = { session: updatedSessionData }; 
     }
 }
 
 class DbInitializationCompleteNotification {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
     constructor({ success, error = null }) {
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
+        this.type = DbInitializationCompleteNotification.type;
         this.timestamp = Date.now();
         this.payload = { success, error: error ? (error.message || String(error)) : null };
     }
@@ -5070,90 +5187,105 @@ class DbInitializationCompleteNotification {
 // --- Log Response Events ---
 
 class DbGetLogsResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
   constructor(originalRequestId, success, logs, error = null) {
     super(originalRequestId, success, logs, error); // data = logs array
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
+    this.type = DbGetLogsResponse.type;
   }
 }
 
 class DbGetUniqueLogValuesResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   constructor(originalRequestId, success, values, error = null) {
     super(originalRequestId, success, values, error); // data = values array
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
+    this.type = DbGetUniqueLogValuesResponse.type;
   }
 }
 
 class DbClearLogsResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
+    this.type = DbClearLogsResponse.type;
   }
 }
 
 class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     constructor(originalRequestId, success, ids, error = null) {
       // data = { currentLogSessionId: '...', previousLogSessionId: '...' | null }
       super(originalRequestId, success, ids, error);
-      this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
+      this.type = DbGetCurrentAndLastLogSessionIdsResponse.type;
     }
   }
 
-// --- Log Request Events ---
-
-// Request to add a single log entry
-// No response needed, fire-and-forget style
 class DbAddLogRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_LOG_REQUEST;
   // No responseEventName needed for fire-and-forget
   constructor(logEntryData) {
-    // logEntryData = { level, component, message, chatSessionId (optional) }
-    // db service will add id, timestamp, extensionSessionId
-    super(); // Generate request ID just for tracking if needed
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_LOG_REQUEST;
+    super(); 
+    this.type = DbAddLogRequest.type;
     this.payload = { logEntryData };
   }
 }
 
-// Request to get logs based on filters
 class DbGetLogsRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
   constructor(filters) {
     // filters = { extensionSessionId: 'id' | 'current' | 'last' | 'all',
     //             component: 'name' | 'all',
     //             level: 'level' | 'all' }
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_REQUEST;
+    this.type = DbGetLogsRequest.type;
     this.payload = { filters };
   }
 }
 
-// Request to get unique values for a specific field in logs
 class DbGetUniqueLogValuesRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   constructor(fieldName) {
     // fieldName = 'extensionSessionId', 'component', 'level'
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
+    this.type = DbGetUniqueLogValuesRequest.type;
     this.payload = { fieldName };
   }
 }
 
-// Request to clear logs (potentially based on filters in future, but maybe just 'all' or 'last_session' for now)
 class DbClearLogsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
     constructor(filter = 'all') { // 'all' or potentially 'last_session' or specific session ID later
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_REQUEST;
+        this.type = DbClearLogsRequest.type;
         this.payload = { filter };
     }
 }
 
-// Request to get the actual IDs for 'current' and 'last' sessions
 class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
+        this.type = DbGetCurrentAndLastLogSessionIdsRequest.type;
     }
+}
+
+class DbResetDatabaseRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RESET_DATABASE_REQUEST;
+  constructor() {
+    super();
+    this.type = DbResetDatabaseRequest.type;
+  }
+}
+
+class DbResetDatabaseResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RESET_DATABASE_RESPONSE;
+  constructor(originalRequestId, success, error = null) {
+    super(originalRequestId, success, null, error);
+    this.type = DbResetDatabaseResponse.type;
+  }
 } 
 
 /***/ }),
@@ -5167,55 +5299,59 @@ class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
-/* harmony export */   DriveMessageTypes: () => (/* binding */ DriveMessageTypes),
+/* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
+/* harmony export */   RawDirectMessageTypes: () => (/* binding */ RawDirectMessageTypes),
 /* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
 /* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
 const DBEventNames = Object.freeze({
-  GET_SESSION_REQUEST: 'DbGetSessionRequest',
-  GET_SESSION_RESPONSE: 'DbGetSessionResponse',
-  ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
-  ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
-  UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
-  UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
-  UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
-  UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
-  DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
-  DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
-  TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
-  TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
+  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
   DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
   DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
-  DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
-  DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
-  RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
-  RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
   DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
   DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
   DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
   DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
-  MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
-  STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
-  SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
-  INITIALIZE_REQUEST: 'DbInitializeRequest',
-  INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
-  GET_LOGS_REQUEST: 'DbGetLogsRequest',
-  GET_LOGS_RESPONSE: 'DbGetLogsResponse',
-  GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
-  GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
-  CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
-  CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
-  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
-  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
-  ADD_LOG_REQUEST: 'DbAddLogRequest',
-  ADD_LOG_RESPONSE: 'DbAddLogResponse',
+  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
+  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
+  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
+  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
   DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
   DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
+  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
 });
 
 const UIEventNames = Object.freeze({
@@ -5277,15 +5413,31 @@ const SiteMapperMessageTypes = Object.freeze({
   MAPPED: 'mapped',
 });
 
-const DriveMessageTypes = Object.freeze({
-  DRIVE_FILE_LIST_DATA: 'driveFileListData',
-});
-
 const ModelLoaderMessageTypes = Object.freeze({
   INIT: 'init',
   GENERATE: 'generate',
   INTERRUPT: 'interrupt',
   RESET: 'reset',
+});
+
+const InternalEventBusMessageTypes = Object.freeze({
+  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+});
+
+const RawDirectMessageTypes = Object.freeze({
+  WORKER_GENERIC_RESPONSE: 'response',
+  WORKER_GENERIC_ERROR: 'error',
+  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
+  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+});
+
+const Contexts = Object.freeze({
+  BACKGROUND: 'Background',
+  MAIN_UI: 'MainUI',
+  POPUP: 'Popup',
+  OTHERS: 'Others',
+  UNKNOWN: 'Unknown',
 }); 
 
 /***/ }),
@@ -5304,6 +5456,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
 
+window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
 
 let pageContainers = [];
 let navButtons = [];
@@ -5345,7 +5498,6 @@ async function navigateTo(pageId) {
          mainHeaderTitle.textContent = 'Tab Agent'; 
     }
 
-    // Update active button state
     navButtons.forEach(button => {
         if (button.dataset.page === pageId) {
             button.classList.add('active');
@@ -5401,45 +5553,30 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   hideNotification: () => (/* binding */ hideNotification),
 /* harmony export */   showNotification: () => (/* binding */ showNotification)
 /* harmony export */ });
-/**
- * src/notifications.js
- * Manages the UI notification banner.
- */
+
 
 let notificationTimeout;
 
 /**
- * Shows a notification message in the banner.
- * @param {string} message - The message to display.
- * @param {'info' | 'success' | 'error'} [type='info'] - The type of notification (affects styling).
- * @param {number} [duration=4000] - Duration in ms to show the message (0 for indefinite).
+ * @param {string} message 
+ * @param {'info' | 'success' | 'error'} [type='info'] 
+ * @param {number} [duration=4000] 
  */
 function showNotification(message, type = 'info', duration = 3000) {
     console.log(`[Notification] ${type.toUpperCase()}: ${message} (Duration: ${duration}ms)`);
 
-    // Optional: Basic alert fallback (can be annoying)
-    // alert(`${type.toUpperCase()}: ${message}`);
-
-    // You could also implement a simple DOM-based notification here
-    // for temporary feedback if needed.
 }
 
-/**
- * Hides the notification banner.
- */
+
 function hideNotification() {
     const banner = document.getElementById('notification-banner');
     if (banner) {
         banner.classList.remove('visible');
-        // Optional: Clean up after transition ends, though CSS handles visibility
-        // banner.addEventListener('transitionend', () => { banner.textContent = ''; }, { once: true });
     }
-    // Clear timeout if banner is hidden manually
     if (notificationTimeout) {
         clearTimeout(notificationTimeout);
         notificationTimeout = null;
     }
-    // Remove the click listener once hidden
     if (banner) {
         banner.onclick = null;
     }
@@ -5519,7 +5656,7 @@ function hideNotification() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "1550a37f2b1b8cd3e977" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "0ecbb9a9f2269d9f4f9b" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	
@@ -5756,6 +5893,23 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+// Set EXTENSION_CONTEXT based on URL query string
+(function() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const contextParam = urlParams.get('context');
+        const viewParam = urlParams.get('view');
+        if (contextParam === 'popup') {
+            window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.POPUP;
+        } else if (viewParam === 'logs') {
+            window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.OTHERS;
+        } else {
+            window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.MAIN_UI;
+        }
+    } catch (e) {
+        window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.UNKNOWN;
+    }
+})();
 
 // Marked.js Setup
 
@@ -5811,10 +5965,11 @@ function requestDbAndWait(requestEvent, timeoutMs = 5000) {
             }, timeoutMs);
             const result = await _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(requestEvent.type, requestEvent);
             clearTimeout(timeoutId);
-            if (result && (result.success || result.error === undefined)) {
-                resolve(result.data || result.payload);
+            const response = Array.isArray(result) ? result[0] : result;
+            if (response && (response.success || response.error === undefined)) {
+                resolve(response.data || response.payload);
             } else {
-                reject(new Error(result?.error || `DB operation ${requestType} failed`));
+                reject(new Error(response?.error || `DB operation ${requestType} failed`));
             }
         } catch (error) {
             clearTimeout(timeoutId);
@@ -5884,9 +6039,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isDbReady = false;
     const TIMEOUT_MS = 10000;
     try {
-        const dbInitPromise = _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DBEventNames.INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbInitializeRequest());
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database initialization timed out.")), TIMEOUT_MS));
-        const resultArr = await Promise.race([dbInitPromise, timeoutPromise]);
+        const resultArr = await Promise.race([
+            _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbInitializeRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbInitializeRequest()),
+            timeoutPromise
+        ]);
         const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
         if (result && result.success) {
             console.log("[Sidepanel] DB initialization confirmed complete.");
@@ -6084,25 +6241,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function handleBackgroundMessage(message, sender, sendResponse) {
     console.log('[Sidepanel] Received message from background:', message);
-    if (message.type === 'response') {
+    if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
         const payload = { chatId: message.chatId, messageId: message.messageId, text: message.text };
         _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload);
-    } else if (message.type === 'error') {
+    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
         const payload = { chatId: message.chatId, messageId: message.messageId, error: message.error };
         _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_ERROR_RECEIVED, payload);
         sendResponse({}); 
-    } else if (message.type === 'STAGE_SCRAPE_RESULT') {
+    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
         _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({status: "received", type: message.type}); 
-    } else if (message.type === 'DIRECT_SCRAPE_RESULT') {
+    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
         _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
         sendResponse({}); 
-    } else if (message.type === 'uiLoadingStatusUpdate') {
+    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
         console.log('[Sidepanel] Forwarding uiLoadingStatusUpdate to eventBus.');
         _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
-    } else if (message.type === 'driveFileListData') {
-        console.log('[Sidepanel] Received driveFileListData, calling DriveController handler directly.');
-        (0,_Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_15__.handleDriveFileListResponse)(message);
+    } else if (message.type === 'InternalEventBus:BackgroundEventBroadcast') {
+        // Ignore: handled by eventBus subscription elsewhere
     } else {
         console.warn('[Sidepanel] Received unknown message type from background:', message.type, message);
     }
@@ -6117,8 +6273,7 @@ async function handleSessionCreated(newSessionId) {
         const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
         if (sessionData && sessionData.messages) {
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DBEventNames.MESSAGES_UPDATED_NOTIFICATION, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbMessagesUpdatedNotification(newSessionId, sessionData.messages));
-            console.log(`[Sidepanel] Manually triggered message render for new session ${newSessionId}`);
+
         } else {
             console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}. Response data:`, sessionData);
         }
@@ -6166,13 +6321,16 @@ async function loadAndDisplaySession(sessionId) {
         await setActiveChatSessionId(sessionId);
 
         if (sessionData && sessionData.messages) {
-            console.log(`[Sidepanel] Manually triggering message render for loaded session ${sessionId}.`);
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DBEventNames.MESSAGES_UPDATED_NOTIFICATION, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbMessagesUpdatedNotification(sessionId, sessionData.messages));
+            // console.log(`[Sidepanel] Manually triggering message render for loaded session ${sessionId}.`);
+            // eventBus.publish(DbMessagesUpdatedNotification.type, new DbMessagesUpdatedNotification(sessionId, sessionData.messages));
+            // The above lines are commented out.
         } else {
             console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}. Displaying empty chat.`);
-             _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DBEventNames.MESSAGES_UPDATED_NOTIFICATION,
-                 new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbMessagesUpdatedNotification(sessionId, { messages: [] })
-             );
+            // eventBus.publish(DbMessagesUpdatedNotification.type,
+            //     new DbMessagesUpdatedNotification(sessionId, { messages: [] })
+            // ); 
+            // Also commented out this one for consistency. If an empty session needs a specific UI update,
+            // minimaldb should ideally send a notification with an empty message array, or the UI should handle null/empty messages gracefully.
         }
 
     } catch (error) {

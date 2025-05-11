@@ -1240,55 +1240,59 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
-/* harmony export */   DriveMessageTypes: () => (/* binding */ DriveMessageTypes),
+/* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
+/* harmony export */   RawDirectMessageTypes: () => (/* binding */ RawDirectMessageTypes),
 /* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
 /* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
 const DBEventNames = Object.freeze({
-  GET_SESSION_REQUEST: 'DbGetSessionRequest',
-  GET_SESSION_RESPONSE: 'DbGetSessionResponse',
-  ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
-  ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
-  UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
-  UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
-  UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
-  UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
-  DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
-  DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
-  TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
-  TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
+  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
   DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
   DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
-  DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
-  DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
-  RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
-  RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
   DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
   DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
   DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
   DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
-  MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
-  STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
-  SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
-  INITIALIZE_REQUEST: 'DbInitializeRequest',
-  INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
-  GET_LOGS_REQUEST: 'DbGetLogsRequest',
-  GET_LOGS_RESPONSE: 'DbGetLogsResponse',
-  GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
-  GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
-  CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
-  CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
-  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
-  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
-  ADD_LOG_REQUEST: 'DbAddLogRequest',
-  ADD_LOG_RESPONSE: 'DbAddLogResponse',
+  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
+  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
+  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
+  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
   DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
   DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
+  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
 });
 
 const UIEventNames = Object.freeze({
@@ -1350,15 +1354,31 @@ const SiteMapperMessageTypes = Object.freeze({
   MAPPED: 'mapped',
 });
 
-const DriveMessageTypes = Object.freeze({
-  DRIVE_FILE_LIST_DATA: 'driveFileListData',
-});
-
 const ModelLoaderMessageTypes = Object.freeze({
   INIT: 'init',
   GENERATE: 'generate',
   INTERRUPT: 'interrupt',
   RESET: 'reset',
+});
+
+const InternalEventBusMessageTypes = Object.freeze({
+  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+});
+
+const RawDirectMessageTypes = Object.freeze({
+  WORKER_GENERIC_RESPONSE: 'response',
+  WORKER_GENERIC_ERROR: 'error',
+  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
+  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+});
+
+const Contexts = Object.freeze({
+  BACKGROUND: 'Background',
+  MAIN_UI: 'MainUI',
+  POPUP: 'Popup',
+  OTHERS: 'Others',
+  UNKNOWN: 'Unknown',
 }); 
 
 /***/ })
@@ -1444,6 +1464,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__);
 
 
+
+window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
 
 let modelWorker = null;
 let workerInitialized = false;

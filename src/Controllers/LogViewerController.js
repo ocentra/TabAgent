@@ -1,7 +1,6 @@
 // src/Controllers/LogViewerController.js
 
 import { eventBus } from '../eventBus.js';
-import { DBEventNames } from '../events/eventNames.js';
 import { DbGetLogsRequest, DbGetUniqueLogValuesRequest } from '../events/dbEvents.js';
 
 console.log('[LogViewerController] Script loaded.');
@@ -61,7 +60,7 @@ async function populateViewerDropdown(selectElementId, fieldName, defaultValue =
     console.debug(`[LogViewerController] Populating viewer dropdown ${selectElementId} for ${fieldName}, default: ${defaultValue}`);
     try {
         const resultArr = await eventBus.publish(
-            DBEventNames.GET_UNIQUE_LOG_VALUES_REQUEST,
+            DbGetUniqueLogValuesRequest.type,
             new DbGetUniqueLogValuesRequest(fieldName)
         );
         const response = Array.isArray(resultArr) ? resultArr[0] : resultArr;
@@ -118,7 +117,7 @@ async function fetchAndDisplayLogs() {
 
     try {
         const resultArr = await eventBus.publish(
-            DBEventNames.GET_LOGS_REQUEST,
+            DbGetLogsRequest.type,
             new DbGetLogsRequest(filters)
         );
         const response = Array.isArray(resultArr) ? resultArr[0] : resultArr;
@@ -154,11 +153,9 @@ function formatLogsToString(logsArray) {
     }).join('\n');
 }
 
-// Exported function to be called by sidepanel.js
 export async function initializeLogViewerController() {
     console.log('[LogViewerController] Initializing...');
 
-    // Select elements using IDs specific to the integrated section
     logContainer = document.getElementById('log-viewer-display-area');
     sessionSelect = document.getElementById('viewerSessionSelect');
     componentSelect = document.getElementById('viewerComponentSelect');
@@ -168,7 +165,6 @@ export async function initializeLogViewerController() {
     downloadButton = document.getElementById('viewerDownloadButton');
     clearButton = document.getElementById('viewerClearButton'); // Note: Clear button logic might need DB interaction later
 
-    // Check if all elements were found
     if (!logContainer || !sessionSelect || !componentSelect || !levelSelect || !refreshButton || !copyButton || !downloadButton || !clearButton) {
         console.error("[LogViewerController] Failed to find all required elements within #page-log-viewer. Initialization aborted.");
         if(logContainer) logContainer.textContent = 'Initialization Error: Could not find page elements.';
@@ -176,8 +172,6 @@ export async function initializeLogViewerController() {
         return;
     }
 
-    // Populate dropdowns and fetch initial logs
-    // Use correct field names ('extensionSessionId', 'component', 'level')
     await Promise.all([
         populateViewerDropdown('viewerSessionSelect', 'extensionSessionId'),
         populateViewerDropdown('viewerComponentSelect', 'component'),
@@ -186,7 +180,6 @@ export async function initializeLogViewerController() {
 
     await fetchAndDisplayLogs();
 
-    // Add event listeners
     refreshButton.addEventListener('click', fetchAndDisplayLogs);
     sessionSelect.addEventListener('change', fetchAndDisplayLogs);
     componentSelect.addEventListener('change', fetchAndDisplayLogs);
@@ -197,7 +190,6 @@ export async function initializeLogViewerController() {
         const formattedText = formatLogsToString(currentlyDisplayedLogs);
         navigator.clipboard.writeText(formattedText).then(() => {
             console.info('[LogViewerController] Logs copied to clipboard.');
-            // Simple visual feedback
             const originalText = copyButton.innerHTML;
             copyButton.textContent = 'Copied!';
             setTimeout(() => { copyButton.innerHTML = originalText; }, 1500); 
@@ -217,7 +209,6 @@ export async function initializeLogViewerController() {
         const formattedText = formatLogsToString(currentlyDisplayedLogs);
         const blob = new Blob([formattedText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
-        // Construct filename based on filters
         const filename = `tabagent-logs-view-${filters.sessionIds[0]}-${filters.components[0]}-${filters.levels[0]}.txt`.replace(/[:\\/*?"<>|]/g, '_'); // Sanitize
         
         const a = document.createElement('a');
@@ -230,7 +221,6 @@ export async function initializeLogViewerController() {
         console.info(`[LogViewerController] Log download triggered for ${filename}.`);
     });
     
-    // Add listener for clear button if needed (currently just clears display)
     clearButton.addEventListener('click', () => {
          console.warn('[LogViewerController] Clear button clicked - currently only clears display, does not delete from DB.');
          displayLogs([]); // Just clear the current view
@@ -240,5 +230,3 @@ export async function initializeLogViewerController() {
     console.info("[LogViewerController] Initialized successfully.");
 }
 
-// Removed: document.addEventListener('DOMContentLoaded', initializeLogViewer);
-// Initialization will be triggered by sidepanel.js based on context. 

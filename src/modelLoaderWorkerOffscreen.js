@@ -1,5 +1,7 @@
 import { WorkerEventNames, ModelLoaderMessageTypes } from './events/eventNames.js';
 import browser from 'webextension-polyfill';
+import { Contexts } from './events/eventNames.js';
+window.EXTENSION_CONTEXT = Contexts.OTHERS;
 
 let modelWorker = null;
 let workerInitialized = false;

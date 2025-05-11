@@ -1,4 +1,5 @@
-import { UIEventNames } from './events/eventNames.js';
+import { UIEventNames, Contexts } from './events/eventNames.js';
+window.EXTENSION_CONTEXT = Contexts.OTHERS;
 
 let pageContainers = [];
 let navButtons = [];
@@ -40,7 +41,6 @@ async function navigateTo(pageId) {
          mainHeaderTitle.textContent = 'Tab Agent'; 
     }
 
-    // Update active button state
     navButtons.forEach(button => {
         if (button.dataset.page === pageId) {
             button.classList.add('active');

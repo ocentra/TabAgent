@@ -1,3 +1,5 @@
+
+
 /**
  * Formats a chat session object into a self-contained HTML string.
  * @param {object} sessionData - The chat session object from the database.

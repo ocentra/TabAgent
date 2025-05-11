@@ -1,5 +1,4 @@
 import { showError } from '../Utilities/generalUtils.js';
-import { DBEventNames } from '../events/eventNames.js';
 
 let db = null;
 let renderer = null;
@@ -48,7 +47,7 @@ export async function handleFileSelected(event) {
 
     try {
         const request = new DbAddMessageRequest(sessionId, fileMessage);
-        eventBus.publish(DBEventNames.ADD_MESSAGE_REQUEST, request);
+        eventBus.publish(DbAddMessageRequest.type, request);
         console.log("[FileHandler] Published DbAddMessageRequest for file attachment.");
 
     } catch (error) {

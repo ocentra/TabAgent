@@ -5,7 +5,7 @@ import { initiateChatDownload } from '../Utilities/downloadUtils.js';
 import { showNotification } from '../notifications.js'; 
 import { debounce } from '../Utilities/generalUtils.js'; 
 import { navigateTo } from '../navigation.js'; 
-import { DBEventNames } from '../events/eventNames.js';
+import { UIEventNames } from '../events/eventNames.js'; // Adjust path if necessary
 
 let isInitialized = false;
 let starredListElement = null;
@@ -133,13 +133,13 @@ async function fetchAndRenderLibrary() {
 }
 
 function handleSessionUpdate(notification) {
-    if (!isInitialized || !notification || !notification.sessionId || !notification.payload) {
+    if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
         console.warn("[LibraryController] Invalid session update notification received.", notification);
         return;
     }
 
     const updatedSessionData = notification.payload.session; 
-    const sessionId = notification.sessionId;
+    const sessionId = updatedSessionData.id;
 
     if (!updatedSessionData) {
          console.warn(`[LibraryController] Session update notification for ${sessionId} missing session data in payload.session.`, notification);
@@ -189,7 +189,7 @@ function handleSessionUpdate(notification) {
     }
 }
 
-eventBus.subscribe(DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionUpdate);
+eventBus.subscribe(DbSessionUpdatedNotification.type, handleSessionUpdate);
 
 function renderLibraryList(filter = '') {
     if (!isInitialized || !starredListElement) return;
@@ -259,7 +259,7 @@ export function initializeLibraryController(elements, requestFunc) {
     requestDbAndWaitFunc = requestFunc;
     console.log("[LibraryController] Elements and request function assigned.");
 
-    eventBus.subscribe('navigation:pageChanged', handleNavigationChange);
+    eventBus.subscribe(UIEventNames.NAVIGATION_PAGE_CHANGED, handleNavigationChange);
     console.log("[LibraryController] Subscribed to navigation:pageChanged.");
     isInitialized = true;
     console.log("[LibraryController] Initialization successful. Library will render when activated.");

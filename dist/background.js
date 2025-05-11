@@ -38815,8 +38815,7 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   eventBus: () => (/* binding */ eventBus),
-/* harmony export */   isBackgroundContext: () => (/* binding */ isBackgroundContext),
-/* harmony export */   isDbEvent: () => (/* binding */ isDbEvent)
+/* harmony export */   isBackgroundContext: () => (/* binding */ isBackgroundContext)
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
@@ -38826,22 +38825,24 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-function isDbEvent(eventName) {
-  return Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(eventName);
-}
-
 function isBackgroundContext() {
   return (typeof window === 'undefined') && (typeof self !== 'undefined') && !!self.registration;
 }
 
 function getContextName() {
-  if (isBackgroundContext()) return 'Background';
-  // You can add more checks here for popup, content script, etc.
-  // For now, default to 'Sidepanel' for non-background
-  return 'Sidepanel';
+  if (isBackgroundContext()) return _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.Contexts.BACKGROUND;
+  if (typeof window !== 'undefined' && window.EXTENSION_CONTEXT) return window.EXTENSION_CONTEXT;
+  return _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.Contexts.UNKNOWN; // Fallback
 }
 
 let dbInitPromise = null;
+
+const broadcastableEventTypes = [
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION,
+  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION
+];
 
 class EventBus {
   constructor() {
@@ -38863,41 +38864,72 @@ class EventBus {
       if (index > -1) {
         eventListeners.splice(index, 1);
       }
-      // Optional: Clean up the event name if no listeners remain
       if (eventListeners.length === 0) {
         this.listeners.delete(eventName);
       }
     }
   }
 
+  dispatchToLocalListeners(eventName, data, context) {
+
+
+
+    console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Dispatching locally: ${eventName}`, data);
+    const localListeners = this.listeners.get(eventName);
+    const promises = [];
+    if (localListeners && localListeners.length > 0) {
+      try {
+        const eventData = structuredClone(data);
+        console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Found ${localListeners.length} listeners for ${eventName}.`);
+        localListeners.forEach(callback => {
+          try {
+            const result = callback(eventData);
+            if (result && typeof result.then === 'function') {
+              promises.push(result);
+            }
+          } catch (error) {
+            console.error(`[EventBus][${getContextName()}] Error in local listener for ${eventName}:`, error);
+            promises.push(Promise.reject(error));
+          }
+        });
+      } catch (cloneError) {
+        console.error(`[EventBus][${getContextName()}] Failed to structuredClone data for local dispatch of ${eventName}:`, cloneError, data);
+        return Promise.reject(cloneError);
+      }
+    } else {
+      console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> No local listeners for ${eventName}.`);
+    }
+    return Promise.all(promises);
+  }
+
   async autoEnsureDbInitialized() {
+    const context = getContextName();
     if (this.isDbInitInProgress) {
-      console.warn('[EventBus][autoEnsureDbInitialized] Initialization already in progress, returning existing promise.');
       return dbInitPromise;
     }
     if (!dbInitPromise) {
       this.isDbInitInProgress = true;
-      console.info('[EventBus][autoEnsureDbInitialized] Starting DB initialization...');
+      console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> Starting DB initialization...`);
       dbInitPromise = (async () => {
         try {
-          const [response] = await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_GET_READY_STATE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
+          const [response] = await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
           if (response?.data?.ready) {
-            console.info('[EventBus][autoEnsureDbInitialized] DB is already ready.');
+            console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> DB is already ready.`);
             return true;
           }
-          await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.INITIALIZE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest());
+          await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest());
           for (let i = 0; i < 5; i++) {
-            const [check] = await this.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_GET_READY_STATE_REQUEST, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
+            const [check] = await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
             if (check?.data?.ready) {
-              console.info(`[EventBus][autoEnsureDbInitialized] DB became ready after ${i+1} checks.`);
+              console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> DB became ready after ${i+1} checks.`);
               return true;
             }
             await new Promise(res => setTimeout(res, 300));
           }
-          console.error('[EventBus][autoEnsureDbInitialized] Database failed to initialize after retries.');
+          console.error(`[EventBus][${context}] : autoEnsureDbInitialized -> Database failed to initialize after retries.`);
           throw new Error('Database failed to initialize');
         } catch (err) {
-          console.error('[EventBus][autoEnsureDbInitialized] Initialization failed:', err);
+          console.error(`[EventBus][${context}] : autoEnsureDbInitialized -> Initialization failed:`, err);
           throw err;
         } finally {
           this.isDbInitInProgress = false;
@@ -38907,49 +38939,129 @@ class EventBus {
     return dbInitPromise;
   }
 
-  async publish(eventName, data) {
-   
-     console.log(`[EventBus][${getContextName()}] eventName`, eventName,'data:', data);
+  async publish(eventName, data, contextName = getContextName()) {
+    const context = contextName;
+    console.log(`[EventBus][${context}] : publish -> Event: ${eventName}`, data);
+  
 
-    if (isDbEvent(eventName) && !isBackgroundContext()) {
-      console.log(`[EventBus][${getContextName()}] Forwarding DB event to background:`, eventName, data);
-      const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data });
-      console.log(`[EventBus][${getContextName()}] Received response from background for`, eventName, result);
-      return result;
-    }
-    if (isDbEvent(eventName) && isBackgroundContext()) {
-      console.log(`[EventBus][${getContextName()}] Handling DB event locally:`, eventName, data);
-    }
-    const listeners = this.listeners.get(eventName);
-    if (listeners && listeners.length > 0) {
-      try {
-        const eventData = structuredClone(data);
-        console.log(`[EventBus] Publishing ${eventName}. Found ${listeners.length} listeners. Data to send:`, JSON.stringify(eventData));
-        const results = await Promise.all(
-          listeners.map((callback, index) => {
-            try {
-              console.log(`[EventBus] Calling listener #${index + 1} for ${eventName} with data:`, JSON.stringify(eventData));
-              return callback(eventData);
-            } catch (error) {
-              console.error(`[EventBus] Error in listener #${index + 1} for ${eventName}:`, error);
-              return undefined;
-            }
-          })
-        );
-        console.log('[EventBus] Returning results for', eventName, results);
-        return results;
-      } catch (cloneError) {
-        console.error(`[EventBus] Failed to structuredClone data for event ${eventName}:`, cloneError, data);
-        return Promise.reject(cloneError);
+    if (!isBackgroundContext()) { // UI Context
+      
+      // background event broadcast, no need to forward
+      if (eventName === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+        return Promise.resolve([]); 
       }
-    } else {
-      console.log(`[EventBus] No listeners registered for event ${eventName}. Data:`, JSON.stringify(data));
-      return Promise.resolve([]);
+      
+      // db event, forward to background
+      if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(eventName)) {            
+        console.log(`[EventBus][${context}] : publish -> Forwarding event to background: ${eventName}`);
+        const resultFromBg = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data , originalContext: context, crossContext: false});
+        console.log(`[EventBus][${context}] : publish -> Received response from background for ${eventName}:`, resultFromBg);
+        return resultFromBg;
+
+      }
+
+      // same context, dispatch locally
+      if (getContextName() === context) {    
+        return this.dispatchToLocalListeners(eventName, data, context);
+      }
+
+      // different context, forward to background
+
+      if (getContextName() != context) {    
+        console.log(`[EventBus][${context}] : publish -> Forwarding event to background: ${eventName}`);
+        const resultFromBg = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data , originalContext: context, crossContext: true});
+        console.log(`[EventBus][${context}] : publish -> Received response from background for ${eventName}:`, resultFromBg);
+        return resultFromBg;
+      }
+
+
+
+    } else { // Background Context
+      if (broadcastableEventTypes.includes(eventName)) {
+        console.log(`[EventBus][${context}] :: publish -> Event ${eventName} is broadcastable. Sending wrapper.`);
+        const broadcastPayload = {
+          type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST,
+          payload: {
+            eventName: eventName,
+            data: structuredClone(data),
+            originalContext: context,
+            crossContext: false
+          }
+        };
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(broadcastPayload)
+          .catch(error => {
+            if (error.message.includes("Could not establish connection") ||
+              error.message.includes("Receiving end does not exist") ||
+              error.message.includes("The message port closed before a response was received")) {
+              console.warn(`[EventBus][${context}] :publish Failed to broadcast ${eventName} to UI: No active receiver.`);
+            } else {
+              console.error(`[EventBus][${context}] : publish Error broadcasting event ${eventName}:`, error);
+            }
+          });
+        console.log(`[EventBus][${context}] : publish -> Dispatching broadcastable event ${eventName} locally in background as well.`);
+        return this.dispatchToLocalListeners(eventName, data, context);
+      } else {
+        console.log(`[EventBus][${context}] : : publish -> Event ${eventName} is not broadcastable. Dispatching locally in background.`);
+        return this.dispatchToLocalListeners(eventName, data, context);
+      }
     }
   }
 }
 
-const eventBus = new EventBus(); 
+const eventBus = new EventBus();
+
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || !message.type) {
+    return false;
+  }
+  const context = getContextName();
+
+  if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+    console.log(`[EventBus][${context}] : onMessage -> Received BACKGROUND_EVENT_BROADCAST. Original event: ${message.payload?.eventName}`);
+    if (message.payload && broadcastableEventTypes.includes(message.payload.eventName)) {
+      eventBus.dispatchToLocalListeners(message.payload.eventName, message.payload.data);
+    } 
+    return false; 
+  }
+
+  if (message.crossContext === true && !isBackgroundContext()) {
+    eventBus.dispatchToLocalListeners(message.type, message.payload, message.originalContext);
+    return false;
+  }
+
+  if (isBackgroundContext()) {
+    if (message.crossContext === true && message.originalContext) {
+      webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+        type: message.type,
+        payload: message.payload,
+        originalContext: message.originalContext,
+        crossContext: true
+      });
+      return false;
+    }
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(message.type)) { 
+      console.log(`[EventBus][${context}] : onMessage -> Received direct DBEvent (request): ${message.type}. Publishing to local BG eventBus.`);
+      eventBus.publish(message.type, message.payload) 
+        .then(result => {
+            try {
+                console.log(`[EventBus][${context}] : onMessage -> DBEvent ${message.type} processed. Sending response.`);
+                sendResponse(structuredClone(result));
+            } catch(e) {
+                console.error(`[EventBus][${context}] :onMessage Failed to clone response for DBEvent ${message.type}:`, e);
+                sendResponse({success: false, error: "Failed to clone response in background"});
+            }
+        })
+        .catch(error => {
+            console.error(`[EventBus][${context}] : onMessage Error processing DBEvent ${message.type}:`, error);
+            sendResponse({ success: false, error: error.message });
+        });
+      return true; 
+    }
+  }
+
+  console.log(`[EventBus][${context}] : onMessage -> Message type ${message.type} not handled by eventBus onMessage logic.`);
+  return false; 
+});
 
 /***/ }),
 
@@ -38993,6 +39105,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
 /* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
 /* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
+/* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
+/* harmony export */   DbResetDatabaseResponse: () => (/* binding */ DbResetDatabaseResponse),
 /* harmony export */   DbResponseBase: () => (/* binding */ DbResponseBase),
 /* harmony export */   DbSessionUpdatedNotification: () => (/* binding */ DbSessionUpdatedNotification),
 /* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
@@ -39006,7 +39120,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventNames.js */ "./src/events/eventNames.js");
 
 
-// Simple UUID generator (replace with a more robust library if needed)
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -39014,7 +39127,7 @@ function generateUUID() {
   });
 }
 
-// --- Base Classes ---
+
 class DbEventBase {
   constructor(requestId = null) {
     this.requestId = requestId || generateUUID();
@@ -39038,54 +39151,61 @@ class DbNotificationBase {
     }
 }
 
-// --- Response Events (Define Before Request Events) ---
+
 
 class DbGetSessionResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
   constructor(originalRequestId, success, sessionData, error = null) {
     super(originalRequestId, success, sessionData, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
+    this.type = DbGetSessionResponse.type;
   }
 }
 
 class DbAddMessageResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
   constructor(originalRequestId, success, newMessageId, error = null) {
     super(originalRequestId, success, { newMessageId }, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
+    this.type = DbAddMessageResponse.type;
   }
 }
 
 class DbUpdateMessageResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
+        this.type = DbUpdateMessageResponse.type;
     }
 }
 
 class DbUpdateStatusResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
+    this.type = DbUpdateStatusResponse.type;
   }
 }
 
 class DbDeleteMessageResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
+        this.type = DbDeleteMessageResponse.type;
     }
 }
 
 class DbToggleStarResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
     constructor(originalRequestId, success, updatedSessionData, error = null) {
         super(originalRequestId, success, updatedSessionData, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
+        this.type = DbToggleStarResponse.type;
     }
 }
 
 class DbCreateSessionResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
     constructor(originalRequestId, success, newSessionId, error = null) {
         super(originalRequestId, success, { newSessionId }, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
+        this.type = DbCreateSessionResponse.type;
         console.log(`[dbEvents] DbCreateSessionResponse constructor: type set to ${this.type}`);
     }
 
@@ -39095,38 +39215,43 @@ class DbCreateSessionResponse extends DbResponseBase {
 }
 
 class DbDeleteSessionResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
+        this.type = DbDeleteSessionResponse.type;
     }
 }
 
 class DbRenameSessionResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
     constructor(originalRequestId, success, error = null) {
         super(originalRequestId, success, null, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
+        this.type = DbRenameSessionResponse.type;
     }
 }
 
 class DbGetAllSessionsResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
     constructor(requestId, success, sessions = null, error = null) {
         super(requestId, success, sessions, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
+        this.type = DbGetAllSessionsResponse.type;
         this.payload = { sessions };
     }
 }
 
 class DbGetStarredSessionsResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     constructor(requestId, success, starredSessions = null, error = null) {
         super(requestId, success, starredSessions, error); 
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
+        this.type = DbGetStarredSessionsResponse.type;
     }
 }
 
 class DbGetReadyStateResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
     constructor(originalRequestId, success, ready, error = null) {
         super(originalRequestId, success, { ready }, error);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
+        this.type = DbGetReadyStateResponse.type;
         this.payload = { ready };
     }
 }
@@ -39134,150 +39259,166 @@ class DbGetReadyStateResponse extends DbResponseBase {
 // --- Request Events (Define After Response Events) ---
 
 class DbGetSessionRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
   constructor(sessionId) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_REQUEST;
+    this.type = DbGetSessionRequest.type;
     this.payload = { sessionId };
   }
 }
 
 class DbAddMessageRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
   constructor(sessionId, messageObject) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_REQUEST;
+    this.type = DbAddMessageRequest.type;
     this.payload = { sessionId, messageObject };
   }
 }
 
 class DbUpdateMessageRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId, updates) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
+        this.type = DbUpdateMessageRequest.type;
         this.payload = { sessionId, messageId, updates };
     }
 }
 
 class DbUpdateStatusRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
   constructor(sessionId, status) {
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_REQUEST;
+    this.type = DbUpdateStatusRequest.type;
     this.payload = { sessionId, status };
   }
 }
 
 class DbDeleteMessageRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
     constructor(sessionId, messageId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_REQUEST;
+        this.type = DbDeleteMessageRequest.type;
         this.payload = { sessionId, messageId };
     }
 }
 
 class DbToggleStarRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_REQUEST;
+        this.type = DbToggleStarRequest.type;
         this.payload = { sessionId };
     }
 }
 
 class DbCreateSessionRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
     constructor(initialMessage) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_REQUEST;
+        this.type = DbCreateSessionRequest.type;
         this.payload = { initialMessage };
         console.log(`[dbEvents] DbCreateSessionRequest constructor: type set to ${this.type}`);
     }
 }
 
 class DbInitializeRequest extends DbEventBase {
-    // No response expected via requestDbAndWait, so no responseEventName needed
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZE_REQUEST;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.INITIALIZE_REQUEST;
+        this.type = DbInitializeRequest.type;
         this.payload = {}; 
     }
 }
 
 class DbDeleteSessionRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
     constructor(sessionId) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_REQUEST;
+        this.type = DbDeleteSessionRequest.type;
         this.payload = { sessionId };
     }
 }
 
 class DbRenameSessionRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
     constructor(sessionId, newName) {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_REQUEST;
+        this.type = DbRenameSessionRequest.type;
         this.payload = { sessionId, newName };
     }
 }
 
 class DbGetAllSessionsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
+        this.type = DbGetAllSessionsRequest.type;
         console.log('[DEBUG][Create] DbGetAllSessionsRequest:', this, this.type);
     }
 }
 
 class DbGetStarredSessionsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
+        this.type = DbGetStarredSessionsRequest.type;
     }
 }
 
 class DbGetReadyStateRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_REQUEST;
+        this.type = DbGetReadyStateRequest.type;
     }
 }
 
 // --- Notification Events ---
 
 class DbMessagesUpdatedNotification extends DbNotificationBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
     constructor(sessionId, messages) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
+        this.type = DbMessagesUpdatedNotification.type;
         this.payload = { messages }; 
     }
 }
 
 class DbStatusUpdatedNotification extends DbNotificationBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
     constructor(sessionId, status) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
+        this.type = DbStatusUpdatedNotification.type;
         this.payload = { status };
     }
 }
 
 class DbSessionUpdatedNotification extends DbNotificationBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
     constructor(sessionId, updatedSessionData) {
         super(sessionId);
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
+        this.type = DbSessionUpdatedNotification.type;
         this.payload = { session: updatedSessionData }; 
     }
 }
 
 class DbInitializationCompleteNotification {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
     constructor({ success, error = null }) {
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
+        this.type = DbInitializationCompleteNotification.type;
         this.timestamp = Date.now();
         this.payload = { success, error: error ? (error.message || String(error)) : null };
     }
@@ -39286,90 +39427,105 @@ class DbInitializationCompleteNotification {
 // --- Log Response Events ---
 
 class DbGetLogsResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
   constructor(originalRequestId, success, logs, error = null) {
     super(originalRequestId, success, logs, error); // data = logs array
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
+    this.type = DbGetLogsResponse.type;
   }
 }
 
 class DbGetUniqueLogValuesResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   constructor(originalRequestId, success, values, error = null) {
     super(originalRequestId, success, values, error); // data = values array
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
+    this.type = DbGetUniqueLogValuesResponse.type;
   }
 }
 
 class DbClearLogsResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
   constructor(originalRequestId, success, error = null) {
     super(originalRequestId, success, null, error);
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
+    this.type = DbClearLogsResponse.type;
   }
 }
 
 class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     constructor(originalRequestId, success, ids, error = null) {
       // data = { currentLogSessionId: '...', previousLogSessionId: '...' | null }
       super(originalRequestId, success, ids, error);
-      this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
+      this.type = DbGetCurrentAndLastLogSessionIdsResponse.type;
     }
   }
 
-// --- Log Request Events ---
-
-// Request to add a single log entry
-// No response needed, fire-and-forget style
 class DbAddLogRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_LOG_REQUEST;
   // No responseEventName needed for fire-and-forget
   constructor(logEntryData) {
-    // logEntryData = { level, component, message, chatSessionId (optional) }
-    // db service will add id, timestamp, extensionSessionId
-    super(); // Generate request ID just for tracking if needed
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_LOG_REQUEST;
+    super(); 
+    this.type = DbAddLogRequest.type;
     this.payload = { logEntryData };
   }
 }
 
-// Request to get logs based on filters
 class DbGetLogsRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
   constructor(filters) {
     // filters = { extensionSessionId: 'id' | 'current' | 'last' | 'all',
     //             component: 'name' | 'all',
     //             level: 'level' | 'all' }
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_REQUEST;
+    this.type = DbGetLogsRequest.type;
     this.payload = { filters };
   }
 }
 
-// Request to get unique values for a specific field in logs
 class DbGetUniqueLogValuesRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
   static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
   constructor(fieldName) {
     // fieldName = 'extensionSessionId', 'component', 'level'
     super();
-    this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
+    this.type = DbGetUniqueLogValuesRequest.type;
     this.payload = { fieldName };
   }
 }
 
-// Request to clear logs (potentially based on filters in future, but maybe just 'all' or 'last_session' for now)
 class DbClearLogsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
     constructor(filter = 'all') { // 'all' or potentially 'last_session' or specific session ID later
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_REQUEST;
+        this.type = DbClearLogsRequest.type;
         this.payload = { filter };
     }
 }
 
-// Request to get the actual IDs for 'current' and 'last' sessions
 class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
+    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
     static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
     constructor() {
         super();
-        this.type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
+        this.type = DbGetCurrentAndLastLogSessionIdsRequest.type;
     }
+}
+
+class DbResetDatabaseRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RESET_DATABASE_REQUEST;
+  constructor() {
+    super();
+    this.type = DbResetDatabaseRequest.type;
+  }
+}
+
+class DbResetDatabaseResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RESET_DATABASE_RESPONSE;
+  constructor(originalRequestId, success, error = null) {
+    super(originalRequestId, success, null, error);
+    this.type = DbResetDatabaseResponse.type;
+  }
 } 
 
 /***/ }),
@@ -39383,55 +39539,59 @@ class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
-/* harmony export */   DriveMessageTypes: () => (/* binding */ DriveMessageTypes),
+/* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
+/* harmony export */   RawDirectMessageTypes: () => (/* binding */ RawDirectMessageTypes),
 /* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
 /* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
 const DBEventNames = Object.freeze({
-  GET_SESSION_REQUEST: 'DbGetSessionRequest',
-  GET_SESSION_RESPONSE: 'DbGetSessionResponse',
-  ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
-  ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
-  UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
-  UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
-  UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
-  UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
-  DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
-  DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
-  TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
-  TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
+  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
   DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
   DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
-  DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
-  DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
-  RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
-  RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
   DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
   DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
   DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
   DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
-  MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
-  STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
-  SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
-  INITIALIZE_REQUEST: 'DbInitializeRequest',
-  INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
-  GET_LOGS_REQUEST: 'DbGetLogsRequest',
-  GET_LOGS_RESPONSE: 'DbGetLogsResponse',
-  GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
-  GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
-  CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
-  CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
-  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
-  GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
-  ADD_LOG_REQUEST: 'DbAddLogRequest',
-  ADD_LOG_RESPONSE: 'DbAddLogResponse',
+  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
+  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
+  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
+  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
   DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
   DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
+  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
 });
 
 const UIEventNames = Object.freeze({
@@ -39493,15 +39653,31 @@ const SiteMapperMessageTypes = Object.freeze({
   MAPPED: 'mapped',
 });
 
-const DriveMessageTypes = Object.freeze({
-  DRIVE_FILE_LIST_DATA: 'driveFileListData',
-});
-
 const ModelLoaderMessageTypes = Object.freeze({
   INIT: 'init',
   GENERATE: 'generate',
   INTERRUPT: 'interrupt',
   RESET: 'reset',
+});
+
+const InternalEventBusMessageTypes = Object.freeze({
+  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+});
+
+const RawDirectMessageTypes = Object.freeze({
+  WORKER_GENERIC_RESPONSE: 'response',
+  WORKER_GENERIC_ERROR: 'error',
+  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
+  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+});
+
+const Contexts = Object.freeze({
+  BACKGROUND: 'Background',
+  MAIN_UI: 'MainUI',
+  POPUP: 'Popup',
+  OTHERS: 'Others',
+  UNKNOWN: 'Unknown',
 }); 
 
 /***/ }),
@@ -39524,7 +39700,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventBus.js */ "./src/eventBus.js");
 /* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
 
 
 
@@ -39560,7 +39735,7 @@ function init(compName, options = {}) {
     sendToDbDefault = options.sendToDb !== undefined ? options.sendToDb : true;
 
     if (_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus) {
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.INITIALIZATION_COMPLETE_NOTIFICATION, (notification) => {
+        _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification.type, (notification) => {
             if (notification.payload.success) {
                 console.log(`[LogClient (${componentName})] Received DB Initialization Complete. Flushing buffer.`);
                 isDbReadyForLogs = true;
@@ -39702,16 +39877,15 @@ function logError(...args) {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/plugin.js");
-/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/rx-database.js");
-/* harmony import */ var rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! rxdb/plugins/storage-dexie */ "./node_modules/rxdb/dist/esm/plugins/storage-dexie/rx-storage-dexie.js");
-/* harmony import */ var rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! rxdb/plugins/query-builder */ "./node_modules/rxdb/dist/esm/plugins/query-builder/index.js");
-/* harmony import */ var rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! rxdb/plugins/migration-schema */ "./node_modules/rxdb/dist/esm/plugins/migration-schema/index.js");
-/* harmony import */ var rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! rxdb/plugins/update */ "./node_modules/rxdb/dist/esm/plugins/update/index.js");
+/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/plugin.js");
+/* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/rx-database.js");
+/* harmony import */ var rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! rxdb/plugins/storage-dexie */ "./node_modules/rxdb/dist/esm/plugins/storage-dexie/rx-storage-dexie.js");
+/* harmony import */ var rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! rxdb/plugins/query-builder */ "./node_modules/rxdb/dist/esm/plugins/query-builder/index.js");
+/* harmony import */ var rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! rxdb/plugins/migration-schema */ "./node_modules/rxdb/dist/esm/plugins/migration-schema/index.js");
+/* harmony import */ var rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! rxdb/plugins/update */ "./node_modules/rxdb/dist/esm/plugins/update/index.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__);
 /* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
 console.log('[DB] minimaldb.js context check:', {
   typeofWindow: typeof window,
   typeofSelf: typeof self,
@@ -39843,11 +40017,25 @@ const logSchema = {
   required: ['id', 'timestamp', 'level', 'component', 'extensionSessionId', 'message']
 };
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.INITIALIZE_REQUEST, handleInitializeRequest);
-console.log('[DB] Subscribed to DbInitializeRequest');
-
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_READY_STATE_REQUEST, handleDbGetReadyStateRequest);
-
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest.type, handleInitializeRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, handleDbGetReadyStateRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionRequest.type, handleDbCreateSessionRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionRequest.type, handleDbGetSessionRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageRequest.type, handleDbAddMessageRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageRequest.type, handleDbUpdateMessageRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageRequest.type, handleDbDeleteMessageRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusRequest.type, handleDbUpdateStatusRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarRequest.type, handleDbToggleStarRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsRequest.type, handleDbGetAllSessionsRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsRequest.type, handleDbGetStarredSessionsRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionRequest.type, handleDbDeleteSessionRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionRequest.type, handleDbRenameSessionRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddLogRequest.type, handleDbAddLogRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsRequest.type, handleDbGetLogsRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesRequest.type, handleDbGetUniqueLogValuesRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsRequest.type, handleDbClearLogsRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsRequest.type, handleDbGetCurrentAndLastLogSessionIdsRequest);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest.type, handleDbResetDatabaseRequest);
 async function handleDbGetReadyStateRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] handleDbGetReadyStateRequest: ready=' + isDbReadyFlag);
@@ -39855,23 +40043,43 @@ async function handleDbGetReadyStateRequest(event) {
 }
 
 async function ensureDbReady(type = 'chat') {
-    const isReady = await withTimeout(dbReadyPromise, 5000, 'Database initialization timeout');
-    if (!isReady) {
-         throw new AppError('DB_NOT_READY', 'Main Database systems not initialized');
+    const timeoutMs = 5000;
+    const pollInterval = 100;
+    const start = Date.now();
+    let collection = null;
+    let lastLogTime = 0;
+    while (Date.now() - start < timeoutMs) {
+        if (type === 'chat') {
+            if (chatHistoryCollection) {
+                console.log(`[DB][ensureDbReady] chatHistoryCollection is ready after ${Date.now() - start}ms`);
+                collection = chatHistoryCollection;
+                break;
+            }
+        } else if (type === 'log') {
+            if (logsCollection) {
+                console.log(`[DB][ensureDbReady] logsCollection is ready after ${Date.now() - start}ms`);
+                collection = logsCollection;
+                break;
+            }
+        } else {
+            throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`);
+        }
+        // Log every 500ms to avoid spamming
+        if (Date.now() - lastLogTime > 500) {
+            console.log(`[DB][ensureDbReady] Waiting for collection '${type}'... elapsed: ${Date.now() - start}ms`);
+            lastLogTime = Date.now();
+        }
+        await new Promise(res => setTimeout(res, pollInterval));
     }
-    if (type === 'chat') {
-        if (!chatHistoryCollection) throw new AppError('COLLECTION_NOT_READY', 'Chat history collection not initialized');
-    return chatHistoryCollection;
-    } else if (type === 'log') {
-        if (!logsCollection) throw new AppError('COLLECTION_NOT_READY', 'Logs collection not initialized');
-        return logsCollection;
-    } else {
-        throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`);
+    if (!collection) {
+        console.error(`[DB][ensureDbReady] Collection for type '${type}' not initialized after ${timeoutMs}ms`);
+        throw new AppError('COLLECTION_NOT_READY', `Collection for type '${type}' not initialized after ${timeoutMs}ms`);
     }
+    return collection;
 }
 
 
-async function resetDatabase() {
+async function handleDbResetDatabaseRequest() {
     console.log('[DB] Resetting databases due to initialization failure');
     try {
         if (db) {
@@ -39892,7 +40100,7 @@ async function resetDatabase() {
 
         try {
 
-            const mainStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)('tabagentdb');
+            const mainStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagentdb');
             if (mainStorage && typeof mainStorage.remove === 'function') {
                  await mainStorage.remove();
                  console.log('[DB] Removed tabagentdb storage');
@@ -39902,7 +40110,7 @@ async function resetDatabase() {
         } catch (e) { console.warn('[DB] Could not remove tabagentdb storage (might not exist)', { error: e?.message }); }
          try {
 
-             const logStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)('tabagent_logs_db');
+             const logStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagent_logs_db');
              if (logStorage && typeof logStorage.remove === 'function') {
                  await logStorage.remove();
                  console.log('[DB] Removed tabagent_logs_db storage');
@@ -39979,17 +40187,17 @@ async function handleInitializeRequest(event) {
     // 4. Main initialization
     try {
         console.log('[DB][Init Step 1] About to add plugins');
-        (0,rxdb__WEBPACK_IMPORTED_MODULE_5__.addRxPlugin)(rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_6__.RxDBQueryBuilderPlugin);
-        (0,rxdb__WEBPACK_IMPORTED_MODULE_5__.addRxPlugin)(rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_7__.RxDBMigrationSchemaPlugin);
-        (0,rxdb__WEBPACK_IMPORTED_MODULE_5__.addRxPlugin)(rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_8__.RxDBUpdatePlugin);
+        (0,rxdb__WEBPACK_IMPORTED_MODULE_4__.addRxPlugin)(rxdb_plugins_query_builder__WEBPACK_IMPORTED_MODULE_5__.RxDBQueryBuilderPlugin);
+        (0,rxdb__WEBPACK_IMPORTED_MODULE_4__.addRxPlugin)(rxdb_plugins_migration_schema__WEBPACK_IMPORTED_MODULE_6__.RxDBMigrationSchemaPlugin);
+        (0,rxdb__WEBPACK_IMPORTED_MODULE_4__.addRxPlugin)(rxdb_plugins_update__WEBPACK_IMPORTED_MODULE_7__.RxDBUpdatePlugin);
         console.log('[DB][Init Step 1] Plugins added');
       
 
         if (!isDbInitialized) {
             console.log('[DB][Init Step 2] About to create main database');
-            db = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_9__.createRxDatabase)({
+            db = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_8__.createRxDatabase)({
                 name: 'tabagentdb',
-                storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)()
+                storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)()
             }), 10000);
             console.log('[DB][Init Step 2] Main database instance created', { name: db.name });
 
@@ -40017,9 +40225,9 @@ async function handleInitializeRequest(event) {
         if (!isLogDbInitialized) {
             console.log('[DB][Init Step 4] About to create log database');
             try {
-                logDbInstance = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_9__.createRxDatabase)({
+                logDbInstance = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_8__.createRxDatabase)({
                     name: 'tabagent_logs_db',
-                    storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_4__.getRxStorageDexie)()
+                    storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)()
                 }), 10000);
                 console.log('[DB][Init Step 4] Log database instance created', { name: logDbInstance.name });
             } catch (e) {
@@ -40041,82 +40249,9 @@ async function handleInitializeRequest(event) {
         } else {
             console.log('[DB][Init Step 4/5] Log database and log collections already initialized');
         }
+          
 
-        console.log('[DB] Before getting currentSubscriptions');
-       
-        const currentSubscriptions = (typeof _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus?.getSubscriptions === 'function') 
-            ? _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.getSubscriptions() 
-            : {}; 
-        console.log('[DB] After getting currentSubscriptions', currentSubscriptions);
-
-       
-
-        const chatEventNames = [
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CREATE_SESSION_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_SESSION_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_MESSAGE_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_MESSAGE_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_STATUS_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_TOGGLE_STAR_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_SESSION_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_RENAME_SESSION_REQUEST
-        ];
-        console.log('[DB][DEBUG] Before checking needChatSubscription');
-
-       
-
-        const needChatSubscription = chatEventNames.some(name => !currentSubscriptions[name]);
-        if (needChatSubscription) {
-            const chatSubscriptions = [
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CREATE_SESSION_REQUEST, handler: handleDbCreateSessionRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_SESSION_REQUEST, handler: handleDbGetSessionRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_MESSAGE_REQUEST, handler: handleDbAddMessageRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST, handler: handleDbUpdateMessageRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_MESSAGE_REQUEST, handler: handleDbDeleteMessageRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_UPDATE_STATUS_REQUEST, handler: handleDbUpdateStatusRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_TOGGLE_STAR_REQUEST, handler: handleDbToggleStarRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST, handler: handleDbGetAllSessionsRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST, handler: handleDbGetStarredSessionsRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_DELETE_SESSION_REQUEST, handler: handleDbDeleteSessionRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_RENAME_SESSION_REQUEST, handler: handleDbRenameSessionRequest }
-            ];
-            chatSubscriptions.forEach(({ event, handler }) => _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(event, handler));
-            console.log('[DB] Chat event bus subscriptions complete', { count: chatSubscriptions.length });
-        } else {
-            console.log('[DB] Chat event bus subscriptions already exist.');
-        }
-        console.log('[DB][DEBUG] After chat event bus subscriptions');
-
-       
-
-        const logEventNames = [
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_LOG_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_LOGS_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CLEAR_LOGS_REQUEST,
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST
-        ];
-        console.log('[DB][DEBUG] Before checking needLogSubscription');
-        const needLogSubscription = logEventNames.some(name => !currentSubscriptions[name]);
-        if (needLogSubscription) {
-            const logSubscriptions = [
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_ADD_LOG_REQUEST, handler: handleDbAddLogRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_LOGS_REQUEST, handler: handleDbGetLogsRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST, handler: handleDbGetUniqueLogValuesRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_CLEAR_LOGS_REQUEST, handler: handleDbClearLogsRequest },
-                { event: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
-            ];
-            logSubscriptions.forEach(({ event, handler }) => _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(event, handler));
-            console.log('[DB] Subscribed to Log Database events', { count: logSubscriptions.length });
-        } else {
-            console.log('[DB] Log Database event subscriptions already exist.');
-        }
-        console.log('[DB][DEBUG] After log event bus subscriptions');
-
-        console.log('[DB][DEBUG] Before pruning');
+        console.log('[DB] Before pruning');
 
        
         setTimeout(async () => {
@@ -40149,10 +40284,10 @@ async function handleInitializeRequest(event) {
             } catch (pruneError) {
                 console.error('[DB] Error during startup log pruning:', pruneError);
             }
-            console.log('[DB][DEBUG] After pruning');
+           
         }, 100);
 
-        console.log('[DB][DEBUG] Before setting isDbReadyFlag and resolving dbReadyPromise');
+        console.log('[DB] Before setting isDbReadyFlag and resolving dbReadyPromise');
        
         isDbReadyFlag = true;
         console.log('[DB] About to resolve dbReadyPromise with value: true (init complete)');
@@ -40184,13 +40319,85 @@ function generateMessageId(chatId) {
     return `${chatId}-msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 }
 
-// Sanitize input to prevent injection
 function sanitizeInput(input) {
     if (typeof input !== 'string') return input;
     return input.replace(/[<>]/g, '');
 }
 
-// Internal database operations
+
+async function publishSessionUpdate(sessionId, updateType = 'update', sessionDataOverride = null) {
+    try {
+        let sessionData = sessionDataOverride;
+        if (!sessionData) {
+            const result = await getChatSessionByIdInternal(sessionId);
+            if (result.success && result.data) {
+                sessionData = result.data.toJSON ? result.data.toJSON() : result.data;
+            } else if (updateType === 'delete') {
+                sessionData = { id: sessionId };
+            } else {
+                console.error('[DB] Session not found for notification', { sessionId, updateType });
+                return;
+            }
+        }
+        let plainSession = sessionData;
+        try {
+            const testString = JSON.stringify(sessionData);
+            plainSession = JSON.parse(testString);
+        } catch (e) {
+            console.error('[DB] Session data is NOT serializable:', e, sessionData);
+            return;
+        }
+        const notification = {
+            type: _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type,
+            payload: { session: plainSession, updateType }
+        };
+        JSON.stringify(notification); 
+        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(notification.type, notification);
+        console.log('[DB] Session update notification published', { sessionId, updateType });
+    } catch (e) {
+        console.error('[DB] Failed to publish session update notification', e, { sessionId, updateType });
+    }
+}
+
+
+async function publishMessagesUpdate(sessionId, messages) {
+    try {
+
+        let plainMessages = messages;
+        try {
+            const testString = JSON.stringify(messages);
+            plainMessages = JSON.parse(testString);
+        } catch (e) {
+            console.error('[DB] Messages are NOT serializable:', e, messages);
+            return;
+        }
+        const notification = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(sessionId, plainMessages);
+        JSON.stringify(notification); 
+        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(notification.type, notification);
+        console.log('[DB] Messages update notification published', { sessionId, count: plainMessages.length });
+    } catch (e) {
+        console.error('[DB] Failed to publish messages update notification', e, { sessionId });
+    }
+}
+
+async function publishStatusUpdate(sessionId, status) {
+    try {
+        let safeStatus = status;
+        try {
+            JSON.stringify(status);
+        } catch (e) {
+            console.error('[DB] Status is NOT serializable:', e, status);
+            return;
+        }
+        const notification = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(sessionId, safeStatus);
+        JSON.stringify(notification); 
+        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(notification.type, notification);
+        console.log('[DB] Status update notification published', { sessionId, status });
+    } catch (e) {
+        console.error('[DB] Failed to publish status update notification', e, { sessionId });
+    }
+}
+
 async function createChatSessionInternal(initialMessage) {
     console.log('[DB] Creating new chat session', { initialMessage });
     try {
@@ -40218,7 +40425,9 @@ async function createChatSessionInternal(initialMessage) {
         };
         console.log('[DB] Inserting session', { sessionId });
         const newSessionDoc = await withTimeout(collection.insert(sessionData), 3000);
-        await publishSessionUpdateNotificationInternal(sessionId);
+        await publishSessionUpdate(sessionId, 'create');
+        await publishMessagesUpdate(sessionId, newSessionDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
+        await publishStatusUpdate(newSessionDoc.id, newSessionDoc.status);
         return { success: true, data: newSessionDoc };
     } catch (error) {
         console.error('[DB] Failed to create chat session', { error });
@@ -40269,6 +40478,8 @@ async function addMessageToChatInternal(chatId, messageObject) {
             3000
         );
         console.log('[DB] Message added', { chatId, messageId: newMessage.messageId });
+        await publishSessionUpdate(chatId, 'update');
+        await publishMessagesUpdate(chatId, updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
         return { success: true, data: { updatedDoc, newMessageId: newMessage.messageId } };
     } catch (error) {
         console.error('[DB] Failed to add message', { chatId, error });
@@ -40308,7 +40519,8 @@ async function updateMessageInChatInternal(chatId, messageId, updates) {
             return { success: false, error: `Message ${messageId} not found in chat ${chatId}` };
         }
         console.log('[DB] Message updated', { chatId, messageId });
-        await publishSessionUpdateNotificationInternal(chatId);
+        await publishSessionUpdate(chatId, 'update');
+        await publishMessagesUpdate(chatId, updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to update message', { chatId, messageId, error });
@@ -40338,7 +40550,8 @@ async function deleteMessageFromChatInternal(sessionId, messageId) {
             3000
         );
         console.log('[DB] Message deleted', { sessionId, messageId });
-        await publishSessionUpdateNotificationInternal(sessionId);
+        await publishSessionUpdate(sessionId, 'update');
+        await publishMessagesUpdate(sessionId, updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
         return { success: true, data: { updatedDoc, deleted: true } };
     } catch (error) {
         console.error('[DB] Failed to delete message', { sessionId, messageId, error });
@@ -40363,7 +40576,8 @@ async function updateSessionStatusInternal(sessionId, newStatus) {
             3000
         );
         console.log('[DB] Status updated', { sessionId, newStatus });
-        await publishSessionUpdateNotificationInternal(sessionId);
+        await publishSessionUpdate(sessionId, 'update');
+        await publishStatusUpdate(sessionId, newStatus);
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to update status', { sessionId, newStatus, error });
@@ -40388,7 +40602,7 @@ async function toggleItemStarredInternal(itemId) {
             3000
         );
         console.log('[DB] Starred status toggled', { itemId, isStarred: !currentStarredStatus });
-        await publishSessionUpdateNotificationInternal(itemId);
+        await publishSessionUpdate(itemId, 'update');
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to toggle starred status', { itemId, error });
@@ -40410,7 +40624,7 @@ async function deleteHistoryItemInternal(itemId) {
         }
         await withTimeout(entryDoc.remove(), 3000);
         console.log('[DB] Item deleted', { itemId });
-        await publishSessionUpdateNotificationInternal(itemId);
+        await publishSessionUpdate(itemId, 'delete');
         return { success: true, data: true };
     } catch (error) {
         console.error('[DB] Failed to delete history item', { itemId, error });
@@ -40434,7 +40648,7 @@ async function renameHistoryItemInternal(itemId, newTitle) {
             3000
         );
         console.log('[DB] Item renamed', { itemId, newTitle });
-        await publishSessionUpdateNotificationInternal(itemId);
+        await publishSessionUpdate(itemId, 'rename');
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to rename history item', { itemId, newTitle, error });
@@ -40446,6 +40660,7 @@ async function getAllSessionsInternal() {
     console.log('[DB] Getting all sessions');
     try {
         const collection = await ensureDbReady();
+        
         const sessionsDocs = await withTimeout(
             collection.find().sort({ timestamp: 'desc' }).exec(),
             5000
@@ -40475,65 +40690,31 @@ async function getStarredSessionsInternal() {
     }
 }
 
-async function publishSessionUpdateNotificationInternal(sessionId, updateType = 'update') { 
-    console.log('[DB] Attempting to publish session update for ' + sessionId + ', type: ' + updateType);
-    try {
-        await ensureDbReady();
-
-        const updatedSessionDoc = await getChatSessionByIdInternal(sessionId);
-
-        if (!updatedSessionDoc) {
-            console.error('[DB] Session not found after update, cannot publish notification', { sessionId });
-            return; 
-        }
-
-        const updatedSessionData = updatedSessionDoc.toJSON ? updatedSessionDoc.toJSON() : updatedSessionDoc;
-        
-        console.log('[DB] Publishing session update notification for ' + sessionId); 
-        
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-            _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION, 
-            new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification(sessionId, updatedSessionData, updateType)
-        );
-        console.log('[DB] Session update published', { sessionId, updateType });
-    } catch (error) {
-        console.error('[DB] Failed to publish session update', { sessionId, error });
-    }
-}
-
 async function handleDbCreateSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling session creation', { requestId });
-
+    let response;
     try {
         if (!event?.requestId || !event?.payload?.initialMessage || !event.payload.initialMessage.text) {
             throw new AppError('INVALID_INPUT', 'Missing requestId, initialMessage, or message text');
         }
 
-        const newSessionDoc = await withTimeout(createChatSessionInternal(event.payload.initialMessage), 5000);
-        if (!newSessionDoc?.id) {
+        const result = await withTimeout(createChatSessionInternal(event.payload.initialMessage), 5000);
+        if (!result.success || !result.data?.id) {
             throw new AppError('INVALID_DOCUMENT', 'Invalid session document returned');
         }
+        const newSessionDoc = result.data;
+        const plainMessages = newSessionDoc.messages.map(m => m.toJSON ? m.toJSON() : m);
+        console.log('[DB] About to publish DbMessagesUpdatedNotification (create session)', { sessionId: newSessionDoc.id, messages: plainMessages });
+        await publishMessagesUpdate(newSessionDoc.id, plainMessages);
+        await publishStatusUpdate(newSessionDoc.id, newSessionDoc.status);
 
-        await withTimeout(Promise.all([
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(newSessionDoc.id, newSessionDoc.messages)
-            ),
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(newSessionDoc.id, newSessionDoc.status)
-            )
-        ]), 3000);
-
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionResponse(requestId, true, newSessionDoc.id);
-        console.log('[DB] PRE-PUBLISH Check (Success Path): ReqID ' + requestId + ', Response Success: ' + response?.success + ', Response Type: ' + response?.type);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionResponse(requestId, true, newSessionDoc.id);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session created successfully', { requestId, sessionId: newSessionDoc.id });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to create session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionResponse(requestId, false, null, appError);
-        console.log('[DB] PRE-PUBLISH Check (Error Path): ReqID ' + requestId + ', Response Success: ' + response?.success + ', Response Type: ' + response?.type);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionResponse(requestId, false, null, appError);
         try {
              await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         } catch (publishError) {
@@ -40541,283 +40722,309 @@ async function handleDbCreateSessionRequest(event) {
         }
         console.error('[DB] Session creation failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling get session', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId) {
             throw new AppError('INVALID_INPUT', 'Session ID is required');
         }
-
-        const doc = await withTimeout(getChatSessionByIdInternal(event.payload.sessionId), 5000);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionResponse(requestId, true, doc ? doc.toJSON() : null);
+        const result = await withTimeout(getChatSessionByIdInternal(event.payload.sessionId), 5000);
+        if (!result.success) {
+            throw new AppError('GET_SESSION_FAILED', result.error || 'Unknown error');
+        }
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionResponse(requestId, true, result.data ? result.data.toJSON() : null);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session retrieved', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionResponse(requestId, false, null, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Get session failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbAddMessageRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling add message', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageObject || !event.payload.messageObject.text) {
             throw new AppError('INVALID_INPUT', 'Session ID and message with text are required');
         }
-
-        const { updatedDoc, newMessageId } = await withTimeout(
+        const result = await withTimeout(
             addMessageToChatInternal(event.payload.sessionId, event.payload.messageObject),
             5000
         );
-
+        if (!result.success) {
+            console.error('[DB][handleDbAddMessageRequest] addMessageToChatInternal failed', { result });
+            throw new AppError('ADD_MESSAGE_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data.updatedDoc || result.data;
+        const newMessageId = result.data.newMessageId;
         const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m); // Ensure plain messages
-        await withTimeout(
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(updatedDoc.id, plainMessages)
-            ),
-            3000
-        );
-
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageResponse(requestId, true, newMessageId);
+        console.log('[DB] About to publish DbMessagesUpdatedNotification (add message)', { sessionId: updatedDoc.id, messages: plainMessages });
+        await publishMessagesUpdate(updatedDoc.id, plainMessages);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageResponse(requestId, true, newMessageId);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Message added', { requestId, sessionId: event.payload.sessionId, messageId: newMessageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to add message', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageResponse(requestId, false, null, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbAddMessageResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Add message failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbUpdateMessageRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling update message', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageId || !event?.payload?.updates || !event.payload.updates.text) {
             throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates with text are required');
         }
-
-        const updatedDoc = await withTimeout(
+        const result = await withTimeout(
             updateMessageInChatInternal(event.payload.sessionId, event.payload.messageId, event.payload.updates),
             5000
         );
-        await withTimeout(
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
-            ),
-            3000
-        );
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageResponse(requestId, true);
+        if (!result.success) {
+            throw new AppError('UPDATE_MESSAGE_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data;
+        const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m);
+        console.log('[DB] About to publish DbMessagesUpdatedNotification (update message)', { sessionId: updatedDoc.id, messages: plainMessages });
+        await publishMessagesUpdate(updatedDoc.id, plainMessages);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Message updated', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to update message', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageResponse(requestId, false, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateMessageResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Update message failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbDeleteMessageRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling delete message', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageId) {
             throw new AppError('INVALID_INPUT', 'Session ID and message ID are required');
         }
-
-        const { updatedDoc, deleted } = await withTimeout(
+        const result = await withTimeout(
             deleteMessageFromChatInternal(event.payload.sessionId, event.payload.messageId),
             5000
         );
-        if (deleted) {
-            await withTimeout(
-                _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                    _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                    new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
-                ),
-                3000
-            );
+        if (!result.success) {
+            throw new AppError('DELETE_MESSAGE_FAILED', result.error || 'Unknown error');
         }
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageResponse(requestId, true);
+        const { updatedDoc, deleted } = result.data;
+        if (deleted) {
+            const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m);
+            console.log('[DB] About to publish DbMessagesUpdatedNotification (delete message)', { sessionId: updatedDoc.id, messages: plainMessages });
+            await publishMessagesUpdate(updatedDoc.id, plainMessages);
+        }
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Message deleted', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to delete message', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageResponse(requestId, false, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteMessageResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Delete message failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbUpdateStatusRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling update status', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.status) {
             throw new AppError('INVALID_INPUT', 'Session ID and status are required');
         }
-
-        const updatedDoc = await withTimeout(
+        const result = await withTimeout(
             updateSessionStatusInternal(event.payload.sessionId, event.payload.status),
             5000
         );
-        await withTimeout(
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-                new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(updatedDoc.id, updatedDoc.status)
-            ),
-            3000
-        );
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusResponse(requestId, true);
+        if (!result.success) {
+            throw new AppError('UPDATE_STATUS_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data;
+        await publishStatusUpdate(updatedDoc.id, updatedDoc.status);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Status updated', { requestId, sessionId: event.payload.sessionId, status: event.payload.status });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to update status', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusResponse(requestId, false, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbUpdateStatusResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Update status failed', { requestId, error: appError });
-    try {
-            await withTimeout(
-                _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(
-                    _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-                    new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbStatusUpdatedNotification(event.payload.sessionId, 'error')
-                ),
-                3000
-            );
+        try {
+            await publishStatusUpdate(event.payload.sessionId, 'error');
         } catch (notificationError) {
             console.error('Failed to publish error status notification', { requestId, error: notificationError });
         }
     }
+    return response;
 }
 
 async function handleDbToggleStarRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling toggle star', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId) {
             throw new AppError('INVALID_INPUT', 'Session ID is required');
         }
-
-        const updatedDoc = await withTimeout(toggleItemStarredInternal(event.payload.sessionId), 5000);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarResponse(requestId, true, updatedDoc.toJSON());
+        const result = await withTimeout(toggleItemStarredInternal(event.payload.sessionId), 5000);
+        if (!result.success) {
+            throw new AppError('TOGGLE_STAR_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data;
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarResponse(requestId, true, updatedDoc.toJSON());
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Star toggled', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to toggle star', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarResponse(requestId, false, null, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Toggle star failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetAllSessionsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling get all sessions', { requestId });
-
+    let response;
     try {
-        const sessionsRaw = await withTimeout(getAllSessionsInternal(), 5000);        
-        const sortedSessions = sessionsRaw.sort((a, b) => b.timestamp - a.timestamp); 
-
+        const result = await withTimeout(getAllSessionsInternal(), 5000);
+        if (!result.success) {
+            throw new AppError('GET_ALL_SESSIONS_FAILED', result.error || 'Unknown error');
+        }
+        const sortedSessions = (result.data || []).sort((a, b) => b.timestamp - a.timestamp);
         console.log('Using plain sessions directly', { count: sortedSessions.length });
-        
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsResponse(requestId, true, sortedSessions);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsResponse(requestId, true, sortedSessions);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Sessions retrieved', { requestId, count: sortedSessions.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get all sessions', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsResponse(requestId, false, null, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Get all sessions failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetStarredSessionsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling get starred sessions', { requestId });
-
+    let response;
     try {
-        const sessionsRaw = await withTimeout(getStarredSessionsInternal(), 5000);
-        const starredSessions = sessionsRaw.map(s => ({
+        const result = await withTimeout(getStarredSessionsInternal(), 5000);
+        if (!result.success) {
+            throw new AppError('GET_STARRED_SESSIONS_FAILED', result.error || 'Unknown error');
+        }
+        const starredSessions = (result.data || []).map(s => ({
             sessionId: s.id,
             name: s.title,
             lastUpdated: s.timestamp,
             isStarred: s.isStarred
         })).sort((a, b) => b.lastUpdated - a.lastUpdated);
-
         console.log('Retrieved starred sessions', { count: starredSessions.length });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsResponse(requestId, true, starredSessions);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsResponse(requestId, true, starredSessions);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Starred sessions retrieved', { requestId, count: starredSessions.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get starred sessions', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsResponse(requestId, false, null, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetStarredSessionsResponse(requestId, false, null, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Get starred sessions failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbDeleteSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling delete session', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId) {
             throw new AppError('INVALID_INPUT', 'Session ID is required');
         }
-
-        const deleted = await withTimeout(deleteHistoryItemInternal(event.payload.sessionId), 5000);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionResponse(requestId, true);
+        const result = await withTimeout(deleteHistoryItemInternal(event.payload.sessionId), 5000);
+        if (!result.success) {
+            throw new AppError('DELETE_SESSION_FAILED', result.error || 'Unknown error');
+        }
+        // Publish a session update notification for delete
+        try {
+            const notification = {
+                type: _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type,
+                payload: {
+                    session: { id: event.payload.sessionId },
+                    updateType: 'delete'
+                }
+            };
+            JSON.stringify(notification); // Ensure serializable
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(notification.type, notification);
+        } catch (e) {
+            console.error('[DB] Failed to publish session delete notification', e);
+        }
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session deleted', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to delete session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionResponse(requestId, false, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Delete session failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbRenameSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling rename session', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.newName) {
             throw new AppError('INVALID_INPUT', 'Session ID and new name are required');
         }
-
-        const updatedDoc = await withTimeout(
+        const result = await withTimeout(
             renameHistoryItemInternal(event.payload.sessionId, event.payload.newName),
             5000
         );
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionResponse(requestId, true);
+        if (!result.success) {
+            throw new AppError('RENAME_SESSION_FAILED', result.error || 'Unknown error');
+        }
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionResponse(requestId, true);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session renamed', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to rename session', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionResponse(requestId, false, appError);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionResponse(requestId, false, appError);
         await withTimeout(_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response), 3000);
         console.error('[DB] Rename session failed', { requestId, error: appError });
     }
+    return response;
 }
 
 
 async function handleDbAddLogRequest(event) {
+    const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         if (!event?.payload?.logEntryData) {
             throw new AppError('INVALID_INPUT', 'Missing logEntryData in payload');
@@ -40826,52 +41033,78 @@ async function handleDbAddLogRequest(event) {
         const collection = await ensureDbReady('log');
         await withTimeout(collection.insert(event.payload.logEntryData), 3000); 
         console.log('Log entry added successfully', { logId: event.payload.logEntryData.id });
-
+        response = { success: true };
     } catch (error) {
-        console.error('Failed to handle add log request', { requestId: event?.requestId, error });
+        response = { success: false, error: error.message || String(error) };
+        console.error('Failed to handle add log request', { requestId, error });
     }
+    return response;
 }
 
 async function handleDbGetLogsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         if (!event?.payload?.filters) {
             throw new AppError('INVALID_INPUT', 'Missing filters in payload');
         }
         const logs = await getLogsInternal(event.payload.filters);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsResponse(requestId, true, logs);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsResponse(requestId, true, logs);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetLogsResponse is NOT serializable:', e, response);
+        }
         console.log('Log retrieval successful', { requestId, count: logs.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get logs', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsResponse(requestId, false, null, appError);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetLogsResponse(requestId, false, null, appError);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
+        } catch (e) {
+            console.error('[DB] DbGetLogsResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Get logs failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetUniqueLogValuesRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         if (!event?.payload?.fieldName) {
             throw new AppError('INVALID_INPUT', 'Missing fieldName in payload');
         }
         const values = await getUniqueLogValuesInternal(event.payload.fieldName);
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesResponse(requestId, true, values);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesResponse(requestId, true, values);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetUniqueLogValuesResponse is NOT serializable:', e, response);
+        }
         console.log('Unique value retrieval successful', { requestId, field: event.payload.fieldName, count: values.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get unique log values', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesResponse(requestId, false, null, appError);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetUniqueLogValuesResponse(requestId, false, null, appError);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
+        } catch (e) {
+            console.error('[DB] DbGetUniqueLogValuesResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Get unique log values failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbClearLogsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
-
         console.log('ClearLogs request received. Performing pruning of non-current/last sessions.');
         
         const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
@@ -40887,33 +41120,56 @@ async function handleDbClearLogsRequest(event) {
              console.log('ClearLogs request found no old sessions to prune.');
         }
         
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsResponse(requestId, true);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsResponse(requestId, true);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbClearLogsResponse is NOT serializable:', e, response);
+        }
         
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to clear logs', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsResponse(requestId, false, appError);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbClearLogsResponse(requestId, false, appError);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response); // Publish error response
+        } catch (e) {
+            console.error('[DB] DbClearLogsResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Clear logs failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         const ids = {
              currentLogSessionId: currentExtensionSessionId,
              previousLogSessionId: previousExtensionSessionId // This might be null if it's the first run
         };
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetCurrentAndLastLogSessionIdsResponse is NOT serializable:', e, response);
+        }
         console.log('Current/Last session ID retrieval successful', { requestId });
     } catch (error) { 
         const appError = new AppError('UNKNOWN', 'Failed to get current/last log session IDs', { originalError: error });
-        const response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
-        await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        response = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
+        try {
+            JSON.stringify(response);
+            await _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetCurrentAndLastLogSessionIdsResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Get current/last log session IDs failed', { requestId, error: appError });
     }
+    return response;
 }
 
 
@@ -40956,6 +41212,11 @@ async function clearLogsInternal(sessionIdsToDelete) {
 
     return { success: true, data: { deletedCount } };
 }
+
+
+
+
+
 
 
 
@@ -41878,33 +42139,18 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                 const token = await getDriveToken();
                 const files = await fetchDriveFileList(token, receivedFolderId);
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Successfully fetched ${files?.length || 0} files/folders.`);
-
-                // Send file list via separate sendMessage
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Background] Sending driveFileListData...');
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DriveMessageTypes.DRIVE_FILE_LIST_DATA,
+                sendResponse({
                     success: true,
                     files: files,
                     folderId: receivedFolderId
-                }).catch(err => {
-                     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn('[Background] Failed to send driveFileListData:', err?.message);
-                     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DriveMessageTypes.DRIVE_FILE_LIST_DATA, success: false, error: `Failed to send data: ${err?.message}` , folderId: receivedFolderId });
                 });
-
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Background] sendResponse for driveFileListResponse skipped (using separate message).');
-
             } catch (error) {
                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Error handling getDriveFileList:", error);
-                // Send error via separate message too
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                     type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DriveMessageTypes.DRIVE_FILE_LIST_DATA,
-                     success: false,
-                     error: error.message,
-                     folderId: receivedFolderId
-                 }).catch(err => {
-                     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn('[Background] Failed to send driveFileListData error message:', err?.message);
-                 });
-                 _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Background] sendResponse for driveFileListResponse error skipped (using separate message).');
+                sendResponse({
+                    success: false,
+                    error: error.message,
+                    folderId: receivedFolderId
+                });
             }
         })();
         return isResponseAsync;
@@ -41972,12 +42218,9 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return false;
     }
 
-    // Handle DB events
     if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DBEventNames).includes(type)) {
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_3__.eventBus.publish(type, payload)
-            .then(result => sendResponse(result))
-            .catch(error => sendResponse({ success: false, error: error.message }));
-        return true; // Indicates async response
+       
+        return false;
     }
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`Unhandled message type: ${type}`);

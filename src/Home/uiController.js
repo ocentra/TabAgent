@@ -1,5 +1,5 @@
 import { eventBus } from '../eventBus.js';
-import { DBEventNames, UIEventNames } from '../events/eventNames.js';
+import {  UIEventNames } from '../events/eventNames.js';
 import { renderTemporaryMessage, clearTemporaryMessages } from './chatRenderer.js';
 
 let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement, 
@@ -10,6 +10,7 @@ let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElem
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
+import { DbStatusUpdatedNotification } from '../events/dbEvents.js';
 
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -189,7 +190,7 @@ function handleLoadingProgress(payload) {
     }
 }
 
-eventBus.subscribe(DBEventNames.STATUS_UPDATED_NOTIFICATION, handleStatusUpdate);
+eventBus.subscribe(DbStatusUpdatedNotification.type, handleStatusUpdate);
 eventBus.subscribe(UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, handleLoadingProgress);
 
 export async function initializeUI(callbacks) {

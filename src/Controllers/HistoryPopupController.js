@@ -5,13 +5,14 @@ import { eventBus } from '../eventBus.js';
 import { 
     DbGetAllSessionsRequest, 
     DbToggleStarRequest, DbDeleteSessionRequest, DbRenameSessionRequest, DbGetSessionRequest,    
+    DbSessionUpdatedNotification,
 } from '../events/dbEvents.js';
 import { renderHistoryItemComponent } from '../Components/HistoryItem.js';
 import { debounce } from '../Utilities/generalUtils.js';
 import { showNotification } from '../notifications.js';
 import { navigateTo } from '../navigation.js';
 import { initiateChatDownload } from '../Utilities/downloadUtils.js';
-import { DBEventNames } from '../events/eventNames.js';
+
 
 
 let isInitialized = false;
@@ -25,13 +26,13 @@ let currentHistoryItems = [];
 let currentSearchTerm = '';
 
 function handleSessionUpdate(notification) {
-    if (!isInitialized || !notification || !notification.sessionId || !notification.payload) {
+    if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
         console.warn("[HistoryPopupController] Invalid session update notification received.", notification);
         return;
     }
 
     const updatedSessionData = notification.payload.session; 
-    const sessionId = notification.sessionId;
+    const sessionId = updatedSessionData.id;
     const updateType = notification.payload.updateType || 'update'; 
 
     if (!updatedSessionData) {
@@ -286,7 +287,7 @@ async function handlePreviewClick(sessionId, contentElement) {
     }
 }
 
-eventBus.subscribe(DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionUpdate);
+eventBus.subscribe(DbSessionUpdatedNotification.type, handleSessionUpdate);
 export function initializeHistoryPopup(elements, requestFunc) {
     console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
 

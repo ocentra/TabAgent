@@ -10,17 +10,33 @@ import { showNotification } from './notifications.js';
 import { eventBus } from './eventBus.js';
 import { 
     DbGetSessionRequest,     
-    DbInitializeRequest,    
-    DbMessagesUpdatedNotification
+    DbInitializeRequest,        
 } from './events/dbEvents.js';
 import { initializeHistoryPopup } from './Controllers/HistoryPopupController.js';
 import { initializeLibraryController } from './Controllers/LibraryController.js';
 import { initializeDiscoverController } from './Controllers/DiscoverController.js';
 import { initializeSettingsController } from './Controllers/SettingsController.js';
 import { initializeSpacesController } from './Controllers/SpacesController.js';
-import { initializeDriveController, handleDriveFileListResponse } from './Controllers/DriveController.js';
-import { DBEventNames, UIEventNames, RuntimeMessageTypes } from './events/eventNames.js';
+import { initializeDriveController } from './Controllers/DriveController.js';
+import { UIEventNames, RuntimeMessageTypes, RawDirectMessageTypes, Contexts } from './events/eventNames.js';
 
+// Set EXTENSION_CONTEXT based on URL query string
+(function() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const contextParam = urlParams.get('context');
+        const viewParam = urlParams.get('view');
+        if (contextParam === 'popup') {
+            window.EXTENSION_CONTEXT = Contexts.POPUP;
+        } else if (viewParam === 'logs') {
+            window.EXTENSION_CONTEXT = Contexts.OTHERS;
+        } else {
+            window.EXTENSION_CONTEXT = Contexts.MAIN_UI;
+        }
+    } catch (e) {
+        window.EXTENSION_CONTEXT = Contexts.UNKNOWN;
+    }
+})();
 
 // Marked.js Setup
 
@@ -76,10 +92,11 @@ function requestDbAndWait(requestEvent, timeoutMs = 5000) {
             }, timeoutMs);
             const result = await eventBus.publish(requestEvent.type, requestEvent);
             clearTimeout(timeoutId);
-            if (result && (result.success || result.error === undefined)) {
-                resolve(result.data || result.payload);
+            const response = Array.isArray(result) ? result[0] : result;
+            if (response && (response.success || response.error === undefined)) {
+                resolve(response.data || response.payload);
             } else {
-                reject(new Error(result?.error || `DB operation ${requestType} failed`));
+                reject(new Error(response?.error || `DB operation ${requestType} failed`));
             }
         } catch (error) {
             clearTimeout(timeoutId);
@@ -149,9 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isDbReady = false;
     const TIMEOUT_MS = 10000;
     try {
-        const dbInitPromise = eventBus.publish(DBEventNames.INITIALIZE_REQUEST, new DbInitializeRequest());
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database initialization timed out.")), TIMEOUT_MS));
-        const resultArr = await Promise.race([dbInitPromise, timeoutPromise]);
+        const resultArr = await Promise.race([
+            eventBus.publish(DbInitializeRequest.type, new DbInitializeRequest()),
+            timeoutPromise
+        ]);
         const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
         if (result && result.success) {
             console.log("[Sidepanel] DB initialization confirmed complete.");
@@ -349,25 +368,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function handleBackgroundMessage(message, sender, sendResponse) {
     console.log('[Sidepanel] Received message from background:', message);
-    if (message.type === 'response') {
+    if (message.type === RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
         const payload = { chatId: message.chatId, messageId: message.messageId, text: message.text };
         eventBus.publish(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload);
-    } else if (message.type === 'error') {
+    } else if (message.type === RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
         const payload = { chatId: message.chatId, messageId: message.messageId, error: message.error };
         eventBus.publish(UIEventNames.BACKGROUND_ERROR_RECEIVED, payload);
         sendResponse({}); 
-    } else if (message.type === 'STAGE_SCRAPE_RESULT') {
+    } else if (message.type === RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
         eventBus.publish(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({status: "received", type: message.type}); 
-    } else if (message.type === 'DIRECT_SCRAPE_RESULT') {
+    } else if (message.type === RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
         eventBus.publish(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
         sendResponse({}); 
-    } else if (message.type === 'uiLoadingStatusUpdate') {
+    } else if (message.type === RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
         console.log('[Sidepanel] Forwarding uiLoadingStatusUpdate to eventBus.');
         eventBus.publish(UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
-    } else if (message.type === 'driveFileListData') {
-        console.log('[Sidepanel] Received driveFileListData, calling DriveController handler directly.');
-        handleDriveFileListResponse(message);
+    } else if (message.type === 'InternalEventBus:BackgroundEventBroadcast') {
+        // Ignore: handled by eventBus subscription elsewhere
     } else {
         console.warn('[Sidepanel] Received unknown message type from background:', message.type, message);
     }
@@ -382,8 +400,7 @@ async function handleSessionCreated(newSessionId) {
         const request = new DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
         if (sessionData && sessionData.messages) {
-            eventBus.publish(DBEventNames.MESSAGES_UPDATED_NOTIFICATION, new DbMessagesUpdatedNotification(newSessionId, sessionData.messages));
-            console.log(`[Sidepanel] Manually triggered message render for new session ${newSessionId}`);
+
         } else {
             console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}. Response data:`, sessionData);
         }
@@ -431,13 +448,16 @@ async function loadAndDisplaySession(sessionId) {
         await setActiveChatSessionId(sessionId);
 
         if (sessionData && sessionData.messages) {
-            console.log(`[Sidepanel] Manually triggering message render for loaded session ${sessionId}.`);
-            eventBus.publish(DBEventNames.MESSAGES_UPDATED_NOTIFICATION, new DbMessagesUpdatedNotification(sessionId, sessionData.messages));
+            // console.log(`[Sidepanel] Manually triggering message render for loaded session ${sessionId}.`);
+            // eventBus.publish(DbMessagesUpdatedNotification.type, new DbMessagesUpdatedNotification(sessionId, sessionData.messages));
+            // The above lines are commented out.
         } else {
             console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}. Displaying empty chat.`);
-             eventBus.publish(DBEventNames.MESSAGES_UPDATED_NOTIFICATION,
-                 new DbMessagesUpdatedNotification(sessionId, { messages: [] })
-             );
+            // eventBus.publish(DbMessagesUpdatedNotification.type,
+            //     new DbMessagesUpdatedNotification(sessionId, { messages: [] })
+            // ); 
+            // Also commented out this one for consistency. If an empty session needs a specific UI update,
+            // minimaldb should ideally send a notification with an empty message array, or the UI should handle null/empty messages gracefully.
         }
 
     } catch (error) {

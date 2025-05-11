@@ -48,12 +48,12 @@ import {
     DbMessagesUpdatedNotification,
     DbStatusUpdatedNotification,
     DbSessionUpdatedNotification,
-    DbInitializeRequest,
-    DbInitializationCompleteNotification,
+    DbInitializeRequest, 
     DbDeleteSessionRequest, DbDeleteSessionResponse,
     DbRenameSessionRequest, DbRenameSessionResponse,
     DbGetStarredSessionsRequest, DbGetStarredSessionsResponse,
-    DbGetReadyStateRequest, DbGetReadyStateResponse
+    DbGetReadyStateRequest, DbGetReadyStateResponse,
+    DbResetDatabaseRequest, DbResetDatabaseResponse,
 } from './events/dbEvents.js';
 import {
     DbAddLogRequest,
@@ -62,7 +62,7 @@ import {
     DbClearLogsRequest, DbClearLogsResponse,
     DbGetCurrentAndLastLogSessionIdsRequest, DbGetCurrentAndLastLogSessionIdsResponse
 } from './events/dbEvents.js'; 
-import { DBEventNames } from './events/eventNames.js';
+
 
 
 let db = null;
@@ -153,11 +153,25 @@ const logSchema = {
   required: ['id', 'timestamp', 'level', 'component', 'extensionSessionId', 'message']
 };
 
-eventBus.subscribe(DBEventNames.INITIALIZE_REQUEST, handleInitializeRequest);
-console.log('[DB] Subscribed to DbInitializeRequest');
-
-eventBus.subscribe(DBEventNames.DB_GET_READY_STATE_REQUEST, handleDbGetReadyStateRequest);
-
+eventBus.subscribe(DbInitializeRequest.type, handleInitializeRequest);
+eventBus.subscribe(DbGetReadyStateRequest.type, handleDbGetReadyStateRequest);
+eventBus.subscribe(DbCreateSessionRequest.type, handleDbCreateSessionRequest);
+eventBus.subscribe(DbGetSessionRequest.type, handleDbGetSessionRequest);
+eventBus.subscribe(DbAddMessageRequest.type, handleDbAddMessageRequest);
+eventBus.subscribe(DbUpdateMessageRequest.type, handleDbUpdateMessageRequest);
+eventBus.subscribe(DbDeleteMessageRequest.type, handleDbDeleteMessageRequest);
+eventBus.subscribe(DbUpdateStatusRequest.type, handleDbUpdateStatusRequest);
+eventBus.subscribe(DbToggleStarRequest.type, handleDbToggleStarRequest);
+eventBus.subscribe(DbGetAllSessionsRequest.type, handleDbGetAllSessionsRequest);
+eventBus.subscribe(DbGetStarredSessionsRequest.type, handleDbGetStarredSessionsRequest);
+eventBus.subscribe(DbDeleteSessionRequest.type, handleDbDeleteSessionRequest);
+eventBus.subscribe(DbRenameSessionRequest.type, handleDbRenameSessionRequest);
+eventBus.subscribe(DbAddLogRequest.type, handleDbAddLogRequest);
+eventBus.subscribe(DbGetLogsRequest.type, handleDbGetLogsRequest);
+eventBus.subscribe(DbGetUniqueLogValuesRequest.type, handleDbGetUniqueLogValuesRequest);
+eventBus.subscribe(DbClearLogsRequest.type, handleDbClearLogsRequest);
+eventBus.subscribe(DbGetCurrentAndLastLogSessionIdsRequest.type, handleDbGetCurrentAndLastLogSessionIdsRequest);
+eventBus.subscribe(DbResetDatabaseRequest.type, handleDbResetDatabaseRequest);
 async function handleDbGetReadyStateRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] handleDbGetReadyStateRequest: ready=' + isDbReadyFlag);
@@ -165,23 +179,43 @@ async function handleDbGetReadyStateRequest(event) {
 }
 
 async function ensureDbReady(type = 'chat') {
-    const isReady = await withTimeout(dbReadyPromise, 5000, 'Database initialization timeout');
-    if (!isReady) {
-         throw new AppError('DB_NOT_READY', 'Main Database systems not initialized');
+    const timeoutMs = 5000;
+    const pollInterval = 100;
+    const start = Date.now();
+    let collection = null;
+    let lastLogTime = 0;
+    while (Date.now() - start < timeoutMs) {
+        if (type === 'chat') {
+            if (chatHistoryCollection) {
+                console.log(`[DB][ensureDbReady] chatHistoryCollection is ready after ${Date.now() - start}ms`);
+                collection = chatHistoryCollection;
+                break;
+            }
+        } else if (type === 'log') {
+            if (logsCollection) {
+                console.log(`[DB][ensureDbReady] logsCollection is ready after ${Date.now() - start}ms`);
+                collection = logsCollection;
+                break;
+            }
+        } else {
+            throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`);
+        }
+        // Log every 500ms to avoid spamming
+        if (Date.now() - lastLogTime > 500) {
+            console.log(`[DB][ensureDbReady] Waiting for collection '${type}'... elapsed: ${Date.now() - start}ms`);
+            lastLogTime = Date.now();
+        }
+        await new Promise(res => setTimeout(res, pollInterval));
     }
-    if (type === 'chat') {
-        if (!chatHistoryCollection) throw new AppError('COLLECTION_NOT_READY', 'Chat history collection not initialized');
-    return chatHistoryCollection;
-    } else if (type === 'log') {
-        if (!logsCollection) throw new AppError('COLLECTION_NOT_READY', 'Logs collection not initialized');
-        return logsCollection;
-    } else {
-        throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`);
+    if (!collection) {
+        console.error(`[DB][ensureDbReady] Collection for type '${type}' not initialized after ${timeoutMs}ms`);
+        throw new AppError('COLLECTION_NOT_READY', `Collection for type '${type}' not initialized after ${timeoutMs}ms`);
     }
+    return collection;
 }
 
 
-async function resetDatabase() {
+async function handleDbResetDatabaseRequest() {
     console.log('[DB] Resetting databases due to initialization failure');
     try {
         if (db) {
@@ -351,82 +385,9 @@ async function handleInitializeRequest(event) {
         } else {
             console.log('[DB][Init Step 4/5] Log database and log collections already initialized');
         }
+          
 
-        console.log('[DB] Before getting currentSubscriptions');
-       
-        const currentSubscriptions = (typeof eventBus?.getSubscriptions === 'function') 
-            ? eventBus.getSubscriptions() 
-            : {}; 
-        console.log('[DB] After getting currentSubscriptions', currentSubscriptions);
-
-       
-
-        const chatEventNames = [
-            DBEventNames.DB_CREATE_SESSION_REQUEST,
-            DBEventNames.DB_GET_SESSION_REQUEST,
-            DBEventNames.DB_ADD_MESSAGE_REQUEST,
-            DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
-            DBEventNames.DB_DELETE_MESSAGE_REQUEST,
-            DBEventNames.DB_UPDATE_STATUS_REQUEST,
-            DBEventNames.DB_TOGGLE_STAR_REQUEST,
-            DBEventNames.DB_GET_ALL_SESSIONS_REQUEST,
-            DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST,
-            DBEventNames.DB_DELETE_SESSION_REQUEST,
-            DBEventNames.DB_RENAME_SESSION_REQUEST
-        ];
-        console.log('[DB][DEBUG] Before checking needChatSubscription');
-
-       
-
-        const needChatSubscription = chatEventNames.some(name => !currentSubscriptions[name]);
-        if (needChatSubscription) {
-            const chatSubscriptions = [
-                { event: DBEventNames.DB_CREATE_SESSION_REQUEST, handler: handleDbCreateSessionRequest },
-                { event: DBEventNames.DB_GET_SESSION_REQUEST, handler: handleDbGetSessionRequest },
-                { event: DBEventNames.DB_ADD_MESSAGE_REQUEST, handler: handleDbAddMessageRequest },
-                { event: DBEventNames.DB_UPDATE_MESSAGE_REQUEST, handler: handleDbUpdateMessageRequest },
-                { event: DBEventNames.DB_DELETE_MESSAGE_REQUEST, handler: handleDbDeleteMessageRequest },
-                { event: DBEventNames.DB_UPDATE_STATUS_REQUEST, handler: handleDbUpdateStatusRequest },
-                { event: DBEventNames.DB_TOGGLE_STAR_REQUEST, handler: handleDbToggleStarRequest },
-                { event: DBEventNames.DB_GET_ALL_SESSIONS_REQUEST, handler: handleDbGetAllSessionsRequest },
-                { event: DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST, handler: handleDbGetStarredSessionsRequest },
-                { event: DBEventNames.DB_DELETE_SESSION_REQUEST, handler: handleDbDeleteSessionRequest },
-                { event: DBEventNames.DB_RENAME_SESSION_REQUEST, handler: handleDbRenameSessionRequest }
-            ];
-            chatSubscriptions.forEach(({ event, handler }) => eventBus.subscribe(event, handler));
-            console.log('[DB] Chat event bus subscriptions complete', { count: chatSubscriptions.length });
-        } else {
-            console.log('[DB] Chat event bus subscriptions already exist.');
-        }
-        console.log('[DB][DEBUG] After chat event bus subscriptions');
-
-       
-
-        const logEventNames = [
-            DBEventNames.DB_ADD_LOG_REQUEST,
-            DBEventNames.DB_GET_LOGS_REQUEST,
-            DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST,
-            DBEventNames.DB_CLEAR_LOGS_REQUEST,
-            DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST
-        ];
-        console.log('[DB][DEBUG] Before checking needLogSubscription');
-        const needLogSubscription = logEventNames.some(name => !currentSubscriptions[name]);
-        if (needLogSubscription) {
-            const logSubscriptions = [
-                { event: DBEventNames.DB_ADD_LOG_REQUEST, handler: handleDbAddLogRequest },
-                { event: DBEventNames.DB_GET_LOGS_REQUEST, handler: handleDbGetLogsRequest },
-                { event: DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST, handler: handleDbGetUniqueLogValuesRequest },
-                { event: DBEventNames.DB_CLEAR_LOGS_REQUEST, handler: handleDbClearLogsRequest },
-                { event: DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST, handler: handleDbGetCurrentAndLastLogSessionIdsRequest }
-            ];
-            logSubscriptions.forEach(({ event, handler }) => eventBus.subscribe(event, handler));
-            console.log('[DB] Subscribed to Log Database events', { count: logSubscriptions.length });
-        } else {
-            console.log('[DB] Log Database event subscriptions already exist.');
-        }
-        console.log('[DB][DEBUG] After log event bus subscriptions');
-
-        console.log('[DB][DEBUG] Before pruning');
+        console.log('[DB] Before pruning');
 
        
         setTimeout(async () => {
@@ -459,10 +420,10 @@ async function handleInitializeRequest(event) {
             } catch (pruneError) {
                 console.error('[DB] Error during startup log pruning:', pruneError);
             }
-            console.log('[DB][DEBUG] After pruning');
+           
         }, 100);
 
-        console.log('[DB][DEBUG] Before setting isDbReadyFlag and resolving dbReadyPromise');
+        console.log('[DB] Before setting isDbReadyFlag and resolving dbReadyPromise');
        
         isDbReadyFlag = true;
         console.log('[DB] About to resolve dbReadyPromise with value: true (init complete)');
@@ -494,13 +455,85 @@ function generateMessageId(chatId) {
     return `${chatId}-msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 }
 
-// Sanitize input to prevent injection
 function sanitizeInput(input) {
     if (typeof input !== 'string') return input;
     return input.replace(/[<>]/g, '');
 }
 
-// Internal database operations
+
+async function publishSessionUpdate(sessionId, updateType = 'update', sessionDataOverride = null) {
+    try {
+        let sessionData = sessionDataOverride;
+        if (!sessionData) {
+            const result = await getChatSessionByIdInternal(sessionId);
+            if (result.success && result.data) {
+                sessionData = result.data.toJSON ? result.data.toJSON() : result.data;
+            } else if (updateType === 'delete') {
+                sessionData = { id: sessionId };
+            } else {
+                console.error('[DB] Session not found for notification', { sessionId, updateType });
+                return;
+            }
+        }
+        let plainSession = sessionData;
+        try {
+            const testString = JSON.stringify(sessionData);
+            plainSession = JSON.parse(testString);
+        } catch (e) {
+            console.error('[DB] Session data is NOT serializable:', e, sessionData);
+            return;
+        }
+        const notification = {
+            type: DbSessionUpdatedNotification.type,
+            payload: { session: plainSession, updateType }
+        };
+        JSON.stringify(notification); 
+        await eventBus.publish(notification.type, notification);
+        console.log('[DB] Session update notification published', { sessionId, updateType });
+    } catch (e) {
+        console.error('[DB] Failed to publish session update notification', e, { sessionId, updateType });
+    }
+}
+
+
+async function publishMessagesUpdate(sessionId, messages) {
+    try {
+
+        let plainMessages = messages;
+        try {
+            const testString = JSON.stringify(messages);
+            plainMessages = JSON.parse(testString);
+        } catch (e) {
+            console.error('[DB] Messages are NOT serializable:', e, messages);
+            return;
+        }
+        const notification = new DbMessagesUpdatedNotification(sessionId, plainMessages);
+        JSON.stringify(notification); 
+        await eventBus.publish(notification.type, notification);
+        console.log('[DB] Messages update notification published', { sessionId, count: plainMessages.length });
+    } catch (e) {
+        console.error('[DB] Failed to publish messages update notification', e, { sessionId });
+    }
+}
+
+async function publishStatusUpdate(sessionId, status) {
+    try {
+        let safeStatus = status;
+        try {
+            JSON.stringify(status);
+        } catch (e) {
+            console.error('[DB] Status is NOT serializable:', e, status);
+            return;
+        }
+        const notification = new DbStatusUpdatedNotification(sessionId, safeStatus);
+        JSON.stringify(notification); 
+        await eventBus.publish(notification.type, notification);
+        console.log('[DB] Status update notification published', { sessionId, status });
+    } catch (e) {
+        console.error('[DB] Failed to publish status update notification', e, { sessionId });
+    }
+}
+
 async function createChatSessionInternal(initialMessage) {
     console.log('[DB] Creating new chat session', { initialMessage });
     try {
@@ -528,7 +561,9 @@ async function createChatSessionInternal(initialMessage) {
         };
         console.log('[DB] Inserting session', { sessionId });
         const newSessionDoc = await withTimeout(collection.insert(sessionData), 3000);
-        await publishSessionUpdateNotificationInternal(sessionId);
+        await publishSessionUpdate(sessionId, 'create');
+        await publishMessagesUpdate(sessionId, newSessionDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
+        await publishStatusUpdate(newSessionDoc.id, newSessionDoc.status);
         return { success: true, data: newSessionDoc };
     } catch (error) {
         console.error('[DB] Failed to create chat session', { error });
@@ -579,6 +614,8 @@ async function addMessageToChatInternal(chatId, messageObject) {
             3000
         );
         console.log('[DB] Message added', { chatId, messageId: newMessage.messageId });
+        await publishSessionUpdate(chatId, 'update');
+        await publishMessagesUpdate(chatId, updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
         return { success: true, data: { updatedDoc, newMessageId: newMessage.messageId } };
     } catch (error) {
         console.error('[DB] Failed to add message', { chatId, error });
@@ -618,7 +655,8 @@ async function updateMessageInChatInternal(chatId, messageId, updates) {
             return { success: false, error: `Message ${messageId} not found in chat ${chatId}` };
         }
         console.log('[DB] Message updated', { chatId, messageId });
-        await publishSessionUpdateNotificationInternal(chatId);
+        await publishSessionUpdate(chatId, 'update');
+        await publishMessagesUpdate(chatId, updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to update message', { chatId, messageId, error });
@@ -648,7 +686,8 @@ async function deleteMessageFromChatInternal(sessionId, messageId) {
             3000
         );
         console.log('[DB] Message deleted', { sessionId, messageId });
-        await publishSessionUpdateNotificationInternal(sessionId);
+        await publishSessionUpdate(sessionId, 'update');
+        await publishMessagesUpdate(sessionId, updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m));
         return { success: true, data: { updatedDoc, deleted: true } };
     } catch (error) {
         console.error('[DB] Failed to delete message', { sessionId, messageId, error });
@@ -673,7 +712,8 @@ async function updateSessionStatusInternal(sessionId, newStatus) {
             3000
         );
         console.log('[DB] Status updated', { sessionId, newStatus });
-        await publishSessionUpdateNotificationInternal(sessionId);
+        await publishSessionUpdate(sessionId, 'update');
+        await publishStatusUpdate(sessionId, newStatus);
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to update status', { sessionId, newStatus, error });
@@ -698,7 +738,7 @@ async function toggleItemStarredInternal(itemId) {
             3000
         );
         console.log('[DB] Starred status toggled', { itemId, isStarred: !currentStarredStatus });
-        await publishSessionUpdateNotificationInternal(itemId);
+        await publishSessionUpdate(itemId, 'update');
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to toggle starred status', { itemId, error });
@@ -720,7 +760,7 @@ async function deleteHistoryItemInternal(itemId) {
         }
         await withTimeout(entryDoc.remove(), 3000);
         console.log('[DB] Item deleted', { itemId });
-        await publishSessionUpdateNotificationInternal(itemId);
+        await publishSessionUpdate(itemId, 'delete');
         return { success: true, data: true };
     } catch (error) {
         console.error('[DB] Failed to delete history item', { itemId, error });
@@ -744,7 +784,7 @@ async function renameHistoryItemInternal(itemId, newTitle) {
             3000
         );
         console.log('[DB] Item renamed', { itemId, newTitle });
-        await publishSessionUpdateNotificationInternal(itemId);
+        await publishSessionUpdate(itemId, 'rename');
         return { success: true, data: updatedDoc };
     } catch (error) {
         console.error('[DB] Failed to rename history item', { itemId, newTitle, error });
@@ -756,6 +796,7 @@ async function getAllSessionsInternal() {
     console.log('[DB] Getting all sessions');
     try {
         const collection = await ensureDbReady();
+        
         const sessionsDocs = await withTimeout(
             collection.find().sort({ timestamp: 'desc' }).exec(),
             5000
@@ -785,65 +826,31 @@ async function getStarredSessionsInternal() {
     }
 }
 
-async function publishSessionUpdateNotificationInternal(sessionId, updateType = 'update') { 
-    console.log('[DB] Attempting to publish session update for ' + sessionId + ', type: ' + updateType);
-    try {
-        await ensureDbReady();
-
-        const updatedSessionDoc = await getChatSessionByIdInternal(sessionId);
-
-        if (!updatedSessionDoc) {
-            console.error('[DB] Session not found after update, cannot publish notification', { sessionId });
-            return; 
-        }
-
-        const updatedSessionData = updatedSessionDoc.toJSON ? updatedSessionDoc.toJSON() : updatedSessionDoc;
-        
-        console.log('[DB] Publishing session update notification for ' + sessionId); 
-        
-        await eventBus.publish(
-            DBEventNames.DB_SESSION_UPDATED_NOTIFICATION, 
-            new DbSessionUpdatedNotification(sessionId, updatedSessionData, updateType)
-        );
-        console.log('[DB] Session update published', { sessionId, updateType });
-    } catch (error) {
-        console.error('[DB] Failed to publish session update', { sessionId, error });
-    }
-}
-
 async function handleDbCreateSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling session creation', { requestId });
-
+    let response;
     try {
         if (!event?.requestId || !event?.payload?.initialMessage || !event.payload.initialMessage.text) {
             throw new AppError('INVALID_INPUT', 'Missing requestId, initialMessage, or message text');
         }
 
-        const newSessionDoc = await withTimeout(createChatSessionInternal(event.payload.initialMessage), 5000);
-        if (!newSessionDoc?.id) {
+        const result = await withTimeout(createChatSessionInternal(event.payload.initialMessage), 5000);
+        if (!result.success || !result.data?.id) {
             throw new AppError('INVALID_DOCUMENT', 'Invalid session document returned');
         }
+        const newSessionDoc = result.data;
+        const plainMessages = newSessionDoc.messages.map(m => m.toJSON ? m.toJSON() : m);
+        console.log('[DB] About to publish DbMessagesUpdatedNotification (create session)', { sessionId: newSessionDoc.id, messages: plainMessages });
+        await publishMessagesUpdate(newSessionDoc.id, plainMessages);
+        await publishStatusUpdate(newSessionDoc.id, newSessionDoc.status);
 
-        await withTimeout(Promise.all([
-            eventBus.publish(
-                DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new DbMessagesUpdatedNotification(newSessionDoc.id, newSessionDoc.messages)
-            ),
-            eventBus.publish(
-                DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-                new DbStatusUpdatedNotification(newSessionDoc.id, newSessionDoc.status)
-            )
-        ]), 3000);
-
-        const response = new DbCreateSessionResponse(requestId, true, newSessionDoc.id);
-        console.log('[DB] PRE-PUBLISH Check (Success Path): ReqID ' + requestId + ', Response Success: ' + response?.success + ', Response Type: ' + response?.type);
+        response = new DbCreateSessionResponse(requestId, true, newSessionDoc.id);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session created successfully', { requestId, sessionId: newSessionDoc.id });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to create session', { originalError: error });
-        const response = new DbCreateSessionResponse(requestId, false, null, appError);
-        console.log('[DB] PRE-PUBLISH Check (Error Path): ReqID ' + requestId + ', Response Success: ' + response?.success + ', Response Type: ' + response?.type);
+        response = new DbCreateSessionResponse(requestId, false, null, appError);
         try {
              await withTimeout(eventBus.publish(response.type, response), 3000);
         } catch (publishError) {
@@ -851,283 +858,309 @@ async function handleDbCreateSessionRequest(event) {
         }
         console.error('[DB] Session creation failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling get session', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId) {
             throw new AppError('INVALID_INPUT', 'Session ID is required');
         }
-
-        const doc = await withTimeout(getChatSessionByIdInternal(event.payload.sessionId), 5000);
-        const response = new DbGetSessionResponse(requestId, true, doc ? doc.toJSON() : null);
+        const result = await withTimeout(getChatSessionByIdInternal(event.payload.sessionId), 5000);
+        if (!result.success) {
+            throw new AppError('GET_SESSION_FAILED', result.error || 'Unknown error');
+        }
+        response = new DbGetSessionResponse(requestId, true, result.data ? result.data.toJSON() : null);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session retrieved', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get session', { originalError: error });
-        const response = new DbGetSessionResponse(requestId, false, null, appError);
+        response = new DbGetSessionResponse(requestId, false, null, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Get session failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbAddMessageRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling add message', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageObject || !event.payload.messageObject.text) {
             throw new AppError('INVALID_INPUT', 'Session ID and message with text are required');
         }
-
-        const { updatedDoc, newMessageId } = await withTimeout(
+        const result = await withTimeout(
             addMessageToChatInternal(event.payload.sessionId, event.payload.messageObject),
             5000
         );
-
+        if (!result.success) {
+            console.error('[DB][handleDbAddMessageRequest] addMessageToChatInternal failed', { result });
+            throw new AppError('ADD_MESSAGE_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data.updatedDoc || result.data;
+        const newMessageId = result.data.newMessageId;
         const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m); // Ensure plain messages
-        await withTimeout(
-            eventBus.publish(
-                DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new DbMessagesUpdatedNotification(updatedDoc.id, plainMessages)
-            ),
-            3000
-        );
-
-        const response = new DbAddMessageResponse(requestId, true, newMessageId);
+        console.log('[DB] About to publish DbMessagesUpdatedNotification (add message)', { sessionId: updatedDoc.id, messages: plainMessages });
+        await publishMessagesUpdate(updatedDoc.id, plainMessages);
+        response = new DbAddMessageResponse(requestId, true, newMessageId);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Message added', { requestId, sessionId: event.payload.sessionId, messageId: newMessageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to add message', { originalError: error });
-        const response = new DbAddMessageResponse(requestId, false, null, appError);
+        response = new DbAddMessageResponse(requestId, false, null, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Add message failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbUpdateMessageRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling update message', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageId || !event?.payload?.updates || !event.payload.updates.text) {
             throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates with text are required');
         }
-
-        const updatedDoc = await withTimeout(
+        const result = await withTimeout(
             updateMessageInChatInternal(event.payload.sessionId, event.payload.messageId, event.payload.updates),
             5000
         );
-        await withTimeout(
-            eventBus.publish(
-                DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                new DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
-            ),
-            3000
-        );
-        const response = new DbUpdateMessageResponse(requestId, true);
+        if (!result.success) {
+            throw new AppError('UPDATE_MESSAGE_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data;
+        const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m);
+        console.log('[DB] About to publish DbMessagesUpdatedNotification (update message)', { sessionId: updatedDoc.id, messages: plainMessages });
+        await publishMessagesUpdate(updatedDoc.id, plainMessages);
+        response = new DbUpdateMessageResponse(requestId, true);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Message updated', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to update message', { originalError: error });
-        const response = new DbUpdateMessageResponse(requestId, false, appError);
+        response = new DbUpdateMessageResponse(requestId, false, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Update message failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbDeleteMessageRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling delete message', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.messageId) {
             throw new AppError('INVALID_INPUT', 'Session ID and message ID are required');
         }
-
-        const { updatedDoc, deleted } = await withTimeout(
+        const result = await withTimeout(
             deleteMessageFromChatInternal(event.payload.sessionId, event.payload.messageId),
             5000
         );
-        if (deleted) {
-            await withTimeout(
-                eventBus.publish(
-                    DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-                    new DbMessagesUpdatedNotification(updatedDoc.id, updatedDoc.messages)
-                ),
-                3000
-            );
+        if (!result.success) {
+            throw new AppError('DELETE_MESSAGE_FAILED', result.error || 'Unknown error');
         }
-        const response = new DbDeleteMessageResponse(requestId, true);
+        const { updatedDoc, deleted } = result.data;
+        if (deleted) {
+            const plainMessages = updatedDoc.messages.map(m => m.toJSON ? m.toJSON() : m);
+            console.log('[DB] About to publish DbMessagesUpdatedNotification (delete message)', { sessionId: updatedDoc.id, messages: plainMessages });
+            await publishMessagesUpdate(updatedDoc.id, plainMessages);
+        }
+        response = new DbDeleteMessageResponse(requestId, true);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Message deleted', { requestId, sessionId: event.payload.sessionId, messageId: event.payload.messageId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to delete message', { originalError: error });
-        const response = new DbDeleteMessageResponse(requestId, false, appError);
+        response = new DbDeleteMessageResponse(requestId, false, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Delete message failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbUpdateStatusRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling update status', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.status) {
             throw new AppError('INVALID_INPUT', 'Session ID and status are required');
         }
-
-        const updatedDoc = await withTimeout(
+        const result = await withTimeout(
             updateSessionStatusInternal(event.payload.sessionId, event.payload.status),
             5000
         );
-        await withTimeout(
-            eventBus.publish(
-                DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-                new DbStatusUpdatedNotification(updatedDoc.id, updatedDoc.status)
-            ),
-            3000
-        );
-        const response = new DbUpdateStatusResponse(requestId, true);
+        if (!result.success) {
+            throw new AppError('UPDATE_STATUS_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data;
+        await publishStatusUpdate(updatedDoc.id, updatedDoc.status);
+        response = new DbUpdateStatusResponse(requestId, true);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Status updated', { requestId, sessionId: event.payload.sessionId, status: event.payload.status });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to update status', { originalError: error });
-        const response = new DbUpdateStatusResponse(requestId, false, appError);
+        response = new DbUpdateStatusResponse(requestId, false, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Update status failed', { requestId, error: appError });
-    try {
-            await withTimeout(
-                eventBus.publish(
-                    DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-                    new DbStatusUpdatedNotification(event.payload.sessionId, 'error')
-                ),
-                3000
-            );
+        try {
+            await publishStatusUpdate(event.payload.sessionId, 'error');
         } catch (notificationError) {
             console.error('Failed to publish error status notification', { requestId, error: notificationError });
         }
     }
+    return response;
 }
 
 async function handleDbToggleStarRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling toggle star', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId) {
             throw new AppError('INVALID_INPUT', 'Session ID is required');
         }
-
-        const updatedDoc = await withTimeout(toggleItemStarredInternal(event.payload.sessionId), 5000);
-        const response = new DbToggleStarResponse(requestId, true, updatedDoc.toJSON());
+        const result = await withTimeout(toggleItemStarredInternal(event.payload.sessionId), 5000);
+        if (!result.success) {
+            throw new AppError('TOGGLE_STAR_FAILED', result.error || 'Unknown error');
+        }
+        const updatedDoc = result.data;
+        response = new DbToggleStarResponse(requestId, true, updatedDoc.toJSON());
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Star toggled', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to toggle star', { originalError: error });
-        const response = new DbToggleStarResponse(requestId, false, null, appError);
+        response = new DbToggleStarResponse(requestId, false, null, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Toggle star failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetAllSessionsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling get all sessions', { requestId });
-
+    let response;
     try {
-        const sessionsRaw = await withTimeout(getAllSessionsInternal(), 5000);        
-        const sortedSessions = sessionsRaw.sort((a, b) => b.timestamp - a.timestamp); 
-
+        const result = await withTimeout(getAllSessionsInternal(), 5000);
+        if (!result.success) {
+            throw new AppError('GET_ALL_SESSIONS_FAILED', result.error || 'Unknown error');
+        }
+        const sortedSessions = (result.data || []).sort((a, b) => b.timestamp - a.timestamp);
         console.log('Using plain sessions directly', { count: sortedSessions.length });
-        
-        const response = new DbGetAllSessionsResponse(requestId, true, sortedSessions);
+        response = new DbGetAllSessionsResponse(requestId, true, sortedSessions);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Sessions retrieved', { requestId, count: sortedSessions.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get all sessions', { originalError: error });
-        const response = new DbGetAllSessionsResponse(requestId, false, null, appError);
+        response = new DbGetAllSessionsResponse(requestId, false, null, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Get all sessions failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetStarredSessionsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling get starred sessions', { requestId });
-
+    let response;
     try {
-        const sessionsRaw = await withTimeout(getStarredSessionsInternal(), 5000);
-        const starredSessions = sessionsRaw.map(s => ({
+        const result = await withTimeout(getStarredSessionsInternal(), 5000);
+        if (!result.success) {
+            throw new AppError('GET_STARRED_SESSIONS_FAILED', result.error || 'Unknown error');
+        }
+        const starredSessions = (result.data || []).map(s => ({
             sessionId: s.id,
             name: s.title,
             lastUpdated: s.timestamp,
             isStarred: s.isStarred
         })).sort((a, b) => b.lastUpdated - a.lastUpdated);
-
         console.log('Retrieved starred sessions', { count: starredSessions.length });
-        const response = new DbGetStarredSessionsResponse(requestId, true, starredSessions);
+        response = new DbGetStarredSessionsResponse(requestId, true, starredSessions);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Starred sessions retrieved', { requestId, count: starredSessions.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get starred sessions', { originalError: error });
-        const response = new DbGetStarredSessionsResponse(requestId, false, null, appError);
+        response = new DbGetStarredSessionsResponse(requestId, false, null, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Get starred sessions failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbDeleteSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling delete session', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId) {
             throw new AppError('INVALID_INPUT', 'Session ID is required');
         }
-
-        const deleted = await withTimeout(deleteHistoryItemInternal(event.payload.sessionId), 5000);
-        const response = new DbDeleteSessionResponse(requestId, true);
+        const result = await withTimeout(deleteHistoryItemInternal(event.payload.sessionId), 5000);
+        if (!result.success) {
+            throw new AppError('DELETE_SESSION_FAILED', result.error || 'Unknown error');
+        }
+        // Publish a session update notification for delete
+        try {
+            const notification = {
+                type: DbSessionUpdatedNotification.type,
+                payload: {
+                    session: { id: event.payload.sessionId },
+                    updateType: 'delete'
+                }
+            };
+            JSON.stringify(notification); // Ensure serializable
+            await eventBus.publish(notification.type, notification);
+        } catch (e) {
+            console.error('[DB] Failed to publish session delete notification', e);
+        }
+        response = new DbDeleteSessionResponse(requestId, true);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session deleted', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to delete session', { originalError: error });
-        const response = new DbDeleteSessionResponse(requestId, false, appError);
+        response = new DbDeleteSessionResponse(requestId, false, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Delete session failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbRenameSessionRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
     console.log('[DB] Handling rename session', { requestId });
-
+    let response;
     try {
         if (!event?.payload?.sessionId || !event?.payload?.newName) {
             throw new AppError('INVALID_INPUT', 'Session ID and new name are required');
         }
-
-        const updatedDoc = await withTimeout(
+        const result = await withTimeout(
             renameHistoryItemInternal(event.payload.sessionId, event.payload.newName),
             5000
         );
-        const response = new DbRenameSessionResponse(requestId, true);
+        if (!result.success) {
+            throw new AppError('RENAME_SESSION_FAILED', result.error || 'Unknown error');
+        }
+        response = new DbRenameSessionResponse(requestId, true);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.log('[DB] Session renamed', { requestId, sessionId: event.payload.sessionId });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to rename session', { originalError: error });
-        const response = new DbRenameSessionResponse(requestId, false, appError);
+        response = new DbRenameSessionResponse(requestId, false, appError);
         await withTimeout(eventBus.publish(response.type, response), 3000);
         console.error('[DB] Rename session failed', { requestId, error: appError });
     }
+    return response;
 }
 
 
 async function handleDbAddLogRequest(event) {
+    const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         if (!event?.payload?.logEntryData) {
             throw new AppError('INVALID_INPUT', 'Missing logEntryData in payload');
@@ -1136,52 +1169,78 @@ async function handleDbAddLogRequest(event) {
         const collection = await ensureDbReady('log');
         await withTimeout(collection.insert(event.payload.logEntryData), 3000); 
         console.log('Log entry added successfully', { logId: event.payload.logEntryData.id });
-
+        response = { success: true };
     } catch (error) {
-        console.error('Failed to handle add log request', { requestId: event?.requestId, error });
+        response = { success: false, error: error.message || String(error) };
+        console.error('Failed to handle add log request', { requestId, error });
     }
+    return response;
 }
 
 async function handleDbGetLogsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         if (!event?.payload?.filters) {
             throw new AppError('INVALID_INPUT', 'Missing filters in payload');
         }
         const logs = await getLogsInternal(event.payload.filters);
-        const response = new DbGetLogsResponse(requestId, true, logs);
-        await eventBus.publish(response.type, response);
+        response = new DbGetLogsResponse(requestId, true, logs);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetLogsResponse is NOT serializable:', e, response);
+        }
         console.log('Log retrieval successful', { requestId, count: logs.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get logs', { originalError: error });
-        const response = new DbGetLogsResponse(requestId, false, null, appError);
-        await eventBus.publish(response.type, response); // Publish error response
+        response = new DbGetLogsResponse(requestId, false, null, appError);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response); // Publish error response
+        } catch (e) {
+            console.error('[DB] DbGetLogsResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Get logs failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetUniqueLogValuesRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         if (!event?.payload?.fieldName) {
             throw new AppError('INVALID_INPUT', 'Missing fieldName in payload');
         }
         const values = await getUniqueLogValuesInternal(event.payload.fieldName);
-        const response = new DbGetUniqueLogValuesResponse(requestId, true, values);
-        await eventBus.publish(response.type, response);
+        response = new DbGetUniqueLogValuesResponse(requestId, true, values);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetUniqueLogValuesResponse is NOT serializable:', e, response);
+        }
         console.log('Unique value retrieval successful', { requestId, field: event.payload.fieldName, count: values.length });
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to get unique log values', { originalError: error });
-        const response = new DbGetUniqueLogValuesResponse(requestId, false, null, appError);
-        await eventBus.publish(response.type, response); // Publish error response
+        response = new DbGetUniqueLogValuesResponse(requestId, false, null, appError);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response); // Publish error response
+        } catch (e) {
+            console.error('[DB] DbGetUniqueLogValuesResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Get unique log values failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbClearLogsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
-
         console.log('ClearLogs request received. Performing pruning of non-current/last sessions.');
         
         const allLogSessionIds = await getAllUniqueLogSessionIdsInternal();
@@ -1197,33 +1256,56 @@ async function handleDbClearLogsRequest(event) {
              console.log('ClearLogs request found no old sessions to prune.');
         }
         
-        const response = new DbClearLogsResponse(requestId, true);
-        await eventBus.publish(response.type, response);
+        response = new DbClearLogsResponse(requestId, true);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbClearLogsResponse is NOT serializable:', e, response);
+        }
         
     } catch (error) {
         const appError = error instanceof AppError ? error : new AppError('UNKNOWN', 'Failed to clear logs', { originalError: error });
-        const response = new DbClearLogsResponse(requestId, false, appError);
-        await eventBus.publish(response.type, response); // Publish error response
+        response = new DbClearLogsResponse(requestId, false, appError);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response); // Publish error response
+        } catch (e) {
+            console.error('[DB] DbClearLogsResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Clear logs failed', { requestId, error: appError });
     }
+    return response;
 }
 
 async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
     const requestId = event?.requestId || crypto.randomUUID();
+    let response;
     try {
         const ids = {
              currentLogSessionId: currentExtensionSessionId,
              previousLogSessionId: previousExtensionSessionId // This might be null if it's the first run
         };
-        const response = new DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
-        await eventBus.publish(response.type, response);
+        response = new DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetCurrentAndLastLogSessionIdsResponse is NOT serializable:', e, response);
+        }
         console.log('Current/Last session ID retrieval successful', { requestId });
     } catch (error) { 
         const appError = new AppError('UNKNOWN', 'Failed to get current/last log session IDs', { originalError: error });
-        const response = new DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
-        await eventBus.publish(response.type, response);
+        response = new DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
+        try {
+            JSON.stringify(response);
+            await eventBus.publish(response.type, response);
+        } catch (e) {
+            console.error('[DB] DbGetCurrentAndLastLogSessionIdsResponse (error) is NOT serializable:', e, response);
+        }
         console.error('Get current/last log session IDs failed', { requestId, error: appError });
     }
+    return response;
 }
 
 
@@ -1266,4 +1348,9 @@ async function clearLogsInternal(sessionIdsToDelete) {
 
     return { success: true, data: { deletedCount } };
 }
+
+
+
+
+
 

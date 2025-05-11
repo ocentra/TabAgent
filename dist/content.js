@@ -1,4 +1,6 @@
 import browser from 'webextension-polyfill';
+import { Contexts } from './events/eventNames.js';
+window.EXTENSION_CONTEXT = Contexts.OTHERS;
 
 console.log("[ContentScript] Executing...");
 

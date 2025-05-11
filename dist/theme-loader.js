@@ -1,3 +1,5 @@
+
+
 // Apply dark mode class based on preference or saved setting
 // This needs to run early to prevent flashing
 const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

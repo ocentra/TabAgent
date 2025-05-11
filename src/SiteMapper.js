@@ -1,4 +1,4 @@
-import { SiteMapperMessageTypes } from './events/eventNames.js';
+
 
 // Polyfill for browser API if only chrome is available
 const browser = typeof window.browser !== 'undefined' ? window.browser : (typeof window.chrome !== 'undefined' ? window.chrome : undefined);

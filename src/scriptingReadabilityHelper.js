@@ -1,3 +1,5 @@
+import { Contexts } from './events/eventNames.js';
+window.EXTENSION_CONTEXT = Contexts.OTHERS;
 // DO NOT use import statements here - they won't work in scripts injected via registerContentScripts.
 // Readability should be globally available because Readability.js is injected first.
 

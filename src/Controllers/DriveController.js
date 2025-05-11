@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill'; 
 import { showNotification } from '../notifications.js';
+import { RuntimeMessageTypes } from '../events/eventNames.js';
 
 
 const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
@@ -129,17 +130,29 @@ function fetchAndDisplayViewerFolderContent(folderId) {
     }
 
     browser.runtime.sendMessage({
-        type: 'getDriveFileList',
+        type: RuntimeMessageTypes.GET_DRIVE_FILE_LIST,
         folderId: folderId
     })
-    .then(() => {
-        console.log(`DriveController: Sent getDriveFileList request for ${folderId}. Waiting for response...`);
+    .then((response) => {
+        isFetchingDriveList = false;
+        if (response && response.success && response.files) {
+            console.log(`[DriveController] Success! Caching and rendering ${response.files.length} files.`);
+            driveFilesCache[folderId] = response.files;
+            renderDriveViewerItems(response.files);
+        } else {
+            const errorMsg = response?.error || 'Unknown error fetching files.';
+            console.error(`[DriveController] Drive file list error for ${folderId}: ${errorMsg}`);
+            showNotificationDep(`Error fetching folder content: ${errorMsg}`, 'error');
+            if (driveViewerList) {
+                driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${errorMsg}</div>`;
+            }
+        }
     })
     .catch((error) => {
-        console.error("DriveController: Error *sending* getDriveFileList message:", error?.message || error);
+        isFetchingDriveList = false;
+        console.error("[DriveController] Error sending getDriveFileList message:", error?.message || error);
         showNotificationDep(`Error contacting background script: ${error?.message || 'Unknown error'}`, 'error');
         if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
-        isFetchingDriveList = false; 
     });
 }
 
@@ -305,38 +318,6 @@ function updateHeaderState() {
         driveViewerBack.classList.remove('hidden');
     } else {
         driveViewerBack.classList.add('hidden');
-    }
-}
-
-export function handleDriveFileListResponse(message) {
-    console.log(`[DriveController:Handler] Received file list data. Message type: ${message?.type}`);
-
-    if (message.type === 'driveFileListData') {
-        const folderId = message.folderId;
-        console.log(`DriveController: Handling driveFileListData for folder: ${folderId}`);
-        isFetchingDriveList = false;
-
-        console.log(`[DriveController:Handler] Check: isDriveOpen=${isDriveOpen}, message.folderId=${folderId}, currentFolderId=${currentFolderId}`);
-        if (!isDriveOpen || folderId !== currentFolderId) {
-            console.warn(`DriveController: Ignoring driveFileListData for folder ${folderId}. Current: ${currentFolderId}, IsOpen: ${isDriveOpen}`);
-            return;
-        }
-
-        if (message.success && message.files) {
-            console.log(`[DriveController:Handler] Success! Caching and calling renderDriveViewerItems for ${message.files.length} files.`);
-            driveFilesCache[folderId] = message.files;
-            renderDriveViewerItems(message.files);
-            console.log(`[DriveController:Handler] renderDriveViewerItems completed.`);
-        } else {
-            const errorMsg = message.error || 'Unknown error fetching files.';
-            console.error(`DriveController: Drive file list error for ${folderId}: ${errorMsg}`);
-            showNotificationDep(`Error fetching folder content: ${errorMsg}`, 'error');
-            if (driveViewerList) {
-                driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error loading content: ${errorMsg}</div>`;
-            }
-        }
-    } else {
-        console.warn(`[DriveController:Handler] Received unexpected message type: ${message?.type}`);
     }
 }
 

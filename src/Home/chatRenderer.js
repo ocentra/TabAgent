@@ -6,7 +6,7 @@ import {
     DbSessionUpdatedNotification, 
     DbGetSessionRequest
 } from '../events/dbEvents.js';
-import { DBEventNames } from '../events/eventNames.js';
+
 
 let chatBodyElement = null;
 let currentSessionId = null;
@@ -15,27 +15,31 @@ let observer = null; // MutationObserver
 const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
 
 function handleMessagesUpdate(notification) {
-    if (!notification || !notification.sessionId || !notification.payload) return;
+    console.log('[ChatRenderer handleMessagesUpdate] handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
+    if (!notification || !notification.sessionId || !notification.payload) {
+        console.warn('[ChatRenderer][DEBUG] handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
+        return;
+    }
     
     if (notification.sessionId === currentSessionId) {
-        console.log(`[ChatRenderer] Received message update notification for active session ${currentSessionId}. Rendering.`);
+        console.log(`[ChatRenderer handleMessagesUpdate] Received message update notification for active session ${currentSessionId}. Rendering.`);
         
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
             if (Array.isArray(notification.payload)) {
-                 console.warn('[ChatRenderer] Payload did not have .messages, using payload directly as array.');
+                 console.warn('[ChatRenderer handleMessagesUpdate] Payload did not have .messages, using payload directly as array.');
                  messages = notification.payload;
             } else {
-                 console.error(`[ChatRenderer] Invalid messages structure: Expected array, got:`, notification.payload);
+                 console.error(`[ChatRenderer handleMessagesUpdate] Invalid messages structure: Expected array, got:`, notification.payload);
                  return;
             }
         }
 
-        console.log(`[ChatRenderer] Messages array received:`, JSON.stringify(messages));
+        console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
         if (!chatBodyElement) return;
         chatBodyElement.innerHTML = '';
         if (messages.length === 0) {
-            console.log(`[ChatRenderer] Active session ${currentSessionId} has no messages. Displaying welcome.`);
+            console.log(`[ChatRenderer handleMessagesUpdate] Active session ${currentSessionId} has no messages. Displaying welcome.`);
             displayWelcomeMessage();
         } else {
             messages.forEach(msg => renderSingleMessage(msg));
@@ -55,8 +59,8 @@ function handleSessionMetadataUpdate(notification) {
     }
 }
 
-eventBus.subscribe(DBEventNames.MESSAGES_UPDATED_NOTIFICATION, handleMessagesUpdate);
-eventBus.subscribe(DBEventNames.SESSION_UPDATED_NOTIFICATION, handleSessionMetadataUpdate);
+eventBus.subscribe(DbMessagesUpdatedNotification.type, handleMessagesUpdate);
+eventBus.subscribe(DbSessionUpdatedNotification.type, handleSessionMetadataUpdate);
 
 export function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {

@@ -67,7 +67,6 @@
                         <button id="load-model-button" title="Load selected model" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
                             Load
                         </button>
-                        <progress id="model-load-progress" value="0" max="100" class="w-16 h-2 ml-2 hidden"></progress>
                     </div>
                     <div class="flex items-center space-x-1">
                          <button id="drive-button" title="Link Google Drive" class="p-1 rounded text-gray-500 dark:text-gray-400">
@@ -77,6 +76,13 @@
                             <!-- Attach Icon (<img>) --> <img src="icons/attach-svgrepo-com.svg" alt="Attach File" class="w-4 h-4 action-icon-img">
                         </button>
                     </div>
+                 </div>
+                 <!-- Dedicated row for model loading progress bar, full width below controls -->
+                 <div id="model-load-status" style="display:none; margin: 8px 0 0 0; width: 100%;">
+                     <span id="model-load-status-text" style="font-size: 0.95em;"></span>
+                     <div id="model-load-progress-bar" style="height: 4px; background: #eee; margin-top: 2px; width: 100%;">
+                         <div id="model-load-progress-inner" style="height: 100%; width: 0; background: #4caf50; transition: width 0.2s;"></div>
+                     </div>
                  </div>
             </div>
             <!-- Hidden File Input -->

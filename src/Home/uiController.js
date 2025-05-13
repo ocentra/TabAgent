@@ -1,6 +1,7 @@
 import { eventBus } from '../eventBus.js';
-import {  UIEventNames } from '../events/eventNames.js';
+import {  UIEventNames, DirectDBNames, DBEventNames } from '../events/eventNames.js';
 import { renderTemporaryMessage, clearTemporaryMessages } from './chatRenderer.js';
+import browser from 'webextension-polyfill';
 
 let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement, 
     historyButton, historyPopup, historyList, closeHistoryButton, newChatButton, historySearchInput, 
@@ -25,9 +26,25 @@ const AVAILABLE_MODELS = {
     "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
     "Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
     "google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
-    "HuggingFaceTB/SmolLM2-360M": "HuggingFaceTB/SmolLM2-360M", 
+
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct (ONNX)",
     // Add more models here as needed
 };
+
+// Add this at the top level to ensure UI progress bar updates
+browser.runtime.onMessage.addListener((message) => {
+    const type = message?.type;
+    if (Object.values(DirectDBNames).includes(type)) {
+        return false;
+    }
+    if (Object.values(DBEventNames).includes(type)) {
+        return false;
+    }
+    if (message.type === UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
+        console.log('[UIController] Received progress update:', message.type, message.payload);
+        handleLoadingProgress(message.payload);
+    }
+});
 
 function selectElements() {
     queryInput = document.getElementById('query-input');
@@ -147,51 +164,55 @@ function handleStatusUpdate(notification) {
 }
 
 function handleLoadingProgress(payload) {
-    if (!isInitialized || !payload) return;
+    if (!payload) return;
+    const statusDiv = document.getElementById('model-load-status');
+    const statusText = document.getElementById('model-load-status-text');
+    const progressBar = document.getElementById('model-load-progress-bar');
+    const progressInner = document.getElementById('model-load-progress-inner');
 
-    if (!modelLoadProgress) {
-        console.warn("[UIController] Model load progress bar not found.");
+    if (!statusDiv || !statusText || !progressBar || !progressInner) {
+        console.warn('[UIController] Model load progress bar not found.');
+        return;
     }
 
-    const { status, file, progress, model } = payload;
-    let message = status;
-    let buttonState = 'loading';
+    // Always show the status area while loading or on error
+    statusDiv.style.display = 'block';
+    progressBar.style.width = '100%';
 
-    if (status === 'progress') {
-        message = `Downloading ${file}... ${Math.round(progress)}%`;
-        renderTemporaryMessage('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.value = progress;
-            modelLoadProgress.classList.remove('hidden');
-        }
-        setLoadButtonState('loading', `Down: ${Math.round(progress)}%`);
-    } else if (status === 'download' || status === 'ready') {
-        message = `Loading ${file}...`;
-        renderTemporaryMessage('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.value = 0; 
-            modelLoadProgress.classList.remove('hidden');
-        }
-        setLoadButtonState('loading', `Loading ${file}`);
-    } else if (status === 'done') {
-        message = `${file} loaded. Preparing pipeline...`;
-        renderTemporaryMessage('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.value = 100; 
-            modelLoadProgress.classList.remove('hidden'); 
-        }
-        setLoadButtonState('loading', 'Preparing...');
-    } else {
-        renderTemporaryMessage('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.classList.add('hidden');
-        }
-        setLoadButtonState('loading', status);
+    // Handle error
+    if (payload.status === 'error' || payload.error) {
+        statusText.textContent = payload.error || 'Error loading model';
+        progressInner.style.background = '#f44336'; // red
+        progressInner.style.width = '100%';
+        // Do NOT auto-hide on error
+        return;
+    }
+
+    // Show status text
+    let text = payload.statusText || payload.status || 'Loading...';
+    if (payload.file && payload.progress !== undefined && payload.status === 'progress') {
+        text = `Downloading ${payload.file}... ${Math.round(payload.progress)}%`;
+    } else if (payload.file && payload.status === 'download') {
+        text = `Loading ${payload.file}...`;
+    } else if (payload.status === 'done') {
+        text = `${payload.file || ''} loaded. Preparing pipeline...`;
+    }
+    statusText.textContent = text;
+
+    // Update progress bar
+    let percent = payload.overallProgress || payload.progress || 0;
+    percent = Math.max(0, Math.min(100, percent));
+    progressInner.style.width = percent + '%';
+    progressInner.style.background = '#4caf50'; // green
+
+    // Hide when done (but not on error)
+    if ((percent >= 100 || payload.status === 'done') && !(payload.status === 'error' || payload.error)) {
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
     }
 }
 
 eventBus.subscribe(DbStatusUpdatedNotification.type, handleStatusUpdate);
-eventBus.subscribe(UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, handleLoadingProgress);
+
 
 export async function initializeUI(callbacks) {
     console.log("[UIController] Initializing...");
@@ -354,18 +375,24 @@ function enableInput() {
 
 eventBus.subscribe(UIEventNames.WORKER_READY, (payload) => {
     console.log("[UIController] Received worker:ready signal", payload);
-    if (modelLoadProgress) modelLoadProgress.classList.add('hidden'); 
-    clearTemporaryMessages();
-    renderTemporaryMessage('success', `Model ${payload?.model || ''} ready.`);
-    enableInput();
+    // Hide progress bar area
+    const statusDiv = document.getElementById('model-load-status');
+    if (statusDiv) statusDiv.style.display = 'none';
     setLoadButtonState('loaded');
 });
 
 eventBus.subscribe(UIEventNames.WORKER_ERROR, (payload) => {
     console.error("[UIController] Received worker:error signal", payload);
-    if (modelLoadProgress) modelLoadProgress.classList.add('hidden'); 
-    clearTemporaryMessages();
-    renderTemporaryMessage('error', `Model load failed: ${payload}`);
+    // Show error in progress bar area and keep it visible
+    const statusDiv = document.getElementById('model-load-status');
+    const statusText = document.getElementById('model-load-status-text');
+    const progressInner = document.getElementById('model-load-progress-inner');
+    if (statusDiv && statusText && progressInner) {
+        statusDiv.style.display = 'block';
+        statusText.textContent = payload?.error || 'Model load failed.';
+        progressInner.style.background = '#f44336';
+        progressInner.style.width = '100%';
+    }
     setLoadButtonState('error');
-    disableInput("Model load failed. Check logs."); 
+    disableInput("Model load failed. Check logs.");
 });

@@ -9,6 +9,28 @@ let sendToDbDefault = true;
 let isDbReadyForLogs = false;
 const logBuffer = [];
 
+// --- Throttled Logging Helper ---
+const logClientThrottleCache = {};
+const logClientLastContext = {};
+function throttledConsoleLog(level, staticMsg, contextKey = null) {
+    const now = Date.now();
+    if (!logClientThrottleCache[level]) logClientThrottleCache[level] = {};
+    if (contextKey !== null) {
+        if (logClientLastContext[staticMsg] === contextKey) return; // skip if same context
+        logClientLastContext[staticMsg] = contextKey;
+    }
+    if (!logClientThrottleCache[level][staticMsg] || now - logClientThrottleCache[level][staticMsg] > 2000) {
+        logClientThrottleCache[level][staticMsg] = now;
+        switch (level) {
+            case 'error': console.error(staticMsg, contextKey !== null ? contextKey : ''); break;
+            case 'warn': console.warn(staticMsg, contextKey !== null ? contextKey : ''); break;
+            case 'debug': console.debug(staticMsg, contextKey !== null ? contextKey : ''); break;
+            case 'info':
+            default: console.log(staticMsg, contextKey !== null ? contextKey : ''); break;
+        }
+    }
+}
+
 async function flushLogBuffer() {
     if (!eventBus) return;
     while (logBuffer.length > 0) {
@@ -73,19 +95,14 @@ async function _internalLogHelper(level, ...args) {
     }
 
     if (!componentName && !skipInitCheck) {
-        console.error("LogClient: Attempted to log before init() was called. Message:", level, ...args);
+        throttledConsoleLog('error', "LogClient: Attempted to log before init() was called. Message:", level, ...args);
         return;
     }
 
     if (mirrorThisCall || level.toLowerCase() === 'error') {
         const consolePrefix = componentName ? `[${componentName}]` : `[LogClient]`;
         const consoleArgs = [consolePrefix, ...args];
-        switch (level.toLowerCase()) {
-            case 'error': console.error(...consoleArgs); break;
-            case 'warn': if (mirrorThisCall) console.warn(...consoleArgs); break;
-            case 'debug': if (mirrorThisCall) console.debug(...consoleArgs); break;
-            case 'info': default: if (mirrorThisCall) console.log(...consoleArgs); break;
-        }
+        throttledConsoleLog(level.toLowerCase(), ...consoleArgs);
     }
 
     if (!sendThisCall) return;

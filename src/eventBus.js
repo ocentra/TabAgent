@@ -1,5 +1,5 @@
 import browser from 'webextension-polyfill';
-import { DBEventNames, InternalEventBusMessageTypes, Contexts } from './events/eventNames.js';
+import { DBEventNames, DirectDBNames,InternalEventBusMessageTypes, Contexts, UIEventNames, WorkerEventNames } from './events/eventNames.js';
 import { DbGetReadyStateRequest, DbInitializeRequest } from './events/dbEvents.js';
 
 export function isBackgroundContext() {
@@ -13,6 +13,7 @@ function getContextName() {
 }
 
 let dbInitPromise = null;
+let eventBus_lastLoggedProgress = -1;
 
 const broadcastableEventTypes = [
   DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
@@ -48,7 +49,6 @@ class EventBus {
   }
 
   dispatchToLocalListeners(eventName, data, context) {
-
 
 
     console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Dispatching locally: ${eventName}`, data);
@@ -188,7 +188,8 @@ class EventBus {
 export const eventBus = new EventBus();
 
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type) {
+  const type = message?.type;
+  if (Object.values(DirectDBNames).includes(type)) {
     return false;
   }
   const context = getContextName();
@@ -216,6 +217,8 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return false;
     }
+
+
     if (Object.values(DBEventNames).includes(message.type)) { 
       console.log(`[EventBus][${context}] : onMessage -> Received direct DBEvent (request): ${message.type}. Publishing to local BG eventBus.`);
       eventBus.publish(message.type, message.payload) 
@@ -236,6 +239,24 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   }
 
-  console.log(`[EventBus][${context}] : onMessage -> Message type ${message.type} not handled by eventBus onMessage logic.`);
+    // Add ignore list for UI/worker-only message types
+    const ignoredTypes = [
+      UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+      UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,   
+      // add more as needed
+    ];
+    if (ignoredTypes.includes(type)) {
+      return false;
+    }
+
+    if (Object.values(WorkerEventNames).includes(message.type)) { 
+
+      return false; 
+    }
+
+
+
+
+  console.log(`[EventBus][${context}] : onMessage -> Message type ${type} not handled by eventBus onMessage logic.`);
   return false; 
 });

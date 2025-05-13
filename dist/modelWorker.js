@@ -2,6 +2,174 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
+/***/ "./src/events/eventNames.js":
+/*!**********************************!*\
+  !*** ./src/events/eventNames.js ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Contexts: () => (/* binding */ Contexts),
+/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
+/* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
+/* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
+/* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
+/* harmony export */   RawDirectMessageTypes: () => (/* binding */ RawDirectMessageTypes),
+/* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
+/* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
+/* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
+/* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
+/* harmony export */ });
+const DirectDBNames = Object.freeze({
+  ADD_MODEL_ASSET: 'AddModelAsset',
+  GET_MODEL_ASSET: 'GetModelAsset',
+  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
+  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
+});
+
+const DBEventNames = Object.freeze({
+  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
+  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+  DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
+  DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
+  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+  DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
+  DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
+  DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
+  DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
+  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
+  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
+  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
+  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
+  DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
+  DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
+  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
+
+});
+
+const UIEventNames = Object.freeze({
+  QUERY_SUBMITTED: 'ui:querySubmitted',
+  BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
+  BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
+  BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
+  BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
+  BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
+  REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
+  WORKER_READY: 'worker:ready',
+  WORKER_ERROR: 'worker:error',
+  NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+  SCRAPE_PAGE: 'SCRAPE_PAGE',
+  SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
+  DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
+  // Add more as needed
+});
+
+const WorkerEventNames = Object.freeze({
+  WORKER_SCRIPT_READY: 'workerScriptReady',
+  WORKER_READY: 'workerReady',
+  LOADING_STATUS: 'loadingStatus',
+  GENERATION_STATUS: 'generationStatus',
+  GENERATION_UPDATE: 'generationUpdate',
+  GENERATION_COMPLETE: 'generationComplete',
+  GENERATION_ERROR: 'generationError',
+  RESET_COMPLETE: 'resetComplete',
+  ERROR: 'error',
+  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
+});
+
+const ModelWorkerStates = Object.freeze({
+  UNINITIALIZED: 'uninitialized',
+  CREATING_WORKER: 'creating_worker',
+  WORKER_SCRIPT_READY: 'worker_script_ready',
+  LOADING_MODEL: 'loading_model',
+  MODEL_READY: 'model_ready',
+  GENERATING: 'generating',
+  ERROR: 'error',
+  IDLE: 'idle',
+});
+
+const RuntimeMessageTypes = Object.freeze({
+  LOAD_MODEL: 'loadModel',
+  SEND_CHAT_MESSAGE: 'sendChatMessage',
+  INTERRUPT_GENERATION: 'interruptGeneration',
+  RESET_WORKER: 'resetWorker',
+  GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+  SCRAPE_REQUEST: 'scrapeRequest',
+  GET_DRIVE_FILE_LIST: 'getDriveFileList',
+  GET_LOG_SESSIONS: 'getLogSessions',
+  GET_LOG_ENTRIES: 'getLogEntries',
+  DETACH_SIDE_PANEL: 'detachSidePanel',
+  GET_DETACHED_STATE: 'getDetachedState',
+  GET_DB_READY_STATE: 'getDbReadyState',
+});
+
+const SiteMapperMessageTypes = Object.freeze({
+  OPEN_TAB: 'openTab',
+  MAPPED: 'mapped',
+});
+
+const ModelLoaderMessageTypes = Object.freeze({
+  INIT: 'init',
+  GENERATE: 'generate',
+  INTERRUPT: 'interrupt',
+  RESET: 'reset',
+  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
+  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
+  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
+});
+
+const InternalEventBusMessageTypes = Object.freeze({
+  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+});
+
+const RawDirectMessageTypes = Object.freeze({
+  WORKER_GENERIC_RESPONSE: 'response',
+  WORKER_GENERIC_ERROR: 'error',
+  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
+  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+});
+
+const Contexts = Object.freeze({
+  BACKGROUND: 'Background',
+  MAIN_UI: 'MainUI',
+  POPUP: 'Popup',
+  OTHERS: 'Others',
+  UNKNOWN: 'Unknown',
+});
+
+
+
+/***/ }),
+
 /***/ "./src/xenova/transformers/dist/transformers.js":
 /*!******************************************************!*\
   !*** ./src/xenova/transformers/dist/transformers.js ***!
@@ -27337,264 +27505,402 @@ var __webpack_exports__ = {};
   \*****************************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./xenova/transformers/dist/transformers.js */ "./src/xenova/transformers/dist/transformers.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+// model-worker.js
 
 
-let START_THINKING_TOKEN_ID = null;
-let END_THINKING_TOKEN_ID = null;
 
-class GenerationPipelineSingleton {
-    static task = 'text-generation';
-    static instance = null;
-    static tokenizer_instance = null;
-    static currentModelId = null;
 
-    static async getInstance(modelId, progress_callback = null) {
-        if (this.instance !== null && this.currentModelId !== modelId) {
-            console.warn(`[ModelWorker] Switching model from ${this.currentModelId} to ${modelId}. Resetting pipeline.`);
-            this.instance = null;
-            this.tokenizer_instance = null;
-            this.currentModelId = null;
-            // TODO: Consider more explicit cleanup if needed (e.g., releasing GPU resources?)
-        }
+console.log("[ModelWorker] model-worker.js loaded (top of file)");
 
-        if (this.instance === null) {
-            console.log(`[ModelWorker] Loading ${this.task} pipeline for model: ${modelId}`);
-            this.currentModelId = modelId;
+self.addEventListener('error', function(e) {
+    console.error("[ModelWorker] Global error in model-worker.js:", e);
+    try {
+        self.postMessage({ type: 'FATAL_ERROR', payload: e.message || e });
+    } catch (err) {
+        // If postMessage fails, at least log
+        console.error("[ModelWorker] Failed to postMessage FATAL_ERROR:", err);
+    }
+});
+self.addEventListener('unhandledrejection', function(e) {
+    console.error("[ModelWorker] Unhandled promise rejection in model-worker.js:", e);
+    try {
+        self.postMessage({ type: 'FATAL_ERROR', payload: e.reason || e });
+    } catch (err) {
+        console.error("[ModelWorker] Failed to postMessage FATAL_ERROR (unhandledrejection):", err);
+    }
+});
 
+let pipelineInstance = null;
+let tokenizerInstance = null;
+let currentModelIdForPipeline = null;
+let isModelPipelineReady = false;
+let isGenerationInterrupted = false;
+
+let specialStartThinkingTokenId = null;
+let specialEndThinkingTokenId = null;
+
+const browser = self.browser || self.chrome;
+
+async function initializePipeline(modelIdToLoad, progressCallbackForPipeline) {
+    if (pipelineInstance && currentModelIdForPipeline === modelIdToLoad) {
+        console.log(`[ModelWorker] Pipeline for model ${modelIdToLoad} is already initialized.`);
+        return pipelineInstance;
+    }
+
+    if (pipelineInstance) {
+        console.warn(`[ModelWorker] Switching pipeline from ${currentModelIdForPipeline} to ${modelIdToLoad}. Disposing existing instance.`);
+        if (typeof pipelineInstance.dispose === 'function') {
             try {
-                // Configure WebGPU or WebAssembly backend
-                if (navigator.gpu) {
-                    console.log("[ModelWorker] WebGPU is supported! Configuring ONNX to use WebGPU.");
-                    _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx = {
-                        executionProviders: ['webgpu', 'wasm'], // Prefer WebGPU, fall back to WebAssembly
-                        webgpu: {
-                            device: 'gpu',
-                            lowMemoryMode: true, // Reduce memory usage if supported
-                        },
-                    };
-                } else {
-                    console.log("[ModelWorker] WebGPU is not supported. Falling back to WebAssembly.");
-                    _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx = {
-                        executionProviders: ['wasm'], // Use WebAssembly only
-                    };
-                }
-
-                // Optimize WebAssembly memory usage IF wasm env exists
-                if (_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.wasm) {
-                    console.log("[ModelWorker] Applying WASM specific optimizations.");
-                    _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.wasm.numThreads = 1; // Use a single thread to reduce memory usage
-                    _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.wasm.maximumMemory = 4 * 1024 * 1024 * 1024; // Increase memory limit
-                } else {
-                     console.warn("[ModelWorker] env.wasm is not defined. Skipping WASM specific optimizations.");
-                }
-
-                this.instance = await (0,_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.pipeline)(this.task, modelId, {
-                    quantized: true,
-                    progress_callback: progress_callback ? (data) => {
-                        progress_callback({ ...data, model: modelId });
-                    } : null,
-                });
-
-                this.tokenizer_instance = this.instance.tokenizer;
-                console.log(`[ModelWorker] Pipeline loaded successfully for ${modelId}.`);
-
-                try {
-                    if (!this.tokenizer_instance) throw new Error("Tokenizer not available after pipeline load.");
-                    const thinkTokens = this.tokenizer_instance.encode('<think></think>', { add_special_tokens: false });
-                    if (thinkTokens && thinkTokens.length === 2) {
-                        START_THINKING_TOKEN_ID = thinkTokens[0];
-                        END_THINKING_TOKEN_ID = thinkTokens[1];
-                        console.log(`[ModelWorker] Encoded <think> tokens for ${modelId}: START=${START_THINKING_TOKEN_ID}, END=${END_THINKING_TOKEN_ID}`);
-                    } else {
-                        console.warn(`[ModelWorker] Could not encode <think> tokens correctly for ${modelId}.`);
-                        START_THINKING_TOKEN_ID = null;
-                        END_THINKING_TOKEN_ID = null;
-                    }
-                } catch (encodeError) {
-                    console.error(`[ModelWorker] Error encoding <think> tokens for ${modelId}:`, encodeError);
-                    START_THINKING_TOKEN_ID = null;
-                    END_THINKING_TOKEN_ID = null;
-                }
-
-            } catch (error) {
-                console.error(`[ModelWorker] Failed to load pipeline for ${modelId}:`, error);
-                this.instance = null;
-                this.tokenizer_instance = null;
-                this.currentModelId = null;
-                throw error;
+                pipelineInstance.dispose();
+                console.log("[ModelWorker] Disposed previous pipeline instance.");
+            } catch (disposeError) {
+                console.warn("[ModelWorker] Error disposing previous pipeline instance:", disposeError);
             }
         }
-        return this.instance;
+        pipelineInstance = null;
+        tokenizerInstance = null;
+        specialStartThinkingTokenId = null;
+        specialEndThinkingTokenId = null;
     }
+    currentModelIdForPipeline = modelIdToLoad; // Set this early for customFetch
+    isModelPipelineReady = false;
+    console.log(`[ModelWorker] Attempting to load 'text-generation' pipeline for model: ${modelIdToLoad}`);
 
-    static getTokenizer() {
-        if (!this.tokenizer_instance) {
-            console.warn("[ModelWorker] Attempted to get tokenizer before pipeline was loaded.");
+    try {
+        if (typeof navigator !== 'undefined' && navigator.gpu) {
+            console.log("[ModelWorker] WebGPU is supported by navigator. Configuring ONNX to use WebGPU.");
+            _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['webgpu', 'wasm'];
+            _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu = { powerPreference: 'high-performance' };
+        } else {
+            console.log("[ModelWorker] WebGPU not supported or navigator undefined. Falling back to WebAssembly.");
+            _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['wasm'];
         }
-        return this.tokenizer_instance;
-    }
+        if (_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm) {
+            console.log("[ModelWorker] Applying WASM specific optimizations: numThreads=1.");
+            _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.numThreads = 1; // Default is navigator.hardwareConcurrency
+        } else {
+            console.warn("[ModelWorker] env.backends.onnx.wasm is not defined when trying to set numThreads. This might be set later by transformers.js.");
+        }
 
-    static getCurrentModelId() {
-        return this.currentModelId;
+        _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels = false;
+        _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels = true; // Must be true for customFetch to be used effectively
+
+        console.log(`[ModelWorker] Calling transformers.js pipeline() for model: ${currentModelIdForPipeline}`);
+        pipelineInstance = await (0,_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', currentModelIdForPipeline, {
+            quantized: true,
+            progress_callback: progressCallbackForPipeline ? (data) => {
+                const progressDataWithModel = { ...data, model: currentModelIdForPipeline };
+                progressCallbackForPipeline(progressDataWithModel);
+            } : null,
+        });
+
+        tokenizerInstance = pipelineInstance.tokenizer;
+        console.log(`[ModelWorker] Pipeline and tokenizer loaded successfully for ${currentModelIdForPipeline}.`);
+        isModelPipelineReady = true;
+
+        if (!tokenizerInstance) {
+            console.warn(`[ModelWorker] Tokenizer instance is null after pipeline load for ${currentModelIdForPipeline}. Special tokens cannot be encoded.`);
+        } else {
+            try {
+                const thinkTokens = tokenizerInstance.encode('<think></think>', { add_special_tokens: false });
+                if (thinkTokens && thinkTokens.length === 2) {
+                    specialStartThinkingTokenId = thinkTokens[0];
+                    specialEndThinkingTokenId = thinkTokens[1];
+                    console.log(`[ModelWorker] Encoded <think> tokens for ${currentModelIdForPipeline}: START=${specialStartThinkingTokenId}, END=${specialEndThinkingTokenId}`);
+                } else {
+                    console.warn(`[ModelWorker] Could not encode <think> tokens correctly for ${currentModelIdForPipeline}. Received:`, thinkTokens);
+                }
+            } catch (encodeError) {
+                console.error(`[ModelWorker] Error encoding <think> tokens for ${currentModelIdForPipeline}:`, encodeError);
+            }
+        }
+        return pipelineInstance;
+
+    } catch (error) {
+        console.error(`[ModelWorker] Failed to load pipeline for ${currentModelIdForPipeline}:`, error);
+        self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `[ModelWorker] Pipeline load failed for ${currentModelIdForPipeline}: ${error.message || String(error)}` });
+        pipelineInstance = null;
+        tokenizerInstance = null;
+        currentModelIdForPipeline = null;
+        isModelPipelineReady = false;
+        throw error;
     }
 }
 
-let isInterrupted = false;
-let isModelLoaded = false;
-let lastLoggedProgress = -10;
+let perFileProgressMap = {};
+function calculateOverallProgress() {
+    let totalLoadedBytes = 0;
+    let totalFileSizes = 0;
+    Object.values(perFileProgressMap).forEach(file => {
+        totalLoadedBytes += file.loaded || 0;
+        totalFileSizes += file.total || 0;
+    });
+    return totalFileSizes > 0 ? (totalLoadedBytes / totalFileSizes) * 100 : 0;
+}
 
 self.onmessage = async (event) => {
+    if (!event.data || !event.data.type) {
+        console.error("[ModelWorker] Received message without type or data:", event);
+        return;
+    }
     const { type, payload } = event.data;
-    console.log("[ModelWorker] Received message:", type);
+    console.log(`[ModelWorker] Received message: Type: ${type}, Payload:`, payload);
 
     switch (type) {
         case 'init':
-            const requestedModelId = payload?.modelId;
-            if (!requestedModelId) {
-                console.error("[ModelWorker] Initialization failed: modelId not provided in init payload.");
-                self.postMessage({ type: 'error', payload: 'Initialization failed: modelId not provided.' });
+            const modelIdToInit = payload?.modelId;
+            const wasmPathForEnv = payload?.wasmPath;
+
+            if (!modelIdToInit) {
+                console.error("[ModelWorker] Initialization failed: modelId not provided in 'init' payload.");
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: 'Initialization failed: modelId not provided.' });
+                return;
+            }
+            if (!wasmPathForEnv) {
+                console.error("[ModelWorker] Initialization failed: wasmPath not provided in 'init' payload.");
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: 'Initialization failed: wasmPath not provided.' });
                 return;
             }
 
-            if (isModelLoaded && GenerationPipelineSingleton.getCurrentModelId() === requestedModelId) {
-                console.log(`[ModelWorker] Model ${requestedModelId} already loaded. Ignoring redundant init.`);
-                self.postMessage({ type: 'workerReady', payload: { model: requestedModelId } });
+            if (isModelPipelineReady && currentModelIdForPipeline === modelIdToInit) {
+                console.log(`[ModelWorker] Model ${modelIdToInit} is already loaded and ready. Signaling WORKER_READY.`);
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY, payload: { model: modelIdToInit } });
                 return;
             }
 
-            console.log(`[ModelWorker] Initializing environment and loading model: ${requestedModelId}`);
-            isModelLoaded = false;
-            self.postMessage({ type: 'loadingStatus', payload: { status: 'init', file: 'pipeline', progress: 0, model: requestedModelId } });
-
-            try {
-                if (!_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env) throw new Error("'env' object not available from transformers import.");
-                const wasmPath = payload?.wasmPath;
-                if (!wasmPath) {
-                    throw new Error("WASM path not provided in init payload.");
-                }
-                _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.wasmPaths = wasmPath;
-                console.log("[ModelWorker] Transformers WASM path set from payload to:", wasmPath);
-            } catch (envError) {
-                console.error("[ModelWorker] Failed during WASM path setup:", envError);
-                self.postMessage({ type: 'error', payload: `WASM Setup failed: ${envError.message || envError}` });
-                return;
-            }
-
-            try {
-                await GenerationPipelineSingleton.getInstance(requestedModelId, (progressData) => {
-                    if (progressData?.status === 'progress' && progressData?.progress) {
-                        const currentProgress = Math.floor(progressData.progress);
-                        if (currentProgress >= lastLoggedProgress + 10) {
-                            self.postMessage({ type: 'loadingStatus', payload: progressData });
-                            lastLoggedProgress = currentProgress;
+            // Log all files in the model's folder before loading
+            console.log('[ModelWorker] [PreLoad] Requesting file list for', modelIdToInit);
+            // --- Begin: Request file list from offscreen worker ---
+            function requestModelFileList(modelId) {
+                return new Promise((resolve) => {
+                    const requestId = `list_files_${modelId}_${Date.now()}_${Math.random()}`;
+                    function handleResponse(event) {
+                        console.log('[ModelWorker][requestModelFileList] Received message:', event.data);
+                        if (event.data && event.data.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT && event.data.requestId === requestId) {
+                            self.removeEventListener('message', handleResponse);
+                            resolve(event.data.payload);
                         }
-                    } else {
-                        self.postMessage({ type: 'loadingStatus', payload: progressData });
-                        lastLoggedProgress = -10;
                     }
+                    self.addEventListener('message', handleResponse);
+                    self.postMessage({
+                        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES,
+                        requestId,
+                        payload: { modelId }
+                    });
+                });
+            }
+            try {
+                const responseData = await requestModelFileList(modelIdToInit);
+                if (responseData && responseData.success && Array.isArray(responseData.files)) {
+                    console.log(`[ModelWorker] [PreLoad] Files present in model folder '${modelIdToInit}':`);
+                    responseData.files.forEach(f => {
+                        console.log(f.path);
+                    });
+                } else {
+                    console.warn(`[ModelWorker] [PreLoad] Could not list files for model '${modelIdToInit}':`, responseData && responseData.error);
+                }
+            } catch (err) {
+                console.error('[ModelWorker] [PreLoad] Error requesting file list for model:', modelIdToInit, err);
+            }
+            console.log('[ModelWorker] [PreLoad] LIST_MODEL_FILES message posted for', modelIdToInit);
+
+            console.log(`[ModelWorker] Starting initialization for model: ${modelIdToInit}. WASM path: ${wasmPathForEnv}`);
+            isModelPipelineReady = false; // Mark as not ready during new init
+            perFileProgressMap = {}; // Reset progress map
+            self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.LOADING_STATUS, payload: { status: 'initializing_pipeline', file: 'pipeline_setup', progress: 0, model: modelIdToInit } });
+
+            try {
+                if (!_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env) throw new Error("'env' object from transformers.js is not available.");
+
+                _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.wasmPaths = wasmPathForEnv;
+                console.log(`[ModelWorker] Transformers.js WASM path configured to: ${wasmPathForEnv}`);
+
+                _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.localModelPath = '';
+
+                _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.customFetch = async (resourceURL) => {
+                    console.log('[ModelWorker] [customFetch] CALLED:', { resourceURL });
+                    const modelIdForThisFetch = currentModelIdForPipeline;
+                    console.log('[ModelWorker] [customFetch] modelIdForThisFetch:', modelIdForThisFetch);
+                    let fileNameToFetch = resourceURL.replace(/^\//, ''); // Remove leading slash if present
+                    if (fileNameToFetch.startsWith(modelIdForThisFetch + '/')) {
+                        fileNameToFetch = fileNameToFetch.substring(modelIdForThisFetch.length + 1);
+                    }
+                    console.log('[ModelWorker] [customFetch] Normalized fileNameToFetch:', fileNameToFetch);
+                    return new Promise((resolve) => {
+                        const channel = new MessageChannel();
+                        channel.port1.onmessage = ({ data: responseData }) => {
+                            channel.port1.close();
+                            if (responseData.error) {
+                                console.error('[ModelWorker] [customFetch] Error received for', { modelIdForThisFetch, fileNameToFetch, error: responseData.error });
+                            } else if (responseData.arrayBuffer) {
+                                console.log('[ModelWorker] [customFetch] Success: Received ArrayBuffer for', { modelIdForThisFetch, fileNameToFetch, length: responseData.arrayBuffer.byteLength });
+                            } else {
+                                console.error('[ModelWorker] [customFetch] Unexpected response for', { modelIdForThisFetch, fileNameToFetch, responseData });
+                            }
+                            resolve(responseData.error ? new Response(null, { status: 404, statusText: `DB Asset Not Found or Error: ${responseData.error}` }) : new Response(responseData.arrayBuffer));
+                        };
+                        channel.port1.onmessageerror = (messageErrorEvent) => {
+                            channel.port1.close();
+                            console.error('[ModelWorker] [customFetch] MessageChannel onmessageerror for', { modelIdForThisFetch, fileNameToFetch, messageErrorEvent });
+                            resolve(new Response(null, { status: 500, statusText: `MessageChannel communication error for ${fileNameToFetch}` }));
+                        };
+                        console.log('[ModelWorker] [customFetch] Posting asset request to offscreen:', { modelIdForThisFetch, fileNameToFetch });
+                        self.postMessage({
+                            type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.REQUEST_ASSET_FROM_DB_INTERNAL_TYPE,
+                            payload: { modelId: modelIdForThisFetch, fileName: fileNameToFetch },
+                        }, [channel.port2]);
+                    });
+                };
+                console.log("[ModelWorker] env.customFetch has been configured.");
+
+                await initializePipeline(modelIdToInit, (progressReport) => {
+                    if (progressReport && progressReport.file) {
+                         perFileProgressMap[progressReport.file] = {
+                            loaded: progressReport.loaded || 0,
+                            total: progressReport.total || 0,
+                            progress: progressReport.progress || 0,
+                            status: progressReport.status || 'progress',
+                        };
+                    }
+                    const overallProgressPercentage = calculateOverallProgress();
+                    self.postMessage({
+                        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.LOADING_STATUS,
+                        payload: {
+                            ...progressReport,
+                            model: modelIdToInit,
+                            overallProgress: overallProgressPercentage,
+                        }
+                    });
                 });
 
-                isModelLoaded = true;
-                self.postMessage({ type: 'workerReady', payload: { model: requestedModelId } });
-                console.log(`[ModelWorker] MODEL ready message sent for ${requestedModelId}.`);
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY, payload: { model: modelIdToInit } });
+                console.log(`[ModelWorker] Model ${modelIdToInit} initialization complete. WORKER_READY message sent.`);
 
             } catch (error) {
-                console.error(`[ModelWorker] Failed during pipeline/model load for ${requestedModelId}:`, error);
-                isModelLoaded = false;
-                self.postMessage({ type: 'error', payload: `Model Load failed for ${requestedModelId}: ${error.message || error}` });
+                console.error(`[ModelWorker] Critical failure during model initialization for ${modelIdToInit}:`, error);
+                isModelPipelineReady = false; // Ensure state is reset on failure
+                // Error message would have been sent by initializePipeline
             }
             break;
 
         case 'generate':
-            if (!isModelLoaded || !GenerationPipelineSingleton.getCurrentModelId()) {
-                console.error("[ModelWorker] Cannot generate, model not loaded.");
-                self.postMessage({ type: 'generationError', payload: 'Generate failed: Model not loaded.' });
+            if (!isModelPipelineReady || !pipelineInstance || !currentModelIdForPipeline) {
+                console.error(`[ModelWorker] Cannot generate. Model pipeline not ready. Ready: ${isModelPipelineReady}, Instance: ${!!pipelineInstance}, CurrentModel: ${currentModelIdForPipeline}`);
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: 'Generation failed: Model pipeline is not ready.' });
                 return;
             }
-            console.log(`[ModelWorker] Received generate request using model: ${GenerationPipelineSingleton.getCurrentModelId()}`, payload);
-            if (!payload || !payload.messages || !Array.isArray(payload.messages)) {
-                console.error("[ModelWorker] Generate failed: Invalid messages payload.");
-                self.postMessage({ type: 'generationError', payload: 'Generate failed: Invalid messages payload.' });
+            const generationModelId = currentModelIdForPipeline;
+            console.log(`[ModelWorker] Received 'generate' request for model: ${generationModelId}. Payload:`, payload);
+
+            if (!payload || typeof payload.messages === 'undefined') {
+                console.error(`[ModelWorker] Generate failed: 'messages' property is missing or invalid in payload for model ${generationModelId}. Payload:`, payload);
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: 'Generate failed: Invalid messages payload.' });
                 return;
             }
 
-            isInterrupted = false;
-            let fullOutput = '';
-            let state = (START_THINKING_TOKEN_ID && END_THINKING_TOKEN_ID) ? 'answering' : 'answering-only';
+            isGenerationInterrupted = false;
+            let accumulatedOutputText = '';
+            let currentThinkingState = (specialStartThinkingTokenId !== null && specialEndThinkingTokenId !== null) ? 'answering' : 'answering-only';
 
             try {
-                const generator = await GenerationPipelineSingleton.getInstance(GenerationPipelineSingleton.getCurrentModelId());
-                const tokenizer = GenerationPipelineSingleton.getTokenizer();
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_STATUS, payload: { status: 'generating', model: generationModelId, input: payload.messages } });
 
-                if (!tokenizer) {
-                    throw new Error("Tokenizer not available for generation.");
-                }
-
-                self.postMessage({ type: 'generationStatus', payload: { status: 'generating', model: GenerationPipelineSingleton.getCurrentModelId(), input: payload.messages } });
-
-                const stream = await generator(payload.messages, {
+                const generationResultStream = await pipelineInstance(payload.messages, {
                     max_new_tokens: payload.max_new_tokens || 512,
                     temperature: payload.temperature || 0.7,
                     top_k: payload.top_k || 0,
-                    do_sample: payload.temperature ? payload.temperature > 0 : false,
+                    do_sample: (payload.temperature && payload.temperature > 0) || (payload.top_k && payload.top_k > 0),
                     callback_function: (beams) => {
-                        if (isInterrupted) return;
+                        if (isGenerationInterrupted) {
+                            console.log("[ModelWorker] Generation interrupted by flag, stopping further callback processing.");
+                            return; // Stop processing new beam updates
+                        }
                         try {
-                            const output_token_ids = beams[0]?.output_token_ids;
-                            if (!output_token_ids || output_token_ids.length === 0) return;
-                            const decodedChunk = tokenizer.decode(output_token_ids, { skip_special_tokens: true });
-                            const newText = decodedChunk.substring(fullOutput.length);
-                            fullOutput = decodedChunk;
-                            const lastTokenId = output_token_ids[output_token_ids.length - 1];
-                            if (state !== 'answering-only') {
-                                if (lastTokenId === END_THINKING_TOKEN_ID) state = 'answering';
-                                else if (lastTokenId === START_THINKING_TOKEN_ID) state = 'thinking';
+                            const tokenIdsForCurrentBeam = beams[0]?.output_token_ids;
+                            if (!tokenIdsForCurrentBeam || tokenIdsForCurrentBeam.length === 0) return;
+
+                            let newTextChunk = "";
+                            if (tokenizerInstance) {
+                                const decodedText = tokenizerInstance.decode(tokenIdsForCurrentBeam, { skip_special_tokens: true });
+                                newTextChunk = decodedText.substring(accumulatedOutputText.length);
+                                accumulatedOutputText = decodedText;
+                            } else {
+                                // Fallback if tokenizer is somehow unavailable
+                                const newTokens = tokenIdsForCurrentBeam.slice(accumulatedOutputText.split(',').filter(Boolean).length);
+                                newTextChunk = `[RAW_TOKENS:${newTokens.join(',')}]`;
+                                accumulatedOutputText += (accumulatedOutputText ? ',' : '') + newTokens.join(',');
+                                console.warn("[ModelWorker] Tokenizer instance not available during generation callback. Emitting raw token info.");
                             }
-                            if (state === 'answering' || state === 'answering-only') {
-                                self.postMessage({ type: 'generationUpdate', payload: { chunk: newText, state: state } });
+
+                            const lastToken = tokenIdsForCurrentBeam[tokenIdsForCurrentBeam.length - 1];
+                            if (currentThinkingState !== 'answering-only') {
+                                if (lastToken === specialEndThinkingTokenId) currentThinkingState = 'answering';
+                                else if (lastToken === specialStartThinkingTokenId) currentThinkingState = 'thinking';
+                            }
+
+                            if (newTextChunk && (currentThinkingState === 'answering' || currentThinkingState === 'answering-only')) {
+                                self.postMessage({
+                                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_UPDATE,
+                                    payload: { chunk: newTextChunk, state: currentThinkingState, model: generationModelId }
+                                });
                             }
                         } catch (streamError) {
-                            console.error("[ModelWorker] Error during stream processing callback:", streamError);
+                            console.error(`[ModelWorker] Error during generation stream processing callback for model ${generationModelId}:`, streamError);
                         }
                     }
                 });
 
-                console.log("[ModelWorker] Generation stream processing finished.");
-                if (isInterrupted) {
-                    self.postMessage({ type: 'generationStatus', payload: { status: 'interrupted' } });
+                console.log(`[ModelWorker] Generation stream processing finished for model ${generationModelId}.`);
+                if (isGenerationInterrupted) {
+                    self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_STATUS, payload: { status: 'interrupted', model: generationModelId } });
+                    console.log(`[ModelWorker] Generation was interrupted for ${generationModelId}. Final output from stream (if any):`, generationResultStream);
                 } else {
-                    let finalResult = stream;
-                    if (typeof stream === 'object' && stream !== null && stream.generated_text) finalResult = stream.generated_text;
-                    else if (fullOutput) finalResult = fullOutput;
-                    self.postMessage({ type: 'generationComplete', payload: { model: GenerationPipelineSingleton.getCurrentModelId(), input: payload.messages, output: finalResult } });
+                    let finalOutputText = accumulatedOutputText; // Default to text accumulated via callbacks
+                    if (typeof generationResultStream === 'string') {
+                        finalOutputText = generationResultStream;
+                    } else if (Array.isArray(generationResultStream) && generationResultStream.length > 0 && generationResultStream[0].generated_text) {
+                        finalOutputText = generationResultStream[0].generated_text;
+                    } else if (typeof generationResultStream === 'object' && generationResultStream !== null && generationResultStream.generated_text) {
+                        finalOutputText = generationResultStream.generated_text;
+                    }
+                    console.log(`[ModelWorker] Generation complete for ${generationModelId}. Final output text:`, finalOutputText);
+                    self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_COMPLETE, payload: { model: generationModelId, input: payload.messages, output: finalOutputText } });
                 }
 
             } catch (error) {
-                console.error(`[ModelWorker] Failed during generation for ${GenerationPipelineSingleton.getCurrentModelId()}:`, error);
-                self.postMessage({ type: 'generationError', payload: `Generation failed: ${error.message || error}` });
+                console.error(`[ModelWorker] Failed during generation process for model ${generationModelId}:`, error);
+                self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: `Generation process failed for ${generationModelId}: ${error.message || String(error)}` });
             }
             break;
 
         case 'interrupt':
-            console.log("[ModelWorker] Received interrupt request.");
-            isInterrupted = true;
+            console.log("[ModelWorker] Received 'interrupt' request. Setting interruption flag.");
+            isGenerationInterrupted = true;
+            // Note: This flag primarily stops UI updates. True interruption of ONNX runtime is not directly handled here.
             break;
 
         case 'reset':
-            console.log("[ModelWorker] Received reset request.");
-            isInterrupted = false;
-            self.postMessage({ type: 'resetComplete' });
+            console.log("[ModelWorker] Received 'reset' request.");
+            isGenerationInterrupted = false;
+            // Optionally, reset the pipeline fully if needed for a hard reset
+            pipelineInstance = null;
+            tokenizerInstance = null;
+            currentModelIdForPipeline = null;
+            isModelPipelineReady = false;
+            console.log("[ModelWorker] Pipeline instance has been reset due to 'reset' command.");
+            self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET_COMPLETE });
             break;
 
         default:
-            console.warn("[ModelWorker] Unknown message type:", type);
-            self.postMessage({ type: 'error', payload: `Unknown message type received: ${type}` });
+            console.warn(`[ModelWorker] Unknown message type received: ${type}. Payload:`, payload);
+            self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `[ModelWorker] Unknown message type received by model-worker: ${type}` });
             break;
     }
 };
 
-console.log("[ModelWorker] Worker script evaluated. Sending script ready signal.");
-self.postMessage({ type: 'workerScriptReady' });
+console.log(`[ModelWorker] Model Worker script (model-worker.js) evaluated. Sending ${_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_SCRIPT_READY} to host (offscreen).`);
+self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_SCRIPT_READY });
 })();
 
 /******/ })()

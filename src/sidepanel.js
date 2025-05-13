@@ -18,7 +18,7 @@ import { initializeDiscoverController } from './Controllers/DiscoverController.j
 import { initializeSettingsController } from './Controllers/SettingsController.js';
 import { initializeSpacesController } from './Controllers/SpacesController.js';
 import { initializeDriveController } from './Controllers/DriveController.js';
-import { UIEventNames, RuntimeMessageTypes, RawDirectMessageTypes, Contexts } from './events/eventNames.js';
+import { UIEventNames, RuntimeMessageTypes, RawDirectMessageTypes, Contexts, DirectDBNames, DBEventNames } from './events/eventNames.js';
 
 // Set EXTENSION_CONTEXT based on URL query string
 (function() {
@@ -172,6 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             timeoutPromise
         ]);
         const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
+        console.log("[Sidepanel] DB init result:", result);
         if (result && result.success) {
             console.log("[Sidepanel] DB initialization confirmed complete.");
             isDbReady = true;
@@ -367,6 +368,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function handleBackgroundMessage(message, sender, sendResponse) {
+    const type = message?.type;
+    if (Object.values(DirectDBNames).includes(type)) {
+        return false;
+    }
+    if (Object.values(DBEventNames).includes(type)) {
+        return false;
+    }
     console.log('[Sidepanel] Received message from background:', message);
     if (message.type === RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
         const payload = { chatId: message.chatId, messageId: message.messageId, text: message.text };

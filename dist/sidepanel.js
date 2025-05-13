@@ -3910,7 +3910,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
 /* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
 /* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+
 
 
 
@@ -3938,9 +3941,25 @@ const AVAILABLE_MODELS = {
     "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
     "Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
     "google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
-    "HuggingFaceTB/SmolLM2-360M": "HuggingFaceTB/SmolLM2-360M", 
+
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct (ONNX)",
     // Add more models here as needed
 };
+
+// Add this at the top level to ensure UI progress bar updates
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.addListener((message) => {
+    const type = message?.type;
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DirectDBNames).includes(type)) {
+        return false;
+    }
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(type)) {
+        return false;
+    }
+    if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
+        console.log('[UIController] Received progress update:', message.type, message.payload);
+        handleLoadingProgress(message.payload);
+    }
+});
 
 function selectElements() {
     queryInput = document.getElementById('query-input');
@@ -4060,51 +4079,55 @@ function handleStatusUpdate(notification) {
 }
 
 function handleLoadingProgress(payload) {
-    if (!isInitialized || !payload) return;
+    if (!payload) return;
+    const statusDiv = document.getElementById('model-load-status');
+    const statusText = document.getElementById('model-load-status-text');
+    const progressBar = document.getElementById('model-load-progress-bar');
+    const progressInner = document.getElementById('model-load-progress-inner');
 
-    if (!modelLoadProgress) {
-        console.warn("[UIController] Model load progress bar not found.");
+    if (!statusDiv || !statusText || !progressBar || !progressInner) {
+        console.warn('[UIController] Model load progress bar not found.');
+        return;
     }
 
-    const { status, file, progress, model } = payload;
-    let message = status;
-    let buttonState = 'loading';
+    // Always show the status area while loading or on error
+    statusDiv.style.display = 'block';
+    progressBar.style.width = '100%';
 
-    if (status === 'progress') {
-        message = `Downloading ${file}... ${Math.round(progress)}%`;
-        (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.value = progress;
-            modelLoadProgress.classList.remove('hidden');
-        }
-        setLoadButtonState('loading', `Down: ${Math.round(progress)}%`);
-    } else if (status === 'download' || status === 'ready') {
-        message = `Loading ${file}...`;
-        (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.value = 0; 
-            modelLoadProgress.classList.remove('hidden');
-        }
-        setLoadButtonState('loading', `Loading ${file}`);
-    } else if (status === 'done') {
-        message = `${file} loaded. Preparing pipeline...`;
-        (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.value = 100; 
-            modelLoadProgress.classList.remove('hidden'); 
-        }
-        setLoadButtonState('loading', 'Preparing...');
-    } else {
-        (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', message);
-        if (modelLoadProgress) {
-            modelLoadProgress.classList.add('hidden');
-        }
-        setLoadButtonState('loading', status);
+    // Handle error
+    if (payload.status === 'error' || payload.error) {
+        statusText.textContent = payload.error || 'Error loading model';
+        progressInner.style.background = '#f44336'; // red
+        progressInner.style.width = '100%';
+        // Do NOT auto-hide on error
+        return;
+    }
+
+    // Show status text
+    let text = payload.statusText || payload.status || 'Loading...';
+    if (payload.file && payload.progress !== undefined && payload.status === 'progress') {
+        text = `Downloading ${payload.file}... ${Math.round(payload.progress)}%`;
+    } else if (payload.file && payload.status === 'download') {
+        text = `Loading ${payload.file}...`;
+    } else if (payload.status === 'done') {
+        text = `${payload.file || ''} loaded. Preparing pipeline...`;
+    }
+    statusText.textContent = text;
+
+    // Update progress bar
+    let percent = payload.overallProgress || payload.progress || 0;
+    percent = Math.max(0, Math.min(100, percent));
+    progressInner.style.width = percent + '%';
+    progressInner.style.background = '#4caf50'; // green
+
+    // Hide when done (but not on error)
+    if ((percent >= 100 || payload.status === 'done') && !(payload.status === 'error' || payload.error)) {
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbStatusUpdatedNotification.type, handleStatusUpdate);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, handleLoadingProgress);
+_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type, handleStatusUpdate);
+
 
 async function initializeUI(callbacks) {
     console.log("[UIController] Initializing...");
@@ -4267,20 +4290,26 @@ function enableInput() {
 
 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.WORKER_READY, (payload) => {
     console.log("[UIController] Received worker:ready signal", payload);
-    if (modelLoadProgress) modelLoadProgress.classList.add('hidden'); 
-    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
-    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('success', `Model ${payload?.model || ''} ready.`);
-    enableInput();
+    // Hide progress bar area
+    const statusDiv = document.getElementById('model-load-status');
+    if (statusDiv) statusDiv.style.display = 'none';
     setLoadButtonState('loaded');
 });
 
 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.WORKER_ERROR, (payload) => {
     console.error("[UIController] Received worker:error signal", payload);
-    if (modelLoadProgress) modelLoadProgress.classList.add('hidden'); 
-    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
-    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('error', `Model load failed: ${payload}`);
+    // Show error in progress bar area and keep it visible
+    const statusDiv = document.getElementById('model-load-status');
+    const statusText = document.getElementById('model-load-status-text');
+    const progressInner = document.getElementById('model-load-progress-inner');
+    if (statusDiv && statusText && progressInner) {
+        statusDiv.style.display = 'block';
+        statusText.textContent = payload?.error || 'Model load failed.';
+        progressInner.style.background = '#f44336';
+        progressInner.style.width = '100%';
+    }
     setLoadButtonState('error');
-    disableInput("Model load failed. Check logs."); 
+    disableInput("Model load failed. Check logs.");
 });
 
 /***/ }),
@@ -4596,6 +4625,7 @@ function getContextName() {
 }
 
 let dbInitPromise = null;
+let eventBus_lastLoggedProgress = -1;
 
 const broadcastableEventTypes = [
   _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
@@ -4631,7 +4661,6 @@ class EventBus {
   }
 
   dispatchToLocalListeners(eventName, data, context) {
-
 
 
     console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Dispatching locally: ${eventName}`, data);
@@ -4771,7 +4800,8 @@ class EventBus {
 const eventBus = new EventBus();
 
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type) {
+  const type = message?.type;
+  if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DirectDBNames).includes(type)) {
     return false;
   }
   const context = getContextName();
@@ -4799,6 +4829,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
       });
       return false;
     }
+
+
     if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(message.type)) { 
       console.log(`[EventBus][${context}] : onMessage -> Received direct DBEvent (request): ${message.type}. Publishing to local BG eventBus.`);
       eventBus.publish(message.type, message.payload) 
@@ -4819,7 +4851,25 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
     }
   }
 
-  console.log(`[EventBus][${context}] : onMessage -> Message type ${message.type} not handled by eventBus onMessage logic.`);
+    // Add ignore list for UI/worker-only message types
+    const ignoredTypes = [
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,   
+      // add more as needed
+    ];
+    if (ignoredTypes.includes(type)) {
+      return false;
+    }
+
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames).includes(message.type)) { 
+
+      return false; 
+    }
+
+
+
+
+  console.log(`[EventBus][${context}] : onMessage -> Message type ${type} not handled by eventBus onMessage logic.`);
   return false; 
 });
 
@@ -5301,6 +5351,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
@@ -5310,6 +5361,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
+const DirectDBNames = Object.freeze({
+  ADD_MODEL_ASSET: 'AddModelAsset',
+  GET_MODEL_ASSET: 'GetModelAsset',
+  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
+  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
+});
+
 const DBEventNames = Object.freeze({
   DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
   DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
@@ -5352,6 +5410,7 @@ const DBEventNames = Object.freeze({
   DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
   DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
   DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
+
 });
 
 const UIEventNames = Object.freeze({
@@ -5365,8 +5424,10 @@ const UIEventNames = Object.freeze({
   WORKER_READY: 'worker:ready',
   WORKER_ERROR: 'worker:error',
   NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+  SCRAPE_PAGE: 'SCRAPE_PAGE',
   SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
   DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
   // Add more as needed
 });
 
@@ -5380,6 +5441,7 @@ const WorkerEventNames = Object.freeze({
   GENERATION_ERROR: 'generationError',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
+  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
 });
 
 const ModelWorkerStates = Object.freeze({
@@ -5418,6 +5480,9 @@ const ModelLoaderMessageTypes = Object.freeze({
   GENERATE: 'generate',
   INTERRUPT: 'interrupt',
   RESET: 'reset',
+  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
+  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
+  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
 });
 
 const InternalEventBusMessageTypes = Object.freeze({
@@ -5438,7 +5503,9 @@ const Contexts = Object.freeze({
   POPUP: 'Popup',
   OTHERS: 'Others',
   UNKNOWN: 'Unknown',
-}); 
+});
+
+
 
 /***/ }),
 
@@ -6045,6 +6112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             timeoutPromise
         ]);
         const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
+        console.log("[Sidepanel] DB init result:", result);
         if (result && result.success) {
             console.log("[Sidepanel] DB initialization confirmed complete.");
             isDbReady = true;
@@ -6240,6 +6308,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function handleBackgroundMessage(message, sender, sendResponse) {
+    const type = message?.type;
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DirectDBNames).includes(type)) {
+        return false;
+    }
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DBEventNames).includes(type)) {
+        return false;
+    }
     console.log('[Sidepanel] Received message from background:', message);
     if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
         const payload = { chatId: message.chatId, messageId: message.messageId, text: message.text };

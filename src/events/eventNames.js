@@ -1,3 +1,10 @@
+export const DirectDBNames = Object.freeze({
+  ADD_MODEL_ASSET: 'AddModelAsset',
+  GET_MODEL_ASSET: 'GetModelAsset',
+  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
+  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
+});
+
 export const DBEventNames = Object.freeze({
   DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
   DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
@@ -40,6 +47,7 @@ export const DBEventNames = Object.freeze({
   DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
   DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
   DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
+
 });
 
 export const UIEventNames = Object.freeze({
@@ -53,8 +61,10 @@ export const UIEventNames = Object.freeze({
   WORKER_READY: 'worker:ready',
   WORKER_ERROR: 'worker:error',
   NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+  SCRAPE_PAGE: 'SCRAPE_PAGE',
   SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
   DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
   // Add more as needed
 });
 
@@ -68,6 +78,7 @@ export const WorkerEventNames = Object.freeze({
   GENERATION_ERROR: 'generationError',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
+  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
 });
 
 export const ModelWorkerStates = Object.freeze({
@@ -106,6 +117,9 @@ export const ModelLoaderMessageTypes = Object.freeze({
   GENERATE: 'generate',
   INTERRUPT: 'interrupt',
   RESET: 'reset',
+  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
+  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
+  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
 });
 
 export const InternalEventBusMessageTypes = Object.freeze({
@@ -126,4 +140,5 @@ export const Contexts = Object.freeze({
   POPUP: 'Popup',
   OTHERS: 'Others',
   UNKNOWN: 'Unknown',
-}); 
+});
+

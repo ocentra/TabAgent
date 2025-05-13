@@ -38836,6 +38836,7 @@ function getContextName() {
 }
 
 let dbInitPromise = null;
+let eventBus_lastLoggedProgress = -1;
 
 const broadcastableEventTypes = [
   _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
@@ -38871,7 +38872,6 @@ class EventBus {
   }
 
   dispatchToLocalListeners(eventName, data, context) {
-
 
 
     console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Dispatching locally: ${eventName}`, data);
@@ -39011,7 +39011,8 @@ class EventBus {
 const eventBus = new EventBus();
 
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type) {
+  const type = message?.type;
+  if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DirectDBNames).includes(type)) {
     return false;
   }
   const context = getContextName();
@@ -39039,6 +39040,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
       });
       return false;
     }
+
+
     if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(message.type)) { 
       console.log(`[EventBus][${context}] : onMessage -> Received direct DBEvent (request): ${message.type}. Publishing to local BG eventBus.`);
       eventBus.publish(message.type, message.payload) 
@@ -39059,7 +39062,25 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
     }
   }
 
-  console.log(`[EventBus][${context}] : onMessage -> Message type ${message.type} not handled by eventBus onMessage logic.`);
+    // Add ignore list for UI/worker-only message types
+    const ignoredTypes = [
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,   
+      // add more as needed
+    ];
+    if (ignoredTypes.includes(type)) {
+      return false;
+    }
+
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames).includes(message.type)) { 
+
+      return false; 
+    }
+
+
+
+
+  console.log(`[EventBus][${context}] : onMessage -> Message type ${type} not handled by eventBus onMessage logic.`);
   return false; 
 });
 
@@ -39541,6 +39562,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
@@ -39550,6 +39572,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
+const DirectDBNames = Object.freeze({
+  ADD_MODEL_ASSET: 'AddModelAsset',
+  GET_MODEL_ASSET: 'GetModelAsset',
+  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
+  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
+});
+
 const DBEventNames = Object.freeze({
   DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
   DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
@@ -39592,6 +39621,7 @@ const DBEventNames = Object.freeze({
   DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
   DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
   DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
+
 });
 
 const UIEventNames = Object.freeze({
@@ -39605,8 +39635,10 @@ const UIEventNames = Object.freeze({
   WORKER_READY: 'worker:ready',
   WORKER_ERROR: 'worker:error',
   NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+  SCRAPE_PAGE: 'SCRAPE_PAGE',
   SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
   DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
   // Add more as needed
 });
 
@@ -39620,6 +39652,7 @@ const WorkerEventNames = Object.freeze({
   GENERATION_ERROR: 'generationError',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
+  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
 });
 
 const ModelWorkerStates = Object.freeze({
@@ -39658,6 +39691,9 @@ const ModelLoaderMessageTypes = Object.freeze({
   GENERATE: 'generate',
   INTERRUPT: 'interrupt',
   RESET: 'reset',
+  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
+  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
+  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
 });
 
 const InternalEventBusMessageTypes = Object.freeze({
@@ -39678,7 +39714,9 @@ const Contexts = Object.freeze({
   POPUP: 'Popup',
   OTHERS: 'Others',
   UNKNOWN: 'Unknown',
-}); 
+});
+
+
 
 /***/ }),
 
@@ -39710,6 +39748,28 @@ let mirrorToConsoleDefault = true;
 let sendToDbDefault = true;
 let isDbReadyForLogs = false;
 const logBuffer = [];
+
+// --- Throttled Logging Helper ---
+const logClientThrottleCache = {};
+const logClientLastContext = {};
+function throttledConsoleLog(level, staticMsg, contextKey = null) {
+    const now = Date.now();
+    if (!logClientThrottleCache[level]) logClientThrottleCache[level] = {};
+    if (contextKey !== null) {
+        if (logClientLastContext[staticMsg] === contextKey) return; // skip if same context
+        logClientLastContext[staticMsg] = contextKey;
+    }
+    if (!logClientThrottleCache[level][staticMsg] || now - logClientThrottleCache[level][staticMsg] > 2000) {
+        logClientThrottleCache[level][staticMsg] = now;
+        switch (level) {
+            case 'error': console.error(staticMsg, contextKey !== null ? contextKey : ''); break;
+            case 'warn': console.warn(staticMsg, contextKey !== null ? contextKey : ''); break;
+            case 'debug': console.debug(staticMsg, contextKey !== null ? contextKey : ''); break;
+            case 'info':
+            default: console.log(staticMsg, contextKey !== null ? contextKey : ''); break;
+        }
+    }
+}
 
 async function flushLogBuffer() {
     if (!_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus) return;
@@ -39775,19 +39835,14 @@ async function _internalLogHelper(level, ...args) {
     }
 
     if (!componentName && !skipInitCheck) {
-        console.error("LogClient: Attempted to log before init() was called. Message:", level, ...args);
+        throttledConsoleLog('error', "LogClient: Attempted to log before init() was called. Message:", level, ...args);
         return;
     }
 
     if (mirrorThisCall || level.toLowerCase() === 'error') {
         const consolePrefix = componentName ? `[${componentName}]` : `[LogClient]`;
         const consoleArgs = [consolePrefix, ...args];
-        switch (level.toLowerCase()) {
-            case 'error': console.error(...consoleArgs); break;
-            case 'warn': if (mirrorThisCall) console.warn(...consoleArgs); break;
-            case 'debug': if (mirrorThisCall) console.debug(...consoleArgs); break;
-            case 'info': default: if (mirrorThisCall) console.log(...consoleArgs); break;
-        }
+        throttledConsoleLog(level.toLowerCase(), ...consoleArgs);
     }
 
     if (!sendThisCall) return;
@@ -39876,6 +39931,14 @@ function logError(...args) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   addModelAsset: () => (/* binding */ addModelAsset),
+/* harmony export */   countModelAssetChunks: () => (/* binding */ countModelAssetChunks),
+/* harmony export */   getModelAsset: () => (/* binding */ getModelAsset),
+/* harmony export */   listModelFiles: () => (/* binding */ listModelFiles),
+/* harmony export */   logAllChunkGroupIdsForModel: () => (/* binding */ logAllChunkGroupIdsForModel),
+/* harmony export */   verifyModelAsset: () => (/* binding */ verifyModelAsset)
+/* harmony export */ });
 /* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventBus.js */ "./src/eventBus.js");
 /* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/plugin.js");
 /* harmony import */ var rxdb__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! rxdb */ "./node_modules/rxdb/dist/esm/rx-database.js");
@@ -39933,15 +39996,20 @@ let db = null;
 let chatHistoryCollection = null;
 let logDbInstance = null;
 let logsCollection = null;
+let modelDbInstance = null;
+let modelAssetsCollection = null;
 let isDbInitialized = false;
 let isLogDbInitialized = false;
+let isModelDbInitialized = false;
 let dbReadyResolve;
 const dbReadyPromise = new Promise(resolve => { dbReadyResolve = resolve; });
 let currentExtensionSessionId = null;
 let previousExtensionSessionId = null;
 let isDbReadyFlag = false;
 
-
+// Track last folder/fileName for addModelAsset log
+let lastAddModelAssetFolder = null;
+let lastAddModelAssetFile = null;
 
 const chatHistorySchema = {
     title: 'chat history schema',
@@ -40017,6 +40085,31 @@ const logSchema = {
   required: ['id', 'timestamp', 'level', 'component', 'extensionSessionId', 'message']
 };
 
+// --- Model Asset Storage Schema ---
+const modelAssetSchema = {
+    title: 'model asset schema',
+    version: 0,
+    description: 'Stores model files (ONNX, tokenizer, config, etc.) as blobs or chunks',
+    primaryKey: 'id',
+    type: 'object',
+    properties: {
+        id: { type: 'string', maxLength: 300 }, // `${chunkGroupId}__chunk${chunkIndex}` or `${folderName}/${fileName}`
+        folder: { type: 'string', maxLength: 100 },
+        fileName: { type: 'string', maxLength: 100 },
+        fileType: { type: 'string', maxLength: 50 },
+        data: {}, // allow any type (binary or string)
+        size: { type: 'number' },
+        addedAt: { type: 'number' },
+        chunkIndex: { type: 'number', default: 0 },
+        totalChunks: { type: 'number', default: 1 },
+        chunkGroupId: { type: 'string', maxLength: 200, default: '' },
+        binarySize: { type: 'number' },
+        totalFileSize: { type: 'number' },
+    },
+    required: ['id', 'folder', 'fileName', 'fileType', 'data', 'size', 'addedAt', 'chunkIndex', 'totalChunks', 'chunkGroupId', 'binarySize', 'totalFileSize'],
+    indexes: [['folder'], ['fileName'], ['chunkGroupId']]
+};
+
 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest.type, handleInitializeRequest);
 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, handleDbGetReadyStateRequest);
 _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbCreateSessionRequest.type, handleDbCreateSessionRequest);
@@ -40048,31 +40141,36 @@ async function ensureDbReady(type = 'chat') {
     const start = Date.now();
     let collection = null;
     let lastLogTime = 0;
+    let waitingLogged = false;
     while (Date.now() - start < timeoutMs) {
         if (type === 'chat') {
             if (chatHistoryCollection) {
-                console.log(`[DB][ensureDbReady] chatHistoryCollection is ready after ${Date.now() - start}ms`);
                 collection = chatHistoryCollection;
                 break;
             }
         } else if (type === 'log') {
             if (logsCollection) {
-                console.log(`[DB][ensureDbReady] logsCollection is ready after ${Date.now() - start}ms`);
                 collection = logsCollection;
                 break;
             }
+        } else if (type === 'model' || type === 'modelAssets') {
+            if (modelAssetsCollection) {
+                collection = modelAssetsCollection;
+                break;
+            }
         } else {
+            throttledLog('error', '[DB][ensureDbReady] Unknown DB type requested:', type);
             throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`);
         }
-        // Log every 500ms to avoid spamming
-        if (Date.now() - lastLogTime > 500) {
-            console.log(`[DB][ensureDbReady] Waiting for collection '${type}'... elapsed: ${Date.now() - start}ms`);
-            lastLogTime = Date.now();
+        // Only log once if waiting
+        if (!waitingLogged && Date.now() - start > 200) {
+            throttledLog('log', `[DB][ensureDbReady] Waiting for collection '${type}'... elapsed: ${Date.now() - start}ms`);
+            waitingLogged = true;
         }
         await new Promise(res => setTimeout(res, pollInterval));
     }
     if (!collection) {
-        console.error(`[DB][ensureDbReady] Collection for type '${type}' not initialized after ${timeoutMs}ms`);
+        throttledLog('error', `[DB][ensureDbReady] Collection for type '${type}' not initialized after ${timeoutMs}ms`);
         throw new AppError('COLLECTION_NOT_READY', `Collection for type '${type}' not initialized after ${timeoutMs}ms`);
     }
     return collection;
@@ -40090,16 +40188,20 @@ async function handleDbResetDatabaseRequest() {
             await logDbInstance.destroy();
             console.log('[DB] Log database instance destroyed');
         }
+        if (modelDbInstance) {
+            await modelDbInstance.destroy();
+            console.log('[DB] Model database instance destroyed');
+        }
         db = null;
         chatHistoryCollection = null;
         isDbInitialized = false;
         logDbInstance = null;
         logsCollection = null;
         isLogDbInitialized = false;
-
-
+        modelDbInstance = null;
+        modelAssetsCollection = null;
+        isModelDbInitialized = false;
         try {
-
             const mainStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagentdb');
             if (mainStorage && typeof mainStorage.remove === 'function') {
                  await mainStorage.remove();
@@ -40109,7 +40211,6 @@ async function handleDbResetDatabaseRequest() {
             }
         } catch (e) { console.warn('[DB] Could not remove tabagentdb storage (might not exist)', { error: e?.message }); }
          try {
-
              const logStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagent_logs_db');
              if (logStorage && typeof logStorage.remove === 'function') {
                  await logStorage.remove();
@@ -40118,7 +40219,15 @@ async function handleDbResetDatabaseRequest() {
                   console.warn('[DB] Could not get log storage or remove method.');
              }
         } catch (e) { console.warn('[DB] Could not remove tabagent_logs_db storage (might not exist)', { error: e?.message }); }
-
+        try {
+            const modelStorage = (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)('tabagent_models_db');
+            if (modelStorage && typeof modelStorage.remove === 'function') {
+                await modelStorage.remove();
+                console.log('[DB] Removed tabagent_models_db storage');
+            } else {
+                console.warn('[DB] Could not get model storage or remove method.');
+            }
+        } catch (e) { console.warn('[DB] Could not remove tabagent_models_db storage (might not exist)', { error: e?.message }); }
         dbReadyResolve(false);
     } catch (error) {
         console.error('[DB] [Database:Reset] CAUGHT RAW ERROR during reset:', error);
@@ -40135,6 +40244,7 @@ async function handleInitializeRequest(event) {
         isDbReadyFlag,
         isDbInitialized,
         isLogDbInitialized,
+        isModelDbInitialized,
         eventType: event?.type,
         eventRequestId: event?.requestId
     });
@@ -40165,8 +40275,8 @@ async function handleInitializeRequest(event) {
     }
 
     // 2. Already initialized?
-    if (isDbInitialized && isLogDbInitialized) {
-        console.log('[DB] Both databases already initialized, skipping');
+    if (isDbInitialized && isLogDbInitialized && isModelDbInitialized) {
+        console.log('[DB] All databases already initialized, skipping');
         isDbReadyFlag = true;
         console.log('[DB] About to resolve dbReadyPromise with value: true (already initialized)');
         dbReadyResolve(true);
@@ -40211,7 +40321,6 @@ async function handleInitializeRequest(event) {
                 chatHistoryCollection = chatCollections.chatHistory;
                 console.log('[DB][Init Step 3] Chat history collection initialized');
                 isDbInitialized = true;
-             
             } catch (e) {
                 console.error('[DB][Init Step 3] Error adding chat collections:', e);
                 throw e;
@@ -40220,34 +40329,65 @@ async function handleInitializeRequest(event) {
             console.log('[DB][Init Step 2/3] Main database and chat collections already initialized');
         }
 
-        // Step 4: Log DB
-        console.log('[DB][Init Step 4] Checking if log DB needs to be initialized:', isLogDbInitialized);
+        // Model DB
+        if (!isModelDbInitialized) {
+            console.log('[DB][Init Step 4] About to create model database');
+            try {
+                modelDbInstance = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_8__.createRxDatabase)({
+                    name: 'tabagent_models_db',
+                    storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)()
+                }), 10000);
+                console.log('[DB][Init Step 4] Model database instance created', { name: modelDbInstance.name });
+            } catch (e) {
+                console.error('[DB][Init Step 4] Error creating model database:', e);
+                throw e;
+            }
+            console.log('[DB][Init Step 5] About to add model assets collection');
+            const modelCollections = await modelDbInstance.addCollections({
+                modelAssets: {
+                    schema: modelAssetSchema
+                }
+            });
+            modelAssetsCollection = modelCollections.modelAssets;
+            console.log('[DB][Init Step 5] Model assets collection initialized');
+            isModelDbInitialized = true;
+        } else {
+            console.log('[DB][Init Step 4/5] Model database and model assets collection already initialized');
+        }
+        // Always log model DB readiness
+        try {
+            await ensureModelAssetsReady();
+            console.log('[DB][Init] Model assets DB/collection readiness check complete');
+        } catch (e) {
+            console.error('[DB][Init] Model assets DB/collection readiness check failed', e);
+        }
+
+        // Log DB
+        console.log('[DB][Init Step 6] Checking if log DB needs to be initialized:', isLogDbInitialized);
         if (!isLogDbInitialized) {
-            console.log('[DB][Init Step 4] About to create log database');
+            console.log('[DB][Init Step 6] About to create log database');
             try {
                 logDbInstance = await withTimeout((0,rxdb__WEBPACK_IMPORTED_MODULE_8__.createRxDatabase)({
                     name: 'tabagent_logs_db',
                     storage: (0,rxdb_plugins_storage_dexie__WEBPACK_IMPORTED_MODULE_3__.getRxStorageDexie)()
                 }), 10000);
-                console.log('[DB][Init Step 4] Log database instance created', { name: logDbInstance.name });
+                console.log('[DB][Init Step 6] Log database instance created', { name: logDbInstance.name });
             } catch (e) {
-                console.error('[DB][Init Step 4] Error creating log database:', e);
+                console.error('[DB][Init Step 6] Error creating log database:', e);
                 throw e;
             }
-
-            console.log('[DB][Init Step 5] About to add log collections');
+            console.log('[DB][Init Step 7] About to add log collections');
             const logCollections = await logDbInstance.addCollections({
                 logs: {
                     schema: logSchema
                 }
             });
             logsCollection = logCollections.logs;
-            console.log('[DB][Init Step 5] Logs collection initialized');
+            console.log('[DB][Init Step 7] Logs collection initialized');
             isLogDbInitialized = true;
-            console.log('[DB] After Step 5, before subscriptions');
-          
+            console.log('[DB] After Step 7, before subscriptions');
         } else {
-            console.log('[DB][Init Step 4/5] Log database and log collections already initialized');
+            console.log('[DB][Init Step 6/7] Log database and log collections already initialized');
         }
           
 
@@ -41215,6 +41355,216 @@ async function clearLogsInternal(sessionIdsToDelete) {
 
 
 
+async function ensureModelAssetsReady() {
+    return await ensureDbReady('model');
+}
+
+
+async function addModelAsset(folder, fileName, fileType, data, chunkIndex = 0, totalChunks = 1, chunkGroupId = '', binarySize = null, totalFileSize = null, collection = null) {
+    // DEBUG: Log chunkGroupId and related info
+    throttledLog('log', '[DEBUG][addModelAsset] chunkGroupId:', `${chunkGroupId} | folder: ${folder} | fileName: ${fileName} | chunkIndex: ${chunkIndex}`);
+    throttledLog('log', '[DB][addModelAsset] Called with:', `${folder}/${fileName}`);
+    let size = 0;
+    if (typeof data === 'string') {
+        size = data.length;
+    } else if (data instanceof ArrayBuffer) {
+        size = data.byteLength;
+    } else if (ArrayBuffer.isView(data)) {
+        size = data.byteLength;
+    } else {
+        throttledLog('warn', '[DB][addModelAsset] Data is not a string, ArrayBuffer, or TypedArray!', `${folder}/${fileName}`);
+        throw new Error('addModelAsset: data must be a string, ArrayBuffer, or TypedArray');
+    }
+    if (!collection) collection = await ensureModelAssetsReady();
+    const id = chunkGroupId ? `${chunkGroupId}__chunk${chunkIndex}` : `${folder}/${fileName}`;
+    const addedAt = Date.now();
+    try {
+        // Only log for first and last chunk
+        if (chunkIndex === 0 || chunkIndex === totalChunks - 1) {
+            throttledLog('log', '[DB][addModelAsset] Inserting into DB:', id);
+        }
+        await collection.insert({ id, folder, fileName, fileType, data, size, addedAt, chunkIndex, totalChunks, chunkGroupId, binarySize, totalFileSize });
+        throttledLog('log', '[DB][addModelAsset] Insert successful:', id);
+    } catch (err) {
+        if (err.code === 'CONFLICT' || (err.parameters && err.parameters.status === 409)) {
+            // Only log for first and last chunk
+            if (chunkIndex === 0 || chunkIndex === totalChunks - 1) {
+                throttledLog('log', '[DB][addModelAsset] Chunk already exists, skipping insert:');
+                if (true) console.debug('Chunk ID:', id);
+            }
+            return { success: true, skipped: true };
+        }
+        throttledLog('error', '[DB][addModelAsset] Insert failed:', id);
+        throw err;
+    }
+    return { success: true };
+}
+async function getModelAssetChunks(chunkGroupId, collection = null) {
+    if (!collection) collection = await ensureModelAssetsReady();
+    const docs = await collection.find({ selector: { chunkGroupId } }).sort({ chunkIndex: 'asc' }).exec();
+    return docs.map(doc => doc.toJSON());
+}
+async function getModelAsset(folder, fileName, collection = null) {
+    throttledLog('log', '[DB][getModelAsset] Called with:', { folder, fileName });
+    if (!collection) collection = await ensureModelAssetsReady();
+    const id = `${folder}/${fileName}`;
+    let doc = await collection.findOne(id).exec();
+    if (doc) {
+        const asset = doc.toJSON();
+        if (asset.totalChunks && asset.totalChunks > 1 && asset.chunkGroupId) {
+            const chunks = await getModelAssetChunks(asset.chunkGroupId, collection);
+            if (!chunks) return null;
+            const totalFileSize = chunks[0].totalFileSize || chunks.reduce((sum, c) => sum + (c.binarySize || 0), 0);
+            const buffer = new Uint8Array(totalFileSize);
+            let offset = 0;
+            for (const chunk of chunks) {
+                const chunkBytes = new Uint8Array(chunk.data);
+                buffer.set(chunkBytes, offset);
+                offset += chunkBytes.length;
+            }
+            return {
+                id: asset.chunkGroupId,
+                folder,
+                fileName,
+                fileType: chunks[0].fileType,
+                data: buffer.buffer,
+                size: totalFileSize,
+                addedAt: chunks[0].addedAt,
+                chunkIndex: 0,
+                totalChunks: chunks.length,
+                chunkGroupId: asset.chunkGroupId
+            };
+        }
+        if (asset.data && typeof asset.data === 'string') {
+            const buffer = new Uint8Array(atob(asset.data).length);
+            for (let i = 0; i < buffer.length; i++) {
+                buffer[i] = atob(asset.data).charCodeAt(i);
+            }
+            asset.data = buffer.buffer;
+            asset.size = buffer.byteLength;
+        }
+        return asset;
+    }
+    const chunkGroupId = id;
+    const chunks = await getModelAssetChunks(chunkGroupId, collection);
+    if (chunks && chunks.length > 0) {
+        const totalFileSize = chunks[0].totalFileSize || chunks.reduce((sum, c) => sum + (c.binarySize || 0), 0);
+        const buffer = new Uint8Array(totalFileSize);
+        let offset = 0;
+        for (const chunk of chunks) {
+            const chunkBytes = new Uint8Array(chunk.data);
+            buffer.set(chunkBytes, offset);
+            offset += chunkBytes.length;
+        }
+        return {
+            id: chunkGroupId,
+            folder,
+            fileName,
+            fileType: chunks[0].fileType,
+            data: buffer.buffer,
+            size: totalFileSize,
+            addedAt: chunks[0].addedAt,
+            chunkIndex: 0,
+            totalChunks: chunks.length,
+            chunkGroupId,
+        };
+    }
+    throttledLog('warn', '[DB][getModelAsset] Asset not found:', { id });
+    return null;
+}
+
+async function countModelAssetChunks(folder, fileName, collection = null) {
+    if (!collection) collection = await ensureModelAssetsReady();
+    const chunkGroupId = `${folder}/${fileName}`;
+    // DEBUG: Log chunkGroupId and related info
+    throttledLog('log', '[DB][countModelAssetChunks] chunkGroupId:', `${chunkGroupId} | folder: ${folder} | fileName: ${fileName}`);
+    const docs = await collection.find({ selector: { chunkGroupId } }).exec();
+    return docs.length;
+}
+
+// Helper: Log all chunkGroupIds for a model (folder)
+async function logAllChunkGroupIdsForModel(folder, collection = null) {
+    if (!collection) collection = await ensureModelAssetsReady();
+    const docs = await collection.find({ selector: { folder } }).exec();
+    const chunkGroupIds = docs.map(doc => doc.chunkGroupId);
+    throttledLog('log', '[DB][AllChunkGroupIds]', JSON.stringify(chunkGroupIds));
+}
+
+// Verifies that a model asset can be reassembled and (optionally) matches expected size
+async function verifyModelAsset(folder, fileName, expectedSize = null, expectedChunks = null, collection = null) {
+    if (!collection) collection = await ensureModelAssetsReady();
+    const chunkGroupId = `${folder}/${fileName}`;
+    const docs = await collection.find({ selector: { chunkGroupId } }).sort({ chunkIndex: 'asc' }).exec();
+    if (!docs || docs.length === 0) {
+        return { success: false, error: 'No chunks found' };
+    }
+    // Check chunk indices are contiguous
+    for (let i = 0; i < docs.length; ++i) {
+        if (docs[i].chunkIndex !== i) {
+            return { success: false, error: `Missing chunk at index ${i}` };
+        }
+    }
+    // Check total size if expected
+    if (expectedSize !== null) {
+        const total = docs.reduce((sum, c) => sum + (c.binarySize || 0), 0);
+        if (total !== expectedSize) {
+            return { success: false, error: `Size mismatch: expected ${expectedSize}, got ${total}` };
+        }
+    }
+    // Check chunk count if expected
+    if (expectedChunks !== null && docs.length !== expectedChunks) {
+        return { success: false, error: `Chunk count mismatch: expected ${expectedChunks}, got ${docs.length}` };
+    }
+    return { success: true };
+}
+
+// Utility: List all files for a model folder, with chunk info
+ async function listModelFiles(modelId) {
+    const collection = await ensureModelAssetsReady();
+    const docs = await collection.find({ selector: { folder: modelId } }).exec();
+    const fileMap = {};
+    for (const doc of docs) {
+        const key = doc.fileName;
+        if (!fileMap[key]) fileMap[key] = [];
+        fileMap[key].push(doc);
+    }
+    return Object.entries(fileMap).map(([fileName, docs]) => {
+        const chunkGroupIds = new Set(docs.map(d => d.chunkGroupId));
+        let chunkCount = 0;
+        for (const groupId of chunkGroupIds) {
+            chunkCount += docs.filter(d => d.chunkGroupId === groupId).length;
+        }
+        const isChunked = docs.length > 1 || (docs[0] && docs[0].totalChunks > 1);
+        const type = isChunked ? `chunked (${docs.length} parts)` : 'single';
+        return { path: `/${modelId}/${fileName}`, type };
+    });
+}
+
+// Export addModelAsset, getModelAsset, and countModelAssetChunks for direct use
+
+
+// --- Throttled Logging Helper ---
+const logThrottleCache = {};
+const logLastContext = {};
+function throttledLog(type, staticMsg, contextKey = null) {
+    const now = Date.now();
+    if (!logThrottleCache[type]) logThrottleCache[type] = {};
+    if (contextKey !== null) {
+        if (logLastContext[staticMsg] === contextKey) return; // skip if same context
+        logLastContext[staticMsg] = contextKey;
+    }
+    if (!logThrottleCache[type][staticMsg] || now - logThrottleCache[type][staticMsg] > 2000) {
+        logThrottleCache[type][staticMsg] = now;
+        if (type === 'log') console.log(staticMsg, contextKey !== null ? contextKey : '');
+        else if (type === 'warn') console.warn(staticMsg, contextKey !== null ? contextKey : '');
+        else if (type === 'error') console.error(staticMsg, contextKey !== null ? contextKey : '');
+    }
+}
+
+
+
+
+
 
 
 
@@ -41346,7 +41696,7 @@ let activeGenerations = {};
 let currentLogSessionId = null;
 let previousLogSessionId = null;
 
-let lastLoggedProgress = -10;
+let background_lastLoggedProgress = -1;
 
 
 // Log Session Management
@@ -41480,65 +41830,48 @@ function ensureWorkerScriptIsReady() {
 }
 
 async function loadModel(modelId) {
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Request to load model: ${modelId}. Current state: ${modelWorkerState}`);
+    await ensureWorkerScriptIsReady();
+    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Worker script ready, requesting asset download from offscreen');
+
+    let fileMap = null;
     try {
-        await ensureWorkerScriptIsReady();
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logDebug(`Worker script confirmed ready (state: ${modelWorkerState}). Proceeding with model load.`);
+        // Send message to offscreen document to download assets
+        fileMap = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+            type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelLoaderMessageTypes.DOWNLOAD_MODEL_ASSETS,
+            payload: { modelId }
+        }).then(response => {
+            if (!response || !response.success) {
+                throw new Error(response && response.error ? response.error : 'Unknown error from offscreen asset download');
+            }
+            return response.fileMap;
+        });
     } catch (err) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Failed to ensure worker script readiness:", err);
-        throw new Error(`Failed to ensure worker script readiness: ${err.message}`);
+        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError('[Background] Error in offscreen downloadModelAssets:', err, JSON.stringify(err));
+        throw err;
     }
+    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('Model asset download complete for', modelId);
 
-    if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.WORKER_SCRIPT_READY && modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.IDLE && modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR) {
-        const errorMsg = `Cannot load model '${modelId}'. Worker state is '${modelWorkerState}', expected 'worker_script_ready', 'idle', or 'error'.`;
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("State check failed loading model:", errorMsg);
-        throw new Error(errorMsg);
-    }
-
-    if (!modelId) {
-        return Promise.reject(new Error("Cannot load model: Model ID not provided."));
-    }
-
-    if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Model appears ready. Assuming it's ${modelId}.`);
-        return Promise.resolve();
-    }
-    if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL && modelLoadPromise) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Model is already loading. Assuming it's ${modelId}.`);
-        return modelLoadPromise;
-    }
-    if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.WORKER_SCRIPT_READY) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("Cannot load model. Worker script is not ready. State:", modelWorkerState);
-        return Promise.reject(new Error(`Cannot load model, worker script not ready (state: ${modelWorkerState})`));
-    }
-
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Worker script ready. Initiating load for model: ${modelId}.`);
     modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL;
-    // TODO: Store the modelId being loaded
     modelLoadPromise = new Promise((resolve, reject) => {
         modelLoadResolver = resolve;
         modelLoadRejecter = reject;
-
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logDebug(`Attempting to send 'init' message for model: ${modelId}`);
-        sendToModelWorkerOffscreen({ type: 'init', payload: { modelId: modelId } })
+        sendToModelWorkerOffscreen({ type: 'init', payload: { modelId: modelId, localAssets: fileMap } })
             .catch(err => {
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Failed to send 'init' message for ${modelId}:`, err);
+                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError('Failed to send init message for', modelId, err);
                 modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
                 if (modelLoadRejecter) modelLoadRejecter(err);
                 modelLoadPromise = null;
             });
     });
-
     const modelLoadTimeout = 300000;
     setTimeout(() => {
         if (modelWorkerState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
-            _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`Timeout (${modelLoadTimeout}ms) waiting for model ${modelId} load completion.`);
-            modelLoadRejecter(new Error(`Timeout waiting for model ${modelId} to load.`));
+            _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError('Timeout (' + modelLoadTimeout + 'ms) waiting for model', modelId, 'load completion.');
+            modelLoadRejecter(new Error('Timeout waiting for model ' + modelId + ' to load.'));
             modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
             modelLoadPromise = null;
         }
     }, modelLoadTimeout);
-
     return modelLoadPromise;
 }
 
@@ -41581,35 +41914,9 @@ async function updateDeclarativeNetRequestRules() {
 }
 updateDeclarativeNetRequestRules();
 
-// Offscreen Document Management
-async function hasOffscreenDocument(path) {
-    if ((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).getContexts) {
-        const contexts = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getContexts({
-            contextTypes: ['OFFSCREEN_DOCUMENT'],
-            documentUrls: [webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL(path)] 
-        });
-        return contexts.length > 0;
-    }
-    return false;
-}
 
-async function setupOffscreenDocument(path, reasons, justification) {
-    if (await hasOffscreenDocument(path)) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Background: Offscreen document at ${path} already exists.`);
-        return;
-    }
-    const filename = path.split('/').pop();
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Background: Creating offscreen document using filename: ${filename}...`);
-    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().offscreen.createDocument({
-        url: filename,
-        reasons: reasons,
-        justification: justification,
-    });
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Background: <<< Offscreen document ${path} CREATED successfully. Script should now load. >>>`);
-    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Background: Offscreen document created successfully using ${filename}.`);
-}
 
-// Scraping Logic
+
 
 
 async function scrapeUrlWithTempTabExecuteScript(url) {
@@ -41917,18 +42224,21 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.onRemoved.a
 
 // Message Handling
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('[Background] Received message:', message, 'type:', message?.type);
+
+
+    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo('[Background] Received message: type:', message?.type);
+
     const { type, payload } = message;
     let isResponseAsync = false;
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Received message type '${type}' from`, sender.tab ? `tab ${sender.tab.id}` : sender.url || sender.id);
 
     if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames).includes(type)) {
-        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`Handling message from worker: ${type}`);
+        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background][ModelLoader] Handling message from worker: ${type}`);
         let uiUpdatePayload = null;
         switch (type) {
             case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.WORKER_SCRIPT_READY:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker SCRIPT is ready!");
+                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background][ModelLoader] Worker SCRIPT is ready!");
                 modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.WORKER_SCRIPT_READY;
                 if (workerScriptReadyResolver) {
                     workerScriptReadyResolver();
@@ -41937,7 +42247,7 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                 uiUpdatePayload = { modelStatus: 'script_ready' };
                 break;
             case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.WORKER_READY:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker MODEL is ready! Model:", payload?.model);
+                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background][ModelLoader] Worker MODEL is ready! Model: ${payload?.model}`);
                 modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
                 if (modelLoadResolver) {
                     modelLoadResolver();
@@ -41950,83 +42260,34 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                 }
                 break;
             case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.LOADING_STATUS:
-                if (payload?.status === 'progress' && payload?.progress) {
-                    const currentProgress = Math.floor(payload.progress);
-                    if (currentProgress >= lastLoggedProgress + 10) {
-                        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker loading status (progress):", payload);
-                        lastLoggedProgress = currentProgress;
+                // Only log at 1% increments
+                if (payload && typeof payload.progress === 'number') {
+                    if (!background_lastLoggedProgress || Math.floor(payload.progress) > background_lastLoggedProgress) {
+                        background_lastLoggedProgress = Math.floor(payload.progress);
+                        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background][ModelLoader] Progress: ${payload.file || ''} ${background_lastLoggedProgress}%`);
                     }
                 } else {
-                    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker loading status (other):", payload);
-                    lastLoggedProgress = -10;
+                    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background][ModelLoader] Worker loading status (other):`, payload);
                 }
-                if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL) {
-                    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Background] Received loadingStatus in unexpected state: ${modelWorkerState}`);
-                    modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL;
-                }
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, payload: payload }).catch(err => {
-                    if (err.message !== "Could not establish connection. Receiving end does not exist.") {
-                        _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn("[Background] Error sending loading status to UI:", err.message);
-                    }
+                // Forward to UI
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,
+                    payload: payload
                 });
-                break;
-            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_STATUS:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background] Generation status: ${payload?.status}`);
-                if (payload?.status === 'generating') modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING;
-                else if (payload?.status === 'interrupted') modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
-                break;
-            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_UPDATE:
-                if (modelWorkerState !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING) {
-                    _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Background] Received generationUpdate in unexpected state: ${modelWorkerState}`);
-                }
-                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.GENERATING;
-                break;
-            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_COMPLETE:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Generation complete.");
-                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
-                break;
-            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.GENERATION_ERROR:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("[Background] Generation error from worker:", payload);
-                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
-                break;
-            case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.RESET_COMPLETE:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo("[Background] Worker reset complete.");
-                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.MODEL_READY;
                 break;
             case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.WorkerEventNames.ERROR:
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError("[Background] Received generic error from worker/offscreen:", payload);
-                const previousState = modelWorkerState;
-                modelWorkerState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.ERROR;
-                if (previousState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.CREATING_WORKER && workerScriptReadyRejecter) {
-                    workerScriptReadyRejecter(new Error(payload || 'Generic error during script init'));
-                    workerScriptReadyPromise = null;
-                } else if (previousState === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
-                    modelLoadRejecter(new Error(payload || 'Generic error during model load'));
-                    modelLoadPromise = null;
-                }
-                uiUpdatePayload = { modelStatus: 'error', error: payload };
+                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError(`[Background][ModelLoader] Worker error:`, payload);
+                break;
+            default:
+                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background][ModelLoader] Worker event: ${type}`, payload);
                 break;
         }
-        
         if (uiUpdatePayload) {
-            _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logInfo(`[Background] Sending uiUpdate to tabs:`, uiUpdatePayload);
-            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.query({}).then(tabs => {
-                tabs.forEach(tab => {
-                    if (tab.id) {
-                        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(tab.id, { type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload: uiUpdatePayload })
-                            .catch(err => { 
-                                if (!err.message.includes('Could not establish connection') && !err.message.includes('Receiving end does not exist')) {
-                                     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`[Background] Error sending uiUpdate to tab ${tab.id}:`, err.message);
-                                }
-                            });
-                    }
-                });
-            }).catch(err => {
-                _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logError('[Background] Error querying tabs to send uiUpdate:', err);
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+                type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,
+                payload: uiUpdatePayload
             });
         }
-        
-        forwardMessageToSidePanelOrPopup(message, sender);
         return false;
     }
 
@@ -42218,9 +42479,93 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return false;
     }
 
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
+        // Prevent forwarding to event bus or re-broadcasting; UI handles this directly
+        return false;
+    }
+
+
     if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DBEventNames).includes(type)) {
        
         return false;
+    }
+
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DirectDBNames.ADD_MODEL_ASSET) {
+        (async () => {
+            try {
+                const { modelId, fileName, fileType, data, chunkIndex = 0, totalChunks = 1, chunkGroupId = '', binarySize = null, totalFileSize = null } = payload;
+                let assetData = data;
+                if (Array.isArray(data)) {
+                    assetData = new Uint8Array(data).buffer;
+                }
+                const result = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_1__.addModelAsset)(modelId, fileName, fileType, assetData, chunkIndex, totalChunks, chunkGroupId, binarySize, totalFileSize);
+                sendResponse({ success: true, result });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DirectDBNames.GET_MODEL_ASSET) {
+        (async () => {
+            try {
+                const { modelId, fileName } = payload;
+                const asset = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_1__.getModelAsset)(modelId, fileName);
+                let assetToSend = asset;
+                if (asset && asset.data && asset.data instanceof ArrayBuffer) {
+                    assetToSend = { ...asset, data: Array.from(new Uint8Array(asset.data)) };
+                }
+                sendResponse({ success: !!asset, asset: assetToSend });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DirectDBNames.VERIFY_MODEL_ASSET) {
+        (async () => {
+            try {
+                const { modelId, fileName, expectedSize } = payload;
+                const result = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_1__.verifyModelAsset)(modelId, fileName, expectedSize);
+                sendResponse(result);
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.DirectDBNames.COUNT_MODEL_ASSET_CHUNKS) {
+        (async () => {
+            try {
+                const { modelId, fileName } = payload;
+                const count = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_1__.countModelAssetChunks)(modelId, fileName);
+                sendResponse({ success: true, count });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    // Add handler for offscreen worker file list requests
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_4__.ModelLoaderMessageTypes.LIST_MODEL_FILES) {
+        (async () => {
+            try {
+                const { modelId } = payload || {};
+                if (!modelId) {
+                    sendResponse({ success: false, error: 'No modelId provided' });
+                    return;
+                }
+                const files = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_1__.listModelFiles)(modelId);
+                sendResponse({ success: true, files });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
     }
 
     _log_client_js__WEBPACK_IMPORTED_MODULE_2__.logWarn(`Unhandled message type: ${type}`);

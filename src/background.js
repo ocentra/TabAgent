@@ -1,10 +1,10 @@
 import browser from 'webextension-polyfill';
 import './minimaldb.js'; // Static import for service worker compatibility
 const MODEL_WORKER_OFFSCREEN_PATH = 'modelLoaderWorkerOffscreen.html';
-
 import * as logClient from './log-client.js';
 import { eventBus } from './eventBus.js';
-import { UIEventNames, WorkerEventNames, ModelWorkerStates, RuntimeMessageTypes, DBEventNames } from './events/eventNames.js';
+import { UIEventNames, WorkerEventNames, ModelWorkerStates, RuntimeMessageTypes, DBEventNames, ModelLoaderMessageTypes, DirectDBNames } from './events/eventNames.js';
+import { addModelAsset, getModelAsset, countModelAssetChunks, verifyModelAsset, listModelFiles } from './minimaldb.js';
 
 logClient.init('Background');
 
@@ -28,7 +28,7 @@ let activeGenerations = {};
 let currentLogSessionId = null;
 let previousLogSessionId = null;
 
-let lastLoggedProgress = -10;
+let background_lastLoggedProgress = -1;
 
 
 // Log Session Management
@@ -162,65 +162,48 @@ function ensureWorkerScriptIsReady() {
 }
 
 async function loadModel(modelId) {
-    logClient.logInfo(`Request to load model: ${modelId}. Current state: ${modelWorkerState}`);
+    await ensureWorkerScriptIsReady();
+    logClient.logInfo('Worker script ready, requesting asset download from offscreen');
+
+    let fileMap = null;
     try {
-        await ensureWorkerScriptIsReady();
-        logClient.logDebug(`Worker script confirmed ready (state: ${modelWorkerState}). Proceeding with model load.`);
+        // Send message to offscreen document to download assets
+        fileMap = await browser.runtime.sendMessage({
+            type: ModelLoaderMessageTypes.DOWNLOAD_MODEL_ASSETS,
+            payload: { modelId }
+        }).then(response => {
+            if (!response || !response.success) {
+                throw new Error(response && response.error ? response.error : 'Unknown error from offscreen asset download');
+            }
+            return response.fileMap;
+        });
     } catch (err) {
-        logClient.logError("Failed to ensure worker script readiness:", err);
-        throw new Error(`Failed to ensure worker script readiness: ${err.message}`);
+        logClient.logError('[Background] Error in offscreen downloadModelAssets:', err, JSON.stringify(err));
+        throw err;
     }
+    logClient.logInfo('Model asset download complete for', modelId);
 
-    if (modelWorkerState !== ModelWorkerStates.WORKER_SCRIPT_READY && modelWorkerState !== ModelWorkerStates.IDLE && modelWorkerState !== ModelWorkerStates.ERROR) {
-        const errorMsg = `Cannot load model '${modelId}'. Worker state is '${modelWorkerState}', expected 'worker_script_ready', 'idle', or 'error'.`;
-        logClient.logError("State check failed loading model:", errorMsg);
-        throw new Error(errorMsg);
-    }
-
-    if (!modelId) {
-        return Promise.reject(new Error("Cannot load model: Model ID not provided."));
-    }
-
-    if (modelWorkerState === ModelWorkerStates.MODEL_READY) {
-        logClient.logInfo(`Model appears ready. Assuming it's ${modelId}.`);
-        return Promise.resolve();
-    }
-    if (modelWorkerState === ModelWorkerStates.LOADING_MODEL && modelLoadPromise) {
-        logClient.logInfo(`Model is already loading. Assuming it's ${modelId}.`);
-        return modelLoadPromise;
-    }
-    if (modelWorkerState !== ModelWorkerStates.WORKER_SCRIPT_READY) {
-        logClient.logError("Cannot load model. Worker script is not ready. State:", modelWorkerState);
-        return Promise.reject(new Error(`Cannot load model, worker script not ready (state: ${modelWorkerState})`));
-    }
-
-    logClient.logInfo(`Worker script ready. Initiating load for model: ${modelId}.`);
     modelWorkerState = ModelWorkerStates.LOADING_MODEL;
-    // TODO: Store the modelId being loaded
     modelLoadPromise = new Promise((resolve, reject) => {
         modelLoadResolver = resolve;
         modelLoadRejecter = reject;
-
-        logClient.logDebug(`Attempting to send 'init' message for model: ${modelId}`);
-        sendToModelWorkerOffscreen({ type: 'init', payload: { modelId: modelId } })
+        sendToModelWorkerOffscreen({ type: 'init', payload: { modelId: modelId, localAssets: fileMap } })
             .catch(err => {
-                logClient.logError(`Failed to send 'init' message for ${modelId}:`, err);
+                logClient.logError('Failed to send init message for', modelId, err);
                 modelWorkerState = ModelWorkerStates.ERROR;
                 if (modelLoadRejecter) modelLoadRejecter(err);
                 modelLoadPromise = null;
             });
     });
-
     const modelLoadTimeout = 300000;
     setTimeout(() => {
         if (modelWorkerState === ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
-            logClient.logError(`Timeout (${modelLoadTimeout}ms) waiting for model ${modelId} load completion.`);
-            modelLoadRejecter(new Error(`Timeout waiting for model ${modelId} to load.`));
+            logClient.logError('Timeout (' + modelLoadTimeout + 'ms) waiting for model', modelId, 'load completion.');
+            modelLoadRejecter(new Error('Timeout waiting for model ' + modelId + ' to load.'));
             modelWorkerState = ModelWorkerStates.ERROR;
             modelLoadPromise = null;
         }
     }, modelLoadTimeout);
-
     return modelLoadPromise;
 }
 
@@ -263,35 +246,9 @@ async function updateDeclarativeNetRequestRules() {
 }
 updateDeclarativeNetRequestRules();
 
-// Offscreen Document Management
-async function hasOffscreenDocument(path) {
-    if (browser.runtime.getContexts) {
-        const contexts = await browser.runtime.getContexts({
-            contextTypes: ['OFFSCREEN_DOCUMENT'],
-            documentUrls: [browser.runtime.getURL(path)] 
-        });
-        return contexts.length > 0;
-    }
-    return false;
-}
 
-async function setupOffscreenDocument(path, reasons, justification) {
-    if (await hasOffscreenDocument(path)) {
-        logClient.logInfo(`Background: Offscreen document at ${path} already exists.`);
-        return;
-    }
-    const filename = path.split('/').pop();
-    logClient.logInfo(`Background: Creating offscreen document using filename: ${filename}...`);
-    await browser.offscreen.createDocument({
-        url: filename,
-        reasons: reasons,
-        justification: justification,
-    });
-    logClient.logInfo(`Background: <<< Offscreen document ${path} CREATED successfully. Script should now load. >>>`);
-    logClient.logInfo(`Background: Offscreen document created successfully using ${filename}.`);
-}
 
-// Scraping Logic
+
 
 
 async function scrapeUrlWithTempTabExecuteScript(url) {
@@ -599,18 +556,21 @@ browser.windows.onRemoved.addListener(async (windowId) => {
 
 // Message Handling
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('[Background] Received message:', message, 'type:', message?.type);
+
+
+    logClient.logInfo('[Background] Received message: type:', message?.type);
+
     const { type, payload } = message;
     let isResponseAsync = false;
 
     logClient.logInfo(`Received message type '${type}' from`, sender.tab ? `tab ${sender.tab.id}` : sender.url || sender.id);
 
     if (Object.values(WorkerEventNames).includes(type)) {
-        logClient.logInfo(`Handling message from worker: ${type}`);
+        logClient.logInfo(`[Background][ModelLoader] Handling message from worker: ${type}`);
         let uiUpdatePayload = null;
         switch (type) {
             case WorkerEventNames.WORKER_SCRIPT_READY:
-                logClient.logInfo("[Background] Worker SCRIPT is ready!");
+                logClient.logInfo("[Background][ModelLoader] Worker SCRIPT is ready!");
                 modelWorkerState = ModelWorkerStates.WORKER_SCRIPT_READY;
                 if (workerScriptReadyResolver) {
                     workerScriptReadyResolver();
@@ -619,7 +579,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 uiUpdatePayload = { modelStatus: 'script_ready' };
                 break;
             case WorkerEventNames.WORKER_READY:
-                logClient.logInfo("[Background] Worker MODEL is ready! Model:", payload?.model);
+                logClient.logInfo(`[Background][ModelLoader] Worker MODEL is ready! Model: ${payload?.model}`);
                 modelWorkerState = ModelWorkerStates.MODEL_READY;
                 if (modelLoadResolver) {
                     modelLoadResolver();
@@ -632,83 +592,34 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
                 break;
             case WorkerEventNames.LOADING_STATUS:
-                if (payload?.status === 'progress' && payload?.progress) {
-                    const currentProgress = Math.floor(payload.progress);
-                    if (currentProgress >= lastLoggedProgress + 10) {
-                        logClient.logInfo("[Background] Worker loading status (progress):", payload);
-                        lastLoggedProgress = currentProgress;
+                // Only log at 1% increments
+                if (payload && typeof payload.progress === 'number') {
+                    if (!background_lastLoggedProgress || Math.floor(payload.progress) > background_lastLoggedProgress) {
+                        background_lastLoggedProgress = Math.floor(payload.progress);
+                        logClient.logInfo(`[Background][ModelLoader] Progress: ${payload.file || ''} ${background_lastLoggedProgress}%`);
                     }
                 } else {
-                    logClient.logInfo("[Background] Worker loading status (other):", payload);
-                    lastLoggedProgress = -10;
+                    logClient.logInfo(`[Background][ModelLoader] Worker loading status (other):`, payload);
                 }
-                if (modelWorkerState !== ModelWorkerStates.LOADING_MODEL) {
-                    logClient.logWarn(`[Background] Received loadingStatus in unexpected state: ${modelWorkerState}`);
-                    modelWorkerState = ModelWorkerStates.LOADING_MODEL;
-                }
-                browser.runtime.sendMessage({ type: UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, payload: payload }).catch(err => {
-                    if (err.message !== "Could not establish connection. Receiving end does not exist.") {
-                        logClient.logWarn("[Background] Error sending loading status to UI:", err.message);
-                    }
+                // Forward to UI
+                browser.runtime.sendMessage({
+                    type: UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,
+                    payload: payload
                 });
-                break;
-            case WorkerEventNames.GENERATION_STATUS:
-                logClient.logInfo(`[Background] Generation status: ${payload?.status}`);
-                if (payload?.status === 'generating') modelWorkerState = ModelWorkerStates.GENERATING;
-                else if (payload?.status === 'interrupted') modelWorkerState = ModelWorkerStates.MODEL_READY;
-                break;
-            case WorkerEventNames.GENERATION_UPDATE:
-                if (modelWorkerState !== ModelWorkerStates.GENERATING) {
-                    logClient.logWarn(`[Background] Received generationUpdate in unexpected state: ${modelWorkerState}`);
-                }
-                modelWorkerState = ModelWorkerStates.GENERATING;
-                break;
-            case WorkerEventNames.GENERATION_COMPLETE:
-                logClient.logInfo("[Background] Generation complete.");
-                modelWorkerState = ModelWorkerStates.MODEL_READY;
-                break;
-            case WorkerEventNames.GENERATION_ERROR:
-                logClient.logError("[Background] Generation error from worker:", payload);
-                modelWorkerState = ModelWorkerStates.ERROR;
-                break;
-            case WorkerEventNames.RESET_COMPLETE:
-                logClient.logInfo("[Background] Worker reset complete.");
-                modelWorkerState = ModelWorkerStates.MODEL_READY;
                 break;
             case WorkerEventNames.ERROR:
-                logClient.logError("[Background] Received generic error from worker/offscreen:", payload);
-                const previousState = modelWorkerState;
-                modelWorkerState = ModelWorkerStates.ERROR;
-                if (previousState === ModelWorkerStates.CREATING_WORKER && workerScriptReadyRejecter) {
-                    workerScriptReadyRejecter(new Error(payload || 'Generic error during script init'));
-                    workerScriptReadyPromise = null;
-                } else if (previousState === ModelWorkerStates.LOADING_MODEL && modelLoadRejecter) {
-                    modelLoadRejecter(new Error(payload || 'Generic error during model load'));
-                    modelLoadPromise = null;
-                }
-                uiUpdatePayload = { modelStatus: 'error', error: payload };
+                logClient.logError(`[Background][ModelLoader] Worker error:`, payload);
+                break;
+            default:
+                logClient.logInfo(`[Background][ModelLoader] Worker event: ${type}`, payload);
                 break;
         }
-        
         if (uiUpdatePayload) {
-            logClient.logInfo(`[Background] Sending uiUpdate to tabs:`, uiUpdatePayload);
-            browser.tabs.query({}).then(tabs => {
-                tabs.forEach(tab => {
-                    if (tab.id) {
-                        browser.tabs.sendMessage(tab.id, { type: UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload: uiUpdatePayload })
-                            .catch(err => { 
-                                if (!err.message.includes('Could not establish connection') && !err.message.includes('Receiving end does not exist')) {
-                                     logClient.logWarn(`[Background] Error sending uiUpdate to tab ${tab.id}:`, err.message);
-                                }
-                            });
-                    }
-                });
-            }).catch(err => {
-                logClient.logError('[Background] Error querying tabs to send uiUpdate:', err);
+            browser.runtime.sendMessage({
+                type: UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,
+                payload: uiUpdatePayload
             });
         }
-        
-        forwardMessageToSidePanelOrPopup(message, sender);
         return false;
     }
 
@@ -900,9 +811,93 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false;
     }
 
+    if (type === UIEventNames.MODEL_DOWNLOAD_PROGRESS || type === UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
+        // Prevent forwarding to event bus or re-broadcasting; UI handles this directly
+        return false;
+    }
+
+
     if (Object.values(DBEventNames).includes(type)) {
        
         return false;
+    }
+
+    if (type === DirectDBNames.ADD_MODEL_ASSET) {
+        (async () => {
+            try {
+                const { modelId, fileName, fileType, data, chunkIndex = 0, totalChunks = 1, chunkGroupId = '', binarySize = null, totalFileSize = null } = payload;
+                let assetData = data;
+                if (Array.isArray(data)) {
+                    assetData = new Uint8Array(data).buffer;
+                }
+                const result = await addModelAsset(modelId, fileName, fileType, assetData, chunkIndex, totalChunks, chunkGroupId, binarySize, totalFileSize);
+                sendResponse({ success: true, result });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    if (type === DirectDBNames.GET_MODEL_ASSET) {
+        (async () => {
+            try {
+                const { modelId, fileName } = payload;
+                const asset = await getModelAsset(modelId, fileName);
+                let assetToSend = asset;
+                if (asset && asset.data && asset.data instanceof ArrayBuffer) {
+                    assetToSend = { ...asset, data: Array.from(new Uint8Array(asset.data)) };
+                }
+                sendResponse({ success: !!asset, asset: assetToSend });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    if (type === DirectDBNames.VERIFY_MODEL_ASSET) {
+        (async () => {
+            try {
+                const { modelId, fileName, expectedSize } = payload;
+                const result = await verifyModelAsset(modelId, fileName, expectedSize);
+                sendResponse(result);
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    if (type === DirectDBNames.COUNT_MODEL_ASSET_CHUNKS) {
+        (async () => {
+            try {
+                const { modelId, fileName } = payload;
+                const count = await countModelAssetChunks(modelId, fileName);
+                sendResponse({ success: true, count });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true;
+    }
+
+    // Add handler for offscreen worker file list requests
+    if (type === ModelLoaderMessageTypes.LIST_MODEL_FILES) {
+        (async () => {
+            try {
+                const { modelId } = payload || {};
+                if (!modelId) {
+                    sendResponse({ success: false, error: 'No modelId provided' });
+                    return;
+                }
+                const files = await listModelFiles(modelId);
+                sendResponse({ success: true, files });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
     }
 
     logClient.logWarn(`Unhandled message type: ${type}`);

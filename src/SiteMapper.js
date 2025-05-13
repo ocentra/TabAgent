@@ -1,4 +1,4 @@
-
+import { DirectDBNames, DBEventNames } from './events/eventNames.js';
 
 // Polyfill for browser API if only chrome is available
 const browser = typeof window.browser !== 'undefined' ? window.browser : (typeof window.chrome !== 'undefined' ? window.chrome : undefined);
@@ -205,6 +205,13 @@ const browser = typeof window.browser !== 'undefined' ? window.browser : (typeof
         });
 
         browser.runtime.onMessage.addListener(function handler(message) {
+          const type = message?.type;
+          if (Object.values(DirectDBNames).includes(type)) {
+            return false;
+          }
+          if (Object.values(DBEventNames).includes(type)) {
+            return false;
+          }
           if (message.type === SiteMapperMessageTypes.MAPPED && message.url === startUrl) {
             browser.runtime.onMessage.removeListener(handler);
             resolve(message.content);
@@ -299,6 +306,13 @@ const browser = typeof window.browser !== 'undefined' ? window.browser : (typeof
 
   if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessage) {
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      const type = message?.type;
+      if (Object.values(DirectDBNames).includes(type)) {
+        return false;
+      }
+      if (Object.values(DBEventNames).includes(type)) {
+        return false;
+      }
       if (message.type === SiteMapperMessageTypes.OPEN_TAB) {
         browser.tabs.create({ url: message.url, active: false }, tab => {
           if (browser.runtime.lastError) {

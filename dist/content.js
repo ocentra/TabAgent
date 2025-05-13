@@ -1,5 +1,7 @@
 import browser from 'webextension-polyfill';
 import { Contexts } from './events/eventNames.js';
+import { DirectDBNames, DBEventNames } from './events/eventNames.js';
+import { UIEventNames } from './events/eventNames.js';
 window.EXTENSION_CONTEXT = Contexts.OTHERS;
 
 console.log("[ContentScript] Executing...");
@@ -8,9 +10,16 @@ try {
 
     console.log("[ContentScript] Setting up message listener...");
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        const type = message?.type;
+        if (Object.values(DirectDBNames).includes(type)) {
+            return false;
+        }
+        if (Object.values(DBEventNames).includes(type)) {
+            return false;
+        }
         console.log("[ContentScript] Received message:", message);
 
-        if (message.type === 'SCRAPE_PAGE' || message.type === 'SCRAPE_ACTIVE_TAB') {
+        if (message.type === UIEventNames.SCRAPE_PAGE || message.type === UIEventNames.SCRAPE_ACTIVE_TAB) {
             console.log(`[ContentScript] ${message.type} request received.`);
             try {
 
@@ -50,7 +59,7 @@ try {
             return true;
         }
 
-        console.log("[ContentScript] Message type not SCRAPE_PAGE, returning false.");
+        console.log(`[ContentScript] Message type not ${UIEventNames.SCRAPE_PAGE}, returning false.`);
         return false; 
     });
     console.log("[ContentScript] Message listener added.");

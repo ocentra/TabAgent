@@ -1,13 +1,13 @@
-import { eventBus } from './eventBus.js';
-import { DbAddLogRequest, DbInitializationCompleteNotification } from './events/dbEvents.js';
+// --- GLOBAL SWITCHES ---
+let LOG_TO_CONSOLE = true; // Default: log to console
+let LOG_TO_DB = true;      // Default: log to DB
 
-
-const hasChromeRuntime = typeof chrome !== 'undefined' && chrome.runtime;
+// --- Per-class settings ---
 let componentName = 'unknown';
-let mirrorToConsoleDefault = true;
-let sendToDbDefault = true;
-let isDbReadyForLogs = false;
-const logBuffer = [];
+let mirrorToConsoleDefault = true; // Default: class logs to console
+let sendToDbDefault = true;        // Default: class logs to DB
+let logChannel = null;
+let loggerContext = 'unknown'; // 'sidepanel', 'background', etc.
 
 // --- Throttled Logging Helper ---
 const logClientThrottleCache = {};
@@ -31,53 +31,44 @@ function throttledConsoleLog(level, staticMsg, contextKey = null) {
     }
 }
 
-async function flushLogBuffer() {
-    if (!eventBus) return;
-    while (logBuffer.length > 0) {
-        const logEvent = logBuffer.shift();
-        if (logEvent) {
-            try {
-                await eventBus.publish(logEvent.type, logEvent);
-            } catch (error) {
-                console.error(`LogClient (${componentName}): Error publishing buffered log. Error: ${error}. Event:`, logEvent);
-            }
-        }
+function setGlobalLogging({ console: consoleOn, db: dbOn }) {
+    if (typeof consoleOn === 'boolean') LOG_TO_CONSOLE = consoleOn;
+    if (typeof dbOn === 'boolean') LOG_TO_DB = dbOn;
+    if (LOG_TO_DB && typeof BroadcastChannel !== 'undefined' && !logChannel) {
+        logChannel = new BroadcastChannel('tabagent-logs');
     }
 }
 
-function init(compName, options = {}) {
-    if (!compName) {
-        console.error("LogClient: init() requires a component name.");
-        return;
+/**
+ * Initialize the logger for a component/context.
+ * Usage:
+ *   logger.init('sidepanel') // uses 'sidepanel' for both name and context
+ *   logger.init('background')
+ *   logger.init('MyClass', { context: 'sidepanel', mirrorToConsole: false })
+ *   logger.init({ name: 'MyClass', context: 'sidepanel', mirrorToConsole: false })
+ */
+function init(nameOrOptions, options = {}) {
+    let compName, ctx, opts;
+    if (typeof nameOrOptions === 'string') {
+        compName = nameOrOptions;
+        ctx = nameOrOptions;
+        opts = options;
+    } else if (typeof nameOrOptions === 'object') {
+        compName = nameOrOptions.name || 'unknown';
+        ctx = nameOrOptions.context || 'unknown';
+        opts = nameOrOptions;
     }
     componentName = compName;
-    mirrorToConsoleDefault = options.mirrorToConsole !== undefined ? options.mirrorToConsole : true;
-    sendToDbDefault = options.sendToDb !== undefined ? options.sendToDb : true;
-
-    if (eventBus) {
-        eventBus.subscribe(DbInitializationCompleteNotification.type, (notification) => {
-            if (notification.payload.success) {
-                console.log(`[LogClient (${componentName})] Received DB Initialization Complete. Flushing buffer.`);
-                isDbReadyForLogs = true;
-                 flushLogBuffer(); 
-            } else {
-                console.error(`[LogClient (${componentName})] Received DB Initialization FAILED notification. Logs will not be sent to DB. Error:`, notification.payload.error);
-            }
-        });
-    } else {
-        console.error(`LogClient (${componentName}): CRITICAL - eventBus not available during init. DB logging disabled.`);
-        sendToDbDefault = false;
+    loggerContext = ctx;
+    mirrorToConsoleDefault = opts.mirrorToConsole !== undefined ? opts.mirrorToConsole : true;
+    sendToDbDefault = opts.sendToDb !== undefined ? opts.sendToDb : true;
+    if (LOG_TO_DB && typeof BroadcastChannel !== 'undefined' && !logChannel) {
+        logChannel = new BroadcastChannel('tabagent-logs');
     }
-
-    let logMode = 'unknown';
-    if (typeof eventBus !== 'undefined') {
-        logMode = 'sendMessage logging (Standard)';
-    } else {
-        logMode = 'console fallback';
-        console.error(`LogClient (${componentName}): CRITICAL - No logging mechanism available. Falling back to console.`);
-    }
-
-    const initialLogMessage = `Log client initialized for component: ${componentName}. (${logMode}, Console Mirror: ${mirrorToConsoleDefault}, SendToDB: ${sendToDbDefault})`;
+    let logMode = 'console only';
+    if (mirrorToConsoleDefault && sendToDbDefault) logMode = 'console + db';
+    else if (sendToDbDefault) logMode = 'db only';
+    const initialLogMessage = `Log client initialized for component: ${componentName}. (${logMode}, context: ${loggerContext})`;
     _internalLogHelper('info', initialLogMessage, { mirrorToConsole: mirrorToConsoleDefault, sendToDb: sendToDbDefault, skipInitCheck: true });
 }
 
@@ -85,14 +76,10 @@ async function _internalLogHelper(level, ...args) {
     const rawOptions = args.length > 0 && typeof args[args.length - 1] === 'object' && !Array.isArray(args[args.length - 1]) ? args.pop() : {};
     const options = rawOptions || {};
 
-    const mirrorThisCall = options.mirrorToConsole !== undefined ? options.mirrorToConsole : mirrorToConsoleDefault;
-    let sendThisCall = options.sendToDb !== undefined ? options.sendToDb : sendToDbDefault;
+    // --- GLOBAL OVERRIDES ---
+    const mirrorThisCall = LOG_TO_CONSOLE && (options.mirrorToConsole !== undefined ? options.mirrorToConsole : mirrorToConsoleDefault);
+    const sendThisCall = LOG_TO_DB && (options.sendToDb !== undefined ? options.sendToDb : sendToDbDefault);
     const skipInitCheck = options.skipInitCheck || false;
-
-    if (sendThisCall && typeof eventBus === 'undefined') {
-        console.warn(`LogClient (${componentName}): Attempted DB log but eventBus is unavailable. Disabling DB log for this call.`);
-        sendThisCall = false;
-    }
 
     if (!componentName && !skipInitCheck) {
         throttledConsoleLog('error', "LogClient: Attempted to log before init() was called. Message:", level, ...args);
@@ -105,57 +92,35 @@ async function _internalLogHelper(level, ...args) {
         throttledConsoleLog(level.toLowerCase(), ...consoleArgs);
     }
 
-    if (!sendThisCall) return;
-
-    const formattedMessage = args.map(arg => {
-        try {
-            if (arg instanceof Error) {
-                return `Error: ${arg.message}${arg.stack ? '\n' + arg.stack : ''}`;
+    if (sendThisCall) {
+        const formattedMessage = args.map(arg => {
+            try {
+                if (arg instanceof Error) {
+                    return `Error: ${arg.message}${arg.stack ? '\n' + arg.stack : ''}`;
+                }
+                if (typeof arg === 'object' && arg !== null) {
+                    return '[Object]';
+                }
+                return String(arg);
+            } catch (e) {
+                return `[Unstringifiable Object: ${e.message}]`;
             }
-            if (typeof arg === 'object' && arg !== null) {
-                return '[Object]';
-            }
-            return String(arg);
-        } catch (e) {
-            return `[Unstringifiable Object: ${e.message}]`;
+        }).join(' ');
+        const logPayload = {
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+            timestamp: Date.now(),
+            component: componentName,
+            level: level.toLowerCase(),
+            message: formattedMessage,
+            context: loggerContext // Always include context in the payload
+        };
+        // Always broadcast to sidepanel; sidepanel will write to DB
+        if (typeof BroadcastChannel !== 'undefined') {
+            if (!logChannel) logChannel = new BroadcastChannel('tabagent-logs');
+            logChannel.postMessage({ type: 'LOG_TO_DB', payload: logPayload });
+        } else if (typeof browser !== 'undefined' && browser.runtime) {
+            browser.runtime.sendMessage({ type: 'LOG_TO_DB', payload: logPayload });
         }
-    }).join(' ');
-
-    const logPayload = {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        component: componentName,
-        level: level.toLowerCase(),
-        message: formattedMessage,
-    };
-
-    if (hasChromeRuntime && chrome.storage?.local) {
-        try {
-            const { currentLogSessionId } = await chrome.storage.local.get('currentLogSessionId');
-            if (currentLogSessionId) {
-                logPayload.extensionSessionId = currentLogSessionId;
-            } else {
-                console.warn(`LogClient (${componentName}): Could not retrieve currentLogSessionId from storage.`);
-                logPayload.extensionSessionId = 'unknown-session';
-            }
-        } catch (storageError) {
-            console.error(`LogClient (${componentName}): Error retrieving session ID from storage:`, storageError);
-            logPayload.extensionSessionId = 'storage-error-session';
-        }
-    } else {
-        logPayload.extensionSessionId = 'no-storage-session';
-    }
-
-    const logEvent = new DbAddLogRequest(logPayload);
-
-    if (isDbReadyForLogs) {
-        try {
-            await eventBus.publish(logEvent.type, logEvent);
-        } catch (error) {
-            console.error(`LogClient (${componentName}): Error during eventBus log submission. Error: ${error}. Original message:`, level, ...args);
-        }
-    } else {
-        logBuffer.push(logEvent);
     }
 }
 
@@ -179,4 +144,12 @@ function logError(...args) {
     _internalLogHelper('error', ...args);
 }
 
-export { init, log, logDebug, logInfo, logWarn, logError };
+export { init, setGlobalLogging, log, logDebug, logInfo, logWarn, logError };
+// ---
+// Usage:
+// - logger.init('sidepanel') // uses 'sidepanel' for both name and context
+// - logger.init('MyClass', { context: 'sidepanel', mirrorToConsole: false })
+// - logger.init({ name: 'MyClass', context: 'sidepanel', mirrorToConsole: false })
+// - To turn off all console logs globally: setGlobalLogging({ console: false })
+// - To turn off all DB logs globally: setGlobalLogging({ db: false })
+// ---

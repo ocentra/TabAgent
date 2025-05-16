@@ -46,16 +46,18 @@
     {
       "resources": [
         "sidepanel.html",
-        "modelLoaderWorkerOffscreen.html",
-        "modelLoaderWorkerOffscreen.js",
+        "modelAssetDownloader.js",
         "model-worker.js",
+        "js/absurd-sql-backends/sql-worker.js",
         "pageExtractor.js",
         "assets/*",
         "sidepanel.css",
         "icons/*",
         "xenova/*",
         "model/*",
-        "wasm/*"
+        "wasm/*",
+        "wasm/sql-wasm.wasm",
+        "wasm/sql-wasm-debug.wasm"
       ],
       "matches": ["<all_urls>"]
     }
@@ -70,14 +72,5 @@
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self';",
     "worker-src": "'self' 'wasm-unsafe-eval' 'blob:';"
-  },
-  "offscreen": {
-    "documents": [
-      {
-        "path": "modelLoaderWorkerOffscreen.html",
-        "reasons": ["WORKERS"],
-        "justification": "Run AI model in a separate worker thread via an offscreen document."
-      }
-    ]
   }
 }

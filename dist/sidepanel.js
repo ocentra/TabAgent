@@ -1533,8 +1533,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 // src/Controllers/DiscoverController.js
 
-// Import necessary modules if needed in the future (e.g., eventBus)
-// import { eventBus } from '../eventBus.js'; 
 
 let isInitialized = false;
 
@@ -1543,7 +1541,7 @@ function handleNavigationChange(event) {
         return; // Only act when discover page becomes active, if needed
     }
     console.log("[DiscoverController] Discover page activated.");
-    // Add logic here if discover needs to refresh on navigation
+
 }
 
 function initializeDiscoverController(/* Pass necessary elements or functions if needed */) {
@@ -1553,18 +1551,12 @@ function initializeDiscoverController(/* Pass necessary elements or functions if
     }
     console.log("[DiscoverController] Initializing...");
     
-    // Find necessary elements within the #page-discover container if needed
-    // const discoverContainer = document.getElementById('page-discover');
 
-    // Add any one-time setup logic here
-    
-    // Subscribe to events if needed (e.g., navigation)
-    // eventBus.subscribe('navigation:pageChanged', handleNavigationChange);
 
     isInitialized = true;
     console.log("[DiscoverController] Initialized successfully.");
 
-    // Return any public methods if needed
+
     return {}; 
 } 
 
@@ -1911,8 +1903,8 @@ function updateHeaderState() {
 function initializeDriveController(dependencies) {
     console.log("Initializing DriveController...");
 
-    if (!dependencies || !dependencies.showNotification || !dependencies.debounce || !dependencies.eventBus) {
-        console.error("DriveController requires dependencies: showNotification, debounce, eventBus!");
+    if (!dependencies || !dependencies.showNotification || !dependencies.debounce) {
+        console.error("DriveController requires dependencies: showNotification, debounce!");
         return; 
     }
     showNotificationDep = dependencies.showNotification;
@@ -1987,15 +1979,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Components/HistoryItem.js */ "./src/Components/HistoryItem.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
-/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
-/* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Components/HistoryItem.js */ "./src/Components/HistoryItem.js");
+/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
+/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
+/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
+/* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
 // src/Controllers/HistoryPopupController.js
-
 
 
 
@@ -2108,7 +2098,7 @@ function renderHistoryList() {
                 onShareClick: handleShareClick,
                 onPreviewClick: handlePreviewClick
             };
-            const itemElement = (0,_Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_3__.renderHistoryItemComponent)(props);
+            const itemElement = (0,_Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_2__.renderHistoryItemComponent)(props);
             if (itemElement) {
                 historyListElement.appendChild(itemElement);
             }
@@ -2119,28 +2109,24 @@ function renderHistoryList() {
 
 async function showPopup() { 
     if (!isInitialized || !historyPopupElement || !requestDbAndWaitFunc) return;
-    console.log("[HistoryPopupController] Showing popup. Fetching latest history...");
-
+    console.log("[Trace][HistoryPopupController] showPopup: Requesting all sessions...");
     try {
-        const sessionsArray = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetAllSessionsRequest());
-        
-        console.log("[HistoryPopupController:Debug] Fetched sessionsArray:", sessionsArray); 
+        const sessionsArray = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest());
+        console.log("[Trace][HistoryPopupController] showPopup: Received sessionsArray:", sessionsArray);
         if (Array.isArray(sessionsArray) && sessionsArray.length > 0) {
-             console.log("[HistoryPopupController:Debug] First session item sample:", sessionsArray[0]);
+             console.log("[Trace][HistoryPopupController] showPopup: First session item sample:", sessionsArray[0]);
         } else if (sessionsArray === null || sessionsArray === undefined) {
-             console.log("[HistoryPopupController:Debug] sessionsArray is null or undefined.");
+             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is null or undefined.");
         } else {
-             console.log("[HistoryPopupController:Debug] sessionsArray is empty or not an array:", typeof sessionsArray);
+             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
         }
-
         currentHistoryItems = sessionsArray || []; 
-        console.log(`[HistoryPopupController] Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
-        
+        console.log(`[Trace][HistoryPopupController] showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
         renderHistoryList(); 
         historyPopupElement.classList.remove('hidden');
     } catch (error) {
-        console.error("[HistoryPopupController] Error fetching history list:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Failed to load history.", 'error');
+        console.error("[Trace][HistoryPopupController] showPopup: Error fetching history list:", error);
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load history.", 'error');
         if (historyListElement) {
             historyListElement.innerHTML = '<p class="p-4 text-center text-red-500 dark:text-red-400">Error loading history. Please try again.</p>';
         }
@@ -2166,11 +2152,11 @@ async function handleLoadClick(sessionId) {
     if (!sessionId) return;
     try {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ lastSessionId: sessionId });
-        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_6__.navigateTo)('page-home');
+        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home');
         hidePopup();
     } catch (error) {
         console.error("[HistoryPopupController] Error setting storage or navigating:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Failed to load chat.", 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load chat.", 'error');
     }
 }
 
@@ -2178,11 +2164,11 @@ async function handleStarClick(sessionId) {
     if (!sessionId || !requestDbAndWaitFunc) return;
     console.log(`[HistoryPopupController] Star clicked: ${sessionId}`);
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbToggleStarRequest(sessionId));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Star toggled", 'success');
+        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest(sessionId));
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Star toggled", 'success');
     } catch (error) {
         console.error("[HistoryPopupController] Error toggling star:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)(`Failed to toggle star: ${error.message}`, 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to toggle star: ${error.message}`, 'error');
     }
 }
 
@@ -2203,11 +2189,11 @@ async function handleDeleteClick(sessionId, itemElement) {
     }
 
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbDeleteSessionRequest(sessionId));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Chat deletion initiated...", 'info'); 
+        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest(sessionId));
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Chat deletion initiated...", 'info'); 
     } catch (error) {
         console.error("[HistoryPopupController] Error deleting chat:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)(`Failed to delete chat: ${error.message}`, 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to delete chat: ${error.message}`, 'error');
         itemElement.classList.remove('is-deleting'); 
         itemElement.querySelectorAll('button').forEach(btn => btn.disabled = false);
         footer?.querySelector('.deleting-message')?.remove();
@@ -2222,20 +2208,20 @@ async function handleRenameSubmit(sessionId, newName) {
     if (!sessionId || !newName || !requestDbAndWaitFunc) return;
     console.log(`[HistoryPopupController] Rename submitted: ${sessionId} to "${newName}"`);
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbRenameSessionRequest(sessionId, newName));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Rename successful", 'success');
+        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest(sessionId, newName));
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Rename successful", 'success');
     } catch (error) {
         console.error("[HistoryPopupController] Error submitting rename:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)(`Failed to rename chat: ${error.message}`, 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to rename chat: ${error.message}`, 'error');
     }
 }
 
 async function handleDownloadClick(sessionId) {
     if (requestDbAndWaitFunc) {
-        (0,_Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_7__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, _notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification);
+        (0,_Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_6__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, _notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification);
     } else {
         console.error("[HistoryPopupController] Cannot download: requestDbAndWaitFunc not available.");
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Download failed: Internal setup error.", 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Download failed: Internal setup error.", 'error');
     }
 }
 
@@ -2253,7 +2239,7 @@ async function handlePreviewClick(sessionId, contentElement) {
     contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 italic text-xs">Loading preview...</span>'; 
 
     try {
-        const sessionData = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionRequest(sessionId));
+        const sessionData = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest(sessionId));
         
         if (!sessionData || !sessionData.messages || sessionData.messages.length === 0) {
             contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 text-xs">No messages in this chat.</span>';
@@ -2279,7 +2265,7 @@ async function handlePreviewClick(sessionId, contentElement) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_1__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type, handleSessionUpdate);
+document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
 function initializeHistoryPopup(elements, requestFunc) {
     console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
 
@@ -2297,7 +2283,7 @@ function initializeHistoryPopup(elements, requestFunc) {
 
     try {
         closeHistoryButtonElement.addEventListener('click', hidePopup);
-        const debouncedSearchHandler = (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_4__.debounce)(handleSearchInput, 300);
+        const debouncedSearchHandler = (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_3__.debounce)(handleSearchInput, 300);
         historySearchElement.addEventListener('input', debouncedSearchHandler);
         
         isInitialized = true;
@@ -2328,15 +2314,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   initializeLibraryController: () => (/* binding */ initializeLibraryController)
 /* harmony export */ });
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Components/HistoryItem.js */ "./src/Components/HistoryItem.js");
-/* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
-
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Components/HistoryItem.js */ "./src/Components/HistoryItem.js");
+/* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
+/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
+/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
+/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
 
 
  
@@ -2358,11 +2342,11 @@ async function handleStarClick(sessionId) {
     console.log(`[LibraryController] Star clicked: ${sessionId}`);
     if (!requestDbAndWaitFunc) return;
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest(sessionId));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Star toggled", 'success');
+        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbToggleStarRequest(sessionId));
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Star toggled", 'success');
     } catch (error) {
         console.error("[LibraryController] Error toggling star:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to toggle star: ${error.message}`, 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to toggle star: ${error.message}`, 'error');
     }
 }
 
@@ -2371,11 +2355,11 @@ async function handleDeleteClick(sessionId) {
     if (!requestDbAndWaitFunc) return;
     if (confirm('Are you sure you want to delete this chat history item? This cannot be undone.')) {
         try {
-            await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest(sessionId));
-            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Chat deleted", 'success');
+            await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbDeleteSessionRequest(sessionId));
+            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Chat deleted", 'success');
         } catch (error) {
             console.error("[LibraryController] Error deleting chat:", error);
-            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to delete chat: ${error.message}`, 'error');
+            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to delete chat: ${error.message}`, 'error');
         }
     }
 }
@@ -2384,21 +2368,21 @@ async function handleRenameSubmit(sessionId, newName) {
     console.log(`[LibraryController] Rename submitted: ${sessionId} to "${newName}"`);
     if (!requestDbAndWaitFunc) return;
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest(sessionId, newName));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Rename successful", 'success');
+        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbRenameSessionRequest(sessionId, newName));
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Rename successful", 'success');
     } catch (error) {
         console.error("[LibraryController] Error submitting rename:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to rename chat: ${error.message}`, 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to rename chat: ${error.message}`, 'error');
     }
 }
 
 async function handleDownloadClick(sessionId) {
 
     if (requestDbAndWaitFunc) {
-        (0,_Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_3__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, _notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification);
+        (0,_Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_2__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, _notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification);
     } else {
         console.error("[LibraryController] Cannot download: requestDbAndWaitFunc not available.");
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Download failed: Internal setup error.", 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Download failed: Internal setup error.", 'error');
     }
 }
 
@@ -2406,22 +2390,22 @@ async function handleLoadClick(sessionId) {
     console.log(`[LibraryController] Load clicked: ${sessionId}`);
     try {
         await chrome.storage.local.set({ lastSessionId: sessionId });
-        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_6__.navigateTo)('page-home'); 
+        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home'); 
     } catch (error) {
         console.error("[LibraryController] Error setting storage or navigating:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load chat.", 'error');
+        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Failed to load chat.", 'error');
         await chrome.storage.local.remove('lastSessionId');
     }
 }
 
 function handleShareClick(sessionId) {
     console.log(`[LibraryController] Share clicked: ${sessionId}`);
-    (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Share functionality not yet implemented.", 'info');
+    (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Share functionality not yet implemented.", 'info');
 }
 
 function handlePreviewClick(sessionId, contentElement) {
     console.log(`[LibraryController] Preview clicked: ${sessionId}`);
-    (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Preview functionality not yet implemented.", 'info');
+    (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Preview functionality not yet implemented.", 'info');
     if (contentElement) {
         contentElement.innerHTML = 'Preview loading...';
         contentElement.classList.toggle('hidden');
@@ -2460,7 +2444,7 @@ async function fetchAndRenderLibrary() {
     currentSearchFilter = librarySearchInput?.value.trim() || ''; 
 
     try {
-        const responsePayload = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsRequest());
+        const responsePayload = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbGetStarredSessionsRequest());
         currentStarredItems = Array.isArray(responsePayload) ? responsePayload : (responsePayload?.sessions || []); 
         console.log(`[LibraryController] Received ${currentStarredItems.length} starred items.`);
         renderLibraryList(currentSearchFilter); 
@@ -2527,7 +2511,7 @@ function handleSessionUpdate(notification) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, handleSessionUpdate);
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_6__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handleNavigationChange(e.detail));
 
 function renderLibraryList(filter = '') {
     if (!isInitialized || !starredListElement) return;
@@ -2570,7 +2554,7 @@ function renderLibraryList(filter = '') {
                 onShareClick: handleShareClick, 
                 onPreviewClick: handlePreviewClick 
             };
-            const itemElement = (0,_Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_2__.renderHistoryItemComponent)(props);
+            const itemElement = (0,_Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_1__.renderHistoryItemComponent)(props);
             if (itemElement) {
                 starredListElement.appendChild(itemElement);
             }
@@ -2579,7 +2563,7 @@ function renderLibraryList(filter = '') {
      console.log(`[LibraryController] Rendered ${itemsToRender.length} items.`);
 }
 
-const handleSearchInput = (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_5__.debounce)((event) => {
+const handleSearchInput = (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_4__.debounce)((event) => {
     if (!isInitialized) return;
     currentSearchFilter = event.target.value.trim();
     console.log(`[LibraryController] Search input changed: "${currentSearchFilter}"`);
@@ -2597,8 +2581,6 @@ function initializeLibraryController(elements, requestFunc) {
     requestDbAndWaitFunc = requestFunc;
     console.log("[LibraryController] Elements and request function assigned.");
 
-    _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_7__.UIEventNames.NAVIGATION_PAGE_CHANGED, handleNavigationChange);
-    console.log("[LibraryController] Subscribed to navigation:pageChanged.");
     isInitialized = true;
     console.log("[LibraryController] Initialization successful. Library will render when activated.");
 
@@ -2622,6 +2604,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _sidepanel_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../sidepanel.js */ "./src/sidepanel.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
 // src/Controllers/SettingsController.js
 
 
@@ -2728,6 +2712,27 @@ function initializeSettingsController() {
             }
         });
         console.log('[SettingsController] Added listener to View Logs button.');
+
+        const resetDbButton = document.getElementById('resetDbButton');
+        if (resetDbButton) {
+            resetDbButton.addEventListener('click', async () => {
+                console.log('[SettingsController] Reset DB button clicked.');
+                try {
+                    const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest();
+                    const result = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_1__.sendDbRequestSmart)(request);
+                    if (result && result.success) {
+                        alert('Database reset successfully!');
+                    } else {
+                        alert('Database reset failed.');
+                    }
+                    console.log('[SettingsController] Reset DB result:', result);
+                } catch (e) {
+                    alert('Failed to reset database: ' + (e.message || e));
+                    console.error('[SettingsController] Reset DB error:', e);
+                }
+            });
+        }
+        console.log('[SettingsController] Added Reset DB button next to View Logs button.');
     } else {
         console.warn('[SettingsController] View Logs button (viewLogsButton) not found.');
     }
@@ -2752,10 +2757,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   initializeSpacesController: () => (/* binding */ initializeSpacesController)
 /* harmony export */ });
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
 // src/Controllers/SpacesController.js
 
-  
+
 
 let isInitialized = false;
 
@@ -2803,8 +2807,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
 /* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
+
 
 
 
@@ -2829,15 +2835,10 @@ function handleMessagesUpdate(notification) {
         
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
-            if (Array.isArray(notification.payload)) {
-                 console.warn('[ChatRenderer handleMessagesUpdate] Payload did not have .messages, using payload directly as array.');
-                 messages = notification.payload;
-            } else {
-                 console.error(`[ChatRenderer handleMessagesUpdate] Invalid messages structure: Expected array, got:`, notification.payload);
-                 return;
-            }
+            console.error('[ChatRenderer handleMessagesUpdate] ERROR: notification.payload.messages is not an array! Got:', notification.payload);
+            return;
         }
-
+        
         console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
         if (!chatBodyElement) return;
         chatBodyElement.innerHTML = '';
@@ -2862,8 +2863,46 @@ function handleSessionMetadataUpdate(notification) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbMessagesUpdatedNotification.type, handleMessagesUpdate);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbSessionUpdatedNotification.type, handleSessionMetadataUpdate);
+document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification.type, (e) => {
+    console.log('[ChatRenderer] document event received for DbMessagesUpdatedNotification:', e);
+    handleMessagesUpdate(e.detail);
+});
+
+document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type, (e) => {
+    console.log('[ChatRenderer] Received DbSessionUpdatedNotification: ', e.detail);
+    handleSessionMetadataUpdate(e.detail);
+});
+
+_Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__.dbChannel.onmessage = (event) => {
+    console.log('[ChatRenderer] dbChannel event received:', event.data);
+    const message = event.data;
+    const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
+    const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
+    console.log(`[ChatRenderer] dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+    const type = message?.type;
+    if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification.type) {
+        handleMessagesUpdate(message.payload);
+    }
+    if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type) {
+        handleSessionMetadataUpdate(message.payload);
+    }
+};
+
+// If browser.runtime.onMessage is used for notifications, add a similar log
+if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessage) {
+    browser.runtime.onMessage.addListener((message) => {
+        const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
+        const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
+        console.log(`[ChatRenderer] browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+        const type = message?.type;
+        if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification.type) {
+            handleMessagesUpdate(message.payload);
+        }
+        if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type) {
+            handleSessionMetadataUpdate(message.payload);
+        }
+    });
+}
 
 function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
@@ -2929,7 +2968,7 @@ async function loadAndRenderMessages(sessionId) {
 
     console.log(`[ChatRenderer] Requesting messages for session ${sessionId}...`);
     try {
-        const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbGetSessionRequest(sessionId);
+        const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWaitFunc(request);
 
         if (sessionData && sessionData.messages) {
@@ -2965,6 +3004,12 @@ function renderSingleMessage(msg) {
 
     console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
 
+    // Parse metadata for type detection
+    let meta = {};
+    try { meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {}); } catch {}
+    const extraction = meta.extraction;
+    const isPageExtractor = (meta.extractionType === 'PageExtractor') || (extraction && extraction.__type === 'PageExtractor');
+
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('flex', 'mb-2');
     messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random().toString(36).substring(2)}`;
@@ -2972,14 +3017,13 @@ function renderSingleMessage(msg) {
     const bubbleDiv = document.createElement('div');
     bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group', 'p-2', 'min-w-0');
 
-    // Conditionally add max-width. For user messages, we omit it for now to test clipping.
-    if (msg.sender !== 'user') {
+    if (msg.sender !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.MessageSenderTypes.USER) {
         bubbleDiv.classList.add('max-w-4xl');
     }
 
-    // Create actions container first
+    // Actions container (copy/download) as before
     const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10'; // Added z-10 to ensure it's on top
+    actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10';
 
     const copyButton = document.createElement('button');
     copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
@@ -3013,14 +3057,14 @@ function renderSingleMessage(msg) {
     // IMPORTANT: Append actionsContainer AFTER main content is set, or ensure it's not overwritten.
     // For now, we will append it after other content elements are added to bubbleDiv.
 
-    let contentToParse = msg.text || '';
-    let specialHeaderHTML = ''; // Changed to store HTML string
+    let contentToParse = msg.text || msg.content || '';
+    let specialHeaderHTML = '';
 
-    if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
-        specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Content:</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${msg.metadata.scrapeData.url || 'N/A'}</p></div>`;
-        const dataForMd = typeof msg.metadata.scrapeData === 'string' ? msg.metadata.scrapeData : JSON.stringify(msg.metadata.scrapeData, null, 2);
-        contentToParse = '```json\n' + dataForMd + '\n```';
-        console.log('[ChatRenderer] Preparing to parse scrape_result_full. Input to marked:', contentToParse);
+    // --- Special handling for PageExtractor results ---
+    if (isPageExtractor && extraction) {
+        specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Page Extraction</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${extraction.url || 'N/A'}</p></div>`;
+        contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
+        console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
     } else if (msg.text) {
         console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
     }
@@ -3030,7 +3074,7 @@ function renderSingleMessage(msg) {
     if (msg.isLoading) {
         messageDiv.classList.add('justify-start');
         bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic', 'border', 'border-gray-300', 'dark:border-gray-500');
-    } else if (msg.sender === 'user') {
+    } else if (msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.MessageSenderTypes.USER) {
         messageDiv.classList.add('justify-end', 'min-w-0');
         bubbleDiv.classList.add(
             'bg-[rgba(236,253,245,0.51)]', // very subtle green tint
@@ -3518,7 +3562,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
+/* harmony import */ var _sidepanel_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../sidepanel.js */ "./src/sidepanel.js");
 /* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
 /* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
 /* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
@@ -3536,29 +3580,18 @@ let isSendingMessage = false; // TODO: Remove this and rely on status check via 
 
 const pendingDbRequests = new Map();
 
-function requestDbAndWait(requestEvent, timeoutMs = 5000) { 
+function requestDbAndWait(requestEvent, timeoutMs = 5000) {
     return new Promise(async (resolve, reject) => {
-        const { requestId, type: requestType } = requestEvent;
-        let timeoutId;
         try {
-            console.log(`[ Orchestrator: requestDbAndWait] Sending DB request: ${requestType} (Req ID: ${requestId})`, requestEvent);
-            timeoutId = setTimeout(() => {
-                console.error(`[ Orchestrator: requestDbAndWait] DB request timed out for ${requestType} (Req ID: ${requestId})`);
-                reject(new Error(`DB request timed out for ${requestType}`));
-            }, timeoutMs);
-            const resultArr = await _eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.publish(requestEvent.type, requestEvent);
-            const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
-            clearTimeout(timeoutId);
-            console.log(`[ Orchestrator: requestDbAndWait] Received DB response for ${requestType} (Req ID: ${requestId})`, result);
-            if (result && (result.success || result.error === undefined)) {
-                resolve(result.data);
+            const result = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(requestEvent, timeoutMs);
+            console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
+            const response = Array.isArray(result) ? result[0] : result;
+            if (response && (response.success || response.error === undefined)) {
+                resolve(response.data || response.payload);
             } else {
-                console.error(`[ Orchestrator: requestDbAndWait] DB request failed for ${requestType} (Req ID: ${requestId})`, result);
-                reject(new Error(result?.error || `DB operation ${requestType} failed`));
+                reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
             }
         } catch (error) {
-            clearTimeout(timeoutId);
-            console.error(`[ Orchestrator: requestDbAndWait] Exception for ${requestType} (Req ID: ${requestId})`, error);
             reject(error);
         }
     });
@@ -3605,15 +3638,7 @@ async function handleQuerySubmit(data) {
         await requestDbAndWait(statusRequest);
         let placeholder;
         if (isURL) {
-            const activeTab = await (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.getActiveTab)();
-            const activeTabUrl = activeTab?.url;
-            const normalizeUrl = (u) => u ? u.replace('/$', '') : null;
-            const inputUrlNormalized = normalizeUrl(text);
-            const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
-            const placeholderText = (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized)
-                ? `⏳ Scraping active tab: ${text}...`
-                : `⏳ Scraping ${text}...`;
-            placeholder = { sender: 'system', text: placeholderText, timestamp: Date.now(), isLoading: true };
+            placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
         } else {
             placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
         }
@@ -3623,50 +3648,25 @@ async function handleQuerySubmit(data) {
         placeholderMessageId = placeholderResponse.newMessageId;
         
         if (isURL) {
-             const activeTab = await (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.getActiveTab)();
-             const activeTabUrl = activeTab?.url;
-             const normalizeUrl = (u) => u ? u.replace('/$', '') : null;
-             const inputUrlNormalized = normalizeUrl(text);
-             const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
-            if (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized) {
-                console.log("[Orchestrator: handleQuerySubmit] Triggering content script scrape.");
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(activeTab.id, { type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.SCRAPE_ACTIVE_TAB }, (response) => {
-                    if ((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError) {
-                        console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_ACTIVE_TAB:', (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message);
-                        const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                            isLoading: false, sender: 'error', text: `Failed to send scrape request: ${(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message}`
-                        });
-                        requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                        requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                        isSendingMessage = false;
-                    } else { console.log("[Orchestrator: handleQuerySubmit] SCRAPE_ACTIVE_TAB message sent."); }
+            // Always send scrape request to background, let background decide how to scrape
+            try {
+                const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SCRAPE_REQUEST,
+                    payload: {
+                        url: text,
+                        chatId: sessionId,
+                        messageId: placeholderMessageId
+                    }
                 });
-            } else {
-                console.log("[Orchestrator: handleQuerySubmit] Triggering background scrape via scrapeRequest.");
-                try {
-                    // Send the message and await the response (if any, often undefined for one-way messages)
-                    const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SCRAPE_REQUEST,
-                        payload: {
-                             url: text, 
-                             chatId: sessionId, 
-                             messageId: placeholderMessageId
-                        } 
-                    });
-                    // Process response if needed, or just log success if no specific response is expected
-                    // For instance, background might not send an explicit response back for this type of message.
-                    // If browser.runtime.lastError would have been set, the promise will reject.
-                    console.log("[Orchestrator: handleQuerySubmit] scrapeRequest message sent successfully.", response);
-
-                } catch (error) {
-                    console.error('[Orchestrator: handleQuerySubmit] Error sending scrapeRequest:', error.message);
-                    const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                         isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
-                    });
-                    requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                    requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                    isSendingMessage = false;
-                }
+                console.log("[Orchestrator: handleQuerySubmit] SCRAPE_REQUEST sent to background.", response);
+            } catch (error) {
+                console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_REQUEST:', error.message);
+                const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
+                    isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
+                });
+                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
+                requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
+                isSendingMessage = false;
             }
         } else {
             console.log("[Orchestrator: handleQuerySubmit] Sending query to background for AI response.");
@@ -3867,11 +3867,11 @@ async function handleBackgroundDirectScrapeResult(message) {
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.QUERY_SUBMITTED, handleQuerySubmit);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, handleBackgroundMsgResponse);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, handleBackgroundMsgError);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
-_eventBus_js__WEBPACK_IMPORTED_MODULE_2__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.QUERY_SUBMITTED, (e) => handleQuerySubmit(e.detail));
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => handleBackgroundMsgResponse(e.detail));
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => handleBackgroundMsgError(e.detail));
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
 
 function initializeOrchestrator(dependencies) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
@@ -3907,18 +3907,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   setActiveSession: () => (/* binding */ setActiveSession),
 /* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick)
 /* harmony export */ });
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
 /* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
 
 
 
 
 
-let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement, 
+let queryInput, sendButton, chatBody, attachButton, fileInput,  loadingIndicatorElement, 
     historyButton, historyPopup, historyList, closeHistoryButton, newChatButton, historySearchInput, 
     sessionListElement, driveButton, driveViewerModal, driveViewerClose, driveViewerBack, driveViewerContent, 
     driveViewerList, driveViewerSearch, driveViewerBreadcrumbs, driveViewerSelectedArea, driveViewerCancel, 
@@ -3931,35 +3931,55 @@ let currentSessionId = null;
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     // Model ID (value) : Display Name
-    "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
-    "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
-    "HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
-    "HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
-    "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
-    "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
-    "microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
-    "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
-    "Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
-    "google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
+  //  "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
+   // "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
+    //"HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
+    //"HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
+   // "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
+   // "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
+    //"microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
+   // "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
+    //"Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
+    //"google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
 
-    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct (ONNX)",
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
+    "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
     // Add more models here as needed
 };
 
+document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type, (e) => {
+    console.log('[UIController] Received DbStatusUpdatedNotification: ', e.detail);
+    handleStatusUpdate(e.detail);
+  });
+
 // Add this at the top level to ensure UI progress bar updates
-webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.addListener((message) => {
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
     const type = message?.type;
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DirectDBNames).includes(type)) {
+    console.log('[UIController] browser.runtime.onMessage Received progress update: ', message.type, message.payload);
+    if (message.type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type) {
+        handleStatusUpdate(message.payload);
+    }
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DirectDBNames).includes(type)) {
         return false;
     }
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(type)) {
+    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames).includes(type)) {
         return false;
     }
-    if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
-        console.log('[UIController] Received progress update:', message.type, message.payload);
+    if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
+       
         handleLoadingProgress(message.payload);
     }
 });
+
+_Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_3__.dbChannel.onmessage = (event) => {
+    const message = event.data;
+    const type = message?.type;
+    console.log('[UIController] dbChannel.onmessage Received progress update: ', message.type, message.payload);
+    if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type) {
+        handleStatusUpdate(message.payload);
+    }
+    // Add other notification types as needed
+};
 
 function selectElements() {
     queryInput = document.getElementById('query-input');
@@ -3995,7 +4015,7 @@ function handleEnterKey(event) {
         const messageText = getInputValue();
         if (messageText && !queryInput.disabled) {
             console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.QUERY_SUBMITTED, { text: messageText });
+            document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
             clearInput();
         } else {
              console.log("[UIController] Enter key pressed, but input is empty or disabled.");
@@ -4007,7 +4027,7 @@ function handleSendButtonClick() {
     const messageText = getInputValue();
     if (messageText && !queryInput.disabled) {
         console.log("[UIController] Send button clicked. Publishing ui:querySubmitted");
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.QUERY_SUBMITTED, { text: messageText });
+        document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
         clearInput();
     } else {
         console.log("[UIController] Send button clicked, but input is empty or disabled.");
@@ -4099,34 +4119,46 @@ function handleLoadingProgress(payload) {
         statusText.textContent = payload.error || 'Error loading model';
         progressInner.style.background = '#f44336'; // red
         progressInner.style.width = '100%';
-        // Do NOT auto-hide on error
         return;
     }
 
-    // Show status text
-    let text = payload.statusText || payload.status || 'Loading...';
-    if (payload.file && payload.progress !== undefined && payload.status === 'progress') {
-        text = `Downloading ${payload.file}... ${Math.round(payload.progress)}%`;
-    } else if (payload.file && payload.status === 'download') {
-        text = `Loading ${payload.file}...`;
-    } else if (payload.status === 'done') {
-        text = `${payload.file || ''} loaded. Preparing pipeline...`;
-    }
-    statusText.textContent = text;
-
-    // Update progress bar
-    let percent = payload.overallProgress || payload.progress || 0;
+    // Main progress bar (overall)
+    let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
     progressInner.style.width = percent + '%';
     progressInner.style.background = '#4caf50'; // green
 
+    // Status text
+    let text = '';
+    // Truncate file name for display
+    function truncateFileName(name, maxLen = 32) {
+        if (!name) return '';
+        return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
+    }
+    if (payload.summary && payload.message) {
+        text = payload.message;
+    } else if (payload.status === 'progress' && payload.file) {
+        const shortFile = truncateFileName(payload.file);
+        text = `Downloading ${shortFile}`;
+        if (payload.chunkIndex && payload.totalChunks) {
+            text += ` (chunk ${payload.chunkIndex} of ${payload.totalChunks})`;
+        }
+        text += `... ${Math.round(percent)}%`;
+    } else if (payload.status === 'done' && payload.file) {
+        const shortFile = truncateFileName(payload.file);
+        text = `${shortFile} downloaded. Preparing pipeline...`;
+    } else {
+        text = 'Loading...';
+    }
+    statusText.textContent = text;
+
     // Hide when done (but not on error)
-    if ((percent >= 100 || payload.status === 'done') && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
     }
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type, handleStatusUpdate);
+
 
 
 async function initializeUI(callbacks) {
@@ -4154,7 +4186,7 @@ async function initializeUI(callbacks) {
 
     console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
 
-    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
+    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_1__.clearTemporaryMessages)();
 
     loadModelButton = document.getElementById('load-model-button');
     if (loadModelButton) {
@@ -4239,7 +4271,7 @@ function handleLoadModelClick() {
     console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
     setLoadButtonState('loading'); 
     disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`); 
-    _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.REQUEST_MODEL_LOAD, { modelId: selectedModelId });
+    document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
 }
 
 function setLoadButtonState(state, text = 'Load') {
@@ -4288,7 +4320,8 @@ function enableInput() {
     sendButton.disabled = queryInput.value.trim() === '';
 }
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.WORKER_READY, (payload) => {
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_READY, (e) => {
+    const payload = e.detail;
     console.log("[UIController] Received worker:ready signal", payload);
     // Hide progress bar area
     const statusDiv = document.getElementById('model-load-status');
@@ -4296,7 +4329,8 @@ _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_
     setLoadButtonState('loaded');
 });
 
-_eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.WORKER_ERROR, (payload) => {
+document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_ERROR, (e) => {
+    const payload = e.detail;
     console.error("[UIController] Received worker:error signal", payload);
     // Show error in progress bar area and keep it visible
     const statusDiv = document.getElementById('model-load-status');
@@ -4311,6 +4345,195 @@ _eventBus_js__WEBPACK_IMPORTED_MODULE_0__.eventBus.subscribe(_events_eventNames_
     setLoadButtonState('error');
     disableInput("Model load failed. Check logs.");
 });
+
+/***/ }),
+
+/***/ "./src/Utilities/dbChannels.js":
+/*!*************************************!*\
+  !*** ./src/Utilities/dbChannels.js ***!
+  \*************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   dbChannel: () => (/* binding */ dbChannel),
+/* harmony export */   llmChannel: () => (/* binding */ llmChannel),
+/* harmony export */   logChannel: () => (/* binding */ logChannel)
+/* harmony export */ });
+const dbChannel = new BroadcastChannel('tabagent-db');
+const llmChannel = new BroadcastChannel('tabagent-llm');
+const logChannel = new BroadcastChannel('tabagent-logs'); 
+
+/***/ }),
+
+/***/ "./src/Utilities/dbSchema.js":
+/*!***********************************!*\
+  !*** ./src/Utilities/dbSchema.js ***!
+  \***********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ATTACHMENTS_TABLE_SQL: () => (/* binding */ ATTACHMENTS_TABLE_SQL),
+/* harmony export */   CHATS_TABLE_SQL: () => (/* binding */ CHATS_TABLE_SQL),
+/* harmony export */   CHAT_SUMMARIES_TABLE_SQL: () => (/* binding */ CHAT_SUMMARIES_TABLE_SQL),
+/* harmony export */   KNOWLEDGE_GRAPH_EDGES_TABLE_SQL: () => (/* binding */ KNOWLEDGE_GRAPH_EDGES_TABLE_SQL),
+/* harmony export */   KNOWLEDGE_GRAPH_NODES_TABLE_SQL: () => (/* binding */ KNOWLEDGE_GRAPH_NODES_TABLE_SQL),
+/* harmony export */   LOG_TABLE_SQL: () => (/* binding */ LOG_TABLE_SQL),
+/* harmony export */   MESSAGES_TABLE_SQL: () => (/* binding */ MESSAGES_TABLE_SQL),
+/* harmony export */   MODEL_ASSET_TABLE_SQL: () => (/* binding */ MODEL_ASSET_TABLE_SQL),
+/* harmony export */   USERS_TABLE_SQL: () => (/* binding */ USERS_TABLE_SQL)
+/* harmony export */ });
+const USERS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    email TEXT
+);
+`;
+
+const CHATS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS chats (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    tabId INTEGER,
+    timestamp INTEGER,
+    title TEXT,
+    isStarred INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'idle',
+    metadata TEXT,         -- JSON: {topic, domain, tags, ...}
+    summary TEXT,          -- High-level summary of the chat
+    embedding BLOB,        -- Vector for the whole chat
+    topic TEXT,            -- (optional, for fast lookup)
+    domain TEXT,           -- (optional)
+    FOREIGN KEY(user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_chats_timestamp ON chats(timestamp);
+CREATE INDEX IF NOT EXISTS idx_chats_isStarred ON chats(isStarred);
+CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
+CREATE INDEX IF NOT EXISTS idx_chats_topic ON chats(topic);
+CREATE INDEX IF NOT EXISTS idx_chats_domain ON chats(domain);
+`;
+
+const LOG_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS logs (
+    id TEXT PRIMARY KEY,
+    timestamp INTEGER,
+    level TEXT CHECK(level IN ('error', 'warn', 'info', 'debug')),
+    message TEXT,
+    component TEXT,
+    extensionSessionId TEXT,
+    chatSessionId TEXT DEFAULT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+CREATE INDEX IF NOT EXISTS idx_logs_component ON logs(component);
+CREATE INDEX IF NOT EXISTS idx_logs_extensionSessionId ON logs(extensionSessionId);
+CREATE INDEX IF NOT EXISTS idx_logs_chatSessionId ON logs(chatSessionId);
+`;
+
+const MODEL_ASSET_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS model_assets (
+    id TEXT PRIMARY KEY,
+    folder TEXT,
+    fileName TEXT,
+    fileType TEXT,
+    data BLOB,
+    size INTEGER,
+    addedAt INTEGER,
+    chunkIndex INTEGER DEFAULT 0,
+    totalChunks INTEGER DEFAULT 1,
+    chunkGroupId TEXT DEFAULT '',
+    binarySize INTEGER,
+    totalFileSize INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_model_assets_folder ON model_assets(folder);
+CREATE INDEX IF NOT EXISTS idx_model_assets_fileName ON model_assets(fileName);
+CREATE INDEX IF NOT EXISTS idx_model_assets_chunkGroupId ON model_assets(chunkGroupId);
+CREATE INDEX IF NOT EXISTS idx_model_assets_chunkGroupId_chunkIndex ON model_assets(chunkGroupId, chunkIndex);
+`;
+
+const MESSAGES_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT,
+    timestamp INTEGER,
+    sender TEXT,
+    type TEXT,         -- 'text', 'image', 'file', 'code', 'agent_action', etc.
+    content TEXT,      -- main content (text, JSON, or reference)
+    metadata TEXT,     -- JSON string for extra fields (language, tool args, etc.)
+    embedding BLOB,    -- vector embedding for semantic search (Float32Array, Uint8Array, etc.)
+    FOREIGN KEY(chat_id) REFERENCES chats(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type);
+`;
+
+const ATTACHMENTS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS attachments (
+    id TEXT PRIMARY KEY,
+    message_id TEXT,
+    file_name TEXT,
+    mime_type TEXT,
+    data BLOB,
+    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON attachments(message_id);
+`;
+
+const CHAT_SUMMARIES_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS chat_summaries (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    parent_summary_id TEXT,      -- nullable, for summary-of-summary
+    start_message_id TEXT,       -- nullable if summarizing summaries
+    end_message_id TEXT,
+    start_timestamp INTEGER,
+    end_timestamp INTEGER,
+    summary TEXT NOT NULL,
+    embedding BLOB,              -- vector embedding
+    token_count INTEGER,
+    metadata TEXT,               -- JSON: {topic, tags, ...}
+    created_at INTEGER,
+    FOREIGN KEY(chat_id) REFERENCES chats(id),
+    FOREIGN KEY(parent_summary_id) REFERENCES chat_summaries(id)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_summaries_chat_id ON chat_summaries(chat_id);
+CREATE INDEX IF NOT EXISTS idx_chat_summaries_parent ON chat_summaries(parent_summary_id);
+`;
+
+const KNOWLEDGE_GRAPH_EDGES_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
+    id TEXT PRIMARY KEY,
+    from_node_id TEXT NOT NULL,   -- can be chat, summary, topic, etc.
+    to_node_id TEXT NOT NULL,
+    edge_type TEXT,               -- e.g., 'summarizes', 'references', 'is_about'
+    metadata TEXT,                -- JSON for edge properties
+    created_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_kg_edges_from ON knowledge_graph_edges(from_node_id);
+CREATE INDEX IF NOT EXISTS idx_kg_edges_to ON knowledge_graph_edges(to_node_id);
+CREATE INDEX IF NOT EXISTS idx_kg_edges_type ON knowledge_graph_edges(edge_type);
+`;
+
+const KNOWLEDGE_GRAPH_NODES_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS knowledge_graph_nodes (
+    id TEXT PRIMARY KEY,
+    type TEXT,           -- e.g. 'entity', 'concept', 'document', etc.
+    label TEXT,          -- Human-readable label
+    properties TEXT,     -- JSON string for arbitrary node properties
+    embedding BLOB,      -- Optional: vector for semantic search
+    created_at INTEGER,
+    updated_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_kg_nodes_type ON knowledge_graph_nodes(type);
+CREATE INDEX IF NOT EXISTS idx_kg_nodes_label ON knowledge_graph_nodes(label);
+`; 
+
+
 
 /***/ }),
 
@@ -4468,6 +4691,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   downloadHtmlFile: () => (/* binding */ downloadHtmlFile),
 /* harmony export */   formatChatToHtml: () => (/* binding */ formatChatToHtml)
 /* harmony export */ });
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
 
 
 /**
@@ -4480,8 +4704,8 @@ function formatChatToHtml(sessionData) {
 
     const title = sessionData.title || 'Chat Session';
     const messagesHtml = (sessionData.messages || []).map(msg => {
-        const senderClass = msg.sender === 'user' ? 'user-message' : 'other-message';
-        const senderLabel = msg.sender === 'user' ? 'You' : (msg.sender === 'ai' ? 'Agent' : 'System');
+        const senderClass = msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.USER ? 'user-message' : 'other-message';
+        const senderLabel = msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.USER ? 'You' : (msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.AI ? 'Agent' : 'System');
         // Basic sanitization: escape HTML characters to prevent XSS if message text somehow contains HTML
         const escapedText = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
         // Convert newlines to <br> tags for display
@@ -4594,287 +4818,6 @@ function downloadHtmlFile(htmlContent, filename, onError) {
 
 /***/ }),
 
-/***/ "./src/eventBus.js":
-/*!*************************!*\
-  !*** ./src/eventBus.js ***!
-  \*************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   eventBus: () => (/* binding */ eventBus),
-/* harmony export */   isBackgroundContext: () => (/* binding */ isBackgroundContext)
-/* harmony export */ });
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-
-
-
-
-function isBackgroundContext() {
-  return (typeof window === 'undefined') && (typeof self !== 'undefined') && !!self.registration;
-}
-
-function getContextName() {
-  if (isBackgroundContext()) return _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.Contexts.BACKGROUND;
-  if (typeof window !== 'undefined' && window.EXTENSION_CONTEXT) return window.EXTENSION_CONTEXT;
-  return _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.Contexts.UNKNOWN; // Fallback
-}
-
-let dbInitPromise = null;
-let eventBus_lastLoggedProgress = -1;
-
-const broadcastableEventTypes = [
-  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION,
-  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION,
-  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION,
-  _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION
-];
-
-class EventBus {
-  constructor() {
-    this.listeners = new Map();
-    this.isDbInitInProgress = false;
-  }
-
-  subscribe(eventName, callback) {
-    if (!this.listeners.has(eventName)) {
-      this.listeners.set(eventName, []);
-    }
-    this.listeners.get(eventName).push(callback);
-  }
-
-  unsubscribe(eventName, callback) {
-    if (this.listeners.has(eventName)) {
-      const eventListeners = this.listeners.get(eventName);
-      const index = eventListeners.indexOf(callback);
-      if (index > -1) {
-        eventListeners.splice(index, 1);
-      }
-      if (eventListeners.length === 0) {
-        this.listeners.delete(eventName);
-      }
-    }
-  }
-
-  dispatchToLocalListeners(eventName, data, context) {
-
-
-    console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Dispatching locally: ${eventName}`, data);
-    const localListeners = this.listeners.get(eventName);
-    const promises = [];
-    if (localListeners && localListeners.length > 0) {
-      try {
-        const eventData = structuredClone(data);
-        console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> Found ${localListeners.length} listeners for ${eventName}.`);
-        localListeners.forEach(callback => {
-          try {
-            const result = callback(eventData);
-            if (result && typeof result.then === 'function') {
-              promises.push(result);
-            }
-          } catch (error) {
-            console.error(`[EventBus][${getContextName()}] Error in local listener for ${eventName}:`, error);
-            promises.push(Promise.reject(error));
-          }
-        });
-      } catch (cloneError) {
-        console.error(`[EventBus][${getContextName()}] Failed to structuredClone data for local dispatch of ${eventName}:`, cloneError, data);
-        return Promise.reject(cloneError);
-      }
-    } else {
-      console.log(`[EventBus][${getContextName()}] : dispatchToLocalListeners -> No local listeners for ${eventName}.`);
-    }
-    return Promise.all(promises);
-  }
-
-  async autoEnsureDbInitialized() {
-    const context = getContextName();
-    if (this.isDbInitInProgress) {
-      return dbInitPromise;
-    }
-    if (!dbInitPromise) {
-      this.isDbInitInProgress = true;
-      console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> Starting DB initialization...`);
-      dbInitPromise = (async () => {
-        try {
-          const [response] = await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
-          if (response?.data?.ready) {
-            console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> DB is already ready.`);
-            return true;
-          }
-          await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbInitializeRequest());
-          for (let i = 0; i < 5; i++) {
-            const [check] = await this.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetReadyStateRequest());
-            if (check?.data?.ready) {
-              console.info(`[EventBus][${context}] : autoEnsureDbInitialized -> DB became ready after ${i+1} checks.`);
-              return true;
-            }
-            await new Promise(res => setTimeout(res, 300));
-          }
-          console.error(`[EventBus][${context}] : autoEnsureDbInitialized -> Database failed to initialize after retries.`);
-          throw new Error('Database failed to initialize');
-        } catch (err) {
-          console.error(`[EventBus][${context}] : autoEnsureDbInitialized -> Initialization failed:`, err);
-          throw err;
-        } finally {
-          this.isDbInitInProgress = false;
-        }
-      })();
-    }
-    return dbInitPromise;
-  }
-
-  async publish(eventName, data, contextName = getContextName()) {
-    const context = contextName;
-    console.log(`[EventBus][${context}] : publish -> Event: ${eventName}`, data);
-  
-
-    if (!isBackgroundContext()) { // UI Context
-      
-      // background event broadcast, no need to forward
-      if (eventName === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
-        return Promise.resolve([]); 
-      }
-      
-      // db event, forward to background
-      if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(eventName)) {            
-        console.log(`[EventBus][${context}] : publish -> Forwarding event to background: ${eventName}`);
-        const resultFromBg = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data , originalContext: context, crossContext: false});
-        console.log(`[EventBus][${context}] : publish -> Received response from background for ${eventName}:`, resultFromBg);
-        return resultFromBg;
-
-      }
-
-      // same context, dispatch locally
-      if (getContextName() === context) {    
-        return this.dispatchToLocalListeners(eventName, data, context);
-      }
-
-      // different context, forward to background
-
-      if (getContextName() != context) {    
-        console.log(`[EventBus][${context}] : publish -> Forwarding event to background: ${eventName}`);
-        const resultFromBg = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: eventName, payload: data , originalContext: context, crossContext: true});
-        console.log(`[EventBus][${context}] : publish -> Received response from background for ${eventName}:`, resultFromBg);
-        return resultFromBg;
-      }
-
-
-
-    } else { // Background Context
-      if (broadcastableEventTypes.includes(eventName)) {
-        console.log(`[EventBus][${context}] :: publish -> Event ${eventName} is broadcastable. Sending wrapper.`);
-        const broadcastPayload = {
-          type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST,
-          payload: {
-            eventName: eventName,
-            data: structuredClone(data),
-            originalContext: context,
-            crossContext: false
-          }
-        };
-        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(broadcastPayload)
-          .catch(error => {
-            if (error.message.includes("Could not establish connection") ||
-              error.message.includes("Receiving end does not exist") ||
-              error.message.includes("The message port closed before a response was received")) {
-              console.warn(`[EventBus][${context}] :publish Failed to broadcast ${eventName} to UI: No active receiver.`);
-            } else {
-              console.error(`[EventBus][${context}] : publish Error broadcasting event ${eventName}:`, error);
-            }
-          });
-        console.log(`[EventBus][${context}] : publish -> Dispatching broadcastable event ${eventName} locally in background as well.`);
-        return this.dispatchToLocalListeners(eventName, data, context);
-      } else {
-        console.log(`[EventBus][${context}] : : publish -> Event ${eventName} is not broadcastable. Dispatching locally in background.`);
-        return this.dispatchToLocalListeners(eventName, data, context);
-      }
-    }
-  }
-}
-
-const eventBus = new EventBus();
-
-webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const type = message?.type;
-  if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DirectDBNames).includes(type)) {
-    return false;
-  }
-  const context = getContextName();
-
-  if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
-    console.log(`[EventBus][${context}] : onMessage -> Received BACKGROUND_EVENT_BROADCAST. Original event: ${message.payload?.eventName}`);
-    if (message.payload && broadcastableEventTypes.includes(message.payload.eventName)) {
-      eventBus.dispatchToLocalListeners(message.payload.eventName, message.payload.data);
-    } 
-    return false; 
-  }
-
-  if (message.crossContext === true && !isBackgroundContext()) {
-    eventBus.dispatchToLocalListeners(message.type, message.payload, message.originalContext);
-    return false;
-  }
-
-  if (isBackgroundContext()) {
-    if (message.crossContext === true && message.originalContext) {
-      webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-        type: message.type,
-        payload: message.payload,
-        originalContext: message.originalContext,
-        crossContext: true
-      });
-      return false;
-    }
-
-
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(message.type)) { 
-      console.log(`[EventBus][${context}] : onMessage -> Received direct DBEvent (request): ${message.type}. Publishing to local BG eventBus.`);
-      eventBus.publish(message.type, message.payload) 
-        .then(result => {
-            try {
-                console.log(`[EventBus][${context}] : onMessage -> DBEvent ${message.type} processed. Sending response.`);
-                sendResponse(structuredClone(result));
-            } catch(e) {
-                console.error(`[EventBus][${context}] :onMessage Failed to clone response for DBEvent ${message.type}:`, e);
-                sendResponse({success: false, error: "Failed to clone response in background"});
-            }
-        })
-        .catch(error => {
-            console.error(`[EventBus][${context}] : onMessage Error processing DBEvent ${message.type}:`, error);
-            sendResponse({ success: false, error: error.message });
-        });
-      return true; 
-    }
-  }
-
-    // Add ignore list for UI/worker-only message types
-    const ignoredTypes = [
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE,   
-      // add more as needed
-    ];
-    if (ignoredTypes.includes(type)) {
-      return false;
-    }
-
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames).includes(message.type)) { 
-
-      return false; 
-    }
-
-
-
-
-  console.log(`[EventBus][${context}] : onMessage -> Message type ${type} not handled by eventBus onMessage logic.`);
-  return false; 
-});
-
-/***/ }),
-
 /***/ "./src/events/dbEvents.js":
 /*!********************************!*\
   !*** ./src/events/dbEvents.js ***!
@@ -4887,14 +4830,20 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbAddLogRequest: () => (/* binding */ DbAddLogRequest),
 /* harmony export */   DbAddMessageRequest: () => (/* binding */ DbAddMessageRequest),
 /* harmony export */   DbAddMessageResponse: () => (/* binding */ DbAddMessageResponse),
+/* harmony export */   DbAddModelAssetRequest: () => (/* binding */ DbAddModelAssetRequest),
+/* harmony export */   DbAddModelAssetResponse: () => (/* binding */ DbAddModelAssetResponse),
 /* harmony export */   DbClearLogsRequest: () => (/* binding */ DbClearLogsRequest),
 /* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
+/* harmony export */   DbCountModelAssetChunksRequest: () => (/* binding */ DbCountModelAssetChunksRequest),
+/* harmony export */   DbCountModelAssetChunksResponse: () => (/* binding */ DbCountModelAssetChunksResponse),
 /* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
 /* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
 /* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
 /* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
 /* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
 /* harmony export */   DbDeleteSessionResponse: () => (/* binding */ DbDeleteSessionResponse),
+/* harmony export */   DbEnsureInitializedRequest: () => (/* binding */ DbEnsureInitializedRequest),
+/* harmony export */   DbEnsureInitializedResponse: () => (/* binding */ DbEnsureInitializedResponse),
 /* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
 /* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
 /* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
@@ -4902,6 +4851,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
 /* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
 /* harmony export */   DbGetLogsResponse: () => (/* binding */ DbGetLogsResponse),
+/* harmony export */   DbGetModelAssetChunkRequest: () => (/* binding */ DbGetModelAssetChunkRequest),
+/* harmony export */   DbGetModelAssetChunkResponse: () => (/* binding */ DbGetModelAssetChunkResponse),
+/* harmony export */   DbGetModelAssetChunksRequest: () => (/* binding */ DbGetModelAssetChunksRequest),
+/* harmony export */   DbGetModelAssetChunksResponse: () => (/* binding */ DbGetModelAssetChunksResponse),
 /* harmony export */   DbGetReadyStateRequest: () => (/* binding */ DbGetReadyStateRequest),
 /* harmony export */   DbGetReadyStateResponse: () => (/* binding */ DbGetReadyStateResponse),
 /* harmony export */   DbGetSessionRequest: () => (/* binding */ DbGetSessionRequest),
@@ -4912,6 +4865,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbGetUniqueLogValuesResponse: () => (/* binding */ DbGetUniqueLogValuesResponse),
 /* harmony export */   DbInitializationCompleteNotification: () => (/* binding */ DbInitializationCompleteNotification),
 /* harmony export */   DbInitializeRequest: () => (/* binding */ DbInitializeRequest),
+/* harmony export */   DbListModelFilesRequest: () => (/* binding */ DbListModelFilesRequest),
+/* harmony export */   DbListModelFilesResponse: () => (/* binding */ DbListModelFilesResponse),
+/* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
+/* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
 /* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
 /* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
 /* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
@@ -5336,6 +5293,126 @@ class DbResetDatabaseResponse extends DbResponseBase {
     super(originalRequestId, success, null, error);
     this.type = DbResetDatabaseResponse.type;
   }
+}
+
+// --- Model Asset DB Operations ---
+
+class DbAddModelAssetRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MODEL_ASSET_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbAddModelAssetRequest.type;
+    this.payload = payload;
+  }
+}
+class DbAddModelAssetResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbAddModelAssetResponse.type;
+  }
+}
+
+class DbCountModelAssetChunksRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbCountModelAssetChunksRequest.type;
+    this.payload = payload;
+  }
+}
+class DbCountModelAssetChunksResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbCountModelAssetChunksResponse.type;
+  }
+}
+
+class DbLogAllChunkGroupIdsForModelRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbLogAllChunkGroupIdsForModelRequest.type;
+    this.payload = payload;
+  }
+}
+class DbLogAllChunkGroupIdsForModelResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbLogAllChunkGroupIdsForModelResponse.type;
+  }
+}
+
+class DbListModelFilesRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LIST_MODEL_FILES_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbListModelFilesRequest.type;
+    this.payload = payload;
+  }
+}
+class DbListModelFilesResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbListModelFilesResponse.type;
+  }
+}
+
+class DbGetModelAssetChunksRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbGetModelAssetChunksRequest.type;
+    this.payload = payload;
+  }
+}
+class DbGetModelAssetChunksResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbGetModelAssetChunksResponse.type;
+  }
+}
+
+class DbGetModelAssetChunkRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNK_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbGetModelAssetChunkRequest.type;
+    this.payload = payload;
+  }
+}
+class DbGetModelAssetChunkResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbGetModelAssetChunkResponse.type;
+  }
+}
+
+class DbEnsureInitializedRequest extends DbEventBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ENSURE_INITIALIZED_REQUEST;
+  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
+  constructor() {
+    super();
+    this.type = DbEnsureInitializedRequest.type;
+  }
+}
+class DbEnsureInitializedResponse extends DbResponseBase {
+  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
+  constructor(originalRequestId, success, result = null, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbEnsureInitializedResponse.type;
+  }
 } 
 
 /***/ }),
@@ -5351,21 +5428,24 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DBPaths: () => (/* binding */ DBPaths),
 /* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
+/* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
+/* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
 /* harmony export */   RawDirectMessageTypes: () => (/* binding */ RawDirectMessageTypes),
 /* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
 /* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
+/* harmony export */   TableNames: () => (/* binding */ TableNames),
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
 const DirectDBNames = Object.freeze({
   ADD_MODEL_ASSET: 'AddModelAsset',
-  GET_MODEL_ASSET: 'GetModelAsset',
+  REQUEST_MODEL_ASSET_CHUNK: 'RequestModelAssetChunk',
   COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
-  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
 });
 
 const DBEventNames = Object.freeze({
@@ -5411,10 +5491,29 @@ const DBEventNames = Object.freeze({
   DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
   DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
 
+  // Model Asset DB Operations
+  DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest',
+  DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
+  DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
+  DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
+  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
+  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
+  DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest',
+  DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
+  DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest',
+  DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
+  DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest',
+  DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
+  DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
+  DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
+  DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest',
+  DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
+  DB_WORKER_ERROR: 'DbWorkerError',
+  DB_WORKER_RESET: 'DbWorkerReset',
 });
 
 const UIEventNames = Object.freeze({
-  QUERY_SUBMITTED: 'ui:querySubmitted',
+  QUERY_SUBMITTED: 'querySubmitted',
   BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
   BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
   BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
@@ -5427,7 +5526,7 @@ const UIEventNames = Object.freeze({
   SCRAPE_PAGE: 'SCRAPE_PAGE',
   SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
   DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
+  MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
   // Add more as needed
 });
 
@@ -5441,7 +5540,7 @@ const WorkerEventNames = Object.freeze({
   GENERATION_ERROR: 'generationError',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
-  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
+
 });
 
 const ModelWorkerStates = Object.freeze({
@@ -5477,24 +5576,24 @@ const SiteMapperMessageTypes = Object.freeze({
 
 const ModelLoaderMessageTypes = Object.freeze({
   INIT: 'init',
-  GENERATE: 'generate',
-  INTERRUPT: 'interrupt',
-  RESET: 'reset',
-  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
-  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
-  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
+  GENERATE: 'Generate',
+  INTERRUPT: 'Interrupt',
+  RESET: 'Reset',
+  DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
+  LIST_MODEL_FILES: 'ListModelFiles',
+  LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
 });
 
 const InternalEventBusMessageTypes = Object.freeze({
-  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+  BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
 });
 
 const RawDirectMessageTypes = Object.freeze({
-  WORKER_GENERIC_RESPONSE: 'response',
-  WORKER_GENERIC_ERROR: 'error',
-  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
-  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
-  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+  WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
+  WORKER_GENERIC_ERROR: 'WorkerGenericError',
+  WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
+  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
 
 const Contexts = Object.freeze({
@@ -5505,7 +5604,1777 @@ const Contexts = Object.freeze({
   UNKNOWN: 'Unknown',
 });
 
+const MessageSenderTypes = Object.freeze({
+  USER: 'user',
+  SYSTEM: 'system',
+  AI: 'ai',
+  AGENT: 'agent',
+  // Add more as needed
+});
 
+const MessageContentTypes = Object.freeze({
+  TEXT: 'text',
+  IMAGE: 'image',
+  FILE: 'file',
+  CODE: 'code',
+  AGENT_ACTION: 'agent_action',
+  // Add more as needed
+});
+
+const DBPaths = Object.freeze({
+  CHAT: '/sql/chat.db',
+  LOGS: '/sql/logs.db',
+  MODELS: '/sql/models.db',
+  KNOWLEDGE: '/sql/knowledge.db',
+});
+
+const TableNames = Object.freeze({
+  CHATS: 'chats',
+  MESSAGES: 'messages',
+  CHAT_SUMMARIES: 'chat_summaries',
+  ATTACHMENTS: 'attachments',
+  USERS: 'users',
+  LOGS: 'logs',
+  MODEL_ASSETS: 'model_assets',
+  KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
+  KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
+});
+
+
+
+/***/ }),
+
+/***/ "./src/minimaldb.js":
+/*!**************************!*\
+  !*** ./src/minimaldb.js ***!
+  \**************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   autoEnsureDbInitialized: () => (/* binding */ autoEnsureDbInitialized),
+/* harmony export */   forwardDbRequest: () => (/* binding */ forwardDbRequest),
+/* harmony export */   resetDatabase: () => (/* binding */ resetDatabase)
+/* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Utilities/dbSchema.js */ "./src/Utilities/dbSchema.js");
+/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
+// --- Imports ---
+
+
+
+
+
+
+// --- Constants ---
+const DB_INIT_TIMEOUT = 15000;
+const POLL_INTERVAL = 100;
+const LOG_THROTTLE_MS = 2000;
+
+// --- State ---
+let SQL = null;
+let absurdSqlBackendInitialized = false;
+let chatDB = null;
+let logDB = null;
+let modelDB = null;
+let isDbInitialized = false;
+let isLogDbInitialized = false;
+let isModelDbInitialized = false;
+let isDbReadyFlag = false;
+let currentExtensionSessionId = null;
+let previousExtensionSessionId = null;
+let dbReadyResolve;
+let dbReadyPromise = new Promise((resolve) => {
+  dbReadyResolve = resolve;
+});
+let dbInitPromise = null;
+let isDbInitInProgress = false;
+let dbWorker = null;
+let dbWorkerReady = false;
+let dbWorkerRequestId = 0;
+let dbWorkerCallbacks = {};
+
+// --- Error Handling ---
+class AppError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+async function withTimeout(promise, ms, errorMessage = `Operation timed out after ${ms}ms`) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new AppError('TIMEOUT', errorMessage)), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
+// --- Worker Management ---
+function getDbWorker() {
+  if (!dbWorker) {
+    const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL('js/absurd-sql-backends/sql-worker.js');
+    dbWorker = new Worker(workerUrl, { type: 'module' });
+    dbWorker.onmessage = (event) => {
+      const { requestId, type, result, error, stack } = event.data;
+      if (requestId && dbWorkerCallbacks[requestId]) {
+        if (error) {
+          let errObj = error;
+          if (typeof error === 'string') {
+            errObj = new Error(error);
+            if (stack) errObj.stack = stack;
+          } else if (error instanceof Object && !(error instanceof Error)) {
+            errObj = new Error(error.message || 'Worker error object');
+            Object.assign(errObj, error);
+            if (stack) errObj.stack = stack;
+          }
+          dbWorkerCallbacks[requestId].reject(errObj);
+        } else {
+          dbWorkerCallbacks[requestId].resolve(result);
+        }
+        delete dbWorkerCallbacks[requestId];
+      } else if (type === 'debug') {
+        // console.log(`[DB Worker Debug] ${event.data.message}`);
+      } else if (type === 'fatal') {
+        console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
+        Object.values(dbWorkerCallbacks).forEach((cb) =>
+          cb.reject(new Error('DB Worker encountered a fatal error'))
+        );
+        dbWorkerCallbacks = {};
+      } else if (type === 'ready') {
+        dbWorkerReady = true;
+        console.log('[DB] SQL Worker signaled script ready.');
+      }
+    };
+    dbWorker.onerror = (errEvent) => {
+      console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
+      Object.values(dbWorkerCallbacks).forEach((cb) =>
+        cb.reject(new Error(`DB Worker crashed: ${errEvent.message || 'Unknown worker error'}`))
+      );
+      dbWorkerCallbacks = {};
+      dbWorker = null;
+      dbWorkerReady = false;
+      absurdSqlBackendInitialized = false;
+    };
+  }
+  return dbWorker;
+}
+
+async function sendDbWorkerRequest(type, payload) {
+  console.log(`[Trace][minimaldb] sendDbWorkerRequest: Called with type=${type}, payload=`, payload);
+  const worker = getDbWorker();
+  if (!dbWorkerReady) {
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Worker 'ready' signal timeout")), 10000);
+      const check = () => {
+        if (dbWorkerReady) {
+          clearTimeout(timeout);
+          resolve();
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    });
+  }
+  console.log('[Trace][minimaldb] sendDbWorkerRequest: Posting to worker', { type, payload });
+  return new Promise((resolve, reject) => {
+    const requestId = (++dbWorkerRequestId).toString();
+    dbWorkerCallbacks[requestId] = { resolve, reject };
+    worker.postMessage({ requestId, type, payload });
+  });
+}
+
+// --- Database Initialization ---
+async function initializeDatabasesAndBackend(isReset = false) {
+  console.log(`[DB] initializeDatabasesAndBackend called (isReset: ${isReset})`);
+  getDbWorker();
+  const wasmUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL('wasm/sql-wasm-debug.wasm');
+  const dbFilesToCreate = [
+    {
+      path: '/sql/chat.db',
+      schema:
+        _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.CHATS_TABLE_SQL +
+        '\n' +
+        _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MESSAGES_TABLE_SQL +
+        '\n' +
+        _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.CHAT_SUMMARIES_TABLE_SQL,
+    },
+    { path: '/sql/logs.db', schema: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.LOG_TABLE_SQL },
+    { path: '/sql/models.db', schema: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MODEL_ASSET_TABLE_SQL },
+    {
+      path: '/sql/knowledge.db',
+      schema: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.KNOWLEDGE_GRAPH_EDGES_TABLE_SQL + '\n' + _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.KNOWLEDGE_GRAPH_NODES_TABLE_SQL,
+    },
+  ];
+  const dbFilesAndTables = [
+    { path: '/sql/chat.db', tables: ['chats', 'messages', 'chat_summaries'] },
+    { path: '/sql/logs.db', tables: ['logs'] },
+    { path: '/sql/models.db', tables: ['model_assets'] },
+    { path: '/sql/knowledge.db', tables: ['knowledge_graph_edges', 'knowledge_graph_nodes'] },
+  ];
+  const payload = {
+    wasmUrl,
+    schema: {
+      CHATS_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.CHATS_TABLE_SQL,
+      LOG_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.LOG_TABLE_SQL,
+      MODEL_ASSET_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MODEL_ASSET_TABLE_SQL,
+      MESSAGES_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MESSAGES_TABLE_SQL,
+    },
+    dbFilesToCreate,
+    dbFilesAndTables,
+  };
+  console.log('[DB] Sending worker init/reset with payload:', payload);
+  await sendDbWorkerRequest(
+    isReset ? _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_WORKER_RESET : _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_INIT_WORKER_REQUEST,
+    payload
+  );
+  absurdSqlBackendInitialized = true;
+  isDbInitialized = true;
+  isLogDbInitialized = true;
+  isModelDbInitialized = true;
+  isDbReadyFlag = true;
+  if (dbReadyResolve) dbReadyResolve(true);
+  dbReadyPromise = Promise.resolve(true);
+}
+
+async function handleInitializeRequest(isAutoEnsureCall = false) {
+  console.log('[DB] handleInitializeRequest ENTRY', {
+    isDbReadyFlag,
+    isDbInitialized,
+    isLogDbInitialized,
+    isModelDbInitialized,
+    absurdSqlBackendInitialized,
+    SQL_exists: !!SQL,
+  });
+  if (
+    SQL &&
+    absurdSqlBackendInitialized &&
+    isDbInitialized &&
+    isLogDbInitialized &&
+    isModelDbInitialized &&
+    isDbReadyFlag &&
+    !isAutoEnsureCall
+  ) {
+    return { success: true };
+  }
+  try {
+    const ids = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
+    currentExtensionSessionId = ids.currentLogSessionId || null;
+    previousExtensionSessionId = ids.previousLogSessionId || null;
+    if (!currentExtensionSessionId) {
+      const msg = 'CRITICAL: currentLogSessionId not found in storage during DB init!';
+      console.error('[DB] Database:Initialize]', msg);
+      if (dbReadyResolve) dbReadyResolve(false);
+      dbReadyPromise = new Promise((resolve) => {
+        dbReadyResolve = resolve;
+      });
+      return { success: false, error: msg };
+    }
+  } catch (storageError) {
+    console.error('[DB] Failed to retrieve log session IDs from storage', {
+      error: storageError,
+      stack: storageError?.stack,
+    });
+    if (dbReadyResolve) dbReadyResolve(false);
+    dbReadyPromise = new Promise((resolve) => {
+      dbReadyResolve = resolve;
+    });
+    return { success: false, error: storageError.message || String(storageError) };
+  }
+  try {
+    await initializeDatabasesAndBackend(false);
+    console.log('[DB] Databases initialization complete.');
+    return { success: true };
+  } catch (error) {
+    console.error('[DB] CAUGHT ERROR during initializeDatabasesAndBackend:', error, error?.stack);
+    const appError =
+      error instanceof AppError
+        ? error
+        : new AppError('INIT_FAILED', 'Database initialization failed', {
+            originalError: error.message,
+          });
+    isDbInitialized = false;
+    isLogDbInitialized = false;
+    isModelDbInitialized = false;
+    isDbReadyFlag = false;
+    absurdSqlBackendInitialized = false;
+    if (dbReadyResolve) dbReadyResolve(false);
+    dbReadyPromise = new Promise((resolve) => {
+      dbReadyResolve = resolve;
+    });
+    return { success: false, error: appError.message || String(appError) };
+  }
+}
+
+async function autoEnsureDbInitialized() {
+  if (isDbReadyFlag && absurdSqlBackendInitialized) {
+    return { success: true };
+  }
+  if (isDbInitInProgress) {
+    return dbInitPromise;
+  }
+  isDbInitInProgress = true;
+  dbInitPromise = (async () => {
+    try {
+      const response = await handleInitializeRequest(true);
+      if (response?.success) {
+        return { success: true };
+      }
+      return { success: false, error: response?.error || 'Database failed to initialize (autoEnsure)' };
+    } catch (err) {
+      console.error('[DB] autoEnsureDbInitialized -> Initialization failed:', err);
+      isDbInitInProgress = false;
+      return { success: false, error: err.message || String(err) };
+    } finally {
+      isDbInitInProgress = false;
+    }
+  })();
+  return dbInitPromise;
+}
+
+async function ensureDbReady(type = 'chat') {
+  const dbInstanceGetter =
+    {
+      chat: () => chatDB,
+      log: () => logDB,
+      model: () => modelDB,
+      modelAssets: () => modelDB,
+    }[type] || (() => { throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`); });
+  const isInitializedFlagGetter =
+    {
+      chat: () => isDbInitialized,
+      log: () => isLogDbInitialized,
+      model: () => isModelDbInitialized,
+      modelAssets: () => isModelDbInitialized,
+    }[type] || (() => false);
+  if (!isDbInitInProgress && !(isDbReadyFlag && absurdSqlBackendInitialized)) {
+    try {
+      await autoEnsureDbInitialized();
+    } catch (initError) {
+      throttledLog(
+        'error',
+        `[DB][ensureDbReady] autoEnsureDbInitialized failed for DB type '${type}'`,
+        null,
+        initError
+      );
+      throw new AppError('DB_INIT_FAILED', `DB auto-init failed for type '${type}': ${initError.message}`);
+    }
+  } else if (isDbInitInProgress) {
+    await dbInitPromise;
+  }
+  const start = Date.now();
+  let waitingLogged = false;
+  while (Date.now() - start < DB_INIT_TIMEOUT) {
+    const dbInstance = dbInstanceGetter();
+    const isInitializedFlag = isInitializedFlagGetter();
+    if (dbInstance && isInitializedFlag && absurdSqlBackendInitialized && isDbReadyFlag) {
+      return dbInstance;
+    }
+    if (!waitingLogged && Date.now() - start > 300) {
+      throttledLog(
+        'log',
+        `[DB][ensureDbReady] Waiting for DB type '${type}'`,
+        null,
+        `(absurdSqlBackendInitialized: ${absurdSqlBackendInitialized}, isDbReadyFlag: ${isDbReadyFlag}, specific init: ${isInitializedFlag})... elapsed: ${Date.now() - start}ms`
+      );
+      waitingLogged = true;
+    }
+    await new Promise((res) => setTimeout(res, POLL_INTERVAL));
+  }
+  const dbInstance = dbInstanceGetter();
+  const isInitializedFlag = isInitializedFlagGetter();
+  if (!dbInstance || !isInitializedFlag || !absurdSqlBackendInitialized || !isDbReadyFlag) {
+    throttledLog(
+      'error',
+      `[DB][ensureDbReady] DB for type '${type}' not initialized after ${DB_INIT_TIMEOUT}ms`,
+      null,
+      `DB: ${!!dbInstance}, InitFlag: ${isInitializedFlag}, AbsurdReady: ${absurdSqlBackendInitialized}, GlobalReady: ${isDbReadyFlag}`
+    );
+    throw new AppError('DB_NOT_READY', `DB for type '${type}' not initialized after ${DB_INIT_TIMEOUT}ms`);
+  }
+  return dbInstance;
+}
+
+// --- Internal DB Operations ---
+async function createChatSessionInternal(initialMessage) {
+  if (!initialMessage?.text) {
+    return { success: false, error: 'Initial message with text is required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionRequest.type, { initialMessage });
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to create session' };
+  }
+  await publishSessionUpdate(result.data.id, 'create', result.data);
+  await publishMessagesUpdate(result.data.id, result.data.messages);
+  await publishStatusUpdate(result.data.id, result.data.status);
+  return { success: true, data: result.data };
+}
+
+async function getChatSessionByIdInternal(sessionId) {
+  if (!sessionId) {
+    return { success: false, error: 'Session ID is required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest.type, { sessionId });
+  if (!result?.success) {
+    return { success: false, error: result?.error || `Session ${sessionId} not found` };
+  }
+  return { success: true, data: result.data };
+}
+
+async function addMessageToChatInternal(chatId, messageObject) {
+  if (!chatId || !messageObject?.text) {
+    return { success: false, error: 'Chat ID and message with text are required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type, { chatId, messageObject });
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to add message' };
+  }
+  await publishSessionUpdate(chatId, 'update', result.data.updatedDoc);
+  await publishMessagesUpdate(chatId, result.data.updatedDoc.messages);
+  return { success: true, data: result.data };
+}
+
+async function updateMessageInChatInternal(chatId, messageId, updates) {
+  if (!chatId || !messageId || !updates || (!updates.text && typeof updates.isLoading === 'undefined')) {
+    return {
+      success: false,
+      error: 'Chat ID, message ID, and updates (with text or isLoading) are required',
+    };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageRequest.type, {
+    chatId,
+    messageId,
+    updates,
+  });
+  console.log('[minimaldb] updateMessageInChatInternal result:', result);
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to update message' };
+  }
+  await publishSessionUpdate(chatId, 'update', result.data);
+  await publishMessagesUpdate(chatId, result.data.messages);
+  return { success: true, data: result.data };
+}
+
+async function deleteMessageFromChatInternal(sessionId, messageId) {
+  if (!sessionId || !messageId) {
+    return { success: false, error: 'Session ID and message ID are required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageRequest.type, { sessionId, messageId });
+  if (!result?.success) {
+    return {
+      success: false,
+      error: result?.error || `Failed to delete message ${messageId} from session ${sessionId}`,
+    };
+  }
+  await publishSessionUpdate(sessionId, 'update', result.data.updatedDoc);
+  await publishMessagesUpdate(sessionId, result.data.updatedDoc.messages);
+  return { success: true, data: result.data };
+}
+
+async function updateSessionStatusInternal(sessionId, newStatus) {
+  const validStatuses = ['idle', 'processing', 'complete', 'error'];
+  if (!sessionId || !validStatuses.includes(newStatus)) {
+    return { success: false, error: `Invalid session ID or status: ${newStatus}` };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusRequest.type, { sessionId, status: newStatus });
+  if (!result?.success) {
+    return { success: false, error: result?.error || `Failed to update session status to ${newStatus}` };
+  }
+  await publishSessionUpdate(sessionId, 'update', result.data);
+  await publishStatusUpdate(sessionId, newStatus);
+  return { success: true, data: result.data };
+}
+
+async function toggleItemStarredInternal(itemId) {
+  if (!itemId) {
+    return { success: false, error: 'Item ID is required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest.type, { sessionId: itemId });
+  if (!result?.success) {
+    return { success: false, error: result?.error || `Failed to toggle starred status for item ${itemId}` };
+  }
+  await publishSessionUpdate(itemId, 'update', result.data);
+  return { success: true, data: result.data };
+}
+
+async function deleteHistoryItemInternal(itemId) {
+  if (!itemId) {
+    return { success: false, error: 'Item ID is required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest.type, { sessionId: itemId });
+  if (!result?.success) {
+    return { success: false, error: result?.error || `Failed to delete item ${itemId}` };
+  }
+  await publishSessionUpdate(itemId, 'delete');
+  return { success: true, data: result.data };
+}
+
+async function renameHistoryItemInternal(itemId, newTitle) {
+  if (!itemId || !newTitle) {
+    return { success: false, error: 'Item ID and new title are required' };
+  }
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest.type, {
+    sessionId: itemId,
+    newName: newTitle,
+  });
+  if (!result?.success) {
+    return { success: false, error: result?.error || `Failed to rename item ${itemId} to ${newTitle}` };
+  }
+  await publishSessionUpdate(itemId, 'rename', result.data);
+  return { success: true, data: result.data };
+}
+
+async function getAllSessionsInternal() {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest.type);
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to retrieve all sessions' };
+  }
+  return { success: true, data: result.data };
+}
+
+async function getStarredSessionsInternal() {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsRequest.type);
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to retrieve starred sessions' };
+  }
+  return { success: true, data: result.data };
+}
+
+async function getLogsInternal(filters) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsRequest.type, { filters });
+  if (!result?.success) return [];
+  return result.data;
+}
+
+async function getUniqueLogValuesInternal(fieldName) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesRequest.type, { fieldName });
+  if (!result?.success) return [];
+  return result.data;
+}
+
+async function clearLogsInternal(sessionIdsToDelete) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsRequest.type, { sessionIdsToDelete });
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to clear logs', data: { deletedCount: 0 } };
+  }
+  return result;
+}
+
+async function getAllUniqueLogSessionIdsInternal() {
+  try {
+    const db = await ensureDbReady('log');
+    const rows = await queryAll(db, `SELECT DISTINCT extensionSessionId FROM logs WHERE extensionSessionId IS NOT NULL`);
+    const uniqueIds = new Set(rows.map((r) => r.extensionSessionId));
+    return { success: true, data: uniqueIds };
+  } catch (error) {
+    return { success: false, error: error.message || String(error) };
+  }
+}
+
+// --- Request Handlers ---
+async function handleRequest(
+  event,
+  internalHandler,
+  ResponseClass,
+  timeout = 5000,
+  successDataExtractor = (result) => result.data,
+  errorDetailsExtractor = () => ({})
+) {
+  const requestId = event?.requestId || crypto.randomUUID();
+  try {
+    await autoEnsureDbInitialized();
+    const result = await withTimeout(internalHandler(event.payload), timeout);
+    console.log('[Trace][minimaldb] handleRequest: result', result);
+    if (!result.success) {
+      throw new AppError('INTERNAL_OPERATION_FAILED', result.error || 'Unknown internal error', errorDetailsExtractor(result));
+    }
+    const responseData = successDataExtractor(result);
+    return new ResponseClass(requestId, true, responseData);
+  } catch (error) {
+    const appError =
+      error instanceof AppError
+        ? error
+        : new AppError('UNKNOWN_HANDLER_ERROR', error.message || 'Failed in request handler', {
+            originalError: error,
+            ...errorDetailsExtractor(error),
+          });
+    return new ResponseClass(requestId, false, null, appError);
+  }
+}
+
+const dbHandlerMap = {
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetReadyStateRequest.type]: handleDbGetReadyStateRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionRequest.type]: handleDbCreateSessionRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest.type]: handleDbGetSessionRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type]: handleDbAddMessageRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageRequest.type]: handleDbUpdateMessageRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageRequest.type]: handleDbDeleteMessageRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusRequest.type]: handleDbUpdateStatusRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest.type]: handleDbToggleStarRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest.type]: handleDbGetAllSessionsRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsRequest.type]: handleDbGetStarredSessionsRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest.type]: handleDbDeleteSessionRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest.type]: handleDbRenameSessionRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddLogRequest.type]: handleDbAddLogRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsRequest.type]: handleDbGetLogsRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesRequest.type]: handleDbGetUniqueLogValuesRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsRequest.type]: handleDbClearLogsRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsRequest.type]: handleDbGetCurrentAndLastLogSessionIdsRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbResetDatabaseRequest.type]: handleDbResetDatabaseRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetRequest.type]: handleDbAddModelAssetRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksRequest.type]: handleDbCountModelAssetChunksRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelRequest.type]: handleDbLogAllChunkGroupIdsForModelRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesRequest.type]: handleDbListModelFilesRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksRequest.type]: handleDbGetModelAssetChunksRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkRequest.type]: handleDbGetModelAssetChunkRequest,
+  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedRequest.type]: async (event) => {
+    try {
+      await autoEnsureDbInitialized();
+      return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedResponse(event.requestId, true);
+    } catch (e) {
+      return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedResponse(event.requestId, false, null, e);
+    }
+  },
+};
+
+async function handleDbGetReadyStateRequest(event) {
+  const requestId = event?.requestId || crypto.randomUUID();
+  return { success: true, data: { ready: isDbReadyFlag && absurdSqlBackendInitialized } };
+}
+
+async function handleDbCreateSessionRequest(event) {
+  console.log('[Trace][minimaldb] handleDbCreateSessionRequest: called with', event);
+  if (!event?.payload?.initialMessage?.text) {
+    throw new AppError('INVALID_INPUT', 'Missing initialMessage or message text');
+  }
+  return handleRequest(
+    event,
+    (payload) => createChatSessionInternal(payload.initialMessage),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionResponse,
+    5000,
+    (res) => res.data.id
+  );
+}
+
+async function handleDbGetSessionRequest(event) {
+  if (!event?.payload?.sessionId) {
+    throw new AppError('INVALID_INPUT', 'Session ID is required');
+  }
+  return handleRequest(
+    event,
+    (payload) => getChatSessionByIdInternal(payload.sessionId),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionResponse,
+    5000,
+    (res) => (res.data ? res.data : null)
+  );
+}
+
+async function handleDbAddMessageRequest(event) {
+  if (!event?.payload?.sessionId || !event?.payload?.messageObject?.text) {
+    throw new AppError('INVALID_INPUT', 'Session ID and message with text are required');
+  }
+  return handleRequest(
+    event,
+    (payload) => addMessageToChatInternal(payload.sessionId, payload.messageObject),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageResponse,
+    5000,
+    (res) => res.data.newMessageId
+  );
+}
+
+async function handleDbUpdateMessageRequest(event) {
+  console.log('[minimaldb] handleDbUpdateMessageRequest called with event:', event);
+  if (
+    !event?.payload?.sessionId ||
+    !event?.payload?.messageId ||
+    !event?.payload?.updates ||
+    (!event.payload.updates.text && typeof event.payload.updates.isLoading === 'undefined')
+  ) {
+    throw new AppError(
+      'INVALID_INPUT',
+      'Session ID, message ID, and updates (with text or isLoading) are required'
+    );
+  }
+  return handleRequest(
+    event,
+    (payload) => updateMessageInChatInternal(payload.sessionId, payload.messageId, payload.updates),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageResponse,
+    5000,
+    () => true
+  );
+}
+
+async function handleDbDeleteMessageRequest(event) {
+  if (!event?.payload?.sessionId || !event?.payload?.messageId) {
+    throw new AppError('INVALID_INPUT', 'Session ID and message ID are required');
+  }
+  return handleRequest(
+    event,
+    (payload) => deleteMessageFromChatInternal(payload.sessionId, payload.messageId),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageResponse,
+    5000,
+    () => true
+  );
+}
+
+async function handleDbUpdateStatusRequest(event) {
+  if (!event?.payload?.sessionId || !event?.payload?.status) {
+    throw new AppError('INVALID_INPUT', 'Session ID and status are required');
+  }
+  const wrappedHandler = async (payload) => {
+    try {
+      return await updateSessionStatusInternal(payload.sessionId, payload.status);
+    } catch (e) {
+      await publishStatusUpdate(payload.sessionId, 'error');
+      throw e;
+    }
+  };
+  return handleRequest(event, wrappedHandler, _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusResponse, 5000, () => true);
+}
+
+async function handleDbToggleStarRequest(event) {
+  if (!event?.payload?.sessionId) {
+    throw new AppError('INVALID_INPUT', 'Session ID is required');
+  }
+  return handleRequest(
+    event,
+    (payload) => toggleItemStarredInternal(payload.sessionId),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarResponse,
+    5000,
+    (res) => res.data
+  );
+}
+
+async function handleDbGetAllSessionsRequest(event) {
+  console.log('[Trace][minimaldb] handleDbGetAllSessionsRequest: called with', event);
+  return handleRequest(
+    event,
+    getAllSessionsInternal,
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsResponse,
+    5000,
+    (res) => (res.data || []).sort((a, b) => b.timestamp - a.timestamp)
+  );
+}
+
+async function handleDbGetStarredSessionsRequest(event) {
+  return handleRequest(
+    event,
+    getStarredSessionsInternal,
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsResponse,
+    5000,
+    (res) =>
+      (res.data || [])
+        .map((s) => ({ sessionId: s.id, name: s.title, lastUpdated: s.timestamp, isStarred: s.isStarred }))
+        .sort((a, b) => b.lastUpdatedpls - a.lastUpdated)
+  );
+}
+
+async function handleDbDeleteSessionRequest(event) {
+  if (!event?.payload?.sessionId) {
+    throw new AppError('INVALID_INPUT', 'Session ID is required');
+  }
+  return handleRequest(
+    event,
+    (payload) => deleteHistoryItemInternal(payload.sessionId),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionResponse,
+    5000,
+    () => true
+  );
+}
+
+async function handleDbRenameSessionRequest(event) {
+  if (!event?.payload?.sessionId || !event?.payload?.newName) {
+    throw new AppError('INVALID_INPUT', 'Session ID and new name are required');
+  }
+  return handleRequest(
+    event,
+    (payload) => renameHistoryItemInternal(payload.sessionId, payload.newName),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionResponse,
+    5000,
+    () => true
+  );
+}
+
+async function handleDbAddLogRequest(event) {
+  const requestId = event?.requestId || crypto.randomUUID();
+  try {
+    await autoEnsureDbInitialized();
+    if (!event?.payload?.logEntryData) {
+      throw new AppError('INVALID_INPUT', 'Missing logEntryData in payload');
+    }
+    const db = await ensureDbReady('log');
+    const entry = event.payload.logEntryData;
+    await runQuery(
+      db,
+      `INSERT INTO logs (id, timestamp, level, message, component, extensionSessionId, chatSessionId)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.id,
+        entry.timestamp,
+        entry.level,
+        entry.message,
+        entry.component,
+        entry.extensionSessionId,
+        entry.chatSessionId || null,
+      ]
+    );
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message || String(error) };
+  }
+}
+
+async function handleDbGetLogsRequest(event) {
+  if (!event?.payload?.filters) {
+    throw new AppError('INVALID_INPUT', 'Missing filters in payload');
+  }
+  return handleRequest(event, (payload) => getLogsInternal(payload.filters), _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsResponse);
+}
+
+async function handleDbGetUniqueLogValuesRequest(event) {
+  if (!event?.payload?.fieldName) {
+    throw new AppError('INVALID_INPUT', 'Missing fieldName in payload');
+  }
+  return handleRequest(
+    event,
+    (payload) => getUniqueLogValuesInternal(payload.fieldName),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesResponse
+  );
+}
+
+async function handleDbClearLogsRequest(event) {
+  const requestId = event?.requestId || crypto.randomUUID();
+  try {
+    await autoEnsureDbInitialized();
+    const allLogSessionIdsResult = await getAllUniqueLogSessionIdsInternal();
+    if (!allLogSessionIdsResult.success) {
+      throw new AppError(
+        'FETCH_FAILED',
+        allLogSessionIdsResult.error || 'Failed to get unique log session IDs for clearing.'
+      );
+    }
+    const allLogSessionIds = allLogSessionIdsResult.data;
+    const sessionsToKeep = new Set();
+    if (currentExtensionSessionId) sessionsToKeep.add(currentExtensionSessionId);
+    if (previousExtensionSessionId) sessionsToKeep.add(previousExtensionSessionId);
+    const sessionIdsToDelete = Array.from(allLogSessionIds).filter((id) => !sessionsToKeep.has(id));
+    let deletedCount = 0;
+    if (sessionIdsToDelete.length > 0) {
+      const clearResult = await clearLogsInternal(sessionIdsToDelete);
+      if (clearResult.success) deletedCount = clearResult.data.deletedCount;
+      else throw new AppError('DELETE_FAILED', clearResult.error || 'Failed to delete old logs.');
+    }
+    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse(requestId, true, { deletedCount });
+  } catch (error) {
+    const appError =
+      error instanceof AppError
+        ? error
+        : new AppError('UNKNOWN', 'Failed to clear logs', { originalError: error });
+    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse(requestId, false, null, appError);
+  }
+}
+
+async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
+  const requestId = event?.requestId || crypto.randomUUID();
+  try {
+    await autoEnsureDbInitialized();
+    const ids = { currentLogSessionId: currentExtensionSessionId, previousLogSessionId: previousExtensionSessionId };
+    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
+  } catch (error) {
+    const appError = new AppError('UNKNOWN', 'Failed to get current/last log session IDs', {
+      originalError: error,
+    });
+    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
+  }
+}
+
+async function handleDbResetDatabaseRequest(event) {
+  return await sendDbWorkerRequest(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_WORKER_RESET);
+}
+
+// --- Notification Utilities ---
+function smartNotify(notification) {
+  const payloadKeys = notification && notification.payload ? Object.keys(notification.payload) : [];
+  const sessionId = notification.sessionId || (notification.payload && notification.payload.session && notification.payload.session.id) || 'N/A';
+  let deliveryPath = '';
+  if (typeof window === 'undefined') {
+    deliveryPath = 'background (browser.runtime.sendMessage)';
+    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
+    webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(notification);
+  } else if (window.EXTENSION_CONTEXT === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.Contexts.MAIN_UI) {
+    deliveryPath = 'same-context (document.dispatchEvent)';
+    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
+    document.dispatchEvent(new CustomEvent(notification.type, { detail: notification }));
+    deliveryPath = 'cross-context (dbChannel.postMessage)';
+    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
+    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__.dbChannel.postMessage(notification);
+  } else {
+    deliveryPath = 'cross-context (dbChannel.postMessage)';
+    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
+    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__.dbChannel.postMessage(notification);
+  }
+}
+
+async function publishSessionUpdate(sessionId, updateType = 'update', sessionDataOverride = null) {
+  try {
+    let sessionData = sessionDataOverride;
+    if (!sessionData) {
+      const result = await getChatSessionByIdInternal(sessionId);
+      if (result.success && result.data) {
+        sessionData = result.data;
+      } else if (updateType === 'delete') {
+        sessionData = { id: sessionId };
+      } else {
+        return;
+      }
+    }
+    let plainSession = sessionData;
+    if (sessionData && typeof sessionData.toJSON === 'function') {
+      plainSession = sessionData.toJSON();
+    } else if (sessionData) {
+      try {
+        plainSession = JSON.parse(JSON.stringify(sessionData));
+      } catch (e) {
+        return;
+      }
+    }
+    const notification = {
+      type: _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type,
+      payload: { session: plainSession, updateType },
+    };
+    smartNotify(notification);
+  } catch (e) {
+    // console.error('[DB] Failed to publish session update notification', e, { sessionId, updateType });
+  }
+}
+
+/**
+ * Publishes a messages update notification for a session.
+ * Always expects messages to be an array of message objects.
+ */
+async function publishMessagesUpdate(sessionId, messages) {
+  try {
+    if (!Array.isArray(messages)) {
+      console.error('[minimaldb] publishMessagesUpdate: messages is not an array! Got:', messages);
+      return;
+    }
+    let plainMessages = messages.map((m) => ({ ...m }));
+    const notification = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(sessionId, plainMessages);
+    smartNotify(notification);
+  } catch (e) {
+    console.error('[DB] Failed to publish messages update notification', e, { sessionId });
+  }
+}
+
+async function publishStatusUpdate(sessionId, status) {
+  try {
+    const notification = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(sessionId, status);
+    smartNotify(notification);
+  } catch (e) {
+    console.error('[DB] Failed to publish status update notification', e, { sessionId });
+  }
+}
+
+// --- Model Asset Management ---
+async function ensureModelAssetsReady() {
+  return await ensureDbReady('model');
+}
+
+function shouldLogOrSendChunkProgress(chunkIndex, totalChunks) {
+  return chunkIndex === 0 || (totalChunks && chunkIndex === totalChunks - 1) || chunkIndex % 100 === 0;
+}
+
+async function addModelAsset(
+  folder,
+  fileName,
+  fileType,
+  data,
+  chunkIndex = 0,
+  totalChunks = 1,
+  chunkGroupId = '',
+  binarySize = null,
+  totalFileSize = null
+) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetRequest.type, {
+    folder,
+    fileName,
+    fileType,
+    data,
+    chunkIndex,
+    totalChunks,
+    chunkGroupId,
+    binarySize,
+    totalFileSize,
+  });
+  if (!result?.success) throw new Error(result?.error || 'Failed to add model asset');
+  return result;
+}
+
+async function getModelAssetChunks(chunkGroupId) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksRequest.type, { chunkGroupId });
+  if (!result?.success) return [];
+  return result.data;
+}
+
+async function countModelAssetChunks(folder, fileName, expectedSize, expectedChunks) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksRequest.type, {
+    folder,
+    fileName,
+    expectedSize,
+    expectedChunks,
+  });
+  if (!result?.success) {
+    return { success: false, error: result?.error || 'Failed to count model asset chunks' };
+  }
+  return result;
+}
+
+async function logAllChunkGroupIdsForModel(folder) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelRequest.type, { folder });
+  if (!result?.success) return [];
+  return result.data;
+}
+
+async function listModelFiles(modelId) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesRequest.type, { modelId });
+  if (!result?.success) return [];
+  return result.data;
+}
+
+async function getModelAssetChunk(folder, fileName, chunkIndex) {
+  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkRequest.type, {
+    folder,
+    fileName,
+    chunkIndex,
+  });
+  if (!result?.success) return null;
+  return result.data;
+}
+
+async function handleDbAddModelAssetRequest(event) {
+  return handleRequest(
+    event,
+    (payload) =>
+      addModelAsset(
+        payload.folder,
+        payload.fileName,
+        payload.fileType,
+        payload.data,
+        payload.chunkIndex,
+        payload.totalChunks,
+        payload.chunkGroupId,
+        payload.binarySize,
+        payload.totalFileSize
+      ),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetResponse,
+    5000,
+    (res) => res
+  );
+}
+
+async function handleDbCountModelAssetChunksRequest(event) {
+  return handleRequest(
+    event,
+    (payload) =>
+      countModelAssetChunks(payload.folder, payload.fileName, payload.expectedSize, payload.expectedChunks),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksResponse,
+    5000,
+    (res) => res
+  );
+}
+
+async function handleDbLogAllChunkGroupIdsForModelRequest(event) {
+  return handleRequest(
+    event,
+    (payload) => logAllChunkGroupIdsForModel(payload.folder),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelResponse,
+    5000,
+    (res) => res
+  );
+}
+
+async function handleDbListModelFilesRequest(event) {
+  return handleRequest(
+    event,
+    (payload) => listModelFiles(payload.modelId),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesResponse
+  );
+}
+
+async function handleDbGetModelAssetChunksRequest(event) {
+  return handleRequest(
+    event,
+    (payload) => getModelAssetChunks(payload.chunkGroupId),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksResponse
+  );
+}
+
+async function handleDbGetModelAssetChunkRequest(event) {
+  return handleRequest(
+    event,
+    (payload) => getModelAssetChunk(payload.folder, payload.fileName, payload.chunkIndex),
+    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse
+  );
+}
+
+// --- Logging Utilities ---
+const logThrottleCache = {};
+const logLastContext = {};
+
+function throttledLog(type, staticMsg, contextKey = null, ...args) {
+  const now = Date.now();
+  const cacheKey = contextKey ? `${staticMsg}__${contextKey}` : staticMsg;
+  if (!logThrottleCache[type]) logThrottleCache[type] = {};
+  if (contextKey !== null) {
+    if (logLastContext[staticMsg] === contextKey && now - (logThrottleCache[type][cacheKey] || 0) < LOG_THROTTLE_MS) {
+      return;
+    }
+    logLastContext[staticMsg] = contextKey;
+  }
+  if (!logThrottleCache[type][cacheKey] || now - logThrottleCache[type][cacheKey] > LOG_THROTTLE_MS) {
+    logThrottleCache[type][cacheKey] = now;
+    const fullMessage = contextKey !== null ? [staticMsg, contextKey, ...args] : [staticMsg, ...args];
+    if (type === 'log') console.log(...fullMessage);
+    else if (type === 'warn') console.warn(...fullMessage);
+    else if (type === 'error') console.error(...fullMessage);
+  }
+}
+
+// --- Message Listener ---
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || !message.type || !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames).includes(message.type)) {
+    return false;
+  }
+  forwardDbRequest(message)
+    .then((result) => {
+      console.log('[Trace][minimaldb] onMessage: Handler result', result);
+      sendResponse(result);
+    })
+    .catch((err) => {
+      console.error('[Trace][minimaldb] onMessage: Handler error', err);
+      sendResponse({ success: false, error: err.message || 'Unknown error in handler' });
+    });
+  return true;
+});
+
+// --- Exported Functions ---
+async function forwardDbRequest(request) {
+  const handler = dbHandlerMap[request?.type];
+  if (!handler) {
+    throw new Error(`No DB handler for type: ${request?.type}`);
+  }
+  try {
+    const result = await handler(request);
+    return result;
+  } catch (err) {
+    return { success: false, error: err.message || 'Unknown error in handler' };
+  }
+}
+
+async function resetDatabase() {
+  try {
+    await initializeDatabasesAndBackend(true);
+    return { success: true };
+  } catch (e) {
+    throw e;
+  }
+}
+
+
+
+/***/ }),
+
+/***/ "./src/modelAssetDownloader.js":
+/*!*************************************!*\
+  !*** ./src/modelAssetDownloader.js ***!
+  \*************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   downloadModelAssets: () => (/* binding */ downloadModelAssets)
+/* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _sidepanel_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./sidepanel.js */ "./src/sidepanel.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
+
+
+
+
+
+const prefix = '[Downloader]';
+const CHUNK_SIZE = 10 * 1024 * 1024;
+const MAX_RETRIES = 3;
+const PROGRESS_THROTTLE_MS = 2000;
+const PROGRESS_THROTTLE_CHUNKS = 200;
+
+function logMemory(label) {
+    if (performance && performance.memory) {
+        const usedMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
+        const totalMB = (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
+        console.log(`${prefix} [Memory][${label}] Used: ${usedMB} MB / Total: ${totalMB} MB`);
+    } else {
+        console.log(`${prefix} [Memory][${label}] performance.memory not available`);
+    }
+}
+
+function shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastSent, now) {
+    return chunkIndex === 0 ||
+           (totalChunks && chunkIndex === totalChunks - 1) ||
+           chunkIndex % PROGRESS_THROTTLE_CHUNKS === 0 ||
+           (now - lastSent >= PROGRESS_THROTTLE_MS);
+}
+
+async function tryStoreChunkInternal(payload, maxRetries = MAX_RETRIES) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+        const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbAddModelAssetRequest(payload);
+        const addResult = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+        if (addResult && addResult.success) return true;
+        attempt++;
+        console.log(`${prefix} Retrying chunk store, attempt ${attempt} for ${payload.fileName} chunk ${payload.chunkIndex}`);
+        await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
+    }
+    console.error(`${prefix} Failed to store chunk after ${maxRetries} retries:`, payload.fileName, payload.chunkIndex);
+    return false;
+}
+
+async function countModelAssetChunksViaMessage(folder, fileName, expectedSize, expectedChunks) {
+    const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbCountModelAssetChunksRequest({ folder, fileName, expectedSize, expectedChunks });
+    const result = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+    return result && result.success ? result.data : result;
+}
+
+async function fetchModelMetadataInternal(modelId) {
+    const apiUrl = `https://huggingface.co/api/models/${encodeURIComponent(modelId)}`;
+    console.log(prefix, `Fetching model metadata from: ${apiUrl}`);
+    try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(prefix, `Failed to fetch model file list for ${modelId}: ${response.status} ${response.statusText}`, errorText);
+            throw new Error(`Metadata fetch failed (${response.status}): ${response.statusText}`);
+        }
+        const metadata = await response.json();
+        console.log(prefix, `Model metadata fetched successfully for ${modelId}.`);
+        return metadata;
+    } catch (error) {
+        console.error(prefix, `Error fetching metadata for ${modelId}:`, error);
+        throw error;
+    }
+}
+
+async function filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl) {
+    const hfFileEntries = metadata.siblings || [];
+    const neededFileEntries = hfFileEntries.filter(f => f.rfilename.endsWith('.onnx') || f.rfilename.endsWith('.json') || f.rfilename.endsWith('.txt'));
+    const neededFileNames = neededFileEntries.map(f => f.rfilename);
+    console.log(prefix, `Identified ${neededFileNames.length} needed files for ${modelId}:`, neededFileNames);
+
+    if (neededFileEntries.length === 0) {
+        return { neededFileEntries: [], message: "No .onnx, .json, or .txt files found in model metadata." };
+    }
+
+    async function getFileSizeWithHEAD(url) {
+        try {
+            const headResp = await fetch(url, { method: 'HEAD' });
+            if (headResp.ok) {
+                const len = headResp.headers.get('Content-Length');
+                return len ? parseInt(len, 10) : null;
+            }
+        } catch (e) {
+            console.warn(prefix, `HEAD request failed for ${url}:`, e);
+        }
+        return null;
+    }
+
+    const sizePromises = neededFileEntries.map(async (entry) => {
+        if (typeof entry.size !== 'number' || !isFinite(entry.size) || entry.size <= 0) {
+            const url = baseDownloadUrl + entry.rfilename;
+            const size = await getFileSizeWithHEAD(url);
+            if (size && isFinite(size) && size > 0) {
+                entry.size = size;
+                console.log(prefix, `Got file size via HEAD for ${entry.rfilename}: ${size}`);
+            } else {
+                console.error(prefix, `Skipping file ${entry.rfilename}: missing/invalid size (HEAD failed or Content-Length missing)`);
+                entry._skip = true;
+            }
+        }
+    });
+
+    await Promise.all(sizePromises);
+    return { neededFileEntries, message: null };
+}
+
+function buildDownloadPlanInternal(neededFileEntries) {
+    const downloadPlan = neededFileEntries.filter(e => !e._skip).map((entry, idx) => ({
+        fileName: entry.rfilename,
+        fileSize: entry.size,
+        totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
+        fileIdx: idx + 1,
+        fileType: entry.rfilename.split('.').pop(),
+    }));
+    const totalBytesToDownload = downloadPlan.reduce((sum, f) => sum + f.fileSize, 0);
+    const totalChunksToDownload = downloadPlan.reduce((sum, f) => sum + f.totalChunks, 0);
+    console.log(prefix, "Built download plan:", { downloadPlan, totalBytesToDownload, totalChunksToDownload });
+    return { downloadPlan, totalBytesToDownload, totalChunksToDownload };
+}
+
+async function getMissingFilesInternal(downloadPlan, modelId) {
+    const missingFiles = [];
+    const presentFiles = {};
+    for (const plan of downloadPlan) {
+        const { fileName, fileSize, totalChunks } = plan;
+        console.log(prefix, '[DB ChunkCount Check] Checking chunk count for:', { modelId, fileName, expectedChunks: totalChunks });
+        const countResult = await countModelAssetChunksViaMessage(modelId, fileName, fileSize, totalChunks);
+        console.log(prefix, '[DB ChunkCount Check] Result:', { modelId, fileName, expectedChunks: totalChunks, countResult });
+        if (countResult && countResult.success && countResult.verified && countResult.count === totalChunks) {
+            presentFiles[fileName] = true;
+        } else {
+            missingFiles.push(plan);
+        }
+    }
+    return { missingFiles, presentFiles };
+}
+
+// Helper to format bytes as human-readable string
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalBytesToDownload, totalChunksToDownload, totalBytesDownloaded, totalChunksDownloaded, totalFilesToAttempt) {
+    const { fileName, fileSize, totalChunks, fileIdx, fileType } = plan;
+    const downloadUrl = baseDownloadUrl + fileName;
+    let fileBytesDownloaded = 0;
+    let fileChunksDownloaded = 0;
+    let fileFailed = false;
+    let lastProgressSent = Date.now();
+    let chunkIndex = 0;
+    let allChunksSuccess = true;
+    const chunkGroupId = `${modelId}/${fileName}`;
+    let currentFileSource = "Download_Attempt";
+
+    try {
+        if (fileSize > 10 * 1024 * 1024) {
+            logMemory(`Before file ${fileName}`);
+        }
+        console.log(prefix, `Downloading file from: ${downloadUrl}`);
+        const downloadResponse = await fetch(downloadUrl);
+
+        if (!downloadResponse.ok) {
+            const errorText = await downloadResponse.text();
+            console.error(prefix, `Failed to download ${modelId}/${fileName}: ${downloadResponse.status} ${downloadResponse.statusText}`, errorText);
+            await sendUiProgress({
+                modelId,
+                file: fileName,
+                error: `Download failed (${downloadResponse.status})`,
+                downloaded: 0,
+                total: totalFilesToAttempt,
+                currentFileSource,
+                fileIdx,
+                totalFiles: totalFilesToAttempt,
+                fileTotalBytes: fileSize,
+                fileTotalBytesHuman: formatBytes(fileSize)
+            }).catch(e => console.warn(`${prefix} Error sending progress on download fail: ${e.message}`));
+            return { fileFailed: true };
+        }
+        currentFileSource = "Download_Success_Store_Attempt";
+
+        const reader = downloadResponse.body.getReader();
+        let buffer = new Uint8Array(CHUNK_SIZE);
+        let bufferOffset = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            if (!(value instanceof Uint8Array)) {
+                console.error(prefix, `Invalid chunk data for ${fileName}, chunk ${chunkIndex}:`, typeof value);
+                fileFailed = true;
+                await sendUiProgress({
+                    modelId,
+                    file: fileName,
+                    fileIdx,
+                    totalFiles: totalFilesToAttempt,
+                    chunkIndex,
+                    totalChunks,
+                    error: `Invalid chunk data type: ${typeof value}`,
+                    currentFileSource,
+                    failType: 'invalid_chunk',
+                    fileTotalBytes: fileSize,
+                    fileTotalBytesHuman: formatBytes(fileSize)
+                }).catch(e => console.warn(`${prefix} Error sending progress on invalid chunk: ${e.message}`));
+                reader.cancel('Invalid chunk data');
+                break;
+            }
+
+            let valueOffset = 0;
+            while (valueOffset < value.length) {
+                const remainingBuffer = CHUNK_SIZE - bufferOffset;
+                const copyLength = Math.min(remainingBuffer, value.length - valueOffset);
+                buffer.set(value.subarray(valueOffset, valueOffset + copyLength), bufferOffset);
+                bufferOffset += copyLength;
+                valueOffset += copyLength;
+
+                if (bufferOffset === CHUNK_SIZE) {
+                    let chunkToStore = buffer;
+                    buffer = new Uint8Array(CHUNK_SIZE);
+                    bufferOffset = 0;
+
+                    const now = Date.now();
+                    if (shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastProgressSent, now)) {
+                        console.log(prefix, '[Chunk] About to store chunk:', { fileName, chunkIndex, chunkLength: chunkToStore.length });
+                    }
+
+                    const dbPayload = {
+                        modelId,
+                        fileName,
+                        fileType,
+                        data: chunkToStore,
+                        chunkIndex,
+                        totalChunks,
+                        chunkGroupId,
+                        binarySize: chunkToStore.byteLength,
+                        totalFileSize: fileSize
+                    };
+                    const success = await tryStoreChunkInternal(dbPayload);
+
+                    if (!success) {
+                        allChunksSuccess = false;
+                        fileFailed = true;
+                        await sendUiProgress({
+                            modelId,
+                            file: fileName,
+                            fileIdx,
+                            totalFiles: totalFilesToAttempt,
+                            chunkIndex,
+                            totalChunks,
+                            error: `Failed to store chunk ${chunkIndex + 1} after ${MAX_RETRIES} retries`,
+                            currentFileSource,
+                            failType: 'chunk_write',
+                            fileTotalBytes: fileSize,
+                            fileTotalBytesHuman: formatBytes(fileSize)
+                        }).catch(e => console.warn(`${prefix} Error sending progress on chunk store fail: ${e.message}`));
+                        reader.cancel('Chunk storage failed');
+                        break;
+                    }
+
+                    chunkIndex++;
+                    fileChunksDownloaded++;
+                    totalChunksDownloaded.value++;
+                    fileBytesDownloaded += chunkToStore.byteLength;
+                    totalBytesDownloaded.value += chunkToStore.byteLength;
+
+                    if (chunkIndex === totalChunks || shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastProgressSent, now)) {
+                        await sendUiProgress({
+                            modelId,
+                            file: fileName,
+                            fileIdx,
+                            totalFiles: totalFilesToAttempt,
+                            chunkIndex,
+                            totalChunks,
+                            fileBytesDownloaded,
+                            fileTotalBytes: fileSize,
+                            fileTotalBytesHuman: formatBytes(fileSize),
+                            totalBytesDownloaded: totalBytesDownloaded.value,
+                            totalBytesToDownload,
+                            totalChunksDownloaded: totalChunksDownloaded.value,
+                            totalChunksToDownload,
+                            percent: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
+                            filePercent: (fileBytesDownloaded / fileSize) * 100,
+                            progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
+                            status: 'progress',
+                            currentFileSource
+                        }).catch(e => console.warn(`${prefix} Error sending progress update: ${e.message}`));
+                        lastProgressSent = now;
+                    }
+                    chunkToStore = null;
+                }
+            }
+            if (fileFailed) break;
+        }
+
+        if (allChunksSuccess && !fileFailed && bufferOffset > 0) {
+            let finalChunkToStore = buffer.subarray(0, bufferOffset);
+            buffer = null;
+
+            console.log(prefix, '[Chunk] About to store final chunk:', { fileName, chunkIndex, chunkLength: finalChunkToStore.length });
+
+            const dbPayload = {
+                modelId,
+                fileName,
+                fileType,
+                data: finalChunkToStore,
+                chunkIndex,
+                totalChunks,
+                chunkGroupId,
+                binarySize: finalChunkToStore.byteLength,
+                totalFileSize: fileSize
+            };
+            const success = await tryStoreChunkInternal(dbPayload);
+
+            if (!success) {
+                allChunksSuccess = false;
+                fileFailed = true;
+                await sendUiProgress({
+                    modelId,
+                    file: fileName,
+                    fileIdx,
+                    totalFiles: totalFilesToAttempt,
+                    chunkIndex,
+                    totalChunks,
+                    error: `Failed to store final chunk ${chunkIndex + 1} after ${MAX_RETRIES} retries`,
+                    currentFileSource,
+                    failType: 'chunk_write',
+                    fileTotalBytes: fileSize,
+                    fileTotalBytesHuman: formatBytes(fileSize)
+                }).catch(e => console.warn(`${prefix} Error sending progress on final chunk store fail: ${e.message}`));
+            } else {
+                chunkIndex++;
+                fileChunksDownloaded++;
+                totalChunksDownloaded.value++;
+                fileBytesDownloaded += finalChunkToStore.byteLength;
+                totalBytesDownloaded.value += finalChunkToStore.byteLength;
+                await sendUiProgress({
+                    modelId,
+                    file: fileName,
+                    fileIdx,
+                    totalFiles: totalFilesToAttempt,
+                    chunkIndex,
+                    totalChunks,
+                    fileBytesDownloaded,
+                    fileTotalBytes: fileSize,
+                    fileTotalBytesHuman: formatBytes(fileSize),
+                    totalBytesDownloaded: totalBytesDownloaded.value,
+                    totalBytesToDownload,
+                    totalChunksDownloaded: totalChunksDownloaded.value,
+                    totalChunksToDownload,
+                    percent: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
+                    filePercent: 100,
+                    progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
+                    status: 'progress',
+                    currentFileSource
+                }).catch(e => console.warn(`${prefix} Error sending progress for final chunk: ${e.message}`));
+            }
+            finalChunkToStore = null;
+        }
+
+        if (allChunksSuccess && !fileFailed) {
+            const countResult = await countModelAssetChunksViaMessage(modelId, fileName, fileSize, totalChunks);
+            if (countResult.success && countResult.verified && countResult.count === totalChunks) {
+                currentFileSource = "DB_Stored_After_Download";
+                console.log(prefix, `Successfully downloaded, stored, and verified all chunks for ${modelId}/${fileName} in DB.`);
+            } else {
+                fileFailed = true;
+                await sendUiProgress({
+                    modelId,
+                    file: fileName,
+                    fileIdx,
+                    totalFiles: totalFilesToAttempt,
+                    error: `Verification failed: ${countResult.error || 'Unknown error'}`,
+                    failType: 'verification',
+                    currentFileSource,
+                    fileTotalBytes: fileSize,
+                    fileTotalBytesHuman: formatBytes(fileSize)
+                }).catch(e => console.warn(`${prefix} Error sending progress on verification fail: ${e.message}`));
+            }
+        } else if (fileFailed || !allChunksSuccess) {
+            console.error(prefix, `Failed to store all chunks for ${modelId}/${fileName} in DB after download.`);
+             await sendUiProgress({
+                modelId,
+                file: fileName,
+                error: `DB store failed after download (chunked)`,
+                fileIdx,
+                totalFiles: totalFilesToAttempt,
+                currentFileSource,
+                failType: 'file_fail_internal',
+                fileTotalBytes: fileSize,
+                fileTotalBytesHuman: formatBytes(fileSize)
+            }).catch(e => console.warn(`${prefix} Error sending progress on internal file fail: ${e.message}`));
+        }
+
+        if (fileSize > 10 * 1024 * 1024) {
+            logMemory(`After file ${fileName}`);
+        }
+    } catch (error) {
+        fileFailed = true;
+        console.error(prefix, `Error downloading ${modelId}/${fileName}:`, error);
+        await sendUiProgress({
+            modelId,
+            file: fileName,
+            fileIdx,
+            totalFiles: totalFilesToAttempt,
+            error: error.message,
+            failType: 'exception',
+            currentFileSource,
+            fileTotalBytes: fileSize,
+            fileTotalBytesHuman: formatBytes(fileSize)
+        }).catch(e => console.warn(`${prefix} Error sending progress on exception: ${e.message}`));
+    }
+
+    return { fileFailed, fileName, fileBytesDownloaded, fileChunksDownloaded };
+}
+
+async function downloadMissingFilesInternal(missingFiles, modelId, downloadPlan, totalBytesToDownload, totalChunksToDownload, presentFiles, baseDownloadUrl) {
+    let filesSuccessfullyProcessedCount = Object.keys(presentFiles).length;
+    const totalBytesDownloaded = { value: downloadPlan.filter(p => presentFiles[p.fileName]).reduce((sum, p) => sum + p.fileSize, 0) };
+    const totalChunksDownloaded = { value: downloadPlan.filter(p => presentFiles[p.fileName]).reduce((sum, p) => sum + p.totalChunks, 0) };
+    const totalFilesToAttempt = downloadPlan.length;
+    const successfullyProcessedFileMap = { ...presentFiles };
+    const failedFiles = [];
+
+    console.log(prefix, "Initial download progress state:", {
+        filesSuccessfullyProcessedCount,
+        totalBytesDownloaded: totalBytesDownloaded.value,
+        totalChunksDownloaded: totalChunksDownloaded.value,
+        totalFilesToAttempt,
+        presentFiles
+    });
+
+    for (const plan of missingFiles) {
+        const result = await streamAndStoreFileInternal(
+            plan,
+            modelId,
+            baseDownloadUrl,
+            totalBytesToDownload,
+            totalChunksToDownload,
+            totalBytesDownloaded,
+            totalChunksDownloaded,
+            totalFilesToAttempt
+        );
+
+        if (!result.fileFailed) {
+            successfullyProcessedFileMap[result.fileName] = true;
+            filesSuccessfullyProcessedCount++;
+        } else {
+            failedFiles.push(result.fileName);
+        }
+    }
+
+    console.log(prefix, "Final download progress state after processing missing files:", {
+        filesSuccessfullyProcessedCount,
+        totalBytesDownloaded: totalBytesDownloaded.value,
+        totalChunksDownloaded: totalChunksDownloaded.value,
+        failedFiles
+    });
+    return { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles };
+}
+
+function sendUiProgress(payload) {
+    return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+        payload
+    }).catch(e => console.warn(`${prefix} Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`));
+}
+
+async function downloadModelAssets(modelId) {
+    console.log(prefix, `Starting downloadModelAssets for modelId: ${modelId}`);
+    const baseDownloadUrl = `https://huggingface.co/${modelId}/resolve/main/`;
+
+    try {
+        const metadata = await fetchModelMetadataInternal(modelId);
+        const { neededFileEntries, message: filterMessage } = await filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl);
+
+        if (neededFileEntries.length === 0) {
+            console.warn(prefix, filterMessage || "No needed files after filtering.");
+            return { success: true, fileMap: {}, message: filterMessage || "No needed files to download." };
+        }
+
+        const { downloadPlan, totalBytesToDownload, totalChunksToDownload } = buildDownloadPlanInternal(neededFileEntries);
+        if (downloadPlan.length === 0) {
+            const msg = `No valid files to download for ${modelId} after validation and plan building.`;
+            console.warn(prefix, msg);
+            return { success: true, fileMap: {}, message: msg };
+        }
+
+        const { missingFiles, presentFiles } = await getMissingFilesInternal(downloadPlan, modelId);
+        console.log(prefix, `Files already present in DB for ${modelId}:`, Object.keys(presentFiles));
+        console.log(prefix, `Files missing and will be downloaded for ${modelId}:`, missingFiles.map(f => f.fileName));
+
+        await sendUiProgress({
+            modelId,
+            initialScanComplete: true,
+            totalFilesToAttempt: downloadPlan.length,
+            filesAlreadyPresent: Object.keys(presentFiles).length,
+            filesToDownload: missingFiles.length,
+            totalBytesToDownload,
+            totalBytesAlreadyPresent: downloadPlan.filter(p => presentFiles[p.fileName]).reduce((sum, p) => sum + p.fileSize, 0),
+            fileTotalBytes: totalBytesToDownload,
+            fileTotalBytesHuman: formatBytes(totalBytesToDownload)
+        }).catch(e => console.warn(`${prefix} Error sending initial scan progress: ${e.message}`));
+
+
+        if (missingFiles.length === 0) {
+            const msg = `All ${downloadPlan.length} assets for ${modelId} are already available in DB.`;
+            console.log(prefix, msg);
+            await sendUiProgress({
+                modelId,
+                summary: true,
+                filesSuccessfullyProcessedCount: Object.keys(presentFiles).length,
+                totalFilesToAttempt: downloadPlan.length,
+                failedFiles: [],
+                success: true,
+                message: msg,
+                fileTotalBytes: totalBytesToDownload,
+                fileTotalBytesHuman: formatBytes(totalBytesToDownload)
+            }).catch(e => console.warn(`${prefix} Error sending progress for 'all files present': ${e.message}`));
+            return { success: true, fileMap: presentFiles, message: msg, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
+        }
+
+        const { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles } = await downloadMissingFilesInternal(
+            missingFiles,
+            modelId,
+            downloadPlan,
+            totalBytesToDownload,
+            totalChunksToDownload,
+            presentFiles,
+            baseDownloadUrl
+        );
+
+        console.log(prefix, `Finished processing all ${downloadPlan.length} needed files for ${modelId}. Successfully processed ${filesSuccessfullyProcessedCount} files.`);
+        const overallSuccess = filesSuccessfullyProcessedCount === downloadPlan.length;
+        const finalMessage = overallSuccess
+            ? `All ${downloadPlan.length} assets for ${modelId} are now available in DB.`
+            : `Failed to process all assets for ${modelId}. Got ${filesSuccessfullyProcessedCount} of ${downloadPlan.length}. Failed files: ${failedFiles.join(', ')}. Check logs for details.`;
+
+        await sendUiProgress({
+            modelId,
+            summary: true,
+            filesSuccessfullyProcessedCount,
+            totalFilesToAttempt: downloadPlan.length,
+            failedFiles,
+            success: overallSuccess,
+            message: finalMessage,
+            fileTotalBytes: totalBytesToDownload,
+            fileTotalBytesHuman: formatBytes(totalBytesToDownload)
+        }).catch(e => console.warn(`${prefix} Error sending final summary progress: ${e.message}`));
+        console.log(prefix, finalMessage);
+        return { success: overallSuccess, fileMap: successfullyProcessedFileMap, message: finalMessage, failedFiles, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
+
+    } catch (error) {
+        console.error(prefix, `Critical error in downloadModelAssets for ${modelId}:`, error);
+        await sendUiProgress({
+            modelId,
+            summary: true,
+            error: `Download process failed: ${error.message}`,
+            success: false,
+            fileTotalBytes: totalBytesToDownload,
+            fileTotalBytesHuman: formatBytes(totalBytesToDownload)
+        }).catch(e => console.warn(`${prefix} Error sending progress on critical error: ${e.message}`));
+        return { success: false, error: `Download process failed for ${modelId}: ${error.message}`, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
+    }
+}
 
 /***/ }),
 
@@ -5528,7 +7397,7 @@ window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.Co
 let pageContainers = [];
 let navButtons = [];
 let mainHeaderTitle = null;
-
+const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles = {
     'page-home': 'Tab Agent', 
     'page-spaces': 'Spaces',
@@ -5538,7 +7407,7 @@ const pageTitles = {
 
 
 async function navigateTo(pageId) { 
-    console.log(`Navigating to ${pageId}`);
+    console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
    
     pageContainers.forEach(container => {
         container.classList.add('hidden');
@@ -5550,7 +7419,7 @@ async function navigateTo(pageId) {
         targetPage.classList.remove('hidden');
         targetPage.classList.add('active-page');
     } else {
-        console.error(`Navigation error: Page with ID ${pageId} not found. Showing home.`);
+        console.error(CONTEXT_PREFIX + `Navigation error: Page with ID ${pageId} not found. Showing home.`);
         const homePage = document.getElementById('page-home');
         if (homePage) {
              homePage.classList.remove('hidden');
@@ -5573,9 +7442,8 @@ async function navigateTo(pageId) {
         }
     });
 
-    const { eventBus } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./eventBus.js */ "./src/eventBus.js")); 
-    eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.NAVIGATION_PAGE_CHANGED, { pageId: pageId });
-    console.log(`[Navigation] Published navigation:pageChanged event for ${pageId}`);
+    document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
+    console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
 
     const queryInput = document.getElementById('query-input');
      if (pageId === 'page-home' && queryInput) {
@@ -5584,7 +7452,7 @@ async function navigateTo(pageId) {
 }
 
 function initializeNavigation() {
-    console.log("Initializing navigation...");
+    console.log(CONTEXT_PREFIX + "Initializing navigation...");
 
     pageContainers = document.querySelectorAll('.page-container');
     navButtons = document.querySelectorAll('.nav-button');
@@ -5601,7 +7469,7 @@ function initializeNavigation() {
     });
 
     navigateTo('page-home');
-    console.log("Navigation initialized.");
+    console.log(CONTEXT_PREFIX + "Navigation initialized.");
 }
 
  
@@ -5648,6 +7516,727 @@ function hideNotification() {
         banner.onclick = null;
     }
 } 
+
+/***/ }),
+
+/***/ "./src/sidepanel.js":
+/*!**************************!*\
+  !*** ./src/sidepanel.js ***!
+  \**************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart)
+/* harmony export */ });
+/* harmony import */ var _minimaldb_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./minimaldb.js */ "./src/minimaldb.js");
+/* harmony import */ var _modelAssetDownloader_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./modelAssetDownloader.js */ "./src/modelAssetDownloader.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./navigation.js */ "./src/navigation.js");
+/* harmony import */ var _Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/uiController.js */ "./src/Home/uiController.js");
+/* harmony import */ var _Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/chatRenderer.js */ "./src/Home/chatRenderer.js");
+/* harmony import */ var _Home_messageOrchestrator_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Home/messageOrchestrator.js */ "./src/Home/messageOrchestrator.js");
+/* harmony import */ var _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Home/fileHandler.js */ "./src/Home/fileHandler.js");
+/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
+/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./notifications.js */ "./src/notifications.js");
+/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _Controllers_HistoryPopupController_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./Controllers/HistoryPopupController.js */ "./src/Controllers/HistoryPopupController.js");
+/* harmony import */ var _Controllers_LibraryController_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/LibraryController.js */ "./src/Controllers/LibraryController.js");
+/* harmony import */ var _Controllers_DiscoverController_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/DiscoverController.js */ "./src/Controllers/DiscoverController.js");
+/* harmony import */ var _Controllers_SettingsController_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SettingsController.js */ "./src/Controllers/SettingsController.js");
+/* harmony import */ var _Controllers_SpacesController_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/SpacesController.js */ "./src/Controllers/SpacesController.js");
+/* harmony import */ var _Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/DriveController.js */ "./src/Controllers/DriveController.js");
+/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
+// --- Imports ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// --- Constants ---
+const LOG_QUEUE_MAX = 1000;
+const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+
+// --- Global State ---
+let currentTab = null;
+let activeSessionId = null;
+let isPopup = false;
+let originalTabIdFromPopup = null;
+let currentTabId = null;
+let isDbReady = false;
+let historyPopupController = null;
+let logQueue = [];
+const pendingDbRequests = new Map();
+
+// --- Global Setup ---
+// Set EXTENSION_CONTEXT based on URL query string
+(function () {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const contextParam = urlParams.get('context');
+    const viewParam = urlParams.get('view');
+    window.EXTENSION_CONTEXT =
+      contextParam === 'popup'
+        ? _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.POPUP
+        : viewParam === 'logs'
+        ? _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.OTHERS
+        : _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI;
+  } catch (e) {
+    window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.UNKNOWN;
+  }
+})();
+
+// Marked.js Setup
+if (window.marked) {
+  window.marked.setOptions({
+    highlight: function (code, lang) {
+      if (lang && window.hljs && window.hljs.getLanguage(lang)) {
+        try {
+          return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+        } catch (e) {
+          console.error('hljs error:', e);
+        }
+      } else if (window.hljs) {
+        try {
+          return window.hljs.highlightAuto(code).value;
+        } catch (e) {
+          console.error('hljs auto error:', e);
+        }
+      }
+      const escapeHtml = (htmlStr) =>
+        htmlStr
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      return escapeHtml(code);
+    },
+    langPrefix: 'language-',
+    gfm: true,
+    breaks: true,
+  });
+  console.log('[Sidepanel] Marked.js globally configured to use highlight.js.');
+} else {
+  console.error('[Sidepanel] Marked.js library (window.marked) not found.');
+}
+
+// --- DB and Channel Utilities ---
+function isDbRequest(type) {
+  return typeof type === 'string' && type.endsWith('_REQUEST');
+}
+
+function isDbLocalContext() {
+  return typeof _minimaldb_js__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest === 'function';
+}
+
+async function sendDbRequestViaChannel(request) {
+  return new Promise((resolve) => {
+    const responseType = request.type + '_RESPONSE_' + Math.random();
+    const requestId = request.requestId || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+    function onResponse(event) {
+      if (event.data?.type === responseType && event.data.requestId === requestId) {
+        _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.removeEventListener('message', onResponse);
+        resolve(event.data.payload);
+      }
+    }
+    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.addEventListener('message', onResponse);
+    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.postMessage({ ...request, responseType, requestId });
+  });
+}
+
+async function sendDbRequestSmart(request, timeoutMs = 5000) {
+  if (isDbLocalContext()) {
+    return await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest)(request);
+  }
+  return await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage(request);
+}
+
+function requestDbAndWait(requestEvent, timeoutMs = 5000) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const result = await sendDbRequestSmart(requestEvent, timeoutMs);
+      console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
+      const response = Array.isArray(result) ? result[0] : result;
+      if (response && (response.success || response.error === undefined)) {
+        resolve(response.data || response.payload);
+      } else {
+        reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// --- Logging ---
+function bufferOrWriteLog(logPayload) {
+  if (!isDbReady) {
+    if (logQueue.length >= LOG_QUEUE_MAX) {
+      logQueue.shift();
+    }
+    logQueue.push(logPayload);
+  } else {
+    const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
+    sendDbRequestViaChannel(req);
+  }
+}
+
+_Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.logChannel.onmessage = (event) => {
+  const { type, payload } = event.data;
+  if (type === 'LOG_TO_DB' && payload) {
+    bufferOrWriteLog(payload);
+  }
+};
+
+// --- UI and Worker Utilities ---
+function sendUiEvent(type, payload) {
+  webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type, payload });
+}
+
+function sendWorkerError(message) {
+  webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.WORKER_ERROR, payload: message });
+}
+
+function getActiveChatSessionId() {
+  return activeSessionId;
+}
+
+async function setActiveChatSessionId(newSessionId) {
+  console.log(`[Sidepanel] Setting active session ID to: ${newSessionId}`);
+  activeSessionId = newSessionId;
+  if (newSessionId) {
+    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ lastSessionId: newSessionId });
+  } else {
+    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
+  }
+  (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__.setActiveSessionId)(newSessionId);
+  (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.setActiveSession)(newSessionId);
+}
+
+// --- Channel Handlers ---
+if (window.EXTENSION_CONTEXT === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI) {
+  _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.onmessage = async (event) => {
+    const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
+    if (!isDbRequest(type)) return;
+    try {
+      const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
+        type,
+        payload,
+        requestId,
+        senderId: reqSenderId,
+      });
+      const respType = responseType || type + '_RESPONSE';
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
+    } catch (err) {
+      const respType = responseType || type + '_RESPONSE';
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.postMessage({
+        type: respType,
+        payload: { success: false, error: err.message },
+        requestId,
+        senderId,
+      });
+    }
+  };
+
+  _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.onmessage = async (event) => {
+    const { type, payload, requestId, senderId } = event.data;
+    if (
+      [
+        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
+        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
+        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
+        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
+        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
+      ].includes(type)
+    ) {
+      return;
+    }
+    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE && typeof window.sendChatMessage === 'function') {
+      const result = await window.sendChatMessage(payload);
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE + '_RESPONSE',
+        payload: result,
+        requestId,
+        senderId: 'sidepanel',
+        timestamp: Date.now(),
+      });
+    } else if (
+      type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION &&
+      typeof window.interruptGeneration === 'function'
+    ) {
+      const result = await window.interruptGeneration(payload);
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION + '_RESPONSE',
+        payload: result,
+        requestId,
+        senderId: 'sidepanel',
+        timestamp: Date.now(),
+      });
+    } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER && typeof window.resetWorker === 'function') {
+      const result = await window.resetWorker(payload);
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+        payload: result,
+        requestId,
+        senderId: 'sidepanel',
+        timestamp: Date.now(),
+      });
+    } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL && typeof window.loadModel === 'function') {
+      const result = await window.loadModel(payload);
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+        payload: result,
+        requestId,
+        senderId: 'sidepanel',
+        timestamp: Date.now(),
+      });
+    } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+      const state = window.currentModelWorkerState || 'UNINITIALIZED';
+      const modelId = window.currentModelIdForWorker || null;
+      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+        payload: { state, modelId },
+        requestId,
+        senderId: 'sidepanel',
+        timestamp: Date.now(),
+      });
+    }
+  };
+}
+
+// --- Event Handlers ---
+function handleMessage(message, sender, sendResponse) {
+  const { type } = message;
+  if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.DirectDBNames).includes(type) || Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.DBEventNames).includes(type)) {
+    return false;
+  }
+  if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
+    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
+      chatId: message.chatId,
+      messageId: message.messageId,
+      text: message.text,
+    });
+  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
+    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+      chatId: message.chatId,
+      messageId: message.messageId,
+      error: message.error,
+    });
+    sendResponse({});
+  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
+    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
+    sendResponse({ status: 'received', type });
+  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
+    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
+    sendResponse({});
+  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
+    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
+  } else if (
+    type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
+    type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_DOWNLOAD_PROGRESS
+  ) {
+    // No action needed
+  } else {
+    console.warn('[Sidepanel] Received unknown message type from background:', type, message);
+  }
+}
+
+async function handleSessionCreated(newSessionId) {
+  console.log(`[Sidepanel] Orchestrator reported new session created: ${newSessionId}`);
+  await setActiveChatSessionId(newSessionId);
+  try {
+    const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(newSessionId);
+    const sessionData = await requestDbAndWait(request);
+    if (!sessionData?.messages) {
+      console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}.`, sessionData);
+    }
+  } catch (error) {
+    console.error(`[Sidepanel] Failed to fetch messages for new session ${newSessionId}:`, error);
+    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load initial messages for new chat: ${error.message}`);
+  }
+}
+
+async function handleNewChat() {
+  console.log('[Sidepanel] New Chat button clicked.');
+  await setActiveChatSessionId(null);
+  (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.clearInput)();
+  (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.focusInput)();
+}
+
+async function handleChatSessionClick(event) {
+  const sessionId = event.currentTarget.dataset.sessionId;
+  if (!sessionId) {
+    console.warn('[Sidepanel] Session list click event missing sessionId:', event.currentTarget);
+    return;
+  }
+  if (sessionId === activeSessionId) {
+    console.log(`[Sidepanel] Clicked already active session: ${sessionId}`);
+    (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__.scrollToBottom)();
+  } else {
+    console.log(`[Sidepanel] Session list item clicked: ${sessionId}`);
+    await loadAndDisplaySession(sessionId);
+  }
+}
+
+async function loadAndDisplaySession(sessionId) {
+  if (!sessionId) {
+    console.log('[Sidepanel] No session ID to load, setting renderer to null.');
+    await setActiveChatSessionId(null);
+    return;
+  }
+  console.log(`[Sidepanel] Loading session data for: ${sessionId}`);
+  try {
+    const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(sessionId);
+    const sessionData = await requestDbAndWait(request);
+    console.log(`[Sidepanel] Session data successfully loaded for ${sessionId}.`);
+    await setActiveChatSessionId(sessionId);
+    if (!sessionData?.messages) {
+      console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}.`);
+    }
+  } catch (error) {
+    console.error(`[Sidepanel] Failed to load session ${sessionId}:`, error);
+    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load chat: ${error.message}`);
+    await setActiveChatSessionId(null);
+  }
+}
+
+async function handleDetach() {
+  if (!currentTabId) {
+    console.error('Cannot detach: Missing tab ID');
+    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)('Cannot detach: Missing tab ID');
+    return;
+  }
+  const currentSessionId = getActiveChatSessionId();
+  try {
+    const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
+      type: 'getPopupForTab',
+      tabId: currentTabId,
+    });
+    if (response?.popupId) {
+      await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.update(response.popupId, { focused: true });
+      return;
+    }
+    const storageKey = `detachedSessionId_${currentTabId}`;
+    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ [storageKey]: currentSessionId });
+    console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+    const popup = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.create({
+      url: webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
+      type: 'popup',
+      width: 400,
+      height: 600,
+    });
+    if (popup?.id) {
+      await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
+        type: 'popupCreated',
+        tabId: currentTabId,
+        popupId: popup.id,
+      });
+    } else {
+      throw new Error('Failed to create popup window.');
+    }
+  } catch (error) {
+    console.error('Error during detach:', error);
+    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Error detaching chat: ${error.message}`);
+  }
+}
+
+async function handlePageChange(event) {
+  if (!event?.pageId) return;
+  console.log(`[Sidepanel] Navigation changed to: ${event.pageId}`);
+  if (!isDbReady) {
+    console.log('[Sidepanel] DB not ready yet, skipping session load on initial navigation event.');
+    return;
+  }
+  if (event.pageId === 'page-home') {
+    console.log('[Sidepanel] Navigated to home page, checking for specific session load signal...');
+    try {
+      const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(['lastSessionId']);
+      if (lastSessionId) {
+        console.log(`[Sidepanel] Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+        await loadAndDisplaySession(lastSessionId);
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
+      } else {
+        console.log('[Sidepanel] No load signal found. Resetting to welcome state.');
+        await loadAndDisplaySession(null);
+      }
+    } catch (error) {
+      console.error('[Sidepanel] Error checking/loading session based on signal:', error);
+      (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)('Failed to load session state.');
+      await loadAndDisplaySession(null);
+    }
+  }
+}
+
+// --- Worker Status Broadcasting ---
+function handleWorkerStatusEvent(event) {
+  const { type, payload } = event.data;
+  if (
+    [
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
+      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
+    ].includes(type)
+  ) {
+    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type, payload, senderId: 'sidepanel', timestamp: Date.now() });
+  }
+}
+
+if (window.modelWorker) {
+  window.modelWorker.onmessage = (event) => {
+    handleWorkerStatusEvent(event);
+  };
+}
+
+// --- Main Initialization ---
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[Sidepanel] DOM Content Loaded.');
+  const urlParams = new URLSearchParams(window.location.search);
+  const requestedView = urlParams.get('view');
+
+  // Log Viewer Mode
+  if (requestedView === 'logs') {
+    console.log('[Sidepanel] Initializing in Log Viewer Mode.');
+    document.body.classList.add('log-viewer-mode');
+    document.getElementById('header')?.classList.add('hidden');
+    document.getElementById('bottom-nav')?.classList.add('hidden');
+    document
+      .querySelectorAll('#main-content > .page-container:not(#page-log-viewer)')
+      .forEach((el) => el.classList.add('hidden'));
+    const logViewerPage = document.getElementById('page-log-viewer');
+    if (logViewerPage) {
+      logViewerPage.classList.remove('hidden');
+    } else {
+      console.error('CRITICAL: #page-log-viewer element not found!');
+      document.body.innerHTML =
+        "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>";
+      return;
+    }
+    try {
+      const logViewerModule = await __webpack_require__.e(/*! import() */ "src_Controllers_LogViewerController_js").then(__webpack_require__.bind(__webpack_require__, /*! ./Controllers/LogViewerController.js */ "./src/Controllers/LogViewerController.js"));
+      await logViewerModule.initializeLogViewerController();
+      console.log('[Sidepanel] Log Viewer Controller initialized.');
+    } catch (err) {
+      console.error('Failed to load or initialize LogViewerController:', err);
+      if (logViewerPage) {
+        logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${err.message}</div>`;
+      }
+    }
+    return;
+  }
+
+  // Standard Mode
+  console.log('[Sidepanel] Initializing in Standard Mode.');
+  document.getElementById('page-log-viewer')?.classList.add('hidden');
+
+  // Initialize DB
+  try {
+    const result = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)();
+    if (result?.success) {
+      console.log('[Sidepanel] DB initialized directly.');
+      isDbReady = true;
+      for (const logPayload of logQueue) {
+        const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
+        sendDbRequestViaChannel(req);
+      }
+      logQueue = [];
+    } else {
+      throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('[Sidepanel] DB Initialization failed:', error);
+    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${error.message}. Please try reloading.`);
+    const chatBody = document.getElementById('chat-body');
+    if (chatBody) {
+      chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${error.message}. Please reload the extension.</div>`;
+    }
+    return;
+  }
+
+  // Initialize UI and Core Components
+  try {
+    const { chatBody, newChatButton, chatInputElement, sendButton, fileInput } = (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.initializeUI)({
+      onNewChat: handleNewChat,
+      onSessionClick: handleChatSessionClick,
+      onAttachFile: _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__.handleAttachClick,
+    });
+    console.log('[Sidepanel] UI Controller Initialized.');
+
+    const chatBodyForRenderer = document.getElementById('chat-body');
+    if (!chatBodyForRenderer) {
+      console.error('[Sidepanel] CRITICAL: chatBodyForRenderer is null before initializeRenderer!');
+    }
+    (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__.initializeRenderer)(chatBodyForRenderer, requestDbAndWait);
+    console.log('[Sidepanel] Chat Renderer Initialized.');
+
+    (0,_navigation_js__WEBPACK_IMPORTED_MODULE_3__.initializeNavigation)();
+    console.log('[Sidepanel] Navigation Initialized.');
+
+    document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
+
+    (0,_Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__.initializeFileHandling)({
+      uiController: _Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__,
+      getActiveSessionIdFunc: getActiveChatSessionId,
+    });
+    console.log('[Sidepanel] File Handler Initialized.');
+
+    const fileInputForListener = document.getElementById('file-input');
+    if (fileInputForListener) {
+      fileInputForListener.addEventListener('change', _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__.handleFileSelected);
+    } else {
+      console.warn('[Sidepanel] File input element not found before adding listener.');
+    }
+
+    const activeTab = await (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.getActiveTab)();
+    currentTabId = activeTab?.id;
+    currentTab = activeTab;
+    console.log(`[Sidepanel] Current Tab ID: ${currentTabId}`);
+
+    (0,_Home_messageOrchestrator_js__WEBPACK_IMPORTED_MODULE_6__.initializeOrchestrator)({
+      getActiveSessionIdFunc: getActiveChatSessionId,
+      onSessionCreatedCallback: handleSessionCreated,
+      getCurrentTabIdFunc: () => currentTabId,
+    });
+    console.log('[Sidepanel] Message Orchestrator Initialized.');
+
+    webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.onMessage.addListener(handleMessage);
+    console.log('[Sidepanel] Background message listener added.');
+
+    // Initialize Controllers
+    const historyPopupElement = document.getElementById('history-popup');
+    const historyListElement = document.getElementById('history-list');
+    const historySearchElement = document.getElementById('history-search');
+    const closeHistoryButtonElement = document.getElementById('close-history');
+    const historyButton = document.getElementById('history-button');
+    const detachButton = document.getElementById('detach-button');
+
+    if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
+      historyPopupController = (0,_Controllers_HistoryPopupController_js__WEBPACK_IMPORTED_MODULE_11__.initializeHistoryPopup)(
+        {
+          popupContainer: historyPopupElement,
+          listContainer: historyListElement,
+          searchInput: historySearchElement,
+          closeButton: closeHistoryButtonElement,
+        },
+        requestDbAndWait
+      );
+      if (!historyPopupController) {
+        console.error('[Sidepanel] History Popup Controller initialization failed.');
+      }
+    } else {
+      console.warn('[Sidepanel] Could not find all required elements for History Popup Controller.');
+    }
+
+    if (historyButton && historyPopupController) {
+      historyButton.addEventListener('click', () => historyPopupController.show());
+    } else {
+      console.warn('[Sidepanel] History button or controller not available for listener.');
+    }
+
+    if (detachButton) {
+      detachButton.addEventListener('click', handleDetach);
+    } else {
+      console.warn('[Sidepanel] Detach button not found.');
+    }
+
+    const libraryListElement = document.getElementById('starred-list');
+    if (libraryListElement) {
+      (0,_Controllers_LibraryController_js__WEBPACK_IMPORTED_MODULE_12__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
+      console.log('[Sidepanel] Library Controller Initialized.');
+    } else {
+      console.warn('[Sidepanel] Could not find #starred-list element for Library Controller.');
+    }
+
+    document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_LOAD, (e) => {
+      const { modelId } = e.detail || {};
+      if (!modelId) {
+        sendWorkerError('No model ID specified for loading.');
+        return;
+      }
+      webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime
+        .sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL, payload: { modelId } })
+        .catch((err) => sendWorkerError(`Failed to send load request: ${err.message}`));
+    });
+
+    (0,_Controllers_DiscoverController_js__WEBPACK_IMPORTED_MODULE_13__.initializeDiscoverController)();
+    console.log('[Sidepanel] Discover Controller Initialized.');
+
+    (0,_Controllers_SettingsController_js__WEBPACK_IMPORTED_MODULE_14__.initializeSettingsController)();
+    console.log('[Sidepanel] Settings Controller Initialized.');
+
+    (0,_Controllers_SpacesController_js__WEBPACK_IMPORTED_MODULE_15__.initializeSpacesController)();
+    console.log('[Sidepanel] Spaces Controller Initialized.');
+
+    (0,_Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_16__.initializeDriveController)({
+      requestDbAndWaitFunc: requestDbAndWait,
+      getActiveChatSessionId,
+      setActiveChatSessionId,
+      showNotification: _notifications_js__WEBPACK_IMPORTED_MODULE_9__.showNotification,
+      debounce: _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.debounce,
+    });
+    console.log('[Sidepanel] Drive Controller Initialized.');
+
+    // Handle Popup Context
+    const popupContext = urlParams.get('context');
+    originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
+    isPopup = popupContext === 'popup';
+    console.log(
+      `[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${
+        isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''
+      }`
+    );
+
+    if (isPopup && originalTabIdFromPopup) {
+      const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
+      const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(storageKey);
+      const detachedSessionId = result[storageKey];
+      if (detachedSessionId) {
+        console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
+        await loadAndDisplaySession(detachedSessionId);
+      } else {
+        console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
+        await setActiveChatSessionId(null);
+      }
+    } else {
+      console.log('[Sidepanel] Starting fresh. Loading empty/welcome state.');
+      await loadAndDisplaySession(null);
+    }
+
+    console.log('[Sidepanel] Initialization complete.');
+  } catch (error) {
+    console.error('[Sidepanel] Initialization failed:', error);
+    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${error.message}. Please try reloading.`);
+    const chatBody = document.getElementById('chat-body');
+    if (chatBody) {
+      chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${error.message}. Please reload the extension.</div>`;
+    }
+  }
+});
+
+// --- Exports ---
+
 
 /***/ })
 
@@ -5723,7 +8312,7 @@ function hideNotification() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "0ecbb9a9f2269d9f4f9b" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "c85e5d206fdb891a6d10" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	
@@ -5915,586 +8504,12 @@ function hideNotification() {
 /******/ 	})();
 /******/ 	
 /************************************************************************/
-var __webpack_exports__ = {};
-// This entry needs to be wrapped in an IIFE because it needs to be in strict mode.
-(() => {
-"use strict";
-/*!**************************!*\
-  !*** ./src/sidepanel.js ***!
-  \**************************/
-__webpack_require__.r(__webpack_exports__);
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./navigation.js */ "./src/navigation.js");
-/* harmony import */ var _Home_uiController_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./Home/uiController.js */ "./src/Home/uiController.js");
-/* harmony import */ var _Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Home/chatRenderer.js */ "./src/Home/chatRenderer.js");
-/* harmony import */ var _Home_messageOrchestrator_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/messageOrchestrator.js */ "./src/Home/messageOrchestrator.js");
-/* harmony import */ var _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/fileHandler.js */ "./src/Home/fileHandler.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./notifications.js */ "./src/notifications.js");
-/* harmony import */ var _eventBus_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./eventBus.js */ "./src/eventBus.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _Controllers_HistoryPopupController_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./Controllers/HistoryPopupController.js */ "./src/Controllers/HistoryPopupController.js");
-/* harmony import */ var _Controllers_LibraryController_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./Controllers/LibraryController.js */ "./src/Controllers/LibraryController.js");
-/* harmony import */ var _Controllers_DiscoverController_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/DiscoverController.js */ "./src/Controllers/DiscoverController.js");
-/* harmony import */ var _Controllers_SettingsController_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/SettingsController.js */ "./src/Controllers/SettingsController.js");
-/* harmony import */ var _Controllers_SpacesController_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SpacesController.js */ "./src/Controllers/SpacesController.js");
-/* harmony import */ var _Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/DriveController.js */ "./src/Controllers/DriveController.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Set EXTENSION_CONTEXT based on URL query string
-(function() {
-    try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const contextParam = urlParams.get('context');
-        const viewParam = urlParams.get('view');
-        if (contextParam === 'popup') {
-            window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.POPUP;
-        } else if (viewParam === 'logs') {
-            window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.OTHERS;
-        } else {
-            window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.MAIN_UI;
-        }
-    } catch (e) {
-        window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.Contexts.UNKNOWN;
-    }
-})();
-
-// Marked.js Setup
-
-if (window.marked) {
-    window.marked.setOptions({
-        highlight: function (code, lang) {
-            if (lang && window.hljs && window.hljs.getLanguage(lang)) {
-                try {
-                    return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
-                } catch (e) {
-                    console.error('hljs error:', e);
-                }
-            } else if (window.hljs) {
-                try {
-                    return window.hljs.highlightAuto(code).value;
-                } catch (e) {
-                    console.error('hljs auto error:', e);
-                }
-            }
-            const escapeHtml = (htmlStr) => {
-                return htmlStr.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-            };
-            return escapeHtml(code);
-        },
-        langPrefix: 'language-',
-        gfm: true,
-        breaks: true
-    });
-    console.log('[Sidepanel] Marked.js globally configured to use highlight.js.');
-} else {
-    console.error("[Sidepanel] Marked.js library (window.marked) not found. Ensure it's loaded before this script.");
-}
-
-let currentTab = null;
-let activeSessionId = null;
-let isPopup = false;
-let originalTabIdFromPopup = null;
-let currentTabId = null;
-
-let historyPopupController = null;
-let isDbReady = false;
-
-const pendingDbRequests = new Map();
-
-function requestDbAndWait(requestEvent, timeoutMs = 5000) {
-    return new Promise(async (resolve, reject) => {
-        const { requestId, type: requestType } = requestEvent;
-        let timeoutId;
-        try {
-            timeoutId = setTimeout(() => {
-                console.error(`[Sidepanel] DB request timed out for ${requestType} (Req ID: ${requestId})`);
-                reject(new Error(`DB request timed out for ${requestType}`));
-            }, timeoutMs);
-            const result = await _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(requestEvent.type, requestEvent);
-            clearTimeout(timeoutId);
-            const response = Array.isArray(result) ? result[0] : result;
-            if (response && (response.success || response.error === undefined)) {
-                resolve(response.data || response.payload);
-            } else {
-                reject(new Error(response?.error || `DB operation ${requestType} failed`));
-            }
-        } catch (error) {
-            clearTimeout(timeoutId);
-            reject(error);
-        }
-    });
-}
-
-function getActiveChatSessionId() {
-    return activeSessionId;
-}
-
-async function setActiveChatSessionId(newSessionId) {
-    console.log(`[Sidepanel] Setting active session ID to: ${newSessionId}`);
-    activeSessionId = newSessionId;
-    if (newSessionId) {
-        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ lastSessionId: newSessionId });
-    } else {
-        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove('lastSessionId');
-    }
-    (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_3__.setActiveSessionId)(newSessionId); 
-    (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_2__.setActiveSession)(newSessionId); 
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log("[Sidepanel] DOM Content Loaded.");
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const requestedView = urlParams.get('view');
-
-    if (requestedView === 'logs') {
-        console.log("[Sidepanel] Initializing in Log Viewer Mode.");
-        document.body.classList.add('log-viewer-mode'); 
-        
-        document.getElementById('header')?.classList.add('hidden');
-        document.getElementById('bottom-nav')?.classList.add('hidden');
-        document.querySelectorAll('#main-content > .page-container:not(#page-log-viewer)')
-            .forEach(el => el.classList.add('hidden'));
-        const logViewerPage = document.getElementById('page-log-viewer');
-        if (logViewerPage) {
-            logViewerPage.classList.remove('hidden');
-        } else {
-            console.error("CRITICAL: #page-log-viewer element not found!");
-            document.body.innerHTML = "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>"; // Show error
-            return; 
-        }
-
-        try {
-            const logViewerModule = await __webpack_require__.e(/*! import() */ "src_Controllers_LogViewerController_js").then(__webpack_require__.bind(__webpack_require__, /*! ./Controllers/LogViewerController.js */ "./src/Controllers/LogViewerController.js"));
-            await logViewerModule.initializeLogViewerController();
-            console.log("[Sidepanel] Log Viewer Controller initialized.");
-        } catch (err) {
-            console.error("Failed to load or initialize LogViewerController:", err);
-            if (logViewerPage) {
-                logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${err.message}</div>`;
-            }
-        }
-        
-        return; 
-    }
-
-    console.log("[Sidepanel] Initializing in Standard Mode.");
-    
-
-    document.getElementById('page-log-viewer')?.classList.add('hidden'); 
-
-    let isDbReady = false;
-    const TIMEOUT_MS = 10000;
-    try {
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database initialization timed out.")), TIMEOUT_MS));
-        const resultArr = await Promise.race([
-            _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbInitializeRequest.type, new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbInitializeRequest()),
-            timeoutPromise
-        ]);
-        const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
-        console.log("[Sidepanel] DB init result:", result);
-        if (result && result.success) {
-            console.log("[Sidepanel] DB initialization confirmed complete.");
-            isDbReady = true;
-        } else {
-            const errorMsg = result?.error || "Unknown DB initialization error";
-            throw new Error(`Database initialization failed: ${errorMsg}`);
-        }
-    } catch (error) {
-        console.error("[Sidepanel] DB Initialization failed:", error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)(`Initialization failed: ${error.message}. Please try reloading.`);
-        const chatBody = document.getElementById('chat-body');
-        if (chatBody) {
-            chatBody.innerHTML = `<div class=\"p-4 text-red-500\">Critical Error: ${error.message}. Please reload the extension.</div>`;
-        }
-        return;
-    }
-
-    try {
-        const { 
-            chatBody, 
-            newChatButton, 
-            chatInputElement, 
-            sendButton, 
-            fileInput
-        } = (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_2__.initializeUI)({
-            onNewChat: handleNewChat,
-            onSessionClick: handleChatSessionClick,
-            onAttachFile: _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_5__.handleAttachClick
-        });
-        console.log("[Sidepanel] UI Controller Initialized.");
-
-        const chatBodyForRenderer = document.getElementById('chat-body');
-        if (!chatBodyForRenderer) {
-            console.error("[Sidepanel] CRITICAL: chatBodyForRenderer is null right before calling initializeRenderer!");
-        }
-        (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_3__.initializeRenderer)(chatBodyForRenderer, requestDbAndWait);
-        console.log("[Sidepanel] Chat Renderer Initialized.");
-
-        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_1__.initializeNavigation)();
-        console.log("[Sidepanel] Navigation Initialized.");
-
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.NAVIGATION_PAGE_CHANGED, handlePageChange);
-        
-        (0,_Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_5__.initializeFileHandling)({ 
-             uiController: _Home_uiController_js__WEBPACK_IMPORTED_MODULE_2__, 
-             getActiveSessionIdFunc: getActiveChatSessionId 
-        });
-        console.log("[Sidepanel] File Handler Initialized.");
-        
-
-        const fileInputForListener = document.getElementById('file-input');
-        if (fileInputForListener) {
-            fileInputForListener.addEventListener('change', _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_5__.handleFileSelected);
-            } else {
-            console.warn("[Sidepanel] File input element (re-fetched) not found before adding listener.");
-        }
-
-        const activeTab = await (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.getActiveTab)();
-        currentTabId = activeTab?.id;
-        currentTab = activeTab;
-        console.log(`[Sidepanel] Current Tab ID: ${currentTabId}`);
-
-        (0,_Home_messageOrchestrator_js__WEBPACK_IMPORTED_MODULE_4__.initializeOrchestrator)({
-            getActiveSessionIdFunc: getActiveChatSessionId,
-            onSessionCreatedCallback: handleSessionCreated,
-            getCurrentTabIdFunc: () => currentTabId
-        });
-        console.log("[Sidepanel] Message Orchestrator Initialized.");
-
-        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener(handleBackgroundMessage);
-        console.log("[Sidepanel] Background message listener added.");
-
-        const historyPopupElement = document.getElementById('history-popup');
-        const historyListElement = document.getElementById('history-list');
-        const historySearchElement = document.getElementById('history-search');
-        const closeHistoryButtonElement = document.getElementById('close-history');
-        const historyButton = document.getElementById('history-button');
-        const detachButton = document.getElementById('detach-button');
-
-        if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
-            historyPopupController = (0,_Controllers_HistoryPopupController_js__WEBPACK_IMPORTED_MODULE_10__.initializeHistoryPopup)(
-                {
-                    popupContainer: historyPopupElement,
-                    listContainer: historyListElement,
-                    searchInput: historySearchElement,
-                    closeButton: closeHistoryButtonElement
-                },
-                requestDbAndWait
-            );
-            if (!historyPopupController) {
-                 console.error("[Sidepanel] History Popup Controller initialization failed.");
-            }
-        } else {
-            console.warn("[Sidepanel] Could not find all required elements for History Popup Controller.");
-        }
-
-        if (historyButton && historyPopupController) {
-            historyButton.addEventListener('click', () => {
-                 historyPopupController.show();
-            });
-        } else {
-             console.warn("[Sidepanel] History button or controller not available for listener.");
-        }
-
-        if (detachButton) {
-             detachButton.addEventListener('click', handleDetach);
-        } else {
-             console.warn("[Sidepanel] Detach button not found.");
-        }
-        
-        const libraryListElement = document.getElementById('starred-list');
-        if (libraryListElement) {
-             (0,_Controllers_LibraryController_js__WEBPACK_IMPORTED_MODULE_11__.initializeLibraryController)(
-                 { listContainer: libraryListElement },
-                 requestDbAndWait
-             );
-             console.log("[Sidepanel] Library Controller Initialized.");
-            } else {
-            console.warn("[Sidepanel] Could not find #starred-list element for Library Controller.");
-        }
-
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.subscribe(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.REQUEST_MODEL_LOAD, (payload) => {
-            const modelId = payload?.modelId;
-            if (!modelId) {
-                console.error("[Sidepanel] Received 'ui:requestModelLoad' but missing modelId.");
-                _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.WORKER_ERROR, 'No model ID specified for loading.');
-                return;
-            }
-            console.log(`[Sidepanel] Received 'ui:requestModelLoad' for ${modelId}. Sending 'loadModel' to background.`);
-            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.LOAD_MODEL, payload: { modelId: modelId } }).catch(err => {
-                console.error(`[Sidepanel] Error sending 'loadModel' message for ${modelId}:`, err);
-                _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.WORKER_ERROR, `Failed to send load request: ${err.message}`);
-            });
-        });
-
-
-        (0,_Controllers_DiscoverController_js__WEBPACK_IMPORTED_MODULE_12__.initializeDiscoverController)();
-        console.log("[Sidepanel] Discover Controller Initialized call attempted.");
-
-
-        (0,_Controllers_SettingsController_js__WEBPACK_IMPORTED_MODULE_13__.initializeSettingsController)();
-        console.log("[Sidepanel] Settings Controller Initialized call attempted.");
-        
-
-        (0,_Controllers_SpacesController_js__WEBPACK_IMPORTED_MODULE_14__.initializeSpacesController)();
-        console.log("[Sidepanel] Spaces Controller Initialized call attempted.");
-
-
-        (0,_Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_15__.initializeDriveController)({
-            requestDbAndWaitFunc: requestDbAndWait,
-            getActiveChatSessionId: getActiveChatSessionId,
-            setActiveChatSessionId: setActiveChatSessionId,
-            showNotification: _notifications_js__WEBPACK_IMPORTED_MODULE_7__.showNotification,
-            debounce: _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.debounce,
-            eventBus: _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus
-        });
-        console.log("[Sidepanel] Drive Controller Initialized.");
-
-
-        const popupContext = urlParams.get('context');
-        originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
-        isPopup = popupContext === 'popup';
-        console.log(`[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
-
-        if (isPopup && originalTabIdFromPopup) {
-            const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
-            const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(storageKey);
-            const detachedSessionId = result[storageKey];
-            if (detachedSessionId) {
-                console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
-                await loadAndDisplaySession(detachedSessionId);
-
-            } else {
-                 console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
-                 await setActiveChatSessionId(null);
-            }
-        } else {
-
-            console.log("[Sidepanel] Always starting fresh. Loading empty/welcome state.");
-            await loadAndDisplaySession(null);
-        }
-        
-        console.log("[Sidepanel] Initialization complete (after DB ready).");
-
-    } catch (error) {
-        console.error('[Sidepanel] Initialization failed:', error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)(`Initialization failed: ${error.message}. Please try reloading.`);
-        const chatBody = document.getElementById('chat-body');
-        if (chatBody) {
-            chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${error.message}. Please reload the extension.</div>`;
-        }
-    }
-});
-
-function handleBackgroundMessage(message, sender, sendResponse) {
-    const type = message?.type;
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DirectDBNames).includes(type)) {
-        return false;
-    }
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.DBEventNames).includes(type)) {
-        return false;
-    }
-    console.log('[Sidepanel] Received message from background:', message);
-    if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
-        const payload = { chatId: message.chatId, messageId: message.messageId, text: message.text };
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, payload);
-    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
-        const payload = { chatId: message.chatId, messageId: message.messageId, error: message.error };
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_ERROR_RECEIVED, payload);
-        sendResponse({}); 
-    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
-        sendResponse({status: "received", type: message.type}); 
-    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
-        sendResponse({}); 
-    } else if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
-        console.log('[Sidepanel] Forwarding uiLoadingStatusUpdate to eventBus.');
-        _eventBus_js__WEBPACK_IMPORTED_MODULE_8__.eventBus.publish(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
-    } else if (message.type === 'InternalEventBus:BackgroundEventBroadcast') {
-        // Ignore: handled by eventBus subscription elsewhere
-    } else {
-        console.warn('[Sidepanel] Received unknown message type from background:', message.type, message);
-    }
-}
-
-async function handleSessionCreated(newSessionId) {
-    console.log(`[Sidepanel] Orchestrator reported new session created: ${newSessionId}`);
-    await setActiveChatSessionId(newSessionId);
-
-    console.log(`[Sidepanel] Explicitly fetching messages for new session ${newSessionId}`);
-    try {
-        const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
-        const sessionData = await requestDbAndWait(request);
-        if (sessionData && sessionData.messages) {
-
-        } else {
-            console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}. Response data:`, sessionData);
-        }
-    } catch (error) {
-        console.error(`[Sidepanel] Failed to fetch messages for new session ${newSessionId}:`, error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)(`Failed to load initial messages for new chat: ${error.message}`);
-    }
-}
-
-async function handleNewChat() {
-    console.log("[Sidepanel] New Chat button clicked.");
-    await setActiveChatSessionId(null);
-    (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_2__.clearInput)();
-    (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_2__.focusInput)();
-}
-
-async function handleChatSessionClick(event) {
-    const sessionId = event.currentTarget.dataset.sessionId;
-    if (sessionId && sessionId !== activeSessionId) {
-        console.log(`[Sidepanel] Session list item clicked: ${sessionId}`);
-        await loadAndDisplaySession(sessionId);
-    } else if (sessionId === activeSessionId) {
-        console.log(`[Sidepanel] Clicked already active session: ${sessionId}`);
-        (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_3__.scrollToBottom)();
-                } else {
-        console.warn("[Sidepanel] Session list click event missing sessionId:", event.currentTarget);
-    }
-}
-
-async function loadAndDisplaySession(sessionId) {
-    if (!sessionId) {
-        console.log("[Sidepanel] No session ID to load, setting renderer to null.");
-        await setActiveChatSessionId(null);
-        return; 
-    }
-
-    console.log(`[Sidepanel] Loading session data for: ${sessionId}`);
-    let sessionData = null; 
-
-    try {
-        const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(sessionId);
-        sessionData = await requestDbAndWait(request); 
-
-        console.log(`[Sidepanel] Session data successfully loaded for ${sessionId}.`);
-        await setActiveChatSessionId(sessionId);
-
-        if (sessionData && sessionData.messages) {
-            // console.log(`[Sidepanel] Manually triggering message render for loaded session ${sessionId}.`);
-            // eventBus.publish(DbMessagesUpdatedNotification.type, new DbMessagesUpdatedNotification(sessionId, sessionData.messages));
-            // The above lines are commented out.
-        } else {
-            console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}. Displaying empty chat.`);
-            // eventBus.publish(DbMessagesUpdatedNotification.type,
-            //     new DbMessagesUpdatedNotification(sessionId, { messages: [] })
-            // ); 
-            // Also commented out this one for consistency. If an empty session needs a specific UI update,
-            // minimaldb should ideally send a notification with an empty message array, or the UI should handle null/empty messages gracefully.
-        }
-
-    } catch (error) {
-        console.error(`[Sidepanel] Failed to load session ${sessionId}:`, error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)(`Failed to load chat: ${error.message}`);
-        await setActiveChatSessionId(null);
-    }
-}
-
-async function handleDetach() {
-    if (!currentTabId) {
-        console.error('Cannot detach: Missing tab ID');
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)('Cannot detach: Missing tab ID');
-        return;
-    }
-    const currentSessionId = getActiveChatSessionId();
-
-    try {
-        const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ 
-            type: 'getPopupForTab', 
-            tabId: currentTabId 
-        });
-
-        if (response && response.popupId) {
-            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.update(response.popupId, { focused: true });
-            return; 
-        }
-
-        const storageKey = `detachedSessionId_${currentTabId}`;
-        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({
-            [storageKey]: currentSessionId
-        });
-        console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
-
-        const popup = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.create({
-            url: webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
-            type: 'popup',
-            width: 400,
-            height: 600
-        });
-
-        if (popup?.id) { 
-            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ 
-                type: 'popupCreated', 
-                tabId: currentTabId,
-                popupId: popup.id
-            });
-            } else {
-             throw new Error("Failed to create popup window.");
-        }
-
-                } catch (error) {
-        console.error('Error during detach:', error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)(`Error detaching chat: ${error.message}`); 
-                }
-            }
-
-
-
-async function handlePageChange(event) {
-    if (!event || !event.pageId) return;
-    console.log(`[Sidepanel] Navigation changed to: ${event.pageId}`);
-
-    if (!isDbReady) {
-        console.log("[Sidepanel] DB not ready yet, skipping session load on initial navigation event.");
-        return; 
-    }
-
-    if (event.pageId === 'page-home') {
-        console.log("[Sidepanel] Navigated to home page, checking for specific session load signal...");
-        try {
-            const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['lastSessionId']);
-            if (lastSessionId) {
-                console.log(`[Sidepanel] Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
-                await loadAndDisplaySession(lastSessionId);
-                await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove('lastSessionId'); 
-            } else {
-                console.log("[Sidepanel] No load signal found. Resetting to welcome state.");
-                await loadAndDisplaySession(null); 
-            }
-        } catch (error) {
-            console.error("[Sidepanel] Error checking/loading session based on signal:", error);
-            (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_6__.showError)("Failed to load session state."); 
-            await loadAndDisplaySession(null); 
-        }
-    }
-}
-})();
-
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __webpack_require__("./src/sidepanel.js");
+/******/ 	
 /******/ })()
 ;
 //# sourceMappingURL=sidepanel.js.map

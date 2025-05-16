@@ -1,7 +1,6 @@
 // src/Controllers/HistoryPopupController.js
 
 import browser from 'webextension-polyfill';
-import { eventBus } from '../eventBus.js';
 import { 
     DbGetAllSessionsRequest, 
     DbToggleStarRequest, DbDeleteSessionRequest, DbRenameSessionRequest, DbGetSessionRequest,    
@@ -127,27 +126,23 @@ function renderHistoryList() {
 
 async function showPopup() { 
     if (!isInitialized || !historyPopupElement || !requestDbAndWaitFunc) return;
-    console.log("[HistoryPopupController] Showing popup. Fetching latest history...");
-
+    console.log("[Trace][HistoryPopupController] showPopup: Requesting all sessions...");
     try {
         const sessionsArray = await requestDbAndWaitFunc(new DbGetAllSessionsRequest());
-        
-        console.log("[HistoryPopupController:Debug] Fetched sessionsArray:", sessionsArray); 
+        console.log("[Trace][HistoryPopupController] showPopup: Received sessionsArray:", sessionsArray);
         if (Array.isArray(sessionsArray) && sessionsArray.length > 0) {
-             console.log("[HistoryPopupController:Debug] First session item sample:", sessionsArray[0]);
+             console.log("[Trace][HistoryPopupController] showPopup: First session item sample:", sessionsArray[0]);
         } else if (sessionsArray === null || sessionsArray === undefined) {
-             console.log("[HistoryPopupController:Debug] sessionsArray is null or undefined.");
+             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is null or undefined.");
         } else {
-             console.log("[HistoryPopupController:Debug] sessionsArray is empty or not an array:", typeof sessionsArray);
+             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
         }
-
         currentHistoryItems = sessionsArray || []; 
-        console.log(`[HistoryPopupController] Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
-        
+        console.log(`[Trace][HistoryPopupController] showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
         renderHistoryList(); 
         historyPopupElement.classList.remove('hidden');
     } catch (error) {
-        console.error("[HistoryPopupController] Error fetching history list:", error);
+        console.error("[Trace][HistoryPopupController] showPopup: Error fetching history list:", error);
         showNotification("Failed to load history.", 'error');
         if (historyListElement) {
             historyListElement.innerHTML = '<p class="p-4 text-center text-red-500 dark:text-red-400">Error loading history. Please try again.</p>';
@@ -287,7 +282,7 @@ async function handlePreviewClick(sessionId, contentElement) {
     }
 }
 
-eventBus.subscribe(DbSessionUpdatedNotification.type, handleSessionUpdate);
+document.addEventListener(DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
 export function initializeHistoryPopup(elements, requestFunc) {
     console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
 

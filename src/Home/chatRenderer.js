@@ -1,11 +1,12 @@
 import { showNotification } from '../notifications.js';
 import { showError } from '../Utilities/generalUtils.js';
-import { eventBus } from '../eventBus.js';
 import { 
     DbMessagesUpdatedNotification, 
     DbSessionUpdatedNotification, 
     DbGetSessionRequest
 } from '../events/dbEvents.js';
+import { MessageSenderTypes } from '../events/eventNames.js';
+import { dbChannel } from '../Utilities/dbChannels.js';
 
 
 let chatBodyElement = null;
@@ -26,15 +27,10 @@ function handleMessagesUpdate(notification) {
         
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
-            if (Array.isArray(notification.payload)) {
-                 console.warn('[ChatRenderer handleMessagesUpdate] Payload did not have .messages, using payload directly as array.');
-                 messages = notification.payload;
-            } else {
-                 console.error(`[ChatRenderer handleMessagesUpdate] Invalid messages structure: Expected array, got:`, notification.payload);
-                 return;
-            }
+            console.error('[ChatRenderer handleMessagesUpdate] ERROR: notification.payload.messages is not an array! Got:', notification.payload);
+            return;
         }
-
+        
         console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
         if (!chatBodyElement) return;
         chatBodyElement.innerHTML = '';
@@ -59,8 +55,46 @@ function handleSessionMetadataUpdate(notification) {
     }
 }
 
-eventBus.subscribe(DbMessagesUpdatedNotification.type, handleMessagesUpdate);
-eventBus.subscribe(DbSessionUpdatedNotification.type, handleSessionMetadataUpdate);
+document.addEventListener(DbMessagesUpdatedNotification.type, (e) => {
+    console.log('[ChatRenderer] document event received for DbMessagesUpdatedNotification:', e);
+    handleMessagesUpdate(e.detail);
+});
+
+document.addEventListener(DbSessionUpdatedNotification.type, (e) => {
+    console.log('[ChatRenderer] Received DbSessionUpdatedNotification: ', e.detail);
+    handleSessionMetadataUpdate(e.detail);
+});
+
+dbChannel.onmessage = (event) => {
+    console.log('[ChatRenderer] dbChannel event received:', event.data);
+    const message = event.data;
+    const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
+    const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
+    console.log(`[ChatRenderer] dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+    const type = message?.type;
+    if (type === DbMessagesUpdatedNotification.type) {
+        handleMessagesUpdate(message.payload);
+    }
+    if (type === DbSessionUpdatedNotification.type) {
+        handleSessionMetadataUpdate(message.payload);
+    }
+};
+
+// If browser.runtime.onMessage is used for notifications, add a similar log
+if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessage) {
+    browser.runtime.onMessage.addListener((message) => {
+        const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
+        const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
+        console.log(`[ChatRenderer] browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+        const type = message?.type;
+        if (type === DbMessagesUpdatedNotification.type) {
+            handleMessagesUpdate(message.payload);
+        }
+        if (type === DbSessionUpdatedNotification.type) {
+            handleSessionMetadataUpdate(message.payload);
+        }
+    });
+}
 
 export function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
@@ -162,6 +196,12 @@ function renderSingleMessage(msg) {
 
     console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
 
+    // Parse metadata for type detection
+    let meta = {};
+    try { meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {}); } catch {}
+    const extraction = meta.extraction;
+    const isPageExtractor = (meta.extractionType === 'PageExtractor') || (extraction && extraction.__type === 'PageExtractor');
+
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('flex', 'mb-2');
     messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random().toString(36).substring(2)}`;
@@ -169,14 +209,13 @@ function renderSingleMessage(msg) {
     const bubbleDiv = document.createElement('div');
     bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group', 'p-2', 'min-w-0');
 
-    // Conditionally add max-width. For user messages, we omit it for now to test clipping.
-    if (msg.sender !== 'user') {
+    if (msg.sender !== MessageSenderTypes.USER) {
         bubbleDiv.classList.add('max-w-4xl');
     }
 
-    // Create actions container first
+    // Actions container (copy/download) as before
     const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10'; // Added z-10 to ensure it's on top
+    actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10';
 
     const copyButton = document.createElement('button');
     copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
@@ -210,14 +249,14 @@ function renderSingleMessage(msg) {
     // IMPORTANT: Append actionsContainer AFTER main content is set, or ensure it's not overwritten.
     // For now, we will append it after other content elements are added to bubbleDiv.
 
-    let contentToParse = msg.text || '';
-    let specialHeaderHTML = ''; // Changed to store HTML string
+    let contentToParse = msg.text || msg.content || '';
+    let specialHeaderHTML = '';
 
-    if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
-        specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Content:</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${msg.metadata.scrapeData.url || 'N/A'}</p></div>`;
-        const dataForMd = typeof msg.metadata.scrapeData === 'string' ? msg.metadata.scrapeData : JSON.stringify(msg.metadata.scrapeData, null, 2);
-        contentToParse = '```json\n' + dataForMd + '\n```';
-        console.log('[ChatRenderer] Preparing to parse scrape_result_full. Input to marked:', contentToParse);
+    // --- Special handling for PageExtractor results ---
+    if (isPageExtractor && extraction) {
+        specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Page Extraction</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${extraction.url || 'N/A'}</p></div>`;
+        contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
+        console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
     } else if (msg.text) {
         console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
     }
@@ -227,7 +266,7 @@ function renderSingleMessage(msg) {
     if (msg.isLoading) {
         messageDiv.classList.add('justify-start');
         bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic', 'border', 'border-gray-300', 'dark:border-gray-500');
-    } else if (msg.sender === 'user') {
+    } else if (msg.sender === MessageSenderTypes.USER) {
         messageDiv.classList.add('justify-end', 'min-w-0');
         bubbleDiv.classList.add(
             'bg-[rgba(236,253,245,0.51)]', // very subtle green tint

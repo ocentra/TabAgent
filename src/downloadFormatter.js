@@ -1,4 +1,4 @@
-
+import { MessageSenderTypes } from './events/eventNames.js';
 
 /**
  * Formats a chat session object into a self-contained HTML string.
@@ -10,8 +10,8 @@ export function formatChatToHtml(sessionData) {
 
     const title = sessionData.title || 'Chat Session';
     const messagesHtml = (sessionData.messages || []).map(msg => {
-        const senderClass = msg.sender === 'user' ? 'user-message' : 'other-message';
-        const senderLabel = msg.sender === 'user' ? 'You' : (msg.sender === 'ai' ? 'Agent' : 'System');
+        const senderClass = msg.sender === MessageSenderTypes.USER ? 'user-message' : 'other-message';
+        const senderLabel = msg.sender === MessageSenderTypes.USER ? 'You' : (msg.sender === MessageSenderTypes.AI ? 'Agent' : 'System');
         // Basic sanitization: escape HTML characters to prevent XSS if message text somehow contains HTML
         const escapedText = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
         // Convert newlines to <br> tags for display

@@ -3,7 +3,11 @@ import { pipeline, env } from './xenova/transformers/dist/transformers.js';
 import { WorkerEventNames } from './events/eventNames.js';
 import { ModelLoaderMessageTypes } from './events/eventNames.js';
 
+
 console.log("[ModelWorker] model-worker.js loaded (top of file)");
+
+// Notify background that the worker script is ready
+self.postMessage({ type: WorkerEventNames.WORKER_SCRIPT_READY });
 
 self.addEventListener('error', function(e) {
     console.error("[ModelWorker] Global error in model-worker.js:", e);
@@ -26,6 +30,7 @@ self.addEventListener('unhandledrejection', function(e) {
 let pipelineInstance = null;
 let tokenizerInstance = null;
 let currentModelIdForPipeline = null;
+let currentModelIdForGlobalFetchOverride = null; // Track for global fetch override
 let isModelPipelineReady = false;
 let isGenerationInterrupted = false;
 
@@ -33,6 +38,91 @@ let specialStartThinkingTokenId = null;
 let specialEndThinkingTokenId = null;
 
 const browser = self.browser || self.chrome;
+
+// Store the original fetch
+const originalFetch = self.fetch;
+
+// --- BroadcastChannel Setup ---
+const llmChannel = new BroadcastChannel('tabagent-llm');
+const senderId = 'worker-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+const pendingRequests = new Map();
+
+llmChannel.onmessage = (event) => {
+    const { type, payload, requestId, senderId: respSenderId } = event.data;
+    if (respSenderId !== senderId && pendingRequests.has(requestId)) {
+        const { resolve } = pendingRequests.get(requestId);
+        resolve(payload);
+        pendingRequests.delete(requestId);
+    }
+};
+
+function sendRequestViaChannel(type, payload) {
+    return new Promise((resolve) => {
+        const requestId = 'req-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+        pendingRequests.set(requestId, { resolve });
+        llmChannel.postMessage({ type, payload, requestId, senderId });
+    });
+}
+
+async function getChunkCount(modelId, fileName) {
+    const response = await sendRequestViaChannel('COUNT_MODEL_ASSET_CHUNKS', { modelId, fileName });
+    return response.count || 0;
+}
+
+async function fetchChunk(modelId, fileName, chunkIndex) {
+    const response = await sendRequestViaChannel('REQUEST_MODEL_ASSET_CHUNK', { modelId, fileName, chunkIndex });
+    return response.arrayBuffer;
+}
+
+// Global fetch override
+self.fetch = async (resource, options) => {
+    const resourceURLString = (typeof resource === 'string') ? resource : resource.url;
+    console.log('[ModelWorker][fetch] CALLED:', resourceURLString);
+
+    let isDBAssetRequest = false;
+    let fileNameToFetchForDB = null;
+    let modelIdForDBFetch = null;
+    if (currentModelIdForGlobalFetchOverride && resourceURLString.startsWith(`/${currentModelIdForGlobalFetchOverride}/`)) {
+        isDBAssetRequest = true;
+        modelIdForDBFetch = currentModelIdForGlobalFetchOverride;
+        fileNameToFetchForDB = resourceURLString.substring(`/${modelIdForDBFetch}/`.length);
+    }
+    if (isDBAssetRequest) {
+        // 1. Get chunk count
+        const chunkCount = await getChunkCount(modelIdForDBFetch, fileNameToFetchForDB);
+        console.log('[ModelWorker][fetch] chunkCount for', modelIdForDBFetch, fileNameToFetchForDB, '=', chunkCount);
+
+        if (chunkCount < 1) {
+            throw new Error(`No chunks found for asset: ${modelIdForDBFetch}/${fileNameToFetchForDB}`);
+        }
+
+        // Always fetch all chunks, even if only one
+        const chunks = [];
+        for (let i = 0; i < chunkCount; i++) {
+            const chunkBuffer = await fetchChunk(modelIdForDBFetch, fileNameToFetchForDB, i);
+            if (!chunkBuffer) {
+                console.error(`[ModelWorker][fetch] Failed to fetch chunk ${i} for`, modelIdForDBFetch, fileNameToFetchForDB);
+                throw new Error(`Failed to fetch chunk ${i}`);
+            }
+            if (i === 0 || i === chunkCount - 1) {
+                console.log(`[ModelWorker][fetch] Fetched chunk ${i} for`, modelIdForDBFetch, fileNameToFetchForDB, 'length:', chunkBuffer.byteLength);
+            }
+            chunks.push(new Uint8Array(chunkBuffer));
+        }
+        // Combine (trivial if only one chunk)
+        const totalLength = chunks.reduce((sum, arr) => sum + arr.length, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+            combined.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return new Response(combined.buffer);
+    } else {
+        console.log('[ModelWorker][fetch] Passing to original fetch:', resourceURLString);
+        return originalFetch(resource, options);
+    }
+};
 
 async function initializePipeline(modelIdToLoad, progressCallbackForPipeline) {
     if (pipelineInstance && currentModelIdForPipeline === modelIdToLoad) {
@@ -77,6 +167,7 @@ async function initializePipeline(modelIdToLoad, progressCallbackForPipeline) {
 
         env.allowRemoteModels = false;
         env.allowLocalModels = true; // Must be true for customFetch to be used effectively
+        console.log('[ModelWorker] (FIXED) Set allowRemoteModels:', env.allowRemoteModels, 'allowLocalModels:', env.allowLocalModels);
 
         console.log(`[ModelWorker] Calling transformers.js pipeline() for model: ${currentModelIdForPipeline}`);
         pipelineInstance = await pipeline('text-generation', currentModelIdForPipeline, {
@@ -163,27 +254,12 @@ self.onmessage = async (event) => {
 
             // Log all files in the model's folder before loading
             console.log('[ModelWorker] [PreLoad] Requesting file list for', modelIdToInit);
-            // --- Begin: Request file list from offscreen worker ---
-            function requestModelFileList(modelId) {
-                return new Promise((resolve) => {
-                    const requestId = `list_files_${modelId}_${Date.now()}_${Math.random()}`;
-                    function handleResponse(event) {
-                        console.log('[ModelWorker][requestModelFileList] Received message:', event.data);
-                        if (event.data && event.data.type === ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT && event.data.requestId === requestId) {
-                            self.removeEventListener('message', handleResponse);
-                            resolve(event.data.payload);
-                        }
-                    }
-                    self.addEventListener('message', handleResponse);
-                    self.postMessage({
-                        type: ModelLoaderMessageTypes.LIST_MODEL_FILES,
-                        requestId,
-                        payload: { modelId }
-                    });
-                });
+            // --- Begin: Request file list from offscreen worker using MessageChannel ---
+            function requestModelFileListViaChannel(modelId) {
+                return sendRequestViaChannel('LIST_MODEL_FILES', { modelId });
             }
             try {
-                const responseData = await requestModelFileList(modelIdToInit);
+                const responseData = await requestModelFileListViaChannel(modelIdToInit);
                 if (responseData && responseData.success && Array.isArray(responseData.files)) {
                     console.log(`[ModelWorker] [PreLoad] Files present in model folder '${modelIdToInit}':`);
                     responseData.files.forEach(f => {
@@ -210,41 +286,8 @@ self.onmessage = async (event) => {
 
                 env.localModelPath = '';
 
-                env.customFetch = async (resourceURL) => {
-                    console.log('[ModelWorker] [customFetch] CALLED:', { resourceURL });
-                    const modelIdForThisFetch = currentModelIdForPipeline;
-                    console.log('[ModelWorker] [customFetch] modelIdForThisFetch:', modelIdForThisFetch);
-                    let fileNameToFetch = resourceURL.replace(/^\//, ''); // Remove leading slash if present
-                    if (fileNameToFetch.startsWith(modelIdForThisFetch + '/')) {
-                        fileNameToFetch = fileNameToFetch.substring(modelIdForThisFetch.length + 1);
-                    }
-                    console.log('[ModelWorker] [customFetch] Normalized fileNameToFetch:', fileNameToFetch);
-                    return new Promise((resolve) => {
-                        const channel = new MessageChannel();
-                        channel.port1.onmessage = ({ data: responseData }) => {
-                            channel.port1.close();
-                            if (responseData.error) {
-                                console.error('[ModelWorker] [customFetch] Error received for', { modelIdForThisFetch, fileNameToFetch, error: responseData.error });
-                            } else if (responseData.arrayBuffer) {
-                                console.log('[ModelWorker] [customFetch] Success: Received ArrayBuffer for', { modelIdForThisFetch, fileNameToFetch, length: responseData.arrayBuffer.byteLength });
-                            } else {
-                                console.error('[ModelWorker] [customFetch] Unexpected response for', { modelIdForThisFetch, fileNameToFetch, responseData });
-                            }
-                            resolve(responseData.error ? new Response(null, { status: 404, statusText: `DB Asset Not Found or Error: ${responseData.error}` }) : new Response(responseData.arrayBuffer));
-                        };
-                        channel.port1.onmessageerror = (messageErrorEvent) => {
-                            channel.port1.close();
-                            console.error('[ModelWorker] [customFetch] MessageChannel onmessageerror for', { modelIdForThisFetch, fileNameToFetch, messageErrorEvent });
-                            resolve(new Response(null, { status: 500, statusText: `MessageChannel communication error for ${fileNameToFetch}` }));
-                        };
-                        console.log('[ModelWorker] [customFetch] Posting asset request to offscreen:', { modelIdForThisFetch, fileNameToFetch });
-                        self.postMessage({
-                            type: WorkerEventNames.REQUEST_ASSET_FROM_DB_INTERNAL_TYPE,
-                            payload: { modelId: modelIdForThisFetch, fileName: fileNameToFetch },
-                        }, [channel.port2]);
-                    });
-                };
-                console.log("[ModelWorker] env.customFetch has been configured.");
+                currentModelIdForPipeline = modelIdToInit; // Set for customFetch
+                currentModelIdForGlobalFetchOverride = modelIdToInit; // Set for global fetch override
 
                 await initializePipeline(modelIdToInit, (progressReport) => {
                     if (progressReport && progressReport.file) {
@@ -384,6 +427,9 @@ self.onmessage = async (event) => {
             self.postMessage({ type: WorkerEventNames.RESET_COMPLETE });
             break;
 
+        case ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT:
+            // No-op: handled by MessageChannel or legacy Promise, suppress warning
+            break;
         default:
             console.warn(`[ModelWorker] Unknown message type received: ${type}. Payload:`, payload);
             self.postMessage({ type: WorkerEventNames.ERROR, payload: `[ModelWorker] Unknown message type received by model-worker: ${type}` });
@@ -391,5 +437,3 @@ self.onmessage = async (event) => {
     }
 };
 
-console.log(`[ModelWorker] Model Worker script (model-worker.js) evaluated. Sending ${WorkerEventNames.WORKER_SCRIPT_READY} to host (offscreen).`);
-self.postMessage({ type: WorkerEventNames.WORKER_SCRIPT_READY });

@@ -1,7 +1,9 @@
 // src/Controllers/LogViewerController.js
 
-import { eventBus } from '../eventBus.js';
+
 import { DbGetLogsRequest, DbGetUniqueLogValuesRequest } from '../events/dbEvents.js';
+import { sendDbRequestSmart } from '../sidepanel.js';
+import browser from 'webextension-polyfill';
 
 console.log('[LogViewerController] Script loaded.');
 
@@ -45,6 +47,13 @@ function displayLogs(logsArray) {
     console.debug(`[LogViewerController] Displayed ${logsArray.length} log entries.`);
 }
 
+function getDbProxy() {
+    // If sendDbRequestSmart is available, use it; otherwise fallback to browser.runtime.sendMessage
+    return (typeof sendDbRequestSmart === 'function')
+        ? (req) => sendDbRequestSmart(req)
+        : (req) => browser.runtime.sendMessage(req);
+}
+
 /**
  * @param {string} selectElementId 
  * @param {string} fieldName 
@@ -59,20 +68,14 @@ async function populateViewerDropdown(selectElementId, fieldName, defaultValue =
 
     console.debug(`[LogViewerController] Populating viewer dropdown ${selectElementId} for ${fieldName}, default: ${defaultValue}`);
     try {
-        const resultArr = await eventBus.publish(
-            DbGetUniqueLogValuesRequest.type,
-            new DbGetUniqueLogValuesRequest(fieldName)
-        );
-        const response = Array.isArray(resultArr) ? resultArr[0] : resultArr;
-
+        const dbProxy = getDbProxy();
+        const response = await dbProxy(new DbGetUniqueLogValuesRequest(fieldName));
         if (!response || !response.success) {
             throw new Error(response?.error || `Background script failed for ${fieldName}`);
         }
-
         while (selectElement.options.length > 1) {
             selectElement.remove(1);
         }
-
         (response.data || []).forEach(value => {
             const option = document.createElement('option');
             option.value = value;
@@ -80,7 +83,6 @@ async function populateViewerDropdown(selectElementId, fieldName, defaultValue =
             selectElement.appendChild(option);
         });
         selectElement.value = defaultValue; 
-
     } catch (error) {
         console.error(`[LogViewerController] Error populating dropdown ${selectElementId} (field: ${fieldName}):`, error);
         if(logContainer) logContainer.innerHTML += `<div class="log-line log-level-error">Error populating ${fieldName} filter: ${error.message}</div>`;
@@ -93,41 +95,30 @@ async function fetchAndDisplayLogs() {
         console.error("[LogViewerController] Cannot fetch logs, display area not found.");
         return;
     }
-    
     sessionSelect = document.getElementById('viewerSessionSelect');
     componentSelect = document.getElementById('viewerComponentSelect');
     levelSelect = document.getElementById('viewerLevelSelect');
     refreshButton = document.getElementById('viewerRefreshButton');
-
-     if (!sessionSelect || !componentSelect || !levelSelect || !refreshButton) {
-         console.error("[LogViewerController] One or more filter controls not found.");
-         logContainer.innerHTML = `<div class="log-line log-level-error">Error: Filter controls not found.</div>`;
-         return;
-     }
-
+    if (!sessionSelect || !componentSelect || !levelSelect || !refreshButton) {
+        console.error("[LogViewerController] One or more filter controls not found.");
+        logContainer.innerHTML = `<div class="log-line log-level-error">Error: Filter controls not found.</div>`;
+        return;
+    }
     const filters = {
         sessionIds: [sessionSelect.value || 'all'], 
         components: [componentSelect.value || 'all'],
         levels: [levelSelect.value || 'all']
     };
-
     console.info('[LogViewerController] Fetching logs with filters:', filters);
     logContainer.innerHTML = '<div class="text-center p-4 text-gray-500 dark:text-gray-400">Fetching logs...</div>';
     refreshButton.disabled = true;
-
     try {
-        const resultArr = await eventBus.publish(
-            DbGetLogsRequest.type,
-            new DbGetLogsRequest(filters)
-        );
-        const response = Array.isArray(resultArr) ? resultArr[0] : resultArr;
-
+        const dbProxy = getDbProxy();
+        const response = await dbProxy(new DbGetLogsRequest(filters));
         if (!response || !response.success) {
             throw new Error(response?.error || 'Background script failed to fetch logs.');
         }
-
         displayLogs(response.data || []);
-
     } catch (error) {
         console.error('[LogViewerController] Error fetching or displaying logs:', error);
         displayLogs([]);

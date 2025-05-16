@@ -324,8 +324,8 @@ function updateHeaderState() {
 export function initializeDriveController(dependencies) {
     console.log("Initializing DriveController...");
 
-    if (!dependencies || !dependencies.showNotification || !dependencies.debounce || !dependencies.eventBus) {
-        console.error("DriveController requires dependencies: showNotification, debounce, eventBus!");
+    if (!dependencies || !dependencies.showNotification || !dependencies.debounce) {
+        console.error("DriveController requires dependencies: showNotification, debounce!");
         return; 
     }
     showNotificationDep = dependencies.showNotification;

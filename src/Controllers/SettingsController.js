@@ -1,7 +1,7 @@
 // src/Controllers/SettingsController.js
 import browser from 'webextension-polyfill';
-
-
+import { sendDbRequestSmart } from '../sidepanel.js';
+import { DbResetDatabaseRequest } from '../events/dbEvents.js';
 let isInitialized = false;
 
 const updateThemeButtonText = (button) => {
@@ -104,6 +104,27 @@ export function initializeSettingsController() {
             }
         });
         console.log('[SettingsController] Added listener to View Logs button.');
+
+        const resetDbButton = document.getElementById('resetDbButton');
+        if (resetDbButton) {
+            resetDbButton.addEventListener('click', async () => {
+                console.log('[SettingsController] Reset DB button clicked.');
+                try {
+                    const request = new DbResetDatabaseRequest();
+                    const result = await sendDbRequestSmart(request);
+                    if (result && result.success) {
+                        alert('Database reset successfully!');
+                    } else {
+                        alert('Database reset failed.');
+                    }
+                    console.log('[SettingsController] Reset DB result:', result);
+                } catch (e) {
+                    alert('Failed to reset database: ' + (e.message || e));
+                    console.error('[SettingsController] Reset DB error:', e);
+                }
+            });
+        }
+        console.log('[SettingsController] Added Reset DB button next to View Logs button.');
     } else {
         console.warn('[SettingsController] View Logs button (viewLogsButton) not found.');
     }

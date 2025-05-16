@@ -1,9 +1,9 @@
-import { eventBus } from '../eventBus.js';
 import {  UIEventNames, DirectDBNames, DBEventNames } from '../events/eventNames.js';
-import { renderTemporaryMessage, clearTemporaryMessages } from './chatRenderer.js';
+import {  clearTemporaryMessages } from './chatRenderer.js';
 import browser from 'webextension-polyfill';
+import { dbChannel } from '../Utilities/dbChannels.js';
 
-let queryInput, sendButton, chatBody, attachButton, fileInput, /*sessionListElement,*/ loadingIndicatorElement, 
+let queryInput, sendButton, chatBody, attachButton, fileInput,  loadingIndicatorElement, 
     historyButton, historyPopup, historyList, closeHistoryButton, newChatButton, historySearchInput, 
     sessionListElement, driveButton, driveViewerModal, driveViewerClose, driveViewerBack, driveViewerContent, 
     driveViewerList, driveViewerSearch, driveViewerBreadcrumbs, driveViewerSelectedArea, driveViewerCancel, 
@@ -16,24 +16,34 @@ import { DbStatusUpdatedNotification } from '../events/dbEvents.js';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     // Model ID (value) : Display Name
-    "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
-    "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
-    "HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
-    "HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
-    "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
-    "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
-    "microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
-    "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
-    "Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
-    "google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
+  //  "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
+   // "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
+    //"HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
+    //"HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
+   // "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
+   // "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
+    //"microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
+   // "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
+    //"Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
+    //"google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
 
-    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct (ONNX)",
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
+    "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
     // Add more models here as needed
 };
 
+document.addEventListener(DbStatusUpdatedNotification.type, (e) => {
+    console.log('[UIController] Received DbStatusUpdatedNotification: ', e.detail);
+    handleStatusUpdate(e.detail);
+  });
+
 // Add this at the top level to ensure UI progress bar updates
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const type = message?.type;
+    console.log('[UIController] browser.runtime.onMessage Received progress update: ', message.type, message.payload);
+    if (message.type === DbStatusUpdatedNotification.type) {
+        handleStatusUpdate(message.payload);
+    }
     if (Object.values(DirectDBNames).includes(type)) {
         return false;
     }
@@ -41,10 +51,20 @@ browser.runtime.onMessage.addListener((message) => {
         return false;
     }
     if (message.type === UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
-        console.log('[UIController] Received progress update:', message.type, message.payload);
+       
         handleLoadingProgress(message.payload);
     }
 });
+
+dbChannel.onmessage = (event) => {
+    const message = event.data;
+    const type = message?.type;
+    console.log('[UIController] dbChannel.onmessage Received progress update: ', message.type, message.payload);
+    if (type === DbStatusUpdatedNotification.type) {
+        handleStatusUpdate(message.payload);
+    }
+    // Add other notification types as needed
+};
 
 function selectElements() {
     queryInput = document.getElementById('query-input');
@@ -80,7 +100,7 @@ function handleEnterKey(event) {
         const messageText = getInputValue();
         if (messageText && !queryInput.disabled) {
             console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
-            eventBus.publish(UIEventNames.QUERY_SUBMITTED, { text: messageText });
+            document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
             clearInput();
         } else {
              console.log("[UIController] Enter key pressed, but input is empty or disabled.");
@@ -92,7 +112,7 @@ function handleSendButtonClick() {
     const messageText = getInputValue();
     if (messageText && !queryInput.disabled) {
         console.log("[UIController] Send button clicked. Publishing ui:querySubmitted");
-        eventBus.publish(UIEventNames.QUERY_SUBMITTED, { text: messageText });
+        document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
         clearInput();
     } else {
         console.log("[UIController] Send button clicked, but input is empty or disabled.");
@@ -184,34 +204,46 @@ function handleLoadingProgress(payload) {
         statusText.textContent = payload.error || 'Error loading model';
         progressInner.style.background = '#f44336'; // red
         progressInner.style.width = '100%';
-        // Do NOT auto-hide on error
         return;
     }
 
-    // Show status text
-    let text = payload.statusText || payload.status || 'Loading...';
-    if (payload.file && payload.progress !== undefined && payload.status === 'progress') {
-        text = `Downloading ${payload.file}... ${Math.round(payload.progress)}%`;
-    } else if (payload.file && payload.status === 'download') {
-        text = `Loading ${payload.file}...`;
-    } else if (payload.status === 'done') {
-        text = `${payload.file || ''} loaded. Preparing pipeline...`;
-    }
-    statusText.textContent = text;
-
-    // Update progress bar
-    let percent = payload.overallProgress || payload.progress || 0;
+    // Main progress bar (overall)
+    let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
     progressInner.style.width = percent + '%';
     progressInner.style.background = '#4caf50'; // green
 
+    // Status text
+    let text = '';
+    // Truncate file name for display
+    function truncateFileName(name, maxLen = 32) {
+        if (!name) return '';
+        return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
+    }
+    if (payload.summary && payload.message) {
+        text = payload.message;
+    } else if (payload.status === 'progress' && payload.file) {
+        const shortFile = truncateFileName(payload.file);
+        text = `Downloading ${shortFile}`;
+        if (payload.chunkIndex && payload.totalChunks) {
+            text += ` (chunk ${payload.chunkIndex} of ${payload.totalChunks})`;
+        }
+        text += `... ${Math.round(percent)}%`;
+    } else if (payload.status === 'done' && payload.file) {
+        const shortFile = truncateFileName(payload.file);
+        text = `${shortFile} downloaded. Preparing pipeline...`;
+    } else {
+        text = 'Loading...';
+    }
+    statusText.textContent = text;
+
     // Hide when done (but not on error)
-    if ((percent >= 100 || payload.status === 'done') && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
     }
 }
 
-eventBus.subscribe(DbStatusUpdatedNotification.type, handleStatusUpdate);
+
 
 
 export async function initializeUI(callbacks) {
@@ -324,7 +356,7 @@ function handleLoadModelClick() {
     console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
     setLoadButtonState('loading'); 
     disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`); 
-    eventBus.publish(UIEventNames.REQUEST_MODEL_LOAD, { modelId: selectedModelId });
+    document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
 }
 
 function setLoadButtonState(state, text = 'Load') {
@@ -373,7 +405,8 @@ function enableInput() {
     sendButton.disabled = queryInput.value.trim() === '';
 }
 
-eventBus.subscribe(UIEventNames.WORKER_READY, (payload) => {
+document.addEventListener(UIEventNames.WORKER_READY, (e) => {
+    const payload = e.detail;
     console.log("[UIController] Received worker:ready signal", payload);
     // Hide progress bar area
     const statusDiv = document.getElementById('model-load-status');
@@ -381,7 +414,8 @@ eventBus.subscribe(UIEventNames.WORKER_READY, (payload) => {
     setLoadButtonState('loaded');
 });
 
-eventBus.subscribe(UIEventNames.WORKER_ERROR, (payload) => {
+document.addEventListener(UIEventNames.WORKER_ERROR, (e) => {
+    const payload = e.detail;
     console.error("[UIController] Received worker:error signal", payload);
     // Show error in progress bar area and keep it visible
     const statusDiv = document.getElementById('model-load-status');

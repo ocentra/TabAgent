@@ -12,21 +12,24 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DBPaths: () => (/* binding */ DBPaths),
 /* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
+/* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
+/* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
 /* harmony export */   ModelWorkerStates: () => (/* binding */ ModelWorkerStates),
 /* harmony export */   RawDirectMessageTypes: () => (/* binding */ RawDirectMessageTypes),
 /* harmony export */   RuntimeMessageTypes: () => (/* binding */ RuntimeMessageTypes),
 /* harmony export */   SiteMapperMessageTypes: () => (/* binding */ SiteMapperMessageTypes),
+/* harmony export */   TableNames: () => (/* binding */ TableNames),
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
 const DirectDBNames = Object.freeze({
   ADD_MODEL_ASSET: 'AddModelAsset',
-  GET_MODEL_ASSET: 'GetModelAsset',
+  REQUEST_MODEL_ASSET_CHUNK: 'RequestModelAssetChunk',
   COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
-  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
 });
 
 const DBEventNames = Object.freeze({
@@ -72,10 +75,29 @@ const DBEventNames = Object.freeze({
   DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
   DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
 
+  // Model Asset DB Operations
+  DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest',
+  DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
+  DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
+  DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
+  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
+  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
+  DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest',
+  DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
+  DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest',
+  DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
+  DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest',
+  DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
+  DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
+  DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
+  DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest',
+  DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
+  DB_WORKER_ERROR: 'DbWorkerError',
+  DB_WORKER_RESET: 'DbWorkerReset',
 });
 
 const UIEventNames = Object.freeze({
-  QUERY_SUBMITTED: 'ui:querySubmitted',
+  QUERY_SUBMITTED: 'querySubmitted',
   BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
   BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
   BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
@@ -88,7 +110,7 @@ const UIEventNames = Object.freeze({
   SCRAPE_PAGE: 'SCRAPE_PAGE',
   SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
   DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
+  MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
   // Add more as needed
 });
 
@@ -102,7 +124,7 @@ const WorkerEventNames = Object.freeze({
   GENERATION_ERROR: 'generationError',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
-  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
+
 });
 
 const ModelWorkerStates = Object.freeze({
@@ -138,24 +160,24 @@ const SiteMapperMessageTypes = Object.freeze({
 
 const ModelLoaderMessageTypes = Object.freeze({
   INIT: 'init',
-  GENERATE: 'generate',
-  INTERRUPT: 'interrupt',
-  RESET: 'reset',
-  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
-  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
-  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
+  GENERATE: 'Generate',
+  INTERRUPT: 'Interrupt',
+  RESET: 'Reset',
+  DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
+  LIST_MODEL_FILES: 'ListModelFiles',
+  LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
 });
 
 const InternalEventBusMessageTypes = Object.freeze({
-  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+  BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
 });
 
 const RawDirectMessageTypes = Object.freeze({
-  WORKER_GENERIC_RESPONSE: 'response',
-  WORKER_GENERIC_ERROR: 'error',
-  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
-  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
-  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+  WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
+  WORKER_GENERIC_ERROR: 'WorkerGenericError',
+  WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
+  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
 
 const Contexts = Object.freeze({
@@ -164,6 +186,42 @@ const Contexts = Object.freeze({
   POPUP: 'Popup',
   OTHERS: 'Others',
   UNKNOWN: 'Unknown',
+});
+
+const MessageSenderTypes = Object.freeze({
+  USER: 'user',
+  SYSTEM: 'system',
+  AI: 'ai',
+  AGENT: 'agent',
+  // Add more as needed
+});
+
+const MessageContentTypes = Object.freeze({
+  TEXT: 'text',
+  IMAGE: 'image',
+  FILE: 'file',
+  CODE: 'code',
+  AGENT_ACTION: 'agent_action',
+  // Add more as needed
+});
+
+const DBPaths = Object.freeze({
+  CHAT: '/sql/chat.db',
+  LOGS: '/sql/logs.db',
+  MODELS: '/sql/models.db',
+  KNOWLEDGE: '/sql/knowledge.db',
+});
+
+const TableNames = Object.freeze({
+  CHATS: 'chats',
+  MESSAGES: 'messages',
+  CHAT_SUMMARIES: 'chat_summaries',
+  ATTACHMENTS: 'attachments',
+  USERS: 'users',
+  LOGS: 'logs',
+  MODEL_ASSETS: 'model_assets',
+  KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
+  KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
 });
 
 
@@ -27511,7 +27569,11 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
 console.log("[ModelWorker] model-worker.js loaded (top of file)");
+
+// Notify background that the worker script is ready
+self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_SCRIPT_READY });
 
 self.addEventListener('error', function(e) {
     console.error("[ModelWorker] Global error in model-worker.js:", e);
@@ -27534,6 +27596,7 @@ self.addEventListener('unhandledrejection', function(e) {
 let pipelineInstance = null;
 let tokenizerInstance = null;
 let currentModelIdForPipeline = null;
+let currentModelIdForGlobalFetchOverride = null; // Track for global fetch override
 let isModelPipelineReady = false;
 let isGenerationInterrupted = false;
 
@@ -27541,6 +27604,91 @@ let specialStartThinkingTokenId = null;
 let specialEndThinkingTokenId = null;
 
 const browser = self.browser || self.chrome;
+
+// Store the original fetch
+const originalFetch = self.fetch;
+
+// --- BroadcastChannel Setup ---
+const llmChannel = new BroadcastChannel('tabagent-llm');
+const senderId = 'worker-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+const pendingRequests = new Map();
+
+llmChannel.onmessage = (event) => {
+    const { type, payload, requestId, senderId: respSenderId } = event.data;
+    if (respSenderId !== senderId && pendingRequests.has(requestId)) {
+        const { resolve } = pendingRequests.get(requestId);
+        resolve(payload);
+        pendingRequests.delete(requestId);
+    }
+};
+
+function sendRequestViaChannel(type, payload) {
+    return new Promise((resolve) => {
+        const requestId = 'req-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+        pendingRequests.set(requestId, { resolve });
+        llmChannel.postMessage({ type, payload, requestId, senderId });
+    });
+}
+
+async function getChunkCount(modelId, fileName) {
+    const response = await sendRequestViaChannel('COUNT_MODEL_ASSET_CHUNKS', { modelId, fileName });
+    return response.count || 0;
+}
+
+async function fetchChunk(modelId, fileName, chunkIndex) {
+    const response = await sendRequestViaChannel('REQUEST_MODEL_ASSET_CHUNK', { modelId, fileName, chunkIndex });
+    return response.arrayBuffer;
+}
+
+// Global fetch override
+self.fetch = async (resource, options) => {
+    const resourceURLString = (typeof resource === 'string') ? resource : resource.url;
+    console.log('[ModelWorker][fetch] CALLED:', resourceURLString);
+
+    let isDBAssetRequest = false;
+    let fileNameToFetchForDB = null;
+    let modelIdForDBFetch = null;
+    if (currentModelIdForGlobalFetchOverride && resourceURLString.startsWith(`/${currentModelIdForGlobalFetchOverride}/`)) {
+        isDBAssetRequest = true;
+        modelIdForDBFetch = currentModelIdForGlobalFetchOverride;
+        fileNameToFetchForDB = resourceURLString.substring(`/${modelIdForDBFetch}/`.length);
+    }
+    if (isDBAssetRequest) {
+        // 1. Get chunk count
+        const chunkCount = await getChunkCount(modelIdForDBFetch, fileNameToFetchForDB);
+        console.log('[ModelWorker][fetch] chunkCount for', modelIdForDBFetch, fileNameToFetchForDB, '=', chunkCount);
+
+        if (chunkCount < 1) {
+            throw new Error(`No chunks found for asset: ${modelIdForDBFetch}/${fileNameToFetchForDB}`);
+        }
+
+        // Always fetch all chunks, even if only one
+        const chunks = [];
+        for (let i = 0; i < chunkCount; i++) {
+            const chunkBuffer = await fetchChunk(modelIdForDBFetch, fileNameToFetchForDB, i);
+            if (!chunkBuffer) {
+                console.error(`[ModelWorker][fetch] Failed to fetch chunk ${i} for`, modelIdForDBFetch, fileNameToFetchForDB);
+                throw new Error(`Failed to fetch chunk ${i}`);
+            }
+            if (i === 0 || i === chunkCount - 1) {
+                console.log(`[ModelWorker][fetch] Fetched chunk ${i} for`, modelIdForDBFetch, fileNameToFetchForDB, 'length:', chunkBuffer.byteLength);
+            }
+            chunks.push(new Uint8Array(chunkBuffer));
+        }
+        // Combine (trivial if only one chunk)
+        const totalLength = chunks.reduce((sum, arr) => sum + arr.length, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+            combined.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return new Response(combined.buffer);
+    } else {
+        console.log('[ModelWorker][fetch] Passing to original fetch:', resourceURLString);
+        return originalFetch(resource, options);
+    }
+};
 
 async function initializePipeline(modelIdToLoad, progressCallbackForPipeline) {
     if (pipelineInstance && currentModelIdForPipeline === modelIdToLoad) {
@@ -27585,6 +27733,7 @@ async function initializePipeline(modelIdToLoad, progressCallbackForPipeline) {
 
         _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels = false;
         _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels = true; // Must be true for customFetch to be used effectively
+        console.log('[ModelWorker] (FIXED) Set allowRemoteModels:', _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels, 'allowLocalModels:', _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels);
 
         console.log(`[ModelWorker] Calling transformers.js pipeline() for model: ${currentModelIdForPipeline}`);
         pipelineInstance = await (0,_xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', currentModelIdForPipeline, {
@@ -27671,27 +27820,12 @@ self.onmessage = async (event) => {
 
             // Log all files in the model's folder before loading
             console.log('[ModelWorker] [PreLoad] Requesting file list for', modelIdToInit);
-            // --- Begin: Request file list from offscreen worker ---
-            function requestModelFileList(modelId) {
-                return new Promise((resolve) => {
-                    const requestId = `list_files_${modelId}_${Date.now()}_${Math.random()}`;
-                    function handleResponse(event) {
-                        console.log('[ModelWorker][requestModelFileList] Received message:', event.data);
-                        if (event.data && event.data.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT && event.data.requestId === requestId) {
-                            self.removeEventListener('message', handleResponse);
-                            resolve(event.data.payload);
-                        }
-                    }
-                    self.addEventListener('message', handleResponse);
-                    self.postMessage({
-                        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES,
-                        requestId,
-                        payload: { modelId }
-                    });
-                });
+            // --- Begin: Request file list from offscreen worker using MessageChannel ---
+            function requestModelFileListViaChannel(modelId) {
+                return sendRequestViaChannel('LIST_MODEL_FILES', { modelId });
             }
             try {
-                const responseData = await requestModelFileList(modelIdToInit);
+                const responseData = await requestModelFileListViaChannel(modelIdToInit);
                 if (responseData && responseData.success && Array.isArray(responseData.files)) {
                     console.log(`[ModelWorker] [PreLoad] Files present in model folder '${modelIdToInit}':`);
                     responseData.files.forEach(f => {
@@ -27718,41 +27852,8 @@ self.onmessage = async (event) => {
 
                 _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.localModelPath = '';
 
-                _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__.env.customFetch = async (resourceURL) => {
-                    console.log('[ModelWorker] [customFetch] CALLED:', { resourceURL });
-                    const modelIdForThisFetch = currentModelIdForPipeline;
-                    console.log('[ModelWorker] [customFetch] modelIdForThisFetch:', modelIdForThisFetch);
-                    let fileNameToFetch = resourceURL.replace(/^\//, ''); // Remove leading slash if present
-                    if (fileNameToFetch.startsWith(modelIdForThisFetch + '/')) {
-                        fileNameToFetch = fileNameToFetch.substring(modelIdForThisFetch.length + 1);
-                    }
-                    console.log('[ModelWorker] [customFetch] Normalized fileNameToFetch:', fileNameToFetch);
-                    return new Promise((resolve) => {
-                        const channel = new MessageChannel();
-                        channel.port1.onmessage = ({ data: responseData }) => {
-                            channel.port1.close();
-                            if (responseData.error) {
-                                console.error('[ModelWorker] [customFetch] Error received for', { modelIdForThisFetch, fileNameToFetch, error: responseData.error });
-                            } else if (responseData.arrayBuffer) {
-                                console.log('[ModelWorker] [customFetch] Success: Received ArrayBuffer for', { modelIdForThisFetch, fileNameToFetch, length: responseData.arrayBuffer.byteLength });
-                            } else {
-                                console.error('[ModelWorker] [customFetch] Unexpected response for', { modelIdForThisFetch, fileNameToFetch, responseData });
-                            }
-                            resolve(responseData.error ? new Response(null, { status: 404, statusText: `DB Asset Not Found or Error: ${responseData.error}` }) : new Response(responseData.arrayBuffer));
-                        };
-                        channel.port1.onmessageerror = (messageErrorEvent) => {
-                            channel.port1.close();
-                            console.error('[ModelWorker] [customFetch] MessageChannel onmessageerror for', { modelIdForThisFetch, fileNameToFetch, messageErrorEvent });
-                            resolve(new Response(null, { status: 500, statusText: `MessageChannel communication error for ${fileNameToFetch}` }));
-                        };
-                        console.log('[ModelWorker] [customFetch] Posting asset request to offscreen:', { modelIdForThisFetch, fileNameToFetch });
-                        self.postMessage({
-                            type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.REQUEST_ASSET_FROM_DB_INTERNAL_TYPE,
-                            payload: { modelId: modelIdForThisFetch, fileName: fileNameToFetch },
-                        }, [channel.port2]);
-                    });
-                };
-                console.log("[ModelWorker] env.customFetch has been configured.");
+                currentModelIdForPipeline = modelIdToInit; // Set for customFetch
+                currentModelIdForGlobalFetchOverride = modelIdToInit; // Set for global fetch override
 
                 await initializePipeline(modelIdToInit, (progressReport) => {
                     if (progressReport && progressReport.file) {
@@ -27892,6 +27993,9 @@ self.onmessage = async (event) => {
             self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET_COMPLETE });
             break;
 
+        case _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT:
+            // No-op: handled by MessageChannel or legacy Promise, suppress warning
+            break;
         default:
             console.warn(`[ModelWorker] Unknown message type received: ${type}. Payload:`, payload);
             self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `[ModelWorker] Unknown message type received by model-worker: ${type}` });
@@ -27899,8 +28003,7 @@ self.onmessage = async (event) => {
     }
 };
 
-console.log(`[ModelWorker] Model Worker script (model-worker.js) evaluated. Sending ${_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_SCRIPT_READY} to host (offscreen).`);
-self.postMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_SCRIPT_READY });
+
 })();
 
 /******/ })()

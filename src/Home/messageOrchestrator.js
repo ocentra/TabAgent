@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
 import { URL_REGEX, getActiveTab, showError } from '../Utilities/generalUtils.js';
-import { eventBus } from '../eventBus.js';
+import { sendDbRequestSmart } from '../sidepanel.js';
 import {
     DbCreateSessionRequest, DbCreateSessionResponse,
     DbAddMessageRequest, DbAddMessageResponse,
@@ -24,29 +24,18 @@ let isSendingMessage = false; // TODO: Remove this and rely on status check via 
 
 const pendingDbRequests = new Map();
 
-function requestDbAndWait(requestEvent, timeoutMs = 5000) { 
+function requestDbAndWait(requestEvent, timeoutMs = 5000) {
     return new Promise(async (resolve, reject) => {
-        const { requestId, type: requestType } = requestEvent;
-        let timeoutId;
         try {
-            console.log(`[ Orchestrator: requestDbAndWait] Sending DB request: ${requestType} (Req ID: ${requestId})`, requestEvent);
-            timeoutId = setTimeout(() => {
-                console.error(`[ Orchestrator: requestDbAndWait] DB request timed out for ${requestType} (Req ID: ${requestId})`);
-                reject(new Error(`DB request timed out for ${requestType}`));
-            }, timeoutMs);
-            const resultArr = await eventBus.publish(requestEvent.type, requestEvent);
-            const result = Array.isArray(resultArr) ? resultArr[0] : resultArr;
-            clearTimeout(timeoutId);
-            console.log(`[ Orchestrator: requestDbAndWait] Received DB response for ${requestType} (Req ID: ${requestId})`, result);
-            if (result && (result.success || result.error === undefined)) {
-                resolve(result.data);
+            const result = await sendDbRequestSmart(requestEvent, timeoutMs);
+            console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
+            const response = Array.isArray(result) ? result[0] : result;
+            if (response && (response.success || response.error === undefined)) {
+                resolve(response.data || response.payload);
             } else {
-                console.error(`[ Orchestrator: requestDbAndWait] DB request failed for ${requestType} (Req ID: ${requestId})`, result);
-                reject(new Error(result?.error || `DB operation ${requestType} failed`));
+                reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
             }
         } catch (error) {
-            clearTimeout(timeoutId);
-            console.error(`[ Orchestrator: requestDbAndWait] Exception for ${requestType} (Req ID: ${requestId})`, error);
             reject(error);
         }
     });
@@ -93,15 +82,7 @@ async function handleQuerySubmit(data) {
         await requestDbAndWait(statusRequest);
         let placeholder;
         if (isURL) {
-            const activeTab = await getActiveTab();
-            const activeTabUrl = activeTab?.url;
-            const normalizeUrl = (u) => u ? u.replace('/$', '') : null;
-            const inputUrlNormalized = normalizeUrl(text);
-            const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
-            const placeholderText = (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized)
-                ? `⏳ Scraping active tab: ${text}...`
-                : `⏳ Scraping ${text}...`;
-            placeholder = { sender: 'system', text: placeholderText, timestamp: Date.now(), isLoading: true };
+            placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
         } else {
             placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
         }
@@ -111,50 +92,25 @@ async function handleQuerySubmit(data) {
         placeholderMessageId = placeholderResponse.newMessageId;
         
         if (isURL) {
-             const activeTab = await getActiveTab();
-             const activeTabUrl = activeTab?.url;
-             const normalizeUrl = (u) => u ? u.replace('/$', '') : null;
-             const inputUrlNormalized = normalizeUrl(text);
-             const activeTabUrlNormalized = normalizeUrl(activeTabUrl);
-            if (activeTab && activeTab.id && inputUrlNormalized === activeTabUrlNormalized) {
-                console.log("[Orchestrator: handleQuerySubmit] Triggering content script scrape.");
-                browser.tabs.sendMessage(activeTab.id, { type: UIEventNames.SCRAPE_ACTIVE_TAB }, (response) => {
-                    if (browser.runtime.lastError) {
-                        console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_ACTIVE_TAB:', browser.runtime.lastError.message);
-                        const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                            isLoading: false, sender: 'error', text: `Failed to send scrape request: ${browser.runtime.lastError.message}`
-                        });
-                        requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                        requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                        isSendingMessage = false;
-                    } else { console.log("[Orchestrator: handleQuerySubmit] SCRAPE_ACTIVE_TAB message sent."); }
+            // Always send scrape request to background, let background decide how to scrape
+            try {
+                const response = await browser.runtime.sendMessage({
+                    type: RuntimeMessageTypes.SCRAPE_REQUEST,
+                    payload: {
+                        url: text,
+                        chatId: sessionId,
+                        messageId: placeholderMessageId
+                    }
                 });
-            } else {
-                console.log("[Orchestrator: handleQuerySubmit] Triggering background scrape via scrapeRequest.");
-                try {
-                    // Send the message and await the response (if any, often undefined for one-way messages)
-                    const response = await browser.runtime.sendMessage({
-                        type: RuntimeMessageTypes.SCRAPE_REQUEST,
-                        payload: {
-                             url: text, 
-                             chatId: sessionId, 
-                             messageId: placeholderMessageId
-                        } 
-                    });
-                    // Process response if needed, or just log success if no specific response is expected
-                    // For instance, background might not send an explicit response back for this type of message.
-                    // If browser.runtime.lastError would have been set, the promise will reject.
-                    console.log("[Orchestrator: handleQuerySubmit] scrapeRequest message sent successfully.", response);
-
-                } catch (error) {
-                    console.error('[Orchestrator: handleQuerySubmit] Error sending scrapeRequest:', error.message);
-                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                         isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
-                    });
-                    requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                    requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                    isSendingMessage = false;
-                }
+                console.log("[Orchestrator: handleQuerySubmit] SCRAPE_REQUEST sent to background.", response);
+            } catch (error) {
+                console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_REQUEST:', error.message);
+                const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, placeholderMessageId, {
+                    isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
+                });
+                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
+                requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
+                isSendingMessage = false;
             }
         } else {
             console.log("[Orchestrator: handleQuerySubmit] Sending query to background for AI response.");
@@ -355,11 +311,11 @@ async function handleBackgroundDirectScrapeResult(message) {
     }
 }
 
-eventBus.subscribe(UIEventNames.QUERY_SUBMITTED, handleQuerySubmit);
-eventBus.subscribe(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, handleBackgroundMsgResponse);
-eventBus.subscribe(UIEventNames.BACKGROUND_ERROR_RECEIVED, handleBackgroundMsgError);
-eventBus.subscribe(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
-eventBus.subscribe(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
+document.addEventListener(UIEventNames.QUERY_SUBMITTED, (e) => handleQuerySubmit(e.detail));
+document.addEventListener(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => handleBackgroundMsgResponse(e.detail));
+document.addEventListener(UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => handleBackgroundMsgError(e.detail));
+document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
+document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
 
 export function initializeOrchestrator(dependencies) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;

@@ -406,4 +406,124 @@ export class DbResetDatabaseResponse extends DbResponseBase {
     super(originalRequestId, success, null, error);
     this.type = DbResetDatabaseResponse.type;
   }
+}
+
+// --- Model Asset DB Operations ---
+
+export class DbAddModelAssetRequest extends DbEventBase {
+  static type = DBEventNames.DB_ADD_MODEL_ASSET_REQUEST;
+  static responseEventName = DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbAddModelAssetRequest.type;
+    this.payload = payload;
+  }
+}
+export class DbAddModelAssetResponse extends DbResponseBase {
+  static type = DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbAddModelAssetResponse.type;
+  }
+}
+
+export class DbCountModelAssetChunksRequest extends DbEventBase {
+  static type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST;
+  static responseEventName = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbCountModelAssetChunksRequest.type;
+    this.payload = payload;
+  }
+}
+export class DbCountModelAssetChunksResponse extends DbResponseBase {
+  static type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbCountModelAssetChunksResponse.type;
+  }
+}
+
+export class DbLogAllChunkGroupIdsForModelRequest extends DbEventBase {
+  static type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST;
+  static responseEventName = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbLogAllChunkGroupIdsForModelRequest.type;
+    this.payload = payload;
+  }
+}
+export class DbLogAllChunkGroupIdsForModelResponse extends DbResponseBase {
+  static type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbLogAllChunkGroupIdsForModelResponse.type;
+  }
+}
+
+export class DbListModelFilesRequest extends DbEventBase {
+  static type = DBEventNames.DB_LIST_MODEL_FILES_REQUEST;
+  static responseEventName = DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbListModelFilesRequest.type;
+    this.payload = payload;
+  }
+}
+export class DbListModelFilesResponse extends DbResponseBase {
+  static type = DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbListModelFilesResponse.type;
+  }
+}
+
+export class DbGetModelAssetChunksRequest extends DbEventBase {
+  static type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_REQUEST;
+  static responseEventName = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbGetModelAssetChunksRequest.type;
+    this.payload = payload;
+  }
+}
+export class DbGetModelAssetChunksResponse extends DbResponseBase {
+  static type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbGetModelAssetChunksResponse.type;
+  }
+}
+
+export class DbGetModelAssetChunkRequest extends DbEventBase {
+  static type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_REQUEST;
+  static responseEventName = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
+  constructor(payload) {
+    super();
+    this.type = DbGetModelAssetChunkRequest.type;
+    this.payload = payload;
+  }
+}
+export class DbGetModelAssetChunkResponse extends DbResponseBase {
+  static type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
+  constructor(originalRequestId, success, result, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbGetModelAssetChunkResponse.type;
+  }
+}
+
+export class DbEnsureInitializedRequest extends DbEventBase {
+  static type = DBEventNames.DB_ENSURE_INITIALIZED_REQUEST;
+  static responseEventName = DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
+  constructor() {
+    super();
+    this.type = DbEnsureInitializedRequest.type;
+  }
+}
+export class DbEnsureInitializedResponse extends DbResponseBase {
+  static type = DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
+  constructor(originalRequestId, success, result = null, error = null) {
+    super(originalRequestId, success, result, error);
+    this.type = DbEnsureInitializedResponse.type;
+  }
 } 

@@ -1,6 +1,6 @@
 // src/Controllers/SpacesController.js
 
- import { eventBus } from '../eventBus.js'; 
+
 
 let isInitialized = false;
 

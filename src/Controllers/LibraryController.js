@@ -1,4 +1,3 @@
-import { eventBus } from '../eventBus.js';
 import { DbGetStarredSessionsRequest, DbGetStarredSessionsResponse, DbSessionUpdatedNotification, DbToggleStarRequest, DbDeleteSessionRequest, DbRenameSessionRequest, DbGetSessionRequest } from '../events/dbEvents.js';
 import { renderHistoryItemComponent } from '../Components/HistoryItem.js';
 import { initiateChatDownload } from '../Utilities/downloadUtils.js'; 
@@ -189,7 +188,7 @@ function handleSessionUpdate(notification) {
     }
 }
 
-eventBus.subscribe(DbSessionUpdatedNotification.type, handleSessionUpdate);
+document.addEventListener(UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handleNavigationChange(e.detail));
 
 function renderLibraryList(filter = '') {
     if (!isInitialized || !starredListElement) return;
@@ -259,8 +258,6 @@ export function initializeLibraryController(elements, requestFunc) {
     requestDbAndWaitFunc = requestFunc;
     console.log("[LibraryController] Elements and request function assigned.");
 
-    eventBus.subscribe(UIEventNames.NAVIGATION_PAGE_CHANGED, handleNavigationChange);
-    console.log("[LibraryController] Subscribed to navigation:pageChanged.");
     isInitialized = true;
     console.log("[LibraryController] Initialization successful. Library will render when activated.");
 

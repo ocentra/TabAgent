@@ -4,7 +4,7 @@ window.EXTENSION_CONTEXT = Contexts.OTHERS;
 let pageContainers = [];
 let navButtons = [];
 let mainHeaderTitle = null;
-
+const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles = {
     'page-home': 'Tab Agent', 
     'page-spaces': 'Spaces',
@@ -14,7 +14,7 @@ const pageTitles = {
 
 
 async function navigateTo(pageId) { 
-    console.log(`Navigating to ${pageId}`);
+    console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
    
     pageContainers.forEach(container => {
         container.classList.add('hidden');
@@ -26,7 +26,7 @@ async function navigateTo(pageId) {
         targetPage.classList.remove('hidden');
         targetPage.classList.add('active-page');
     } else {
-        console.error(`Navigation error: Page with ID ${pageId} not found. Showing home.`);
+        console.error(CONTEXT_PREFIX + `Navigation error: Page with ID ${pageId} not found. Showing home.`);
         const homePage = document.getElementById('page-home');
         if (homePage) {
              homePage.classList.remove('hidden');
@@ -49,9 +49,8 @@ async function navigateTo(pageId) {
         }
     });
 
-    const { eventBus } = await import('./eventBus.js'); 
-    eventBus.publish(UIEventNames.NAVIGATION_PAGE_CHANGED, { pageId: pageId });
-    console.log(`[Navigation] Published navigation:pageChanged event for ${pageId}`);
+    document.dispatchEvent(new CustomEvent(UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
+    console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
 
     const queryInput = document.getElementById('query-input');
      if (pageId === 'page-home' && queryInput) {
@@ -60,7 +59,7 @@ async function navigateTo(pageId) {
 }
 
 function initializeNavigation() {
-    console.log("Initializing navigation...");
+    console.log(CONTEXT_PREFIX + "Initializing navigation...");
 
     pageContainers = document.querySelectorAll('.page-container');
     navButtons = document.querySelectorAll('.nav-button');
@@ -77,7 +76,7 @@ function initializeNavigation() {
     });
 
     navigateTo('page-home');
-    console.log("Navigation initialized.");
+    console.log(CONTEXT_PREFIX + "Navigation initialized.");
 }
 
 export { initializeNavigation, navigateTo }; 

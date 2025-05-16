@@ -1,8 +1,7 @@
 export const DirectDBNames = Object.freeze({
   ADD_MODEL_ASSET: 'AddModelAsset',
-  GET_MODEL_ASSET: 'GetModelAsset',
+  REQUEST_MODEL_ASSET_CHUNK: 'RequestModelAssetChunk',
   COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
-  VERIFY_MODEL_ASSET: 'VerifyModelAsset',
 });
 
 export const DBEventNames = Object.freeze({
@@ -48,10 +47,29 @@ export const DBEventNames = Object.freeze({
   DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
   DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
 
+  // Model Asset DB Operations
+  DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest',
+  DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
+  DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
+  DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
+  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
+  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
+  DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest',
+  DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
+  DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest',
+  DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
+  DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest',
+  DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
+  DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
+  DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
+  DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest',
+  DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
+  DB_WORKER_ERROR: 'DbWorkerError',
+  DB_WORKER_RESET: 'DbWorkerReset',
 });
 
 export const UIEventNames = Object.freeze({
-  QUERY_SUBMITTED: 'ui:querySubmitted',
+  QUERY_SUBMITTED: 'querySubmitted',
   BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
   BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
   BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
@@ -64,7 +82,7 @@ export const UIEventNames = Object.freeze({
   SCRAPE_PAGE: 'SCRAPE_PAGE',
   SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
   DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-  MODEL_DOWNLOAD_PROGRESS: 'ui:modelDownloadProgress',
+  MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
   // Add more as needed
 });
 
@@ -78,7 +96,7 @@ export const WorkerEventNames = Object.freeze({
   GENERATION_ERROR: 'generationError',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
-  REQUEST_ASSET_FROM_DB_INTERNAL_TYPE : 'REQUEST_ASSET_FROM_DB_INTERNAL_TYPE',
+
 });
 
 export const ModelWorkerStates = Object.freeze({
@@ -114,24 +132,24 @@ export const SiteMapperMessageTypes = Object.freeze({
 
 export const ModelLoaderMessageTypes = Object.freeze({
   INIT: 'init',
-  GENERATE: 'generate',
-  INTERRUPT: 'interrupt',
-  RESET: 'reset',
-  DOWNLOAD_MODEL_ASSETS: 'DOWNLOAD_MODEL_ASSETS',
-  LIST_MODEL_FILES: 'LIST_MODEL_FILES',
-  LIST_MODEL_FILES_RESULT: 'LIST_MODEL_FILES_RESULT',
+  GENERATE: 'Generate',
+  INTERRUPT: 'Interrupt',
+  RESET: 'Reset',
+  DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
+  LIST_MODEL_FILES: 'ListModelFiles',
+  LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
 });
 
 export const InternalEventBusMessageTypes = Object.freeze({
-  BACKGROUND_EVENT_BROADCAST: 'InternalEventBus:BackgroundEventBroadcast'
+  BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
 });
 
 export const RawDirectMessageTypes = Object.freeze({
-  WORKER_GENERIC_RESPONSE: 'response',
-  WORKER_GENERIC_ERROR: 'error',
-  WORKER_SCRAPE_STAGE_RESULT: 'STAGE_SCRAPE_RESULT',
-  WORKER_DIRECT_SCRAPE_RESULT: 'DIRECT_SCRAPE_RESULT',
-  WORKER_UI_LOADING_STATUS_UPDATE: 'uiLoadingStatusUpdate' // This one is used as a direct message type
+  WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
+  WORKER_GENERIC_ERROR: 'WorkerGenericError',
+  WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
+  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
+  WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
 
 export const Contexts = Object.freeze({
@@ -140,5 +158,41 @@ export const Contexts = Object.freeze({
   POPUP: 'Popup',
   OTHERS: 'Others',
   UNKNOWN: 'Unknown',
+});
+
+export const MessageSenderTypes = Object.freeze({
+  USER: 'user',
+  SYSTEM: 'system',
+  AI: 'ai',
+  AGENT: 'agent',
+  // Add more as needed
+});
+
+export const MessageContentTypes = Object.freeze({
+  TEXT: 'text',
+  IMAGE: 'image',
+  FILE: 'file',
+  CODE: 'code',
+  AGENT_ACTION: 'agent_action',
+  // Add more as needed
+});
+
+export const DBPaths = Object.freeze({
+  CHAT: '/sql/chat.db',
+  LOGS: '/sql/logs.db',
+  MODELS: '/sql/models.db',
+  KNOWLEDGE: '/sql/knowledge.db',
+});
+
+export const TableNames = Object.freeze({
+  CHATS: 'chats',
+  MESSAGES: 'messages',
+  CHAT_SUMMARIES: 'chat_summaries',
+  ATTACHMENTS: 'attachments',
+  USERS: 'users',
+  LOGS: 'logs',
+  MODEL_ASSETS: 'model_assets',
+  KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
+  KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
 });
 

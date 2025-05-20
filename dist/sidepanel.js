@@ -1231,9 +1231,9 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 
 /***/ }),
 
-/***/ "./src/Components/HistoryItem.js":
+/***/ "./src/Components/HistoryItem.ts":
 /*!***************************************!*\
-  !*** ./src/Components/HistoryItem.js ***!
+  !*** ./src/Components/HistoryItem.ts ***!
   \***************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -1243,78 +1243,58 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   renderHistoryItemComponent: () => (/* binding */ renderHistoryItemComponent)
 /* harmony export */ });
 // src/Components/HistoryItem.js
-
 // --- SVG Icons ---
 const previewIconSvg = `<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`;
 const trashIconSvg = `<svg class="w-4 h-4 action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 17.8798 20.1818C17.1169 21 15.8356 21 13.2731 21H10.7269C8.16438 21 6.8831 21 6.12019 20.1818C5.35728 19.3671 5.27811 18.0864 5.11973 15.5251L4.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 5.5H21M16.5 5.5L16.1733 3.57923C16.0596 2.8469 15.9989 2.48073 15.8184 2.21449C15.638 1.94825 15.362 1.75019 15.039 1.67153C14.7158 1.59286 14.3501 1.59286 13.6186 1.59286H10.3814C9.64993 1.59286 9.28419 1.59286 8.96099 1.67153C8.63796 1.75019 8.36201 1.94825 8.18156 2.21449C8.00111 2.48073 7.9404 2.8469 7.82672 3.57923L7.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 action-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`;
 const shareIconSvg = `<img src="icons/LinkChain.png" alt="Share" class="w-4 h-4 action-icon-img">`;
-
 // --- Helper functions for inline editing UI ---
-
 function startEditing(historyItemElement) {
-    if (!historyItemElement) return;
+    if (!historyItemElement)
+        return;
     const previewSpan = historyItemElement.querySelector('.history-item-preview');
     const renameInput = historyItemElement.querySelector('.history-item-rename-input');
-
-    if (!previewSpan || !renameInput) return;
-
+    if (!previewSpan || !renameInput)
+        return;
     historyItemElement.classList.add('is-editing');
     previewSpan.style.display = 'none';
     renameInput.style.display = 'block';
-    renameInput.value = previewSpan.textContent; // Start with current preview text
+    renameInput.value = previewSpan.textContent || '';
     renameInput.focus();
     renameInput.select();
 }
-
 function cancelEditing(historyItemElement) {
-    if (!historyItemElement) return;
+    if (!historyItemElement)
+        return;
     const previewSpan = historyItemElement.querySelector('.history-item-preview');
     const renameInput = historyItemElement.querySelector('.history-item-rename-input');
-
-    if (!previewSpan || !renameInput) return;
-
+    if (!previewSpan || !renameInput)
+        return;
     renameInput.style.display = 'none';
     previewSpan.style.display = 'block';
     historyItemElement.classList.remove('is-editing');
     // No need to reset value here as it wasn't submitted
 }
-
 // --- Main Component Rendering Function ---
-
 function renderHistoryItemComponent(props) {
-    const { 
-        entry, 
-        onStarClick = () => {}, 
-        onDownloadClick = () => {}, 
-        onDeleteClick = () => {}, 
-        onLoadClick = () => {}, 
-        onRenameSubmit = () => {}, 
-        onShareClick = () => {}, 
-        onPreviewClick = () => {} 
-    } = props;
-
+    const { entry, onStarClick = () => { }, onDownloadClick = () => { }, onDeleteClick = () => { }, onLoadClick = () => { }, onRenameSubmit = () => { }, onShareClick = () => { }, onPreviewClick = () => { } } = props;
     if (!entry || !entry.id) {
         console.error("renderHistoryItemComponent: Invalid entry data provided", entry);
         return null; // Or return an error element
     }
-
     const item = document.createElement('div');
     item.className = 'history-item group relative mb-2';
-    item.dataset.id = entry.id; 
+    item.dataset.id = entry.id;
     if (entry.isStarred) {
         item.classList.add('starred');
     }
-
     const date = new Date(entry.timestamp);
     const formattedDate = date.toLocaleString(); // Consider using Intl.DateTimeFormat for better localization
-    const previewText = entry.title || (entry.messages && entry.messages.length > 0 
-        ? (entry.messages[0].text || '').substring(0, 50) + '...' 
+    const previewText = entry.title || (entry.messages && entry.messages.length > 0
+        ? (entry.messages[0].text || '').substring(0, 50) + '...'
         : 'Empty chat');
-
     const starIconSrc = entry.isStarred ? 'icons/StarFilled.png' : 'icons/StarHollow.png';
     const starToggleClass = entry.isStarred ? 'starred' : 'unstarred';
-
     item.innerHTML = `
         <div class="chat-card bg-gray-100 dark:bg-gray-700 rounded-lg shadow p-3 flex flex-col justify-between min-h-[100px]">
             <div>
@@ -1358,22 +1338,18 @@ function renderHistoryItemComponent(props) {
             </div>
         </div>
     `;
-
     // --- Add Event Listeners ---
-
     const previewSpan = item.querySelector('.history-item-preview');
     const renameInput = item.querySelector('.history-item-rename-input');
-    
     // Rename UI Listeners
     if (previewSpan && renameInput) {
         previewSpan.addEventListener('dblclick', (e) => {
-            e.stopPropagation(); 
+            e.stopPropagation();
             startEditing(item);
         });
         renameInput.addEventListener('blur', () => {
             // Option 1: Cancel on blur (Commented out)
             // cancelEditing(item); 
-            
             // Option 2: Submit on blur (Enabled)
             const newTitle = renameInput.value.trim();
             const originalTitle = previewSpan.textContent;
@@ -1383,63 +1359,63 @@ function renderHistoryItemComponent(props) {
                 previewSpan.textContent = newTitle;
                 previewSpan.title = newTitle;
                 cancelEditing(item); // Exit editing mode after successful submission
-            } else {
+            }
+            else {
                 // If title is empty or unchanged, just cancel
-                cancelEditing(item); 
+                cancelEditing(item);
             }
         });
-        renameInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
+        // Use a wrapper to ensure correct event type for keydown
+        renameInput.addEventListener('keydown', function (event) {
+            const keyboardEvent = event;
+            if (keyboardEvent.key === 'Enter') {
+                keyboardEvent.preventDefault();
                 const newTitle = renameInput.value.trim();
-                const originalTitle = previewSpan.textContent; 
+                const originalTitle = previewSpan.textContent;
                 if (newTitle && newTitle !== originalTitle) {
                     onRenameSubmit(entry.id, newTitle); // Call parent's submit handler
-                } else {
+                }
+                else {
                     // If title is empty or unchanged, just cancel
                     cancelEditing(item);
                 }
-            } else if (event.key === 'Escape') {
-                 event.preventDefault();
-                 cancelEditing(item); // Cancel editing on Escape
+            }
+            else if (keyboardEvent.key === 'Escape') {
+                keyboardEvent.preventDefault();
+                cancelEditing(item); // Cancel editing on Escape
             }
         });
     }
-
     // Action Button Listeners
     const starButton = item.querySelector('[data-action="toggle-star"]');
-    if (starButton) starButton.addEventListener('click', (e) => { e.stopPropagation(); onStarClick(entry.id); });
-
+    if (starButton)
+        starButton.addEventListener('click', (e) => { e.stopPropagation(); onStarClick(entry.id); });
     const downloadButton = item.querySelector('[data-action="download-chat"]');
-    if (downloadButton) downloadButton.addEventListener('click', (e) => { e.stopPropagation(); onDownloadClick(entry.id); });
-    
+    if (downloadButton)
+        downloadButton.addEventListener('click', (e) => { e.stopPropagation(); onDownloadClick(entry.id); });
     const shareButton = item.querySelector('[data-action="share-chat"]');
-    if (shareButton) shareButton.addEventListener('click', (e) => { e.stopPropagation(); onShareClick(entry.id); });
-
+    if (shareButton)
+        shareButton.addEventListener('click', (e) => { e.stopPropagation(); onShareClick(entry.id); });
     // --- Delete Confirmation Logic ---
     const deleteButton = item.querySelector('[data-action="delete-chat"]'); // Original trash icon button
-    const normalActionsContainer = item.querySelector('[data-normal-container]'); 
+    const normalActionsContainer = item.querySelector('[data-normal-container]');
     const confirmActionsContainer = item.querySelector('[data-confirm-container]');
     const confirmDeleteButton = item.querySelector('[data-action="confirm-delete"]'); // Checkmark button
     const cancelDeleteButton = item.querySelector('[data-action="cancel-delete"]'); // X button
-
     // Initial Delete Click (Trash Icon)
     if (deleteButton && normalActionsContainer && confirmActionsContainer) {
-        deleteButton.addEventListener('click', (e) => { 
-            e.stopPropagation(); 
-
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
             // Cancel editing if active
             if (item.classList.contains('is-editing')) {
-                 cancelEditing(item); 
+                cancelEditing(item);
             }
-
             // Toggle UI to show confirmation state
             item.classList.add('is-confirming-delete'); // Optional class for styling parent if needed
             normalActionsContainer.classList.add('hidden');
             confirmActionsContainer.classList.remove('hidden');
         });
     }
-
     // Cancel Delete Click (X Icon)
     if (cancelDeleteButton && normalActionsContainer && confirmActionsContainer) {
         cancelDeleteButton.addEventListener('click', (e) => {
@@ -1450,7 +1426,6 @@ function renderHistoryItemComponent(props) {
             confirmActionsContainer.classList.add('hidden');
         });
     }
-
     // Confirm Delete Click (Checkmark Icon)
     if (confirmDeleteButton && normalActionsContainer && confirmActionsContainer) {
         confirmDeleteButton.addEventListener('click', (e) => {
@@ -1458,21 +1433,17 @@ function renderHistoryItemComponent(props) {
             item.classList.remove('is-confirming-delete');
             // Optionally hide confirm actions immediately? Or let controller handle full item state change.
             // confirmActionsContainer.classList.add('hidden'); 
-
             // Call the actual delete handler passed from the parent
             onDeleteClick(entry.id, item); // Pass item element (still needed by controller)
         });
     }
     // --- End Delete Confirmation Logic ---
-    
     const previewButton = item.querySelector('[data-action="preview-chat"]');
     const previewContentDiv = item.querySelector('.history-item-preview-content'); // Get content div reference
-
     if (previewButton && previewContentDiv) {
         previewButton.addEventListener('click', (e) => {
             e.stopPropagation();
             const isPreviewVisible = !previewContentDiv.classList.contains('hidden');
-
             if (isPreviewVisible) {
                 // --- Hiding Preview ---
                 previewContentDiv.classList.add('hidden');
@@ -1480,7 +1451,8 @@ function renderHistoryItemComponent(props) {
                 item.classList.remove('preview-active');
                 previewButton.innerHTML = previewIconSvg; // Restore '...' icon
                 console.log(`HistoryItem: Hiding preview for ${entry.id}`);
-            } else {
+            }
+            else {
                 // --- Showing Preview ---
                 // 1. Hide any other open previews (optional, but good UX)
                 document.querySelectorAll('.history-item.preview-active').forEach(activeItem => {
@@ -1492,37 +1464,35 @@ function renderHistoryItemComponent(props) {
                             otherPreviewDiv.innerHTML = '';
                         }
                         activeItem.classList.remove('preview-active');
-                        if (otherPreviewBtn) otherPreviewBtn.innerHTML = previewIconSvg; // Restore icon
+                        if (otherPreviewBtn)
+                            otherPreviewBtn.innerHTML = previewIconSvg; // Restore icon
                     }
                 });
-
                 // 2. Update UI for *this* item (Show loading state is now handled by the controller)
                 item.classList.add('preview-active');
                 previewButton.innerHTML = '<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>'; // Change icon to 'X'
                 previewContentDiv.classList.remove('hidden'); // Make container visible
-
                 // 3. Call the handler (which will fetch data and fill contentDiv)
                 console.log(`HistoryItem: Requesting preview for ${entry.id}`);
                 onPreviewClick(entry.id, previewContentDiv); // Pass the content div
             }
         });
     }
-
     const loadButton = item.querySelector('[data-action="load-chat"]');
-    if (loadButton) loadButton.addEventListener('click', (e) => { e.stopPropagation(); onLoadClick(entry.id); });
-
+    if (loadButton)
+        loadButton.addEventListener('click', (e) => { e.stopPropagation(); onLoadClick(entry.id); });
     // Optional: Add listener to card body for loading if desired
-    const cardBody = item.querySelector('.card-body');
+    // const cardBody = item.querySelector('.card-body');
     // if (cardBody) cardBody.addEventListener('click', (e) => { e.stopPropagation(); onLoadClick(entry.id); });
-
     return item;
-} 
+}
+
 
 /***/ }),
 
-/***/ "./src/Controllers/DiscoverController.js":
+/***/ "./src/Controllers/DiscoverController.ts":
 /*!***********************************************!*\
-  !*** ./src/Controllers/DiscoverController.js ***!
+  !*** ./src/Controllers/DiscoverController.ts ***!
   \***********************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -1532,39 +1502,24 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeDiscoverController: () => (/* binding */ initializeDiscoverController)
 /* harmony export */ });
 // src/Controllers/DiscoverController.js
-
-
 let isInitialized = false;
-
-function handleNavigationChange(event) {
-    if (!isInitialized || event?.pageId !== 'page-discover') {
-        return; // Only act when discover page becomes active, if needed
-    }
-    console.log("[DiscoverController] Discover page activated.");
-
-}
-
-function initializeDiscoverController(/* Pass necessary elements or functions if needed */) {
+function initializeDiscoverController( /* Pass necessary elements or functions if needed */) {
     if (isInitialized) {
         console.log("[DiscoverController] Already initialized.");
         return;
     }
     console.log("[DiscoverController] Initializing...");
-    
-
-
     isInitialized = true;
     console.log("[DiscoverController] Initialized successfully.");
+    return {};
+}
 
-
-    return {}; 
-} 
 
 /***/ }),
 
-/***/ "./src/Controllers/DriveController.js":
+/***/ "./src/Controllers/DriveController.ts":
 /*!********************************************!*\
-  !*** ./src/Controllers/DriveController.js ***!
+  !*** ./src/Controllers/DriveController.ts ***!
   \********************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -1575,15 +1530,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
- 
-
+/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../notifications */ "./src/notifications.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
 
 
 
 const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
-
 let driveButton;
 let driveViewerModal, driveViewerClose, driveViewerList, driveViewerCancel, driveViewerInsert, driveViewerSearch, driveViewerSelectedArea, driveViewerBreadcrumbsContainer, driveViewerBack;
 let isDriveOpen = false;
@@ -1593,24 +1545,24 @@ let driveFilesCache = {};
 let selectedDriveFiles = {};
 let isFetchingDriveList = false;
 let driveSearchTerm = '';
-let showNotificationDep = _notifications_js__WEBPACK_IMPORTED_MODULE_1__.showNotification; 
-let debounceDep = null; 
-
+let showNotificationDep = _notifications__WEBPACK_IMPORTED_MODULE_1__.showNotification;
+let debounceDep = null;
 function showDriveViewerModal() {
     console.log("Attempting to show Drive modal...");
-    if (isDriveOpen) return;
+    if (isDriveOpen)
+        return;
     if (!driveViewerModal) {
         console.error("DriveViewerModal element not found.");
         return;
     }
-
     console.log("DriveController: Showing Drive Viewer modal.");
     currentFolderId = 'root';
     currentFolderPath = [{ id: 'root', name: 'Root' }];
     selectedDriveFiles = {};
     driveFilesCache = {};
     driveSearchTerm = '';
-    if (driveViewerSearch) driveViewerSearch.value = '';
+    if (driveViewerSearch)
+        driveViewerSearch.value = '';
     updateInsertButtonState();
     renderSelectedFiles();
     console.log("Fetching root content and making modal visible.");
@@ -1618,10 +1570,11 @@ function showDriveViewerModal() {
     driveViewerModal.classList.remove('hidden');
     isDriveOpen = true;
 }
-
 function hideDriveViewerModal() {
-    if (!isDriveOpen) return;
-    if (!driveViewerModal) return;
+    if (!isDriveOpen)
+        return;
+    if (!driveViewerModal)
+        return;
     console.log("DriveController: Hiding Drive Viewer modal.");
     driveViewerModal.classList.add('hidden');
     isDriveOpen = false;
@@ -1629,31 +1582,25 @@ function hideDriveViewerModal() {
         driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>`; // Reset list content on close
     }
 }
-
-
 function getFallbackIcon(mimeType) {
     if (mimeType === GOOGLE_FOLDER_MIME_TYPE) {
         return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>';
     }
-
     return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>';
 }
-
 function renderDriveViewerItems(items) {
     console.log(`[DriveController:Render] renderDriveViewerItems called with ${items?.length ?? 0} items.`); // Log entry
-    if (!driveViewerList) return;
-    driveViewerList.innerHTML = ''; 
-
+    if (!driveViewerList)
+        return;
+    driveViewerList.innerHTML = '';
     const searchTermLower = driveSearchTerm.toLowerCase();
     const filteredItems = driveSearchTerm
         ? items.filter(item => item.name.toLowerCase().includes(searchTermLower))
         : items;
-
     if (!filteredItems || filteredItems.length === 0) {
         driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">${driveSearchTerm ? 'No results found.' : 'Folder is empty.'}</div>`;
         return;
     }
-
     filteredItems.forEach(item => {
         const isFolder = item.mimeType === GOOGLE_FOLDER_MIME_TYPE;
         const itemElement = document.createElement('div');
@@ -1661,64 +1608,57 @@ function renderDriveViewerItems(items) {
         itemElement.dataset.id = item.id;
         itemElement.dataset.name = item.name;
         itemElement.dataset.mimeType = item.mimeType;
-        itemElement.dataset.iconLink = item.iconLink || ''; 
-
+        itemElement.dataset.iconLink = item.iconLink || '';
         const iconDiv = document.createElement('div');
         iconDiv.className = 'flex-shrink-0 w-6 h-6 mr-3 flex items-center justify-center';
         if (item.iconLink) {
             iconDiv.innerHTML = `<img src="${item.iconLink}" alt="${isFolder ? 'Folder' : 'File'}" class="w-5 h-5">`;
-        } else {
-            iconDiv.innerHTML = getFallbackIcon(item.mimeType); 
         }
-
+        else {
+            iconDiv.innerHTML = getFallbackIcon(item.mimeType);
+        }
         const nameSpan = document.createElement('span');
         nameSpan.className = 'flex-grow truncate';
         nameSpan.textContent = item.name;
-        nameSpan.title = item.name; 
-
+        nameSpan.title = item.name;
         itemElement.appendChild(iconDiv);
         itemElement.appendChild(nameSpan);
-
         if (selectedDriveFiles[item.id]) {
-            itemElement.classList.add('selected'); 
+            itemElement.classList.add('selected');
         }
-
         itemElement.addEventListener('click', handleDriveItemClick);
-
+        if (!driveViewerList)
+            return;
         driveViewerList.appendChild(itemElement);
     });
 }
-
 function fetchAndDisplayViewerFolderContent(folderId) {
     if (!driveViewerList || isFetchingDriveList) {
         return;
     }
-
     isFetchingDriveList = true;
     console.log(`DriveController: Fetching Drive content for folder: ${folderId}`);
-    updateBreadcrumbs(); 
-    updateHeaderState(); 
-
+    updateBreadcrumbs();
+    updateHeaderState();
     driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Loading...</div>`;
-
     if (driveFilesCache[folderId]) {
         console.log(`DriveController: Using cached content for folder: ${folderId}`);
         renderDriveViewerItems(driveFilesCache[folderId]);
         isFetchingDriveList = false;
         return;
     }
-
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST,
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST,
         folderId: folderId
     })
-    .then((response) => {
+        .then((response) => {
         isFetchingDriveList = false;
         if (response && response.success && response.files) {
             console.log(`[DriveController] Success! Caching and rendering ${response.files.length} files.`);
             driveFilesCache[folderId] = response.files;
             renderDriveViewerItems(response.files);
-        } else {
+        }
+        else {
             const errorMsg = response?.error || 'Unknown error fetching files.';
             console.error(`[DriveController] Drive file list error for ${folderId}: ${errorMsg}`);
             showNotificationDep(`Error fetching folder content: ${errorMsg}`, 'error');
@@ -1727,185 +1667,182 @@ function fetchAndDisplayViewerFolderContent(folderId) {
             }
         }
     })
-    .catch((error) => {
+        .catch((error) => {
         isFetchingDriveList = false;
         console.error("[DriveController] Error sending getDriveFileList message:", error?.message || error);
         showNotificationDep(`Error contacting background script: ${error?.message || 'Unknown error'}`, 'error');
-        if (driveViewerList) driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
+        if (driveViewerList)
+            driveViewerList.innerHTML = `<div class="text-center text-red-500 p-4">Error sending request.</div>`;
     });
 }
-
 function handleDriveItemClick(event) {
     event.stopPropagation();
     const itemElement = event.currentTarget;
-    const itemId = itemElement.dataset.id;
-    const itemName = itemElement.dataset.name;
-    const mimeType = itemElement.dataset.mimeType;
-    const iconLink = itemElement.dataset.iconLink;
-
+    const itemId = (itemElement.dataset.id || '');
+    const itemName = (itemElement.dataset.name || '');
+    const mimeType = (itemElement.dataset.mimeType || '');
+    const iconLink = (itemElement.dataset.iconLink || '');
     if (!itemId || !mimeType) {
         console.error("DriveController: Clicked Drive item missing ID or mimeType.");
         return;
     }
-
     if (mimeType === GOOGLE_FOLDER_MIME_TYPE) {
         console.log(`DriveController: Navigating into folder: ${itemName} (${itemId})`);
         currentFolderId = itemId;
-        currentFolderPath.push({ id: itemId, name: itemName }); 
-        driveSearchTerm = ''; 
-        if (driveViewerSearch) driveViewerSearch.value = '';
+        currentFolderPath.push({ id: itemId, name: itemName });
+        driveSearchTerm = '';
+        if (driveViewerSearch)
+            driveViewerSearch.value = '';
         fetchAndDisplayViewerFolderContent(itemId);
-    } else {
+    }
+    else {
         console.log(`DriveController: Toggling selection for file: ${itemName} (${itemId})`);
         toggleFileSelection(itemId, itemElement, { id: itemId, name: itemName, mimeType: mimeType, iconLink: iconLink });
     }
 }
-
 function updateBreadcrumbs() {
-    if (!driveViewerBreadcrumbsContainer) return;
+    if (!driveViewerBreadcrumbsContainer)
+        return;
     driveViewerBreadcrumbsContainer.innerHTML = '';
     currentFolderPath.forEach((folder, index) => {
         const crumbElement = document.createElement(index === currentFolderPath.length - 1 ? 'span' : 'button');
         crumbElement.textContent = folder.name;
-        crumbElement.dataset.id = folder.id; 
-        crumbElement.dataset.index = index; 
+        crumbElement.dataset.id = folder.id;
+        crumbElement.dataset.index = String(index);
         if (index < currentFolderPath.length - 1) {
-            crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer'; 
+            crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer';
             crumbElement.addEventListener('click', handleBreadcrumbClick);
             const separator = document.createElement('span');
             separator.textContent = ' / ';
             separator.className = 'mx-1 text-gray-400';
-            driveViewerBreadcrumbsContainer.appendChild(crumbElement);
-            driveViewerBreadcrumbsContainer.appendChild(separator);
-        } else {
+            if (driveViewerBreadcrumbsContainer)
+                driveViewerBreadcrumbsContainer.appendChild(crumbElement);
+            if (driveViewerBreadcrumbsContainer)
+                driveViewerBreadcrumbsContainer.appendChild(separator);
+        }
+        else {
             crumbElement.className = 'font-semibold';
-            driveViewerBreadcrumbsContainer.appendChild(crumbElement);
+            if (driveViewerBreadcrumbsContainer)
+                driveViewerBreadcrumbsContainer.appendChild(crumbElement);
         }
     });
 }
-
 function handleBreadcrumbClick(event) {
-    const targetIndex = parseInt(event.currentTarget.dataset.index, 10);
-    const targetFolderId = event.currentTarget.dataset.id;
-
+    const targetIndex = parseInt(event.currentTarget.dataset.index || '', 10);
+    const targetFolderId = event.currentTarget.dataset.id || '';
     if (isNaN(targetIndex) || !targetFolderId) {
         console.error("DriveController: Invalid breadcrumb data.");
         return;
     }
-    if (targetFolderId === currentFolderId) return;
-
+    if (targetFolderId === currentFolderId)
+        return;
     console.log(`DriveController: Breadcrumb click - Navigating to index ${targetIndex} (${targetFolderId})`);
-    currentFolderPath = currentFolderPath.slice(0, targetIndex + 1);
-    currentFolderId = targetFolderId; 
-    driveSearchTerm = ''; 
-    if (driveViewerSearch) driveViewerSearch.value = '';
+    currentFolderPath = currentFolderPath.slice(0, Number(targetIndex) + 1);
+    currentFolderId = targetFolderId;
+    driveSearchTerm = '';
+    if (driveViewerSearch)
+        driveViewerSearch.value = '';
     fetchAndDisplayViewerFolderContent(targetFolderId);
 }
-
 function toggleFileSelection(fileId, element, fileData) {
     if (selectedDriveFiles[fileId]) {
         delete selectedDriveFiles[fileId];
         element?.classList.remove('selected');
-    } else {
+    }
+    else {
         selectedDriveFiles[fileId] = fileData;
         element?.classList.add('selected');
     }
     renderSelectedFiles();
     updateInsertButtonState();
 }
-
 function renderSelectedFiles() {
-    if (!driveViewerSelectedArea) return;
-
+    if (!driveViewerSelectedArea)
+        return;
     const selectedIds = Object.keys(selectedDriveFiles);
-    const pillContainer = driveViewerSelectedArea; 
-
+    const pillContainer = driveViewerSelectedArea;
     if (!pillContainer) {
-         console.error("Selected area container not found");
-         return;
+        console.error("Selected area container not found");
+        return;
     }
-
-    const pillInnerContainer = pillContainer.querySelector('.flex-wrap') || pillContainer; 
-    pillInnerContainer.innerHTML = ''; 
-
+    const pillInnerContainer = pillContainer.querySelector('.flex-wrap') || pillContainer;
+    pillInnerContainer.innerHTML = '';
     if (selectedIds.length === 0) {
-        pillContainer.classList.add('hidden'); 
-    } else {
+        pillContainer.classList.add('hidden');
+    }
+    else {
         pillContainer.classList.remove('hidden');
         selectedIds.forEach(id => {
             const file = selectedDriveFiles[id];
             const pill = document.createElement('span');
-            pill.className = 'selected-file-item'; 
-
+            pill.className = 'selected-file-item';
             const iconHtml = file.iconLink ? `<img src="${file.iconLink}" alt="" class="w-3 h-3 mr-1.5">` : '';
             const removeBtnHtml = `<button class="selected-file-remove" data-id="${id}">&times;</button>`;
-
             pill.innerHTML = `${iconHtml}${file.name} ${removeBtnHtml}`;
             pillInnerContainer.appendChild(pill);
-
             const removeBtn = pill.querySelector('.selected-file-remove');
             removeBtn?.addEventListener('click', handleRemoveSelectedFile);
         });
     }
 }
-
-
 function handleRemoveSelectedFile(event) {
     const fileId = event.currentTarget.dataset.id;
     if (fileId && selectedDriveFiles[fileId]) {
         delete selectedDriveFiles[fileId];
         renderSelectedFiles();
         updateInsertButtonState();
-        const listItem = driveViewerList?.querySelector(`.drive-viewer-item[data-id="${fileId}"]`);
-        listItem?.classList.remove('selected');
+        if (!driveViewerList)
+            return;
+        const listItem = driveViewerList.querySelector(`.drive-viewer-item[data-id="${fileId}"]`);
+        if (listItem)
+            listItem.classList.remove('selected');
     }
 }
-
 function updateInsertButtonState() {
-    if (!driveViewerInsert) return;
+    if (!driveViewerInsert)
+        return;
     const count = Object.keys(selectedDriveFiles).length;
     driveViewerInsert.disabled = count === 0;
     driveViewerInsert.textContent = `Insert (${count})`;
 }
-
-let debouncedDriveSearchHandler = null;
 function handleDriveSearchInput(event) {
     driveSearchTerm = event.target.value.trim();
     console.log(`DriveController: Filtering Drive items by term: "${driveSearchTerm}"`);
     if (driveFilesCache[currentFolderId]) {
         renderDriveViewerItems(driveFilesCache[currentFolderId]);
-    } else {
-        driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Folder not loaded or empty.</div>`;
+    }
+    else {
+        if (driveViewerList)
+            driveViewerList.innerHTML = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">Folder not loaded or empty.</div>`;
     }
 }
-
 function handleDriveBackButtonClick() {
-    if (currentFolderPath.length <= 1) return; 
-
-    const parentFolder = currentFolderPath[currentFolderPath.length - 2]; 
+    if (currentFolderPath.length <= 1)
+        return;
+    const parentFolder = currentFolderPath[currentFolderPath.length - 2];
     currentFolderPath.pop();
-    currentFolderId = parentFolder.id; 
+    currentFolderId = parentFolder.id;
     console.log(`DriveController: Back button click - Navigating to ${parentFolder.name} (${parentFolder.id})`);
-    driveSearchTerm = ''; 
-    if (driveViewerSearch) driveViewerSearch.value = '';
+    driveSearchTerm = '';
+    if (driveViewerSearch)
+        driveViewerSearch.value = '';
     fetchAndDisplayViewerFolderContent(parentFolder.id);
 }
-
 function updateHeaderState() {
-    if (!driveViewerBack) return;
+    if (!driveViewerBack)
+        return;
     if (currentFolderPath.length > 1) {
         driveViewerBack.classList.remove('hidden');
-    } else {
+    }
+    else {
         driveViewerBack.classList.add('hidden');
     }
 }
-
 function initializeDriveController(dependencies) {
     console.log("Initializing DriveController...");
-
     if (!dependencies || !dependencies.showNotification || !dependencies.debounce) {
         console.error("DriveController requires dependencies: showNotification, debounce!");
-        return; 
+        return;
     }
     showNotificationDep = dependencies.showNotification;
     debounceDep = dependencies.debounce;
@@ -1915,16 +1852,15 @@ function initializeDriveController(dependencies) {
     driveViewerList = document.getElementById('drive-viewer-list');
     driveViewerCancel = document.getElementById('drive-viewer-cancel');
     driveViewerInsert = document.getElementById('drive-viewer-insert');
-    driveViewerSearch = document.getElementById('drive-viewer-search');
+    const searchElem = document.getElementById('drive-viewer-search');
+    driveViewerSearch = (searchElem instanceof HTMLInputElement) ? searchElem : null;
     driveViewerSelectedArea = document.getElementById('drive-viewer-selected');
     driveViewerBreadcrumbsContainer = document.getElementById('drive-viewer-breadcrumbs');
     driveViewerBack = document.getElementById('drive-viewer-back');
-
     if (!driveViewerModal || !driveViewerList) {
         console.error("DriveController: Essential modal elements (#drive-viewer-modal, #drive-viewer-list) not found!");
-        return; 
+        return;
     }
-
     if (driveButton) {
         driveButton.addEventListener('click', handleDriveButtonClick);
     }
@@ -1943,32 +1879,29 @@ function initializeDriveController(dependencies) {
         });
     }
     if (driveViewerSearch && debounceDep) {
-         driveViewerSearch.addEventListener('input', debounceDep(handleDriveSearchInput, 300));
-     } else if (driveViewerSearch) {
-         console.warn("Debounce dependency missing, search will trigger on every keypress.");
-         driveViewerSearch.addEventListener('input', handleDriveSearchInput);
-     }
+        driveViewerSearch.addEventListener('input', debounceDep(handleDriveSearchInput, 300));
+    }
+    else if (driveViewerSearch) {
+        console.warn("Debounce dependency missing, search will trigger on every keypress.");
+        driveViewerSearch.addEventListener('input', handleDriveSearchInput);
+    }
     if (driveViewerBack) {
         driveViewerBack.addEventListener('click', handleDriveBackButtonClick);
     }
-
     console.log("DriveController Initialized successfully.");
 }
-
-
 const handleDriveButtonClick = (event) => {
     console.log("Drive button clicked!");
-    event.stopPropagation(); 
+    event.stopPropagation();
     showDriveViewerModal();
 };
 
 
-
 /***/ }),
 
-/***/ "./src/Controllers/HistoryPopupController.js":
+/***/ "./src/Controllers/HistoryPopupController.ts":
 /*!***************************************************!*\
-  !*** ./src/Controllers/HistoryPopupController.js ***!
+  !*** ./src/Controllers/HistoryPopupController.ts ***!
   \***************************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -1979,17 +1912,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Components/HistoryItem.js */ "./src/Components/HistoryItem.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
-/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
-/* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _Components_HistoryItem__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Components/HistoryItem */ "./src/Components/HistoryItem.ts");
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../notifications */ "./src/notifications.ts");
+/* harmony import */ var _navigation__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../navigation */ "./src/navigation.ts");
+/* harmony import */ var _Utilities_downloadUtils__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../Utilities/downloadUtils */ "./src/Utilities/downloadUtils.ts");
 // src/Controllers/HistoryPopupController.js
-
-
-
-
 
 
 
@@ -2003,83 +1932,74 @@ let historyListElement = null;
 let historySearchElement = null;
 let closeHistoryButtonElement = null;
 let requestDbAndWaitFunc = null;
-
-let currentHistoryItems = []; 
+let currentHistoryItems = [];
 let currentSearchTerm = '';
-
 function handleSessionUpdate(notification) {
     if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
         console.warn("[HistoryPopupController] Invalid session update notification received.", notification);
         return;
     }
-
-    const updatedSessionData = notification.payload.session; 
+    const updatedSessionData = notification.payload.session;
     const sessionId = updatedSessionData.id;
-    const updateType = notification.payload.updateType || 'update'; 
-
+    const updateType = notification.payload.updateType || 'update';
     if (!updatedSessionData) {
         console.warn(`[HistoryPopupController] Session update notification for ${sessionId} missing session data.`, notification);
         return;
     }
-
     console.log(`[HistoryPopupController] Received session update for ${sessionId}. Type: ${updateType}, New starred: ${updatedSessionData.isStarred}`);
-
-    const itemIndex = currentHistoryItems.findIndex(item => item.id === sessionId); 
-
+    const itemIndex = currentHistoryItems.findIndex(item => item.id === sessionId);
     let listChanged = false;
-
     if (updateType === 'delete') {
         if (itemIndex !== -1) {
             console.log(`[HistoryPopupController] Removing deleted session ${sessionId} from local list.`);
             currentHistoryItems.splice(itemIndex, 1);
             listChanged = true;
         }
-    } else {
+    }
+    else {
         if (itemIndex !== -1) {
             console.log(`[HistoryPopupController] Updating session ${sessionId} in local list.`);
-            currentHistoryItems[itemIndex] = { 
-                ...currentHistoryItems[itemIndex], 
+            currentHistoryItems[itemIndex] = {
+                ...currentHistoryItems[itemIndex],
                 ...updatedSessionData
             };
-            listChanged = true; 
-        } else {
+            listChanged = true;
+        }
+        else {
             console.log(`[HistoryPopupController] Adding new/updated session ${sessionId} to local list.`);
-            currentHistoryItems.push(updatedSessionData); 
+            currentHistoryItems.push(updatedSessionData);
             listChanged = true;
         }
     }
-
     if (listChanged && historyPopupElement && !historyPopupElement.classList.contains('hidden')) {
         console.log(`[HistoryPopupController] Popup visible and list changed, calling renderHistoryList()`);
-        renderHistoryList(); 
-    } else {
+        renderHistoryList();
+    }
+    else {
         console.log(`[HistoryPopupController] Popup not visible or list unchanged, skipping renderHistoryList()`);
     }
 }
-
 function renderHistoryList() {
-    if (!isInitialized || !historyListElement) return;
+    if (!isInitialized || !historyListElement)
+        return;
     console.log(`[HistoryPopupController] Rendering history list (Search: "${currentSearchTerm}")...`);
-
     let filteredItems = currentHistoryItems;
     if (currentSearchTerm) {
         const lowerCaseTerm = currentSearchTerm.toLowerCase();
-        filteredItems = currentHistoryItems.filter(entry => 
-            (entry.name || '').toLowerCase().includes(lowerCaseTerm)
-        );
+        filteredItems = currentHistoryItems.filter(entry => (entry.name || '').toLowerCase().includes(lowerCaseTerm));
         console.log(`[HistoryPopupController] Filtered down to ${filteredItems.length} sessions.`);
-    } else {
+    }
+    else {
         console.log(`[HistoryPopupController] Rendering all ${filteredItems.length} sessions (no search term).`);
     }
-
-    historyListElement.innerHTML = ''; 
-
+    historyListElement.innerHTML = '';
     if (filteredItems.length === 0) {
         const message = currentSearchTerm
             ? `<p class="p-4 text-center text-gray-500 dark:text-gray-400 italic">No history items match "${currentSearchTerm}".</p>`
             : '<p class="p-4 text-center text-gray-500 dark:text-gray-400 italic">No chat history yet.</p>';
         historyListElement.innerHTML = message;
-    } else {
+    }
+    else {
         filteredItems.forEach(entry => {
             const props = {
                 entry: {
@@ -2088,7 +2008,7 @@ function renderHistoryList() {
                     title: entry.title,
                     timestamp: entry.timestamp,
                     isStarred: entry.isStarred,
-                    messages: [] 
+                    messages: []
                 },
                 onLoadClick: handleLoadClick,
                 onStarClick: handleStarClick,
@@ -2098,214 +2018,212 @@ function renderHistoryList() {
                 onShareClick: handleShareClick,
                 onPreviewClick: handlePreviewClick
             };
-            const itemElement = (0,_Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_2__.renderHistoryItemComponent)(props);
-            if (itemElement) {
+            const itemElement = (0,_Components_HistoryItem__WEBPACK_IMPORTED_MODULE_2__.renderHistoryItemComponent)(props);
+            if (itemElement && historyListElement) {
                 historyListElement.appendChild(itemElement);
             }
         });
     }
     console.log("[HistoryPopupController] History list rendered.");
 }
-
-async function showPopup() { 
-    if (!isInitialized || !historyPopupElement || !requestDbAndWaitFunc) return;
+async function showPopup() {
+    if (!isInitialized || !historyPopupElement || !requestDbAndWaitFunc)
+        return;
     console.log("[Trace][HistoryPopupController] showPopup: Requesting all sessions...");
     try {
-        const sessionsArray = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest());
+        const sessionsArray = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest());
         console.log("[Trace][HistoryPopupController] showPopup: Received sessionsArray:", sessionsArray);
         if (Array.isArray(sessionsArray) && sessionsArray.length > 0) {
-             console.log("[Trace][HistoryPopupController] showPopup: First session item sample:", sessionsArray[0]);
-        } else if (sessionsArray === null || sessionsArray === undefined) {
-             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is null or undefined.");
-        } else {
-             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
+            console.log("[Trace][HistoryPopupController] showPopup: First session item sample:", sessionsArray[0]);
         }
-        currentHistoryItems = sessionsArray || []; 
+        else if (sessionsArray === null || sessionsArray === undefined) {
+            console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is null or undefined.");
+        }
+        else {
+            console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
+        }
+        currentHistoryItems = sessionsArray || [];
         console.log(`[Trace][HistoryPopupController] showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
-        renderHistoryList(); 
+        renderHistoryList();
         historyPopupElement.classList.remove('hidden');
-    } catch (error) {
+    }
+    catch (error) {
         console.error("[Trace][HistoryPopupController] showPopup: Error fetching history list:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load history.", 'error');
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load history.", 'error');
         if (historyListElement) {
             historyListElement.innerHTML = '<p class="p-4 text-center text-red-500 dark:text-red-400">Error loading history. Please try again.</p>';
         }
-        historyPopupElement.classList.remove('hidden'); 
+        historyPopupElement.classList.remove('hidden');
     }
 }
-
 function hidePopup() {
-    if (!isInitialized || !historyPopupElement) return;
+    if (!isInitialized || !historyPopupElement)
+        return;
     console.log("[HistoryPopupController] Hiding popup.");
     historyPopupElement.classList.add('hidden');
 }
-
 function handleSearchInput(event) {
-    if (!isInitialized) return;
+    if (!isInitialized)
+        return;
     currentSearchTerm = event.target.value.trim();
-    renderHistoryList(); 
+    renderHistoryList();
 }
-
-
 async function handleLoadClick(sessionId) {
     console.log(`[HistoryPopupController] Load clicked: ${sessionId}`);
-    if (!sessionId) return;
+    if (!sessionId)
+        return;
     try {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ lastSessionId: sessionId });
-        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home');
+        (0,_navigation__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home');
         hidePopup();
-    } catch (error) {
+    }
+    catch (error) {
         console.error("[HistoryPopupController] Error setting storage or navigating:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load chat.", 'error');
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load chat.", 'error');
     }
 }
-
 async function handleStarClick(sessionId) {
-    if (!sessionId || !requestDbAndWaitFunc) return;
+    if (!sessionId || !requestDbAndWaitFunc)
+        return;
     console.log(`[HistoryPopupController] Star clicked: ${sessionId}`);
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest(sessionId));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Star toggled", 'success');
-    } catch (error) {
-        console.error("[HistoryPopupController] Error toggling star:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to toggle star: ${error.message}`, 'error');
+        await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest(sessionId));
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Star toggled", 'success');
+    }
+    catch (error) {
+        const err = error;
+        console.error("[HistoryPopupController] Error toggling star:", err);
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to toggle star: ${err.message}`, 'error');
     }
 }
-
 async function handleDeleteClick(sessionId, itemElement) {
-    if (!sessionId || !itemElement || !requestDbAndWaitFunc) return;
+    if (!sessionId || !itemElement || !requestDbAndWaitFunc)
+        return;
     console.log(`[HistoryPopupController] Delete confirmed inline for: ${sessionId}. Applying deleting state.`);
-    
-    itemElement.classList.add('is-deleting'); 
+    itemElement.classList.add('is-deleting');
     itemElement.querySelectorAll('button').forEach(btn => btn.disabled = true);
-
     const footer = itemElement.querySelector('.card-footer');
-    const existingMsg = footer?.querySelector('.deleting-message'); 
-    if (footer && !existingMsg) { 
+    const existingMsg = footer?.querySelector('.deleting-message');
+    if (footer && !existingMsg) {
         const deletingMsg = document.createElement('span');
         deletingMsg.textContent = 'Deleting...';
         deletingMsg.className = 'text-xs text-red-500 ml-2 deleting-message';
         footer.appendChild(deletingMsg);
     }
-
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest(sessionId));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Chat deletion initiated...", 'info'); 
-    } catch (error) {
-        console.error("[HistoryPopupController] Error deleting chat:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to delete chat: ${error.message}`, 'error');
-        itemElement.classList.remove('is-deleting'); 
+        await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest(sessionId));
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Chat deletion initiated...", 'info');
+    }
+    catch (error) {
+        const err = error;
+        console.error("[HistoryPopupController] Error deleting chat:", err);
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to delete chat: ${err.message}`, 'error');
+        itemElement.classList.remove('is-deleting');
         itemElement.querySelectorAll('button').forEach(btn => btn.disabled = false);
         footer?.querySelector('.deleting-message')?.remove();
         const normalActionsContainer = itemElement.querySelector('[data-normal-container]');
-        if(normalActionsContainer) normalActionsContainer.classList.remove('hidden');
+        if (normalActionsContainer)
+            normalActionsContainer.classList.remove('hidden');
         const confirmActionsContainer = itemElement.querySelector('[data-confirm-container]');
-        if(confirmActionsContainer) confirmActionsContainer.classList.add('hidden');
+        if (confirmActionsContainer)
+            confirmActionsContainer.classList.add('hidden');
     }
 }
-
 async function handleRenameSubmit(sessionId, newName) {
-    if (!sessionId || !newName || !requestDbAndWaitFunc) return;
+    if (!sessionId || !newName || !requestDbAndWaitFunc)
+        return;
     console.log(`[HistoryPopupController] Rename submitted: ${sessionId} to "${newName}"`);
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest(sessionId, newName));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Rename successful", 'success');
-    } catch (error) {
-        console.error("[HistoryPopupController] Error submitting rename:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to rename chat: ${error.message}`, 'error');
+        await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest(sessionId, newName));
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Rename successful", 'success');
+    }
+    catch (error) {
+        const err = error;
+        console.error("[HistoryPopupController] Error submitting rename:", err);
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to rename chat: ${err.message}`, 'error');
     }
 }
-
 async function handleDownloadClick(sessionId) {
     if (requestDbAndWaitFunc) {
-        (0,_Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_6__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, _notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification);
-    } else {
+        (0,_Utilities_downloadUtils__WEBPACK_IMPORTED_MODULE_6__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, (msg, type) => (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(msg, type));
+    }
+    else {
         console.error("[HistoryPopupController] Cannot download: requestDbAndWaitFunc not available.");
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Download failed: Internal setup error.", 'error');
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Download failed: Internal setup error.", 'error');
     }
 }
-
 function handleShareClick(sessionId) {
-   
+    console.log(`[HistoryPopupController] Share clicked: ${sessionId}`);
 }
-
 async function handlePreviewClick(sessionId, contentElement) {
     if (!sessionId || !contentElement || !requestDbAndWaitFunc) {
         console.error("[HistoryPopupController] Preview failed: Missing sessionId, contentElement, or requestDbAndWaitFunc.");
         return;
     }
-    
     console.log(`[HistoryPopupController] Handling preview click for: ${sessionId}`);
-    contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 italic text-xs">Loading preview...</span>'; 
-
+    contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 italic text-xs">Loading preview...</span>';
     try {
-        const sessionData = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest(sessionId));
-        
+        const sessionData = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest(sessionId));
         if (!sessionData || !sessionData.messages || sessionData.messages.length === 0) {
             contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 text-xs">No messages in this chat.</span>';
             return;
         }
-
         const messagesToPreview = sessionData.messages.slice(0, 3);
-
-        const previewHtml = messagesToPreview.map(msg => {
+        const previewHtml = messagesToPreview.map((msg) => {
             const sender = msg.sender === 'user' ? 'You' : (msg.sender === 'ai' ? 'Agent' : 'System');
             const text = (msg.text || '')
-                         .replace(/</g, "&lt;")
-                         .replace(/>/g, "&gt;")
-                         .substring(0, 100) + (msg.text && msg.text.length > 100 ? '...' : '');
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .substring(0, 100) + (msg.text && msg.text.length > 100 ? '...' : '');
             return `<div class="preview-message mb-1 last:mb-0"><span class="font-medium">${sender}:</span><span class="ml-1">${text}</span></div>`;
         }).join('');
-
-        contentElement.innerHTML = previewHtml; 
-
-    } catch (error) {
-        console.error(`[HistoryPopupController] Error fetching preview for ${sessionId}:`, error);
-        contentElement.innerHTML = `<span class="text-red-500 text-xs">Error loading preview: ${error.message}</span>`;
+        contentElement.innerHTML = previewHtml;
+    }
+    catch (error) {
+        const err = error;
+        console.error(`[HistoryPopupController] Error fetching preview for ${sessionId}:`, err);
+        contentElement.innerHTML = `<span class="text-red-500 text-xs">Error loading preview: ${err.message}</span>`;
     }
 }
-
-document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
+document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
 function initializeHistoryPopup(elements, requestFunc) {
     console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
-
     if (!elements || !elements.popupContainer || !elements.listContainer || !elements.searchInput || !elements.closeButton || !requestFunc) {
         console.error("[HistoryPopupController] Initialization failed: Missing required elements or request function.", { elements, requestFunc });
         return null;
     }
-
     historyPopupElement = elements.popupContainer;
     historyListElement = elements.listContainer;
     historySearchElement = elements.searchInput;
     closeHistoryButtonElement = elements.closeButton;
     requestDbAndWaitFunc = requestFunc;
     console.log("[HistoryPopupController] Elements and request function assigned.");
-
     try {
-        closeHistoryButtonElement.addEventListener('click', hidePopup);
-        const debouncedSearchHandler = (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_3__.debounce)(handleSearchInput, 300);
-        historySearchElement.addEventListener('input', debouncedSearchHandler);
-        
+        if (closeHistoryButtonElement)
+            closeHistoryButtonElement.addEventListener('click', hidePopup);
+        const debouncedSearchHandler = (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_3__.debounce)(handleSearchInput, 300);
+        if (historySearchElement)
+            historySearchElement.addEventListener('input', debouncedSearchHandler);
         isInitialized = true;
         console.log("[HistoryPopupController] Initialization successful. History will be rendered when popup is shown.");
-
         return {
             show: showPopup,
             hide: hidePopup
         };
-    } catch (error) {
+    }
+    catch (error) {
         console.error("[HistoryPopupController] Error during initialization listeners/subscriptions:", error);
         isInitialized = false;
-        return null; 
+        return null;
     }
 }
 
 
 /***/ }),
 
-/***/ "./src/Controllers/LibraryController.js":
+/***/ "./src/Controllers/LibraryController.ts":
 /*!**********************************************!*\
-  !*** ./src/Controllers/LibraryController.js ***!
+  !*** ./src/Controllers/LibraryController.ts ***!
   \**********************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -2314,126 +2232,126 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   initializeLibraryController: () => (/* binding */ initializeLibraryController)
 /* harmony export */ });
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Components/HistoryItem.js */ "./src/Components/HistoryItem.js");
-/* harmony import */ var _Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Utilities/downloadUtils.js */ "./src/Utilities/downloadUtils.js");
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../navigation.js */ "./src/navigation.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _Components_HistoryItem__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Components/HistoryItem */ "./src/Components/HistoryItem.ts");
+/* harmony import */ var _Utilities_downloadUtils__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Utilities/downloadUtils */ "./src/Utilities/downloadUtils.ts");
+/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../notifications */ "./src/notifications.ts");
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _navigation__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../navigation */ "./src/navigation.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_7__);
 
 
- 
- 
- 
- 
+
+
+
+
  // Adjust path if necessary
 
 let isInitialized = false;
 let starredListElement = null;
-let librarySearchInput = null; 
-let requestDbAndWaitFunc = null; 
+let librarySearchInput = null;
+let requestDbAndWaitFunc = null;
 let currentStarredItems = [];
-let currentSearchFilter = ''; 
-let searchListenerAttached = false; 
-
-
+let currentSearchFilter = '';
+let searchListenerAttached = false;
 async function handleStarClick(sessionId) {
     console.log(`[LibraryController] Star clicked: ${sessionId}`);
-    if (!requestDbAndWaitFunc) return;
+    if (!requestDbAndWaitFunc)
+        return;
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbToggleStarRequest(sessionId));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Star toggled", 'success');
-    } catch (error) {
-        console.error("[LibraryController] Error toggling star:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to toggle star: ${error.message}`, 'error');
+        await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbToggleStarRequest(sessionId));
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Star toggled", 'success');
+    }
+    catch (error) {
+        const err = error;
+        console.error("[LibraryController] Error toggling star:", err);
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to toggle star: ${err.message}`, 'error');
     }
 }
-
 async function handleDeleteClick(sessionId) {
     console.log(`[LibraryController] Delete clicked: ${sessionId}`);
-    if (!requestDbAndWaitFunc) return;
+    if (!requestDbAndWaitFunc)
+        return;
     if (confirm('Are you sure you want to delete this chat history item? This cannot be undone.')) {
         try {
-            await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbDeleteSessionRequest(sessionId));
-            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Chat deleted", 'success');
-        } catch (error) {
-            console.error("[LibraryController] Error deleting chat:", error);
-            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to delete chat: ${error.message}`, 'error');
+            await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbDeleteSessionRequest(sessionId));
+            (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Chat deleted", 'success');
+        }
+        catch (error) {
+            const err = error;
+            console.error("[LibraryController] Error deleting chat:", err);
+            (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to delete chat: ${err.message}`, 'error');
         }
     }
 }
-
 async function handleRenameSubmit(sessionId, newName) {
     console.log(`[LibraryController] Rename submitted: ${sessionId} to "${newName}"`);
-    if (!requestDbAndWaitFunc) return;
+    if (!requestDbAndWaitFunc)
+        return;
     try {
-        await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbRenameSessionRequest(sessionId, newName));
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Rename successful", 'success');
-    } catch (error) {
-        console.error("[LibraryController] Error submitting rename:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to rename chat: ${error.message}`, 'error');
+        await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbRenameSessionRequest(sessionId, newName));
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Rename successful", 'success');
+    }
+    catch (error) {
+        const err = error;
+        console.error("[LibraryController] Error submitting rename:", err);
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to rename chat: ${err.message}`, 'error');
     }
 }
-
 async function handleDownloadClick(sessionId) {
-
     if (requestDbAndWaitFunc) {
-        (0,_Utilities_downloadUtils_js__WEBPACK_IMPORTED_MODULE_2__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, _notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification);
-    } else {
+        (0,_Utilities_downloadUtils__WEBPACK_IMPORTED_MODULE_2__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, (msg, type) => (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(msg, type));
+    }
+    else {
         console.error("[LibraryController] Cannot download: requestDbAndWaitFunc not available.");
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Download failed: Internal setup error.", 'error');
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Download failed: Internal setup error.", 'error');
     }
 }
-
 async function handleLoadClick(sessionId) {
     console.log(`[LibraryController] Load clicked: ${sessionId}`);
     try {
-        await chrome.storage.local.set({ lastSessionId: sessionId });
-        (0,_navigation_js__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home'); 
-    } catch (error) {
-        console.error("[LibraryController] Error setting storage or navigating:", error);
-        (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Failed to load chat.", 'error');
-        await chrome.storage.local.remove('lastSessionId');
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_7___default().storage.local.set({ lastSessionId: sessionId });
+        (0,_navigation__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home');
+    }
+    catch (error) {
+        const err = error;
+        console.error("[LibraryController] Error setting storage or navigating:", err);
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Failed to load chat.", 'error');
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_7___default().storage.local.remove('lastSessionId');
     }
 }
-
 function handleShareClick(sessionId) {
     console.log(`[LibraryController] Share clicked: ${sessionId}`);
-    (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Share functionality not yet implemented.", 'info');
+    (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Share functionality not yet implemented.", 'info');
 }
-
 function handlePreviewClick(sessionId, contentElement) {
     console.log(`[LibraryController] Preview clicked: ${sessionId}`);
-    (0,_notifications_js__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Preview functionality not yet implemented.", 'info');
+    (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Preview functionality not yet implemented.", 'info');
     if (contentElement) {
         contentElement.innerHTML = 'Preview loading...';
         contentElement.classList.toggle('hidden');
     }
 }
-
-
-
 function handleNavigationChange(event) {
     if (!isInitialized || event?.pageId !== 'page-library') {
-        return; 
+        return;
     }
     console.log("[LibraryController] Library page activated.");
-
     if (!searchListenerAttached) {
         librarySearchInput = document.getElementById('library-search');
         if (librarySearchInput) {
             librarySearchInput.addEventListener('input', handleSearchInput);
             searchListenerAttached = true;
             console.log("[LibraryController] Search input listener attached.");
-        } else {
+        }
+        else {
             console.warn("[LibraryController] Library search input (#library-search) still not found even when page is active.");
         }
     }
-    
-    fetchAndRenderLibrary(); 
+    fetchAndRenderLibrary();
 }
-
 async function fetchAndRenderLibrary() {
     if (!isInitialized || !starredListElement || !requestDbAndWaitFunc) {
         console.error("[LibraryController] Cannot fetch/render - not initialized or missing elements/functions.");
@@ -2441,101 +2359,90 @@ async function fetchAndRenderLibrary() {
     }
     console.log("[LibraryController] Fetching starred items...");
     starredListElement.innerHTML = '<p class="p-4 text-center text-gray-500 dark:text-gray-400 italic">Loading starred items...</p>';
-    currentSearchFilter = librarySearchInput?.value.trim() || ''; 
-
+    currentSearchFilter = librarySearchInput?.value.trim() || '';
     try {
-        const responsePayload = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbGetStarredSessionsRequest());
-        currentStarredItems = Array.isArray(responsePayload) ? responsePayload : (responsePayload?.sessions || []); 
+        const responsePayload = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbGetStarredSessionsRequest());
+        currentStarredItems = Array.isArray(responsePayload) ? responsePayload : (responsePayload?.sessions || []);
         console.log(`[LibraryController] Received ${currentStarredItems.length} starred items.`);
-        renderLibraryList(currentSearchFilter); 
-    } catch (error) {
+        renderLibraryList(currentSearchFilter);
+    }
+    catch (error) {
         console.error("[LibraryController] Error fetching starred items:", error);
         starredListElement.innerHTML = '<div class="p-4 text-red-500">Error loading starred items.</div>';
     }
 }
-
 function handleSessionUpdate(notification) {
     if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
         console.warn("[LibraryController] Invalid session update notification received.", notification);
         return;
     }
-
-    const updatedSessionData = notification.payload.session; 
+    const updatedSessionData = notification.payload.session;
     const sessionId = updatedSessionData.id;
-
     if (!updatedSessionData) {
-         console.warn(`[LibraryController] Session update notification for ${sessionId} missing session data in payload.session.`, notification);
-         return;
+        console.warn(`[LibraryController] Session update notification for ${sessionId} missing session data in payload.session.`, notification);
+        return;
     }
-    
     console.log(`[LibraryController] Received session update for ${sessionId}. New starred status: ${updatedSessionData.isStarred}`);
-
-    const itemIndex = currentStarredItems.findIndex(item => item.sessionId === sessionId); 
-
+    const itemIndex = currentStarredItems.findIndex(item => item.sessionId === sessionId);
     if (updatedSessionData.isStarred) {
         if (itemIndex === -1) {
             console.log(`[LibraryController] Session ${sessionId} is newly starred. Adding to list.`);
-
-             const newItem = {
-                 sessionId: sessionId,
-                 name: updatedSessionData.title || 'Untitled', 
-                 lastUpdated: updatedSessionData.timestamp || Date.now(), 
-                 isStarred: true
-             };
-             currentStarredItems.push(newItem);
-        } else {
+            const newItem = {
+                sessionId: sessionId,
+                name: updatedSessionData.title || 'Untitled',
+                lastUpdated: updatedSessionData.timestamp || Date.now(),
+                isStarred: true
+            };
+            currentStarredItems.push(newItem);
+        }
+        else {
             console.log(`[LibraryController] Session ${sessionId} was already starred. Updating data.`);
             currentStarredItems[itemIndex] = {
-                ...currentStarredItems[itemIndex], 
-                name: updatedSessionData.title || currentStarredItems[itemIndex].name, 
-                lastUpdated: updatedSessionData.timestamp || currentStarredItems[itemIndex].lastUpdated, 
+                ...currentStarredItems[itemIndex],
+                name: updatedSessionData.title || currentStarredItems[itemIndex].name,
+                lastUpdated: updatedSessionData.timestamp || currentStarredItems[itemIndex].lastUpdated,
                 isStarred: true
             };
         }
-    } else {
+    }
+    else {
         if (itemIndex !== -1) {
             console.log(`[LibraryController] Session ${sessionId} is no longer starred. Removing from list.`);
             currentStarredItems.splice(itemIndex, 1);
-        } else {
-             console.log(`[LibraryController] Session ${sessionId} is not starred and was not in the list.`);
+        }
+        else {
+            console.log(`[LibraryController] Session ${sessionId} is not starred and was not in the list.`);
         }
     }
-
     const libraryPage = document.getElementById('page-library');
     if (libraryPage && !libraryPage.classList.contains('hidden')) {
         console.log("[LibraryController] Library page is active, re-rendering list with filter.");
         currentSearchFilter = librarySearchInput?.value.trim() || '';
         renderLibraryList(currentSearchFilter);
-    } else {
+    }
+    else {
         console.log("[LibraryController] Library page not active, internal list updated passively.");
     }
 }
-
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_6__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handleNavigationChange(e.detail));
-
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_6__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handleNavigationChange(e.detail));
 function renderLibraryList(filter = '') {
-    if (!isInitialized || !starredListElement) return;
+    if (!isInitialized || !starredListElement)
+        return;
     console.log(`[LibraryController] Rendering with filter "${filter}"`);
-    
     let itemsToRender = [...currentStarredItems];
-
     if (filter) {
         const searchTerm = filter.toLowerCase();
-        itemsToRender = itemsToRender.filter(entry =>
-            (entry.name || '').toLowerCase().includes(searchTerm)
-        );
+        itemsToRender = itemsToRender.filter(entry => (entry.name || '').toLowerCase().includes(searchTerm));
     }
-
     itemsToRender.sort((a, b) => b.lastUpdated - a.lastUpdated);
-
-    starredListElement.innerHTML = ''; 
-
+    starredListElement.innerHTML = '';
     if (itemsToRender.length === 0) {
         const message = filter
             ? `<p class="p-4 text-center text-gray-500 dark:text-gray-400 italic">No starred items match "${filter}".</p>`
             : '<p class="p-4 text-center text-gray-500 dark:text-gray-400 italic">No starred items yet.</p>';
         starredListElement.innerHTML = message;
-    } else {
+    }
+    else {
         itemsToRender.forEach(entry => {
             const props = {
                 entry: {
@@ -2544,56 +2451,53 @@ function renderLibraryList(filter = '') {
                     title: entry.name,
                     timestamp: entry.lastUpdated,
                     isStarred: entry.isStarred,
-                    messages: [] 
+                    messages: []
                 },
                 onLoadClick: handleLoadClick,
                 onStarClick: handleStarClick,
                 onDeleteClick: handleDeleteClick,
                 onRenameSubmit: handleRenameSubmit,
                 onDownloadClick: handleDownloadClick,
-                onShareClick: handleShareClick, 
-                onPreviewClick: handlePreviewClick 
+                onShareClick: handleShareClick,
+                onPreviewClick: handlePreviewClick
             };
-            const itemElement = (0,_Components_HistoryItem_js__WEBPACK_IMPORTED_MODULE_1__.renderHistoryItemComponent)(props);
-            if (itemElement) {
+            const itemElement = (0,_Components_HistoryItem__WEBPACK_IMPORTED_MODULE_1__.renderHistoryItemComponent)(props);
+            if (itemElement && starredListElement) {
                 starredListElement.appendChild(itemElement);
             }
         });
     }
-     console.log(`[LibraryController] Rendered ${itemsToRender.length} items.`);
+    console.log(`[LibraryController] Rendered ${itemsToRender.length} items.`);
 }
-
-const handleSearchInput = (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_4__.debounce)((event) => {
-    if (!isInitialized) return;
+const handleSearchInput = (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_4__.debounce)((event) => {
+    if (!isInitialized)
+        return;
     currentSearchFilter = event.target.value.trim();
     console.log(`[LibraryController] Search input changed: "${currentSearchFilter}"`);
     renderLibraryList(currentSearchFilter);
 }, 300);
-
 function initializeLibraryController(elements, requestFunc) {
     console.log("[LibraryController] Initializing...");
     if (!elements || !elements.listContainer || !requestFunc) { // Removed searchInput from mandatory checks here, handled in navigation
         console.error("[LibraryController] Initialization failed: Missing required elements (listContainer) or request function.", { elements, requestFunc });
         return null;
     }
-
     starredListElement = elements.listContainer;
     requestDbAndWaitFunc = requestFunc;
     console.log("[LibraryController] Elements and request function assigned.");
-
     isInitialized = true;
     console.log("[LibraryController] Initialization successful. Library will render when activated.");
+    // --- Add event listener for session updates ---
+    document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
+    return {};
+}
 
-    return {
-
-    };
-} 
 
 /***/ }),
 
-/***/ "./src/Controllers/SettingsController.js":
+/***/ "./src/Controllers/SettingsController.ts":
 /*!***********************************************!*\
-  !*** ./src/Controllers/SettingsController.js ***!
+  !*** ./src/Controllers/SettingsController.ts ***!
   \***********************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -2604,151 +2508,144 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _sidepanel_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../sidepanel.js */ "./src/sidepanel.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../sidepanel */ "./src/sidepanel.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
 // src/Controllers/SettingsController.js
 
 
 
 let isInitialized = false;
-
 const updateThemeButtonText = (button) => {
-    if (!button) return;
+    if (!button)
+        return;
     const isDarkMode = document.documentElement.classList.contains('dark');
     button.textContent = isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode';
 };
-
 function setupThemeToggle() {
     const settingsPageContainer = document.getElementById('page-settings');
     if (!settingsPageContainer) {
         console.warn("[SettingsController] Could not find #page-settings container.");
         return;
     }
-
     let themeToggleButton = settingsPageContainer.querySelector('#theme-toggle-button');
-
     if (!themeToggleButton) {
         console.log("[SettingsController] Creating theme toggle button.");
         themeToggleButton = document.createElement('button');
         themeToggleButton.id = 'theme-toggle-button';
         themeToggleButton.className = 'p-2 border rounded bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 mt-4'; // Standard styling
-
         themeToggleButton.onclick = () => {
             const htmlElement = document.documentElement;
             const isCurrentlyDark = htmlElement.classList.contains('dark');
             console.log(`[SettingsToggle] Before toggle - isDark: ${isCurrentlyDark}`);
-
             if (isCurrentlyDark) {
                 htmlElement.classList.remove('dark');
                 localStorage.setItem('theme', 'light');
                 console.log(`[SettingsToggle] Removed dark class, set localStorage to light`);
-            } else {
+            }
+            else {
                 htmlElement.classList.add('dark');
                 localStorage.setItem('theme', 'dark');
                 console.log(`[SettingsToggle] Added dark class, set localStorage to dark`);
             }
-            updateThemeButtonText(themeToggleButton); 
+            updateThemeButtonText(themeToggleButton);
         };
-        
         const placeholderText = settingsPageContainer.querySelector('p');
         if (placeholderText) {
             placeholderText.insertAdjacentElement('afterend', themeToggleButton);
-        } else {
+        }
+        else {
             settingsPageContainer.appendChild(themeToggleButton);
         }
-    } else {
+    }
+    else {
         console.log("[SettingsController] Theme toggle button already exists.");
     }
-
     updateThemeButtonText(themeToggleButton);
 }
-
 function setupSlider(sliderId, valueSpanId) {
     const slider = document.getElementById(sliderId);
     const valueSpan = document.getElementById(valueSpanId);
-
     if (slider && valueSpan) {
         valueSpan.textContent = slider.value;
         slider.addEventListener('input', (event) => {
-            valueSpan.textContent = event.target.value;
+            const target = event.target;
+            valueSpan.textContent = target.value;
         });
         console.log(`[SettingsController] Setup slider ${sliderId} with value display ${valueSpanId}`);
-    } else {
-        if (!slider) console.warn(`[SettingsController] Slider element not found: #${sliderId}`);
-        if (!valueSpan) console.warn(`[SettingsController] Value span element not found: #${valueSpanId}`);
+    }
+    else {
+        if (!slider)
+            console.warn(`[SettingsController] Slider element not found: #${sliderId}`);
+        if (!valueSpan)
+            console.warn(`[SettingsController] Value span element not found: #${valueSpanId}`);
     }
 }
-
 function initializeSettingsController() {
     if (isInitialized) {
         console.log("[SettingsController] Already initialized.");
         return;
     }
     console.log("[SettingsController] Initializing...");
-
     setupThemeToggle();
-    
     setupSlider('setting-temperature', 'setting-temperature-value');
     setupSlider('setting-repeat-penalty', 'setting-repeat-penalty-value');
     setupSlider('setting-top-p', 'setting-top-p-value');
     setupSlider('setting-min-p', 'setting-min-p-value');
-
     const viewLogsButton = document.getElementById('viewLogsButton');
     if (viewLogsButton) {
         viewLogsButton.addEventListener('click', () => {
             console.log('[SettingsController] View Logs button clicked. Opening log viewer popup...');
             try {
-                const viewerUrl = 'sidepanel.html?view=logs'; 
-                
+                const viewerUrl = 'sidepanel.html?view=logs';
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.create({
-                     url: viewerUrl,
-                     type: 'popup',
-                     width: 800,
-                     height: 600
-                 });
-            } catch (error) {
+                    url: viewerUrl,
+                    type: 'popup',
+                    width: 800,
+                    height: 600
+                });
+            }
+            catch (error) {
                 console.error('[SettingsController] Error opening log viewer popup:', error);
-
             }
         });
         console.log('[SettingsController] Added listener to View Logs button.');
-
         const resetDbButton = document.getElementById('resetDbButton');
         if (resetDbButton) {
             resetDbButton.addEventListener('click', async () => {
                 console.log('[SettingsController] Reset DB button clicked.');
                 try {
-                    const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest();
-                    const result = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_1__.sendDbRequestSmart)(request);
+                    const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest();
+                    const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_1__.sendDbRequestSmart)(request);
                     if (result && result.success) {
                         alert('Database reset successfully!');
-                    } else {
+                    }
+                    else {
                         alert('Database reset failed.');
                     }
                     console.log('[SettingsController] Reset DB result:', result);
-                } catch (e) {
+                }
+                catch (e) {
                     alert('Failed to reset database: ' + (e.message || e));
                     console.error('[SettingsController] Reset DB error:', e);
                 }
             });
         }
         console.log('[SettingsController] Added Reset DB button next to View Logs button.');
-    } else {
+    }
+    else {
         console.warn('[SettingsController] View Logs button (viewLogsButton) not found.');
     }
-
-
     isInitialized = true;
     console.log("[SettingsController] Initialized successfully.");
+    return {};
+}
 
-    return {}; 
-} 
 
 /***/ }),
 
-/***/ "./src/Controllers/SpacesController.js":
+/***/ "./src/Controllers/SpacesController.ts":
 /*!*********************************************!*\
-  !*** ./src/Controllers/SpacesController.js ***!
+  !*** ./src/Controllers/SpacesController.ts ***!
   \*********************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -2758,40 +2655,3832 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeSpacesController: () => (/* binding */ initializeSpacesController)
 /* harmony export */ });
 // src/Controllers/SpacesController.js
-
-
-
 let isInitialized = false;
-
-function handleNavigationChange(event) {
-    if (!isInitialized || event?.pageId !== 'page-spaces') {
-        return; 
-    }
-    console.log("[SpacesController] Spaces page activated.");
-
-}
-
-function initializeSpacesController(/* Pass necessary elements or functions if needed */) {
+function initializeSpacesController( /* Pass necessary elements or functions if needed */) {
     if (isInitialized) {
         console.log("[SpacesController] Already initialized.");
         return;
     }
     console.log("[SpacesController] Initializing...");
-    
-
-
     isInitialized = true;
     console.log("[SpacesController] Initialized successfully.");
+    return {};
+}
 
-
-    return {}; 
-} 
 
 /***/ }),
 
-/***/ "./src/Home/chatRenderer.js":
+/***/ "./src/DB/db.ts":
+/*!**********************!*\
+  !*** ./src/DB/db.ts ***!
+  \**********************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   autoEnsureDbInitialized: () => (/* binding */ autoEnsureDbInitialized),
+/* harmony export */   forwardDbRequest: () => (/* binding */ forwardDbRequest),
+/* harmony export */   lastDbInitStatus: () => (/* binding */ lastDbInitStatus)
+/* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./idbModelAsset */ "./src/DB/idbModelAsset.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _idbChat__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./idbChat */ "./src/DB/idbChat.ts");
+/* harmony import */ var _idbLog__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./idbLog */ "./src/DB/idbLog.ts");
+// db.js
+
+
+
+
+
+
+
+
+const DB_INIT_TIMEOUT = 15000;
+const APP_CHUNK_SIZE_CONFIG = _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.CHUNK_SIZE || (10 * 1024 * 1024); // Use helper's or default
+let isDbReadyFlag = false;
+let currentExtensionSessionId = null;
+let previousExtensionSessionId = null;
+let dbInitPromise = null;
+let isDbInitInProgress = false;
+let dbWorker = null;
+let dbWorkerReady = false;
+let dbWorkerRequestId = 0;
+const dbWorkerCallbacks = {};
+let lastDbInitStatus = null;
+let currentChat = null;
+let _dbReadyResolve = null;
+function resetDbReadyPromise() {
+    _dbReadyResolve = () => { };
+}
+class AppError extends Error {
+    constructor(code, message, details = {}) {
+        super(message);
+        this.code = code;
+        this.details = details;
+        this.name = 'AppError';
+    }
+}
+async function withTimeout(promise, ms, errorMessage = `Operation timed out after ${ms}ms`) {
+    let timeoutId = undefined;
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new AppError('TIMEOUT', errorMessage)), ms);
+    });
+    try {
+        return await Promise.race([promise, timeout]);
+    }
+    finally {
+        if (timeoutId !== undefined)
+            clearTimeout(timeoutId);
+    }
+}
+function createDbWorker() {
+    if (!dbWorker) {
+        const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL('DB/indexedDBBackendWorker.js');
+        console.log('[DB] Creating new DB Worker with URL:', workerUrl);
+        let workerCreated = false;
+        try {
+            dbWorker = new Worker(workerUrl, { type: 'module' });
+            workerCreated = true;
+        }
+        catch (workerErr) {
+            console.error('[DB] Failed to create DB Worker:', workerErr);
+            dbWorker = null;
+            dbWorkerReady = false;
+            // Optionally, you could throw or handle this error further here
+            return null;
+        }
+        if (workerCreated) {
+            dbWorker.onmessage = (event) => {
+                const { requestId, type, result, error, stack } = event.data;
+                console.log('[DB] Worker onmessage (full event.data):', event.data);
+                if (requestId && dbWorkerCallbacks[requestId]) {
+                    const callback = dbWorkerCallbacks[requestId];
+                    delete dbWorkerCallbacks[requestId];
+                    if (error) {
+                        let errObj = error;
+                        if (typeof error === 'string') {
+                            errObj = new Error(error);
+                            if (stack)
+                                errObj.stack = stack;
+                        }
+                        else if (error instanceof Object && !(error instanceof Error)) {
+                            errObj = new Error(error.message || 'Worker error object');
+                            Object.assign(errObj, error);
+                            if (stack)
+                                errObj.stack = stack;
+                        }
+                        console.error('[DB] Worker callback.reject:', errObj, 'for requestId:', requestId);
+                        callback.reject(errObj);
+                    }
+                    else {
+                        console.log('[DB] Worker callback.resolve:', result, 'for requestId:', requestId);
+                        callback.resolve(result);
+                    }
+                }
+                else if (type === 'debug') {
+                    console.log(`[DB Worker Debug] ${event.data.message}`);
+                }
+                else if (type === 'fatal') {
+                    console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
+                    Object.values(dbWorkerCallbacks).forEach((cb) => cb.reject(new Error('DB Worker encountered a fatal error')));
+                    Object.keys(dbWorkerCallbacks).forEach(key => delete dbWorkerCallbacks[key]);
+                }
+                else if (type === _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.WORKER_READY) {
+                    dbWorkerReady = true;
+                    console.log('[DB] DB Worker signaled script ready.');
+                }
+                else {
+                    console.warn('[DB] Worker received unknown message type:', type, event.data);
+                }
+            };
+            dbWorker.onerror = (errEvent) => {
+                console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
+                Object.values(dbWorkerCallbacks).forEach((cb) => cb.reject(new Error(`DB Worker crashed: ${errEvent.message || 'Unknown worker error'}`)));
+                Object.keys(dbWorkerCallbacks).forEach(key => delete dbWorkerCallbacks[key]);
+                dbWorker = null;
+                dbWorkerReady = false;
+            };
+            console.log('[DB] DB Worker created and event handlers attached.');
+        }
+    }
+    else {
+        console.log('[DB] Returning existing DB Worker instance.');
+    }
+    return dbWorker;
+}
+// Helper to ensure dbWorker is not null
+function getDbWorker() {
+    if (!dbWorker)
+        throw new AppError('WORKER_NOT_INITIALIZED', 'DB Worker is not initialized');
+    return dbWorker;
+}
+function checkDbAndStoreReadiness(result) {
+    if (!result || typeof result !== 'object') {
+        console.warn('[DB] checkDbAndStoreReadiness received invalid result:', result);
+        return { allSuccess: false, failures: ['Invalid result object'] };
+    }
+    let allSuccess = true;
+    const failures = [];
+    for (const [dbName, dbStatus] of Object.entries(result)) {
+        if (!dbStatus || typeof dbStatus !== 'object' || !('success' in dbStatus) || !dbStatus.success) {
+            allSuccess = false;
+            failures.push(`${dbName} (DB init: ${dbStatus?.error?.message || 'failed'})`);
+        }
+        if (dbStatus && typeof dbStatus === 'object' && 'stores' in dbStatus && dbStatus.stores) {
+            for (const [storeName, storeStatus] of Object.entries(dbStatus.stores)) {
+                if (!storeStatus || typeof storeStatus !== 'object' || !('success' in storeStatus) || !storeStatus.success) {
+                    allSuccess = false;
+                    failures.push(`${dbName}.${storeName} (Store init: ${storeStatus?.error?.message || 'failed'})`);
+                }
+            }
+        }
+    }
+    return { allSuccess, failures };
+}
+async function autoEnsureDbInitialized() {
+    resetDbReadyPromise(); // Ensure _dbReadyResolve is always a function
+    if (isDbReadyFlag && lastDbInitStatus?.success) {
+        const result = { success: true, dbStatus: lastDbInitStatus, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
+        smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification(result));
+        return result;
+    }
+    if (isDbInitInProgress) {
+        return dbInitPromise; // Return the existing promise
+    }
+    isDbInitInProgress = true;
+    dbInitPromise = (async () => {
+        try {
+            console.log('[DB] autoEnsureDbInitialized: Initializing databases and backend.');
+            let ids = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
+            if (!ids.currentLogSessionId) {
+                ids.currentLogSessionId = crypto.randomUUID();
+                await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ currentLogSessionId: ids.currentLogSessionId });
+            }
+            currentExtensionSessionId = ids.currentLogSessionId;
+            previousExtensionSessionId = ids.previousLogSessionId || null;
+            const worker = createDbWorker();
+            if (!worker) {
+                const errorMsg = '[DB] Failed to initialize DB Worker. Aborting DB initialization.';
+                console.error(errorMsg);
+                isDbReadyFlag = false;
+                if (typeof _dbReadyResolve === 'function')
+                    _dbReadyResolve(false);
+                lastDbInitStatus = { error: errorMsg, success: false };
+                const errorResponse = { success: false, error: errorMsg, dbStatus: lastDbInitStatus, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
+                smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification(errorResponse));
+                throw new AppError('WORKER_NOT_INITIALIZED', errorMsg);
+            }
+            if (!dbWorkerReady) {
+                console.log('[DB] Waiting for DB worker to become ready...');
+                await new Promise((resolveWorkerReady, rejectWorkerReady) => {
+                    const timeout = setTimeout(() => rejectWorkerReady(new Error(`Worker '${_dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.WORKER_READY}' signal timeout after 10s`)), 10000);
+                    const checkWorker = () => {
+                        if (dbWorkerReady) {
+                            clearTimeout(timeout);
+                            resolveWorkerReady();
+                        }
+                        else {
+                            setTimeout(checkWorker, 50);
+                        }
+                    };
+                    checkWorker();
+                });
+                console.log('[DB] DB Worker is ready.');
+            }
+            const payloadForWorker = { schemaConfig: _idbSchema__WEBPACK_IMPORTED_MODULE_2__.schema }; // Make sure 'schema' is defined and imported
+            const requestId = (++dbWorkerRequestId).toString();
+            console.log('[DB] Sending INIT_CUSTOM_IDBS to worker:', { requestId, type: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.INIT_CUSTOM_IDBS, payload: payloadForWorker });
+            const initOpPromise = new Promise((resolve, reject) => {
+                dbWorkerCallbacks[requestId] = { resolve, reject };
+            });
+            if (!dbWorker)
+                throw new AppError('WORKER_NOT_INITIALIZED', 'DB Worker is not initialized');
+            dbWorker.postMessage({ requestId, action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.INIT_CUSTOM_IDBS, payload: payloadForWorker });
+            const resultFromWorker = await withTimeout(initOpPromise, DB_INIT_TIMEOUT, 'DB Init operation with worker timed out');
+            lastDbInitStatus = resultFromWorker;
+            const { allSuccess, failures } = checkDbAndStoreReadiness(resultFromWorker);
+            isDbReadyFlag = allSuccess;
+            if (typeof _dbReadyResolve === 'function')
+                _dbReadyResolve(allSuccess);
+            const responsePayload = { success: allSuccess, dbStatus: resultFromWorker, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
+            if (!allSuccess) {
+                const errorMsg = `One or more databases/stores failed to initialize: ${failures.join(', ')}.`;
+                console.error('[DB]', errorMsg, 'Details:', resultFromWorker);
+                responsePayload.error = new AppError('DB_INIT_FAILED', errorMsg, { failures, dbStatus: resultFromWorker });
+            }
+            smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification(responsePayload));
+            if (!allSuccess)
+                throw responsePayload.error; // Throw if not successful
+            return responsePayload;
+        }
+        catch (err) {
+            console.error('[DB] autoEnsureDbInitialized -> CRITICAL Initialization failed:', err.message);
+            isDbReadyFlag = false;
+            if (typeof _dbReadyResolve === 'function')
+                _dbReadyResolve(false);
+            lastDbInitStatus = lastDbInitStatus || { error: err.message, success: false };
+            const errorResponse = { success: false, error: err, dbStatus: lastDbInitStatus, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
+            smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification(errorResponse));
+            throw err; // Re-throw the error to be caught by the caller of autoEnsureDbInitialized
+        }
+        finally {
+            isDbInitInProgress = false;
+        }
+    })();
+    return dbInitPromise;
+}
+// Unified handler for both DbInitializeRequest and DbEnsureInitializedRequest
+async function handleDbEnsureInitialized(event) {
+    try {
+        const result = await autoEnsureDbInitialized();
+        return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedResponse(event?.requestId || crypto.randomUUID(), result.success, result, result.success ? null : result.error);
+    }
+    catch (e) {
+        return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedResponse(event?.requestId || crypto.randomUUID(), false, null, e);
+    }
+}
+async function handleRequest(event, internalHandler, ResponseClass, timeout = 10000, successDataExtractor = (result) => result.data, errorDetailsExtractor = (errorResult) => ({ errorDetails: errorResult?.error })) {
+    const requestId = event?.requestId || crypto.randomUUID();
+    try {
+        if (!isDbReadyFlag) { // Secondary check
+            throw new AppError('DB_NOT_READY', 'Database is not ready after initialization attempt.');
+        }
+        const result = await withTimeout(internalHandler(event.payload), timeout);
+        if (result && result.success === false) {
+            throw new AppError('INTERNAL_OPERATION_FAILED', result.error || 'Unknown internal error from handler', errorDetailsExtractor(result));
+        }
+        const responseData = successDataExtractor(result);
+        return new ResponseClass(requestId, true, responseData);
+    }
+    catch (error) {
+        const errObj = error;
+        console.error(`[DB] Error in handleRequest for ${event?.type} (reqId: ${requestId}):`, errObj.message, errObj.details || errObj);
+        const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack, details: errObj.details });
+        return new ResponseClass(requestId, false, null, appError);
+    }
+}
+// --- Handler Functions ---
+async function handleDbGetReadyStateRequest(event) {
+    return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetReadyStateResponse(event.requestId, true, { ready: isDbReadyFlag });
+}
+async function handleDbCreateSessionRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.initialMessage?.text)
+            throw new AppError('INVALID_INPUT', 'Missing initialMessage or message text');
+        // Create new chat regardless of currentChat state for this specific request
+        const newChat = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.createChat(payload.initialMessage.text, getDbWorker(), {
+            initialMessageSender: payload.initialMessage.sender || 'user',
+        });
+        if (!newChat)
+            throw new AppError('DB_OPERATION_FAILED', 'Failed to create chat session (Chat.createChat returned null)');
+        currentChat = newChat;
+        await publishSessionUpdate(currentChat.id, 'create', currentChat);
+        const messages = await currentChat.getMessages(); // Assumes createChat adds the initial message
+        await publishMessagesUpdate(currentChat.id, messages);
+        await publishStatusUpdate(currentChat.id, currentChat.status);
+        return { success: true, data: newChat };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionResponse, 5000, (res) => res.data.id);
+}
+async function handleDbGetSessionRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId)
+            throw new AppError('INVALID_INPUT', 'Session ID is required');
+        if (currentChat && currentChat.id === payload.sessionId)
+            return { success: true, data: currentChat };
+        const worker = getDbWorker();
+        const chat = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            return { success: false, error: `Session ${payload.sessionId} not found` };
+        return { success: true, data: chat };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionResponse);
+}
+async function handleDbAddMessageRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId || !payload.messageObject?.text)
+            throw new AppError('INVALID_INPUT', 'Session ID and message text are required');
+        const worker = getDbWorker();
+        let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            throw new AppError('NOT_FOUND', `Chat session ${payload.sessionId} not found.`);
+        const messageId = await chat.addMessage(payload.messageObject); // Pass full messageObject
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = chat;
+        await publishSessionUpdate(chat.id, 'update', chat);
+        const messages = await chat.getMessages();
+        await publishMessagesUpdate(chat.id, messages);
+        return { success: true, data: { newMessageId: messageId } };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageResponse);
+}
+async function handleDbUpdateMessageRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId || !payload.messageId || !payload.updates || (payload.updates.text === undefined && payload.updates.isLoading === undefined && payload.updates.content === undefined /* Added content */)) {
+            throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates (text, content or isLoading) are required');
+        }
+        const worker = getDbWorker();
+        let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            throw new AppError('NOT_FOUND', `Chat session ${payload.sessionId} not found.`);
+        const message = await chat.getMessage(payload.messageId);
+        if (!message)
+            throw new AppError('NOT_FOUND', `Message ${payload.messageId} not found.`);
+        await message.update(payload.updates);
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = chat;
+        await publishSessionUpdate(chat.id, 'update', chat);
+        const messages = await chat.getMessages();
+        await publishMessagesUpdate(chat.id, messages);
+        return { success: true, data: true };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageResponse);
+}
+async function handleDbDeleteMessageRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId || !payload.messageId)
+            throw new AppError('INVALID_INPUT', 'Session ID and message ID are required');
+        const worker = getDbWorker();
+        let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            throw new AppError('NOT_FOUND', `Chat session ${payload.sessionId} not found.`);
+        const deleted = await chat.deleteMessage(payload.messageId, { deleteAttachments: true, deleteKGNRels: true, deleteOrphanedEmbedding: true }); // Options from Chat class
+        if (!deleted)
+            throw new AppError('DB_OPERATION_FAILED', `Failed to delete message ${payload.messageId}.`);
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = chat; // Chat object state might change (message_ids)
+        await publishSessionUpdate(chat.id, 'update', chat);
+        const messages = await chat.getMessages();
+        await publishMessagesUpdate(chat.id, messages);
+        return { success: true, data: true };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageResponse);
+}
+async function handleDbUpdateStatusRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId || !payload.status)
+            throw new AppError('INVALID_INPUT', 'Session ID and status are required');
+        const validStatuses = ['idle', 'processing', 'complete', 'error'];
+        if (!validStatuses.includes(payload.status))
+            throw new AppError('INVALID_INPUT', `Invalid status: ${payload.status}`);
+        const worker = getDbWorker();
+        let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            throw new AppError('NOT_FOUND', `Chat session ${payload.sessionId} not found.`);
+        await chat.update({ status: payload.status });
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = chat;
+        await publishSessionUpdate(chat.id, 'update', chat);
+        await publishStatusUpdate(chat.id, payload.status);
+        return { success: true, data: chat };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusResponse);
+}
+async function handleDbToggleStarRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId)
+            throw new AppError('INVALID_INPUT', 'Session ID is required');
+        const worker = getDbWorker();
+        let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            throw new AppError('NOT_FOUND', `Chat session ${payload.sessionId} not found.`);
+        await chat.update({ isStarred: !chat.isStarred });
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = chat;
+        await publishSessionUpdate(chat.id, 'update', chat);
+        return { success: true, data: chat };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarResponse);
+}
+async function handleDbGetAllSessionsRequest(event) {
+    return handleRequest(event, async () => {
+        const worker = getDbWorker();
+        const chats = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.getAllChats(worker);
+        return { success: true, data: chats };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsResponse, 5000, (res) => (res.data || []).sort((a, b) => (b.chat_timestamp || 0) - (a.chat_timestamp || 0)));
+}
+async function handleDbGetStarredSessionsRequest(event) {
+    return handleRequest(event, async () => {
+        const worker = getDbWorker();
+        const chats = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.getAllChats(worker);
+        const starred = chats.filter((c) => c.isStarred);
+        return { success: true, data: starred };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsResponse, 5000, (res) => (res.data || []).map((s) => ({ sessionId: s.id, name: s.title, lastUpdated: (s.chat_timestamp || 0), isStarred: s.isStarred }))
+        .sort((a, b) => b.lastUpdated - a.lastUpdated));
+}
+async function handleDbDeleteSessionRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId)
+            throw new AppError('INVALID_INPUT', 'Session ID is required');
+        const worker = getDbWorker();
+        const deleteResult = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.deleteChat(payload.sessionId, worker, undefined, { deleteMessages: true, deleteSummaries: true, deleteKGNRels: true, deleteOrphanedEmbedding: true });
+        if (!deleteResult.success)
+            throw new AppError('DB_OPERATION_FAILED', deleteResult.error || `Failed to delete session ${payload.sessionId}`);
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = null;
+        await publishSessionUpdate(payload.sessionId, 'delete', { id: payload.sessionId });
+        return { success: true, data: true };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionResponse);
+}
+async function handleDbRenameSessionRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.sessionId || !payload.newName)
+            throw new AppError('INVALID_INPUT', 'Session ID and new name are required');
+        const worker = getDbWorker();
+        let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
+        if (!chat)
+            throw new AppError('NOT_FOUND', `Chat session ${payload.sessionId} not found.`);
+        await chat.update({ title: payload.newName });
+        if (currentChat && currentChat.id === payload.sessionId)
+            currentChat = chat;
+        await publishSessionUpdate(chat.id, 'rename', chat);
+        return { success: true, data: chat };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionResponse);
+}
+async function handleDbAddLogRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.logEntryData)
+            throw new AppError('INVALID_INPUT', 'Missing logEntryData');
+        const worker = getDbWorker();
+        const logId = await _idbLog__WEBPACK_IMPORTED_MODULE_6__.LogEntry.create(payload.logEntryData, worker);
+        return { success: true, data: { logId } };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddLogResponse);
+}
+async function handleDbGetLogsRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.filters)
+            throw new AppError('INVALID_INPUT', 'Missing filters');
+        const worker = getDbWorker();
+        const logs = await _idbLog__WEBPACK_IMPORTED_MODULE_6__.LogEntry.getAll(worker, payload.filters);
+        return { success: true, data: logs };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsResponse);
+}
+async function handleDbGetUniqueLogValuesRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload?.fieldName)
+            throw new AppError('INVALID_INPUT', 'Missing fieldName');
+        const worker = getDbWorker();
+        const logs = await _idbLog__WEBPACK_IMPORTED_MODULE_6__.LogEntry.getAll(worker);
+        const uniqueValues = Array.from(new Set(logs.map((l) => l[payload.fieldName]).filter(Boolean)));
+        return { success: true, data: uniqueValues };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesResponse);
+}
+async function handleDbClearLogsRequest(event) {
+    return handleRequest(event, async () => {
+        const worker = getDbWorker();
+        const logs = await _idbLog__WEBPACK_IMPORTED_MODULE_6__.LogEntry.getAll(worker);
+        const sessionsToKeep = new Set([currentExtensionSessionId, previousExtensionSessionId].filter(Boolean));
+        let deletedCount = 0;
+        const deletePromises = logs
+            .filter(log => !sessionsToKeep.has(log.extensionSessionId))
+            .map(log => log.delete().then(() => deletedCount++).catch(e => console.warn(`Failed to delete log ${log.id}`, e)));
+        await Promise.all(deletePromises);
+        return { success: true, data: { deletedCount } };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse);
+}
+async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
+    return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(event.requestId, true, {
+        currentLogSessionId: currentExtensionSessionId,
+        previousLogSessionId: previousExtensionSessionId
+    });
+}
+async function handleDbResetDatabaseRequest(event) {
+    return handleRequest(event, async () => {
+        console.log("[DB] Attempting database reset via DBActions.RESET worker command.");
+        const worker = getDbWorker(); // Get the current worker (throws if not available)
+        await new Promise((resolve, reject) => {
+            const reqId = crypto.randomUUID();
+            dbWorkerCallbacks[reqId] = { resolve, reject };
+            worker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.RESET, payload: null, requestId: reqId });
+        });
+        currentChat = null;
+        console.log("[DB] Database reset complete. Re-initializing DB state.");
+        isDbReadyFlag = false;
+        lastDbInitStatus = null;
+        dbInitPromise = null; // Clear any pending init
+        await autoEnsureDbInitialized(); // This will use the existing worker or create a new one if needed
+        return { success: true, data: true };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbResetDatabaseResponse, 15000);
+}
+// --- Model Asset and Manifest Handlers ---
+async function handleDbAddModelAssetRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload.folder || !payload.fileName || !payload.data || typeof payload.chunkIndex !== 'number') {
+            throw new AppError('INVALID_INPUT', 'Missing required fields for model asset chunk (folder, fileName, data, chunkIndex).');
+        }
+        const worker = getDbWorker();
+        const chunkId = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.createChunk(payload, worker);
+        return { success: true, data: { chunkId } };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetResponse);
+}
+async function handleDbAddManifestRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload.chunkGroupId || !payload.folder || !payload.fileName || !payload.totalFileSize || typeof payload.totalChunks !== 'number') {
+            throw new AppError('INVALID_INPUT', 'Missing required fields for model asset manifest.');
+        }
+        const manifestId = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.createManifest(payload, getDbWorker());
+        return { success: true, data: { manifestId } };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddManifestResponse);
+}
+async function handleDbGetManifestRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload.folder || !payload.fileName) {
+            throw new AppError('INVALID_INPUT', 'Folder and fileName are required to get a manifest.');
+        }
+        const chunkGroupId = `${payload.folder}/${payload.fileName}`;
+        const manifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readManifestByChunkGroupId(chunkGroupId, getDbWorker());
+        return { success: true, data: manifest }; // manifest can be null
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetManifestResponse, 5000, (res) => res.data);
+}
+async function handleDbCountModelAssetChunksRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload.folder || !payload.fileName) {
+            throw new AppError('INVALID_INPUT', 'Folder and fileName are required for counting chunks.');
+        }
+        const chunkGroupId = `${payload.folder}/${payload.fileName}`;
+        let count = 0;
+        let verified = false;
+        let errorMsg;
+        try {
+            const manifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readManifestByChunkGroupId(chunkGroupId, getDbWorker());
+            if (manifest && manifest.status === 'complete') {
+                count = manifest.totalChunks;
+                verified = (payload.expectedChunks ? count === payload.expectedChunks : true) &&
+                    (payload.expectedSize ? manifest.size === payload.expectedSize : true) &&
+                    (manifest.chunkSizeUsed ? manifest.chunkSizeUsed === APP_CHUNK_SIZE_CONFIG : true);
+                return { success: true, data: { count, verified } };
+            }
+            // Fallback: If no complete manifest, count actual stored chunks.
+            console.log(`[DB] No complete manifest for ${chunkGroupId}, counting actual chunks.`);
+            const actualStoredCount = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.countStoredChunks(chunkGroupId, getDbWorker());
+            count = actualStoredCount;
+            verified = payload.expectedChunks ? count === payload.expectedChunks : false;
+            if (payload.expectedChunks && count !== payload.expectedChunks) {
+                console.warn(`[DB] Chunk count mismatch for ${chunkGroupId}: Expected ${payload.expectedChunks}, Found ${count} actual chunks.`);
+            }
+        }
+        catch (e) {
+            const errObj = e;
+            console.error(`[DB] Error counting/verifying chunks for ${chunkGroupId}:`, errObj);
+            errorMsg = errObj.message;
+        }
+        return { success: true, data: { count, verified, error: errorMsg } };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksResponse, 5000, (res) => res.data);
+}
+async function handleDbListModelFilesRequest(event) {
+    return handleRequest(event, async (payload) => {
+        const folderToList = payload.modelId || payload.folder;
+        if (!folderToList)
+            throw new AppError('INVALID_INPUT', 'modelId (or folder) is required.');
+        const manifests = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.queryManifests({ folder: folderToList, type: _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.MODEL_ASSET_TYPE_MANIFEST }, getDbWorker());
+        const fileNames = manifests.map(m => m.fileName);
+        return { success: true, data: fileNames };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesResponse);
+}
+async function handleDbGetModelAssetChunkRequest(event) {
+    return handleRequest(event, async (payload) => {
+        let chunkId;
+        if (payload.chunkId) {
+            chunkId = payload.chunkId;
+        }
+        else if (payload.folder && payload.fileName && typeof payload.chunkIndex === 'number') {
+            chunkId = `${payload.folder}/${payload.fileName}:${payload.chunkIndex}`;
+        }
+        else {
+            throw new AppError('INVALID_INPUT', 'Requires chunkId or (folder, fileName, chunkIndex).');
+        }
+        const chunk = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readChunk(chunkId, getDbWorker());
+        if (!chunk)
+            return { success: false, error: `Chunk ${chunkId} not found` };
+        return { success: true, data: chunk };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse, 5000, (res) => res.data);
+}
+async function handleDbLogAllChunkGroupIdsForModelRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload.folder)
+            throw new AppError('INVALID_INPUT', 'Folder is required.');
+        const groupIds = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.getUniqueChunkGroupIds(payload.folder, getDbWorker());
+        return { success: true, data: groupIds };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelResponse);
+}
+async function handleDbGetModelAssetChunksRequest(event) {
+    return handleRequest(event, async (payload) => {
+        if (!payload.chunkGroupId)
+            throw new AppError('INVALID_INPUT', 'chunkGroupId is required.');
+        const metadataOnly = payload.metadataOnly === true;
+        const chunks = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.getChunksByGroupId(payload.chunkGroupId, metadataOnly, getDbWorker());
+        return { success: true, data: chunks };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksResponse);
+}
+// --- DB Handler Map ---
+const dbHandlerMap = {
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetReadyStateRequest.type]: handleDbGetReadyStateRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionRequest.type]: handleDbCreateSessionRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest.type]: handleDbGetSessionRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type]: handleDbAddMessageRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageRequest.type]: handleDbUpdateMessageRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageRequest.type]: handleDbDeleteMessageRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusRequest.type]: handleDbUpdateStatusRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest.type]: handleDbToggleStarRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest.type]: handleDbGetAllSessionsRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsRequest.type]: handleDbGetStarredSessionsRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest.type]: handleDbDeleteSessionRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest.type]: handleDbRenameSessionRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddLogRequest.type]: handleDbAddLogRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsRequest.type]: handleDbGetLogsRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesRequest.type]: handleDbGetUniqueLogValuesRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsRequest.type]: handleDbClearLogsRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsRequest.type]: handleDbGetCurrentAndLastLogSessionIdsRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbResetDatabaseRequest.type]: handleDbResetDatabaseRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetRequest.type]: handleDbAddModelAssetRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddManifestRequest.type]: handleDbAddManifestRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetManifestRequest.type]: handleDbGetManifestRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksRequest.type]: handleDbCountModelAssetChunksRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelRequest.type]: handleDbLogAllChunkGroupIdsForModelRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesRequest.type]: handleDbListModelFilesRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksRequest.type]: handleDbGetModelAssetChunksRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkRequest.type]: handleDbGetModelAssetChunkRequest,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializeRequest.type]: handleDbEnsureInitialized,
+    [_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedRequest.type]: handleDbEnsureInitialized,
+};
+// --- Notification Publishing ---
+function smartNotify(notification) {
+    if (typeof window === 'undefined' || !window.document) {
+        try {
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(notification).catch((e) => console.warn(`[DB] Error sending notification to runtime: ${e.message}`, notification.type));
+        }
+        catch (e) {
+            const errObj = e;
+            console.warn(`[DB] Failed to call browser.runtime.sendMessage (maybe not in extension context): ${errObj.message}`);
+        }
+    }
+    else {
+        document.dispatchEvent(new CustomEvent(notification.type, { detail: notification }));
+        if (_idbSchema__WEBPACK_IMPORTED_MODULE_2__.dbChannel)
+            _idbSchema__WEBPACK_IMPORTED_MODULE_2__.dbChannel.postMessage(notification);
+        else
+            console.warn("[DB] dbChannel not initialized for smartNotify.");
+    }
+}
+async function publishSessionUpdate(sessionId, updateType = 'update', sessionDataOverride = null) {
+    try {
+        let sessionData = sessionDataOverride;
+        if (!sessionData) {
+            if (!sessionId) {
+                if (updateType === 'delete')
+                    sessionData = { id: null };
+                else
+                    return;
+            }
+            else {
+                const worker = getDbWorker();
+                const chat = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(sessionId, worker);
+                if (chat)
+                    sessionData = chat;
+                else if (updateType === 'delete')
+                    sessionData = { id: sessionId };
+                else {
+                    console.warn(`[DB] publishSessionUpdate: Session ${sessionId} not found for ${updateType}.`);
+                    return;
+                }
+            }
+        }
+        const plainSession = (sessionData && typeof sessionData.toJSON === 'function') ? sessionData.toJSON() : JSON.parse(JSON.stringify(sessionData || {}));
+        smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification(sessionId, plainSession, updateType));
+    }
+    catch (e) {
+        console.error('[DB] Failed to publish session update:', e, { sessionId, updateType });
+    }
+}
+async function publishMessagesUpdate(sessionId, messages) {
+    try {
+        if (!Array.isArray(messages)) {
+            console.error('[DB] publishMessagesUpdate: messages not an array:', messages);
+            return;
+        }
+        const plainMessages = messages.map(m => (typeof m.toJSON === 'function' ? m.toJSON() : { ...m }));
+        smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(sessionId, plainMessages));
+    }
+    catch (e) {
+        console.error('[DB] Failed to publish messages update:', e, { sessionId });
+    }
+}
+async function publishStatusUpdate(sessionId, status) {
+    try {
+        smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(sessionId, status));
+    }
+    catch (e) {
+        console.error('[DB] Failed to publish status update:', e, { sessionId });
+    }
+}
+// --- Message Listener for External Requests ---
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || !message.type || !dbHandlerMap[message.type]) {
+        if (Object.values(_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(message?.type)) {
+            // console.warn(`[DB] No handler mapped for DBEvent type: ${message.type}`);
+        }
+        return false;
+    }
+    console.log(`[DB] Received message for DB: ${message.type}, ReqID: ${message.requestId}`);
+    forwardDbRequest(message)
+        .then(responseObject => {
+        // console.log(`[DB] Sending response for ${message.type} (ReqID: ${message.requestId}):`, responseObject);
+        sendResponse(responseObject);
+    })
+        .catch(err => {
+        console.error(`[DB] Error processing request ${message.type} (ReqID: ${message.requestId}):`, err);
+        // Construct a generic error response if one isn't already formed by forwardDbRequest
+        const errorResponse = {
+            success: false,
+            error: err.message || 'Unknown error in DB request processing chain',
+            requestId: message.requestId,
+            type: `${message.type}_RESPONSE` // Attempt to form a conventional response type
+        };
+        if (err instanceof AppError) {
+            errorResponse.code = err.code;
+            errorResponse.details = err.details;
+        }
+        sendResponse(errorResponse);
+    });
+    return true;
+});
+async function forwardDbRequest(request) {
+    const handler = dbHandlerMap[request?.type];
+    if (!handler) { // Should have been caught by listener, but defensive check
+        console.error(`[DB] CRITICAL: No handler found in forwardDbRequest for type: ${request?.type}`);
+        const NoHandlerErrorResponse = globalThis[request.type.replace("Request", "Response")];
+        if (NoHandlerErrorResponse && typeof NoHandlerErrorResponse === 'function') {
+            return new NoHandlerErrorResponse(request.requestId, false, null, new AppError('NO_HANDLER', `No handler for ${request.type}`));
+        }
+        return { success: false, error: `No handler for ${request.type}`, requestId: request.requestId, type: `${request.type}_ERROR_RESPONSE` };
+    }
+    try {
+        return await handler(request);
+    }
+    catch (err) {
+        console.error(`[DB] Synchronous or unhandled promise error in handler for ${request.type}:`, err);
+        const appError = (err instanceof AppError) ? err : new AppError('HANDLER_EXECUTION_ERROR', err.message || `Error executing handler for ${request.type}`, { originalError: err });
+        const ResponseClass = globalThis[request.type.replace("Request", "Response")];
+        if (ResponseClass && typeof ResponseClass === 'function') {
+            return new ResponseClass(request.requestId, false, null, appError);
+        }
+        return { success: false, error: appError.message, details: appError.details, requestId: request.requestId, type: `${request.type}_ERROR_RESPONSE` };
+    }
+}
+
+
+
+/***/ }),
+
+/***/ "./src/DB/dbActions.ts":
+/*!*****************************!*\
+  !*** ./src/DB/dbActions.ts ***!
+  \*****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   DBActions: () => (/* binding */ DBActions)
+/* harmony export */ });
+// Action constants for IndexedDB backend worker and related classes
+const DBActions = Object.freeze({
+    PUT: 'put',
+    GET: 'get',
+    GET_ALL: 'getAll',
+    QUERY: 'query',
+    DELETE: 'delete',
+    CLEAR: 'clear',
+    ADD_FILE_CHUNK: 'addFileChunk',
+    GET_FILE_CHUNK: 'getFileChunk',
+    ASSEMBLE_FILE: 'assembleFile',
+    INIT_CUSTOM_IDBS: 'initCustomIDBs',
+    RESET: 'reset',
+    EXPORT_DATABASE: 'exportDatabase',
+    IMPORT_DATABASE: 'importDatabase',
+    CLEANUP_OLD_DATA: 'cleanupOldData',
+    GET_CHANGES_SINCE: 'getChangesSince',
+    MARK_AS_DELETED: 'markAsDeleted',
+    APPLY_SYNCED_RECORD: 'applySyncedRecord',
+    SEARCH: 'search',
+    WORKER_READY: 'ready'
+    // Add more actions as needed
+});
+
+
+/***/ }),
+
+/***/ "./src/DB/dbEvents.ts":
+/*!****************************!*\
+  !*** ./src/DB/dbEvents.ts ***!
+  \****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DbAddLogRequest: () => (/* binding */ DbAddLogRequest),
+/* harmony export */   DbAddLogResponse: () => (/* binding */ DbAddLogResponse),
+/* harmony export */   DbAddManifestRequest: () => (/* binding */ DbAddManifestRequest),
+/* harmony export */   DbAddManifestResponse: () => (/* binding */ DbAddManifestResponse),
+/* harmony export */   DbAddMessageRequest: () => (/* binding */ DbAddMessageRequest),
+/* harmony export */   DbAddMessageResponse: () => (/* binding */ DbAddMessageResponse),
+/* harmony export */   DbAddModelAssetRequest: () => (/* binding */ DbAddModelAssetRequest),
+/* harmony export */   DbAddModelAssetResponse: () => (/* binding */ DbAddModelAssetResponse),
+/* harmony export */   DbClearLogsRequest: () => (/* binding */ DbClearLogsRequest),
+/* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
+/* harmony export */   DbCountModelAssetChunksRequest: () => (/* binding */ DbCountModelAssetChunksRequest),
+/* harmony export */   DbCountModelAssetChunksResponse: () => (/* binding */ DbCountModelAssetChunksResponse),
+/* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
+/* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
+/* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
+/* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
+/* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
+/* harmony export */   DbDeleteSessionResponse: () => (/* binding */ DbDeleteSessionResponse),
+/* harmony export */   DbEnsureInitializedRequest: () => (/* binding */ DbEnsureInitializedRequest),
+/* harmony export */   DbEnsureInitializedResponse: () => (/* binding */ DbEnsureInitializedResponse),
+/* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
+/* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
+/* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
+/* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
+/* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
+/* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
+/* harmony export */   DbGetLogsResponse: () => (/* binding */ DbGetLogsResponse),
+/* harmony export */   DbGetManifestRequest: () => (/* binding */ DbGetManifestRequest),
+/* harmony export */   DbGetManifestResponse: () => (/* binding */ DbGetManifestResponse),
+/* harmony export */   DbGetModelAssetChunkRequest: () => (/* binding */ DbGetModelAssetChunkRequest),
+/* harmony export */   DbGetModelAssetChunkResponse: () => (/* binding */ DbGetModelAssetChunkResponse),
+/* harmony export */   DbGetModelAssetChunksRequest: () => (/* binding */ DbGetModelAssetChunksRequest),
+/* harmony export */   DbGetModelAssetChunksResponse: () => (/* binding */ DbGetModelAssetChunksResponse),
+/* harmony export */   DbGetReadyStateRequest: () => (/* binding */ DbGetReadyStateRequest),
+/* harmony export */   DbGetReadyStateResponse: () => (/* binding */ DbGetReadyStateResponse),
+/* harmony export */   DbGetSessionRequest: () => (/* binding */ DbGetSessionRequest),
+/* harmony export */   DbGetSessionResponse: () => (/* binding */ DbGetSessionResponse),
+/* harmony export */   DbGetStarredSessionsRequest: () => (/* binding */ DbGetStarredSessionsRequest),
+/* harmony export */   DbGetStarredSessionsResponse: () => (/* binding */ DbGetStarredSessionsResponse),
+/* harmony export */   DbGetUniqueLogValuesRequest: () => (/* binding */ DbGetUniqueLogValuesRequest),
+/* harmony export */   DbGetUniqueLogValuesResponse: () => (/* binding */ DbGetUniqueLogValuesResponse),
+/* harmony export */   DbInitWorkerRequest: () => (/* binding */ DbInitWorkerRequest),
+/* harmony export */   DbInitWorkerResponse: () => (/* binding */ DbInitWorkerResponse),
+/* harmony export */   DbInitializationCompleteNotification: () => (/* binding */ DbInitializationCompleteNotification),
+/* harmony export */   DbInitializeRequest: () => (/* binding */ DbInitializeRequest),
+/* harmony export */   DbListModelFilesRequest: () => (/* binding */ DbListModelFilesRequest),
+/* harmony export */   DbListModelFilesResponse: () => (/* binding */ DbListModelFilesResponse),
+/* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
+/* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
+/* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
+/* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
+/* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
+/* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
+/* harmony export */   DbResetDatabaseResponse: () => (/* binding */ DbResetDatabaseResponse),
+/* harmony export */   DbResponseBase: () => (/* binding */ DbResponseBase),
+/* harmony export */   DbSessionUpdatedNotification: () => (/* binding */ DbSessionUpdatedNotification),
+/* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
+/* harmony export */   DbToggleStarRequest: () => (/* binding */ DbToggleStarRequest),
+/* harmony export */   DbToggleStarResponse: () => (/* binding */ DbToggleStarResponse),
+/* harmony export */   DbUpdateMessageRequest: () => (/* binding */ DbUpdateMessageRequest),
+/* harmony export */   DbUpdateMessageResponse: () => (/* binding */ DbUpdateMessageResponse),
+/* harmony export */   DbUpdateStatusRequest: () => (/* binding */ DbUpdateStatusRequest),
+/* harmony export */   DbUpdateStatusResponse: () => (/* binding */ DbUpdateStatusResponse)
+/* harmony export */ });
+// dbEvents.js
+const DBEventNames = Object.freeze({
+    DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
+    DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+    DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+    DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+    DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+    DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+    DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+    DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+    DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+    DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+    DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+    DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+    DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
+    DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
+    DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+    DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+    DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+    DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+    DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
+    DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
+    DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
+    DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
+    DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+    DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+    DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+    DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
+    DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+    DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
+    DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+    DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+    DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+    DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+    DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+    DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+    DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+    DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
+    DB_ADD_LOG_RESPONSE: 'DbAddLogResponse', // Response for add log, if ever needed (currently fire-and-forget)
+    DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
+    DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+    DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
+    DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
+    // Model Asset DB Operations
+    DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest', // For adding chunks
+    DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
+    DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
+    DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
+    DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
+    DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
+    DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest', // Should ideally list manifests
+    DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
+    DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest', // Gets multiple chunk records (metadata or full)
+    DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
+    DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest', // Gets a single chunk record (with data)
+    DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
+    // Model Asset Manifest Operations (NEW)
+    DB_ADD_MANIFEST_REQUEST: 'DbAddManifestRequest',
+    DB_ADD_MANIFEST_RESPONSE: 'DbAddManifestResponse',
+    DB_GET_MANIFEST_REQUEST: 'DbGetManifestRequest',
+    DB_GET_MANIFEST_RESPONSE: 'DbGetManifestResponse',
+    // General DB Worker and Initialization
+    DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
+    DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
+    DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest', // This was unused in db.js handler map
+    DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
+    DB_WORKER_ERROR: 'DbWorkerError', // Notification from worker for unhandled errors
+    DB_WORKER_RESET: 'DbWorkerReset', // Potential command or notification for worker reset
+});
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+class DbEventBase {
+    constructor(requestId = null) {
+        this.requestId = requestId || generateUUID();
+        this.timestamp = Date.now();
+    }
+}
+class DbResponseBase extends DbEventBase {
+    constructor(originalRequestId, success, data = null, error = null) {
+        super(originalRequestId);
+        this.success = success;
+        this.data = data;
+        this.error = error ? (typeof error === 'string' ? error : (error.message || String(error))) : null;
+    }
+}
+class DbNotificationBase {
+    constructor(sessionId) {
+        this.sessionId = sessionId;
+        this.timestamp = Date.now();
+    }
+}
+// --- Standard Session/Message/Log Events (Existing - no changes needed below unless specified) ---
+class DbGetSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, sessionData, error = null) {
+        super(originalRequestId, success, sessionData, error);
+        this.type = DbGetSessionResponse.type;
+    }
+}
+DbGetSessionResponse.type = DBEventNames.DB_GET_SESSION_RESPONSE;
+class DbAddMessageResponse extends DbResponseBase {
+    constructor(originalRequestId, success, newMessageId, error = null) {
+        super(originalRequestId, success, { newMessageId }, error);
+        this.type = DbAddMessageResponse.type;
+    }
+}
+DbAddMessageResponse.type = DBEventNames.DB_ADD_MESSAGE_RESPONSE;
+class DbUpdateMessageResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbUpdateMessageResponse.type;
+    }
+}
+DbUpdateMessageResponse.type = DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
+class DbUpdateStatusResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbUpdateStatusResponse.type;
+    }
+}
+DbUpdateStatusResponse.type = DBEventNames.DB_UPDATE_STATUS_RESPONSE;
+class DbDeleteMessageResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbDeleteMessageResponse.type;
+    }
+}
+DbDeleteMessageResponse.type = DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
+class DbToggleStarResponse extends DbResponseBase {
+    constructor(originalRequestId, success, updatedSessionData, error = null) {
+        super(originalRequestId, success, updatedSessionData, error);
+        this.type = DbToggleStarResponse.type;
+    }
+}
+DbToggleStarResponse.type = DBEventNames.DB_TOGGLE_STAR_RESPONSE;
+class DbCreateSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, newSessionId, error = null) {
+        super(originalRequestId, success, { newSessionId }, error);
+        this.type = DbCreateSessionResponse.type;
+    }
+    get newSessionId() { return this.data?.newSessionId; }
+}
+DbCreateSessionResponse.type = DBEventNames.DB_CREATE_SESSION_RESPONSE;
+class DbDeleteSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbDeleteSessionResponse.type;
+    }
+}
+DbDeleteSessionResponse.type = DBEventNames.DB_DELETE_SESSION_RESPONSE;
+class DbRenameSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, updatedSessionData, error = null) {
+        super(originalRequestId, success, updatedSessionData, error);
+        this.type = DbRenameSessionResponse.type;
+    }
+}
+DbRenameSessionResponse.type = DBEventNames.DB_RENAME_SESSION_RESPONSE;
+class DbGetAllSessionsResponse extends DbResponseBase {
+    constructor(requestId, success, sessions = null, error = null) {
+        super(requestId, success, sessions, error); // sessions are directly in 'data'
+        this.type = DbGetAllSessionsResponse.type;
+    }
+}
+DbGetAllSessionsResponse.type = DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
+class DbGetStarredSessionsResponse extends DbResponseBase {
+    constructor(requestId, success, starredSessions = null, error = null) {
+        super(requestId, success, starredSessions, error); // starredSessions are directly in 'data'
+        this.type = DbGetStarredSessionsResponse.type;
+    }
+}
+DbGetStarredSessionsResponse.type = DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
+class DbGetReadyStateResponse extends DbResponseBase {
+    constructor(originalRequestId, success, readyState, error = null) {
+        super(originalRequestId, success, readyState, error);
+        this.type = DbGetReadyStateResponse.type;
+    }
+}
+DbGetReadyStateResponse.type = DBEventNames.DB_GET_READY_STATE_RESPONSE;
+class DbGetSessionRequest extends DbEventBase {
+    constructor(sessionId) {
+        super();
+        this.type = DbGetSessionRequest.type;
+        this.payload = { sessionId };
+    }
+}
+DbGetSessionRequest.type = DBEventNames.DB_GET_SESSION_REQUEST;
+class DbAddMessageRequest extends DbEventBase {
+    constructor(sessionId, messageObject) {
+        super();
+        this.type = DbAddMessageRequest.type;
+        this.payload = { sessionId, messageObject };
+    }
+}
+DbAddMessageRequest.type = DBEventNames.DB_ADD_MESSAGE_REQUEST;
+class DbUpdateMessageRequest extends DbEventBase {
+    constructor(sessionId, messageId, updates) {
+        super();
+        this.type = DbUpdateMessageRequest.type;
+        this.payload = { sessionId, messageId, updates };
+    }
+}
+DbUpdateMessageRequest.type = DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
+class DbUpdateStatusRequest extends DbEventBase {
+    constructor(sessionId, status) {
+        super();
+        this.type = DbUpdateStatusRequest.type;
+        this.payload = { sessionId, status };
+    }
+}
+DbUpdateStatusRequest.type = DBEventNames.DB_UPDATE_STATUS_REQUEST;
+class DbDeleteMessageRequest extends DbEventBase {
+    constructor(sessionId, messageId) {
+        super();
+        this.type = DbDeleteMessageRequest.type;
+        this.payload = { sessionId, messageId };
+    }
+}
+DbDeleteMessageRequest.type = DBEventNames.DB_DELETE_MESSAGE_REQUEST;
+class DbToggleStarRequest extends DbEventBase {
+    constructor(sessionId) {
+        super();
+        this.type = DbToggleStarRequest.type;
+        this.payload = { sessionId };
+    }
+}
+DbToggleStarRequest.type = DBEventNames.DB_TOGGLE_STAR_REQUEST;
+class DbCreateSessionRequest extends DbEventBase {
+    constructor(initialMessage) {
+        super();
+        this.type = DbCreateSessionRequest.type;
+        this.payload = { initialMessage };
+    }
+}
+DbCreateSessionRequest.type = DBEventNames.DB_CREATE_SESSION_REQUEST;
+class DbInitializeRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbInitializeRequest.type;
+        this.payload = {};
+    }
+}
+DbInitializeRequest.type = DBEventNames.DB_INITIALIZE_REQUEST;
+class DbDeleteSessionRequest extends DbEventBase {
+    constructor(sessionId) {
+        super();
+        this.type = DbDeleteSessionRequest.type;
+        this.payload = { sessionId };
+    }
+}
+DbDeleteSessionRequest.type = DBEventNames.DB_DELETE_SESSION_REQUEST;
+class DbRenameSessionRequest extends DbEventBase {
+    constructor(sessionId, newName) {
+        super();
+        this.type = DbRenameSessionRequest.type;
+        this.payload = { sessionId, newName };
+    }
+}
+DbRenameSessionRequest.type = DBEventNames.DB_RENAME_SESSION_REQUEST;
+class DbGetAllSessionsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetAllSessionsRequest.type;
+    }
+}
+DbGetAllSessionsRequest.type = DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
+class DbGetStarredSessionsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetStarredSessionsRequest.type;
+    }
+}
+DbGetStarredSessionsRequest.type = DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
+class DbGetReadyStateRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetReadyStateRequest.type;
+    }
+}
+DbGetReadyStateRequest.type = DBEventNames.DB_GET_READY_STATE_REQUEST;
+class DbMessagesUpdatedNotification extends DbNotificationBase {
+    constructor(sessionId, messages) {
+        super(sessionId);
+        this.type = DbMessagesUpdatedNotification.type;
+        this.payload = { messages };
+    }
+}
+DbMessagesUpdatedNotification.type = DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
+class DbStatusUpdatedNotification extends DbNotificationBase {
+    constructor(sessionId, status) {
+        super(sessionId);
+        this.type = DbStatusUpdatedNotification.type;
+        this.payload = { status };
+    }
+}
+DbStatusUpdatedNotification.type = DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
+class DbSessionUpdatedNotification extends DbNotificationBase {
+    constructor(sessionId, updatedSessionData, updateType = 'update') {
+        super(sessionId);
+        this.type = DbSessionUpdatedNotification.type;
+        this.payload = { session: updatedSessionData, updateType };
+    }
+}
+DbSessionUpdatedNotification.type = DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
+class DbInitializationCompleteNotification {
+    constructor({ success, error = null, dbStatus = null, sessionIds = null }) {
+        this.type = DbInitializationCompleteNotification.type;
+        this.timestamp = Date.now();
+        this.payload = { success, error: error ? (typeof error === 'string' ? error : (error.message || String(error))) : null, dbStatus, sessionIds };
+    }
+}
+DbInitializationCompleteNotification.type = DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
+class DbGetLogsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, logs, error = null) {
+        super(originalRequestId, success, logs, error);
+        this.type = DbGetLogsResponse.type;
+    }
+}
+DbGetLogsResponse.type = DBEventNames.DB_GET_LOGS_RESPONSE;
+class DbGetUniqueLogValuesResponse extends DbResponseBase {
+    constructor(originalRequestId, success, values, error = null) {
+        super(originalRequestId, success, values, error);
+        this.type = DbGetUniqueLogValuesResponse.type;
+    }
+}
+DbGetUniqueLogValuesResponse.type = DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
+class DbClearLogsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = { deletedCount: 0 }, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbClearLogsResponse.type;
+    }
+}
+DbClearLogsResponse.type = DBEventNames.DB_CLEAR_LOGS_RESPONSE;
+class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, ids, error = null) {
+        super(originalRequestId, success, ids, error);
+        this.type = DbGetCurrentAndLastLogSessionIdsResponse.type;
+    }
+}
+DbGetCurrentAndLastLogSessionIdsResponse.type = DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
+class DbAddLogRequest extends DbEventBase {
+    constructor(logEntryData) {
+        super();
+        this.type = DbAddLogRequest.type;
+        this.payload = { logEntryData };
+    }
+}
+DbAddLogRequest.type = DBEventNames.DB_ADD_LOG_REQUEST;
+// DbAddLogResponse is not strictly necessary if it's fire and forget,
+// but can be added for consistency if db.js handler for it sends one.
+class DbAddLogResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbAddLogResponse.type;
+    }
+}
+DbAddLogResponse.type = DBEventNames.DB_ADD_LOG_RESPONSE;
+class DbGetLogsRequest extends DbEventBase {
+    constructor(filters) {
+        super();
+        this.type = DbGetLogsRequest.type;
+        this.payload = { filters };
+    }
+}
+DbGetLogsRequest.type = DBEventNames.DB_GET_LOGS_REQUEST;
+class DbGetUniqueLogValuesRequest extends DbEventBase {
+    constructor(fieldName) {
+        super();
+        this.type = DbGetUniqueLogValuesRequest.type;
+        this.payload = { fieldName };
+    }
+}
+DbGetUniqueLogValuesRequest.type = DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
+class DbClearLogsRequest extends DbEventBase {
+    constructor(filter = 'all') {
+        super();
+        this.type = DbClearLogsRequest.type;
+        this.payload = { filter };
+    }
+}
+DbClearLogsRequest.type = DBEventNames.DB_CLEAR_LOGS_REQUEST;
+class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetCurrentAndLastLogSessionIdsRequest.type;
+    }
+}
+DbGetCurrentAndLastLogSessionIdsRequest.type = DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
+class DbResetDatabaseRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbResetDatabaseRequest.type;
+    }
+}
+DbResetDatabaseRequest.type = DBEventNames.DB_RESET_DATABASE_REQUEST;
+class DbResetDatabaseResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbResetDatabaseResponse.type;
+    }
+}
+DbResetDatabaseResponse.type = DBEventNames.DB_RESET_DATABASE_RESPONSE;
+// --- Model Asset DB Operations ---
+/**
+ * @typedef {Object} ModelAssetChunkPayloadForRequest
+ * @property {string} folder - The modelId or folder name.
+ * @property {string} fileName - The name of the asset file.
+ * @property {string} fileType - The type/extension of the file.
+ * @property {ArrayBuffer} data - The binary data of the chunk.
+ * @property {number} chunkIndex - The 0-based index of this chunk.
+ * @property {number} totalChunks - The total number of chunks for this file.
+ * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
+ * // @property {number} [totalFileSize] - Optional: Total size of the parent file (contextual).
+ */
+class DbAddModelAssetRequest extends DbEventBase {
+    /**
+     * @param {ModelAssetChunkPayloadForRequest} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbAddModelAssetRequest.type;
+        this.payload = payload;
+    }
+}
+DbAddModelAssetRequest.type = DBEventNames.DB_ADD_MODEL_ASSET_REQUEST;
+class DbAddModelAssetResponse extends DbResponseBase {
+    /**
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {{ chunkId: string } | null} data - On success, object containing the ID of the stored chunk.
+     * @param {string | null} error
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbAddModelAssetResponse.type;
+    }
+}
+DbAddModelAssetResponse.type = DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
+class DbCountModelAssetChunksRequest extends DbEventBase {
+    /**
+     * @param {{folder: string, fileName: string, expectedSize?: number, expectedChunks?: number}} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbCountModelAssetChunksRequest.type;
+        this.payload = payload;
+    }
+}
+DbCountModelAssetChunksRequest.type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST;
+class DbCountModelAssetChunksResponse extends DbResponseBase {
+    /**
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {{ count: number, verified: boolean, error?: string } | null} data - Result of count/verification.
+     * @param {string | null} error - Top-level error for the request.
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error); // data = { count, verified, (optional error for count op itself) }
+        this.type = DbCountModelAssetChunksResponse.type;
+    }
+    get count() { return this.data?.count; }
+    get verified() { return this.data?.verified; }
+}
+DbCountModelAssetChunksResponse.type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
+class DbLogAllChunkGroupIdsForModelRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbLogAllChunkGroupIdsForModelRequest.type;
+        this.payload = payload;
+    }
+}
+DbLogAllChunkGroupIdsForModelRequest.type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST;
+class DbLogAllChunkGroupIdsForModelResponse extends DbResponseBase {
+    constructor(originalRequestId, success, groupIdsArray, error = null) {
+        super(originalRequestId, success, groupIdsArray, error);
+        this.type = DbLogAllChunkGroupIdsForModelResponse.type;
+    }
+}
+DbLogAllChunkGroupIdsForModelResponse.type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
+class DbListModelFilesRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbListModelFilesRequest.type;
+        this.payload = payload;
+    }
+}
+DbListModelFilesRequest.type = DBEventNames.DB_LIST_MODEL_FILES_REQUEST;
+class DbListModelFilesResponse extends DbResponseBase {
+    constructor(originalRequestId, success, fileNamesArray, error = null) {
+        super(originalRequestId, success, fileNamesArray, error);
+        this.type = DbListModelFilesResponse.type;
+    }
+}
+DbListModelFilesResponse.type = DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
+class DbGetModelAssetChunksRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbGetModelAssetChunksRequest.type;
+        this.payload = payload;
+    }
+}
+DbGetModelAssetChunksRequest.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_REQUEST;
+class DbGetModelAssetChunksResponse extends DbResponseBase {
+    constructor(originalRequestId, success, chunksArray, error = null) {
+        super(originalRequestId, success, chunksArray, error);
+        this.type = DbGetModelAssetChunksResponse.type;
+    }
+}
+DbGetModelAssetChunksResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
+class DbGetModelAssetChunkRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbGetModelAssetChunkRequest.type;
+        this.payload = payload;
+    }
+}
+DbGetModelAssetChunkRequest.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_REQUEST;
+class DbGetModelAssetChunkResponse extends DbResponseBase {
+    constructor(originalRequestId, success, chunkData, error = null) {
+        super(originalRequestId, success, chunkData, error);
+        this.type = DbGetModelAssetChunkResponse.type;
+    }
+    get chunk() { return this.data; }
+}
+DbGetModelAssetChunkResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
+// --- Model Asset Manifest Operations (NEW - Definitions) ---
+/**
+ * @typedef {Object} ModelAssetManifestPayloadForRequest
+ * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
+ * @property {string} fileName - The original name of the model asset file.
+ * @property {string} folder - The "folder" or modelId this asset belongs to.
+ * @property {string} fileType - The type/extension of the file (e.g., 'onnx', 'json').
+ * @property {number} totalFileSize - The total size of the complete file in bytes.
+ * @property {number} totalChunks - The total number of chunks the file was split into.
+ * @property {number} chunkSizeUsed - The CHUNK_SIZE (in bytes) that was used.
+ * @property {'complete' | 'incomplete' | string} status - The status of this asset.
+ * @property {number} downloadTimestamp - Timestamp of when the download/processing was completed.
+ * @property {string} [id] - Optional: if pre-defining the manifest ID.
+ * @property {string} [checksum] - Optional: checksum of the full file.
+ * @property {string | number} [version] - Optional: version of the file.
+ */
+class DbAddManifestRequest extends DbEventBase {
+    /**
+     * @param {ModelAssetManifestPayloadForRequest} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbAddManifestRequest.type;
+        this.payload = payload;
+    }
+}
+DbAddManifestRequest.type = DBEventNames.DB_ADD_MANIFEST_REQUEST;
+class DbAddManifestResponse extends DbResponseBase {
+    /**
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {{ manifestId: string } | null} data - On success, object containing the ID of the stored/updated manifest.
+     * @param {string | null} error
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbAddManifestResponse.type;
+    }
+    get manifestId() { return this.data?.manifestId; }
+}
+DbAddManifestResponse.type = DBEventNames.DB_ADD_MANIFEST_RESPONSE;
+/**
+ * @typedef {Object} GetManifestPayload
+ * @property {string} folder - The folder (modelId) of the asset.
+ * @property {string} fileName - The fileName of the asset.
+ */
+class DbGetManifestRequest extends DbEventBase {
+    /**
+     * @param {GetManifestPayload} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbGetManifestRequest.type;
+        this.payload = payload;
+    }
+}
+DbGetManifestRequest.type = DBEventNames.DB_GET_MANIFEST_REQUEST;
+class DbGetManifestResponse extends DbResponseBase {
+    /**
+     * The manifest object (from idbHelper.ts ModelAssetManifest interface) is expected
+     * to be the direct value of the `data` property in this response.
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {?import('./idbHelper.ts').ModelAssetManifest} data - The manifest object or null.
+     * @param {string | null} error
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbGetManifestResponse.type;
+    }
+    /** @returns {import('./idbHelper.ts').ModelAssetManifest | null} */
+    get manifest() { return this.data; }
+}
+DbGetManifestResponse.type = DBEventNames.DB_GET_MANIFEST_RESPONSE;
+// --- General DB Worker and Initialization ---
+class DbEnsureInitializedRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbEnsureInitializedRequest.type;
+    }
+}
+DbEnsureInitializedRequest.type = DBEventNames.DB_ENSURE_INITIALIZED_REQUEST;
+class DbEnsureInitializedResponse extends DbResponseBase {
+    // data can be { success: boolean, dbStatus: object, sessionIds: object } or null on error
+    constructor(originalRequestId, success, data = null, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbEnsureInitializedResponse.type;
+    }
+}
+DbEnsureInitializedResponse.type = DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
+// DbInitWorkerRequest was previously noted as unused in db.js handler map.
+// If it becomes used, define its payload and response. For now, just the request.
+class DbInitWorkerRequest extends DbEventBase {
+    constructor(payload = {}) {
+        super();
+        this.type = DbInitWorkerRequest.type;
+        this.payload = payload;
+    }
+}
+DbInitWorkerRequest.type = DBEventNames.DB_INIT_WORKER_REQUEST;
+// DbInitWorkerResponse already exists in your DBEventNames, assuming a simple success/error response.
+class DbInitWorkerResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = null, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbInitWorkerResponse.type;
+    }
+}
+DbInitWorkerResponse.type = DBEventNames.DB_INIT_WORKER_RESPONSE;
+
+
+/***/ }),
+
+/***/ "./src/DB/idbAttachment.ts":
+/*!*********************************!*\
+  !*** ./src/DB/idbAttachment.ts ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Attachment: () => (/* binding */ Attachment)
+/* harmony export */ });
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+// idbAttachment.ts
+
+
+
+class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(message_id, file_name, mime_type, data, dbWorker, options = {}) {
+        super(options.id || crypto.randomUUID(), file_name, dbWorker);
+        this.message_id = message_id;
+        this.file_name = file_name;
+        this.mime_type = mime_type;
+        this.data = data;
+        const now = Date.now();
+        this.created_at = options.created_at || now;
+        this.updated_at = options.updated_at || now;
+    }
+    static async create(message_id, file_name, mime_type, data, dbWorker, options = {}) {
+        const tempAtt = new Attachment(message_id, file_name, mime_type, data, dbWorker, options);
+        return tempAtt.saveToDB();
+    }
+    static async read(id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && event.data.result) {
+                        const attData = event.data.result;
+                        resolve(new Attachment(attData.message_id, attData.file_name, attData.mime_type, attData.data, dbWorker, { id: attData.id, created_at: attData.created_at, updated_at: attData.updated_at }));
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve(undefined);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get attachment (id: ${id})`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, id], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for get attachment (id: ${id}) confirmation`));
+            }, 5000);
+        });
+    }
+    async update(updates) {
+        const { id, dbWorker, created_at, message_id, ...allowedUpdates } = updates;
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete() {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete attachment (id: ${this.id})`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, this.id], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for delete attachment (id: ${this.id}) confirmation`));
+            }, 5000);
+        });
+    }
+    async saveToDB() {
+        const requestId = crypto.randomUUID();
+        const now = Date.now();
+        this.updated_at = now;
+        if (!this.created_at) {
+            this.created_at = now;
+        }
+        const { dbWorker, ...attachmentData } = this;
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Attachment saved, but worker did not return a valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save attachment'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({
+                action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT,
+                payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, attachmentData],
+                requestId
+            });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for attachment (id: ${this.id}) save confirmation`));
+            }, 5000);
+        });
+    }
+    static async getAllByMessageId(message_id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && Array.isArray(event.data.result)) {
+                        const attachments = event.data.result.map((attData) => new Attachment(attData.message_id, attData.file_name, attData.mime_type, attData.data, dbWorker, { id: attData.id, created_at: attData.created_at, updated_at: attData.updated_at }));
+                        resolve(attachments);
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve([]);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get attachments for message_id: ${message_id}`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            const queryObj = { from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, where: { message_id: message_id }, orderBy: [{ field: 'message_id', direction: 'asc' }] };
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, queryObj], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for getAllByMessageId (message_id: ${message_id}) confirmation`));
+            }, 5000);
+        });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbBase.ts":
+/*!***************************!*\
+  !*** ./src/DB/idbBase.ts ***!
+  \***************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   BaseCRUD: () => (/* binding */ BaseCRUD)
+/* harmony export */ });
+// idbBase.ts
+// NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
+class BaseCRUD {
+    constructor(id, label, dbWorker) {
+        this.id = id;
+        this.label = label;
+        this.dbWorker = dbWorker;
+    }
+    static async create(..._args) {
+        throw new Error('Static create() not implemented');
+    }
+    static async read(_id, ..._args) {
+        throw new Error('Static read() not implemented');
+    }
+    // UPDATE (static, optional)
+    static async update(_id, _updates, ..._args) {
+        throw new Error('Static update() not implemented');
+    }
+    // DELETE (static, optional)
+    static async delete(_id, ..._args) {
+        throw new Error('Static delete() not implemented');
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbChat.ts":
+/*!***************************!*\
+  !*** ./src/DB/idbChat.ts ***!
+  \***************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Chat: () => (/* binding */ Chat)
+/* harmony export */ });
+/* harmony import */ var _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbKnowledgeGraph */ "./src/DB/idbKnowledgeGraph.ts");
+/* harmony import */ var _idbMessage__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbMessage */ "./src/DB/idbMessage.ts");
+/* harmony import */ var _idbSummary__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./idbSummary */ "./src/DB/idbSummary.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./idbEmbedding */ "./src/DB/idbEmbedding.ts");
+// idbChat.ts
+// NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
+
+
+
+
+
+
+class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode {
+    constructor(id, title, dbWorker, kgn_created_at, kgn_updated_at, options = {}) {
+        super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Chat, title, dbWorker, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker);
+        this.isStarred = false;
+        this.status = 'idle';
+        this.message_ids = [];
+        this.summary_ids = [];
+        this.title = title;
+        this.user_id = options.user_id || '';
+        this.tabId = options.tabId;
+        this.chat_timestamp = options.chat_timestamp || kgn_created_at;
+        this.isStarred = options.isStarred || false;
+        this.status = options.status || 'idle';
+        this.message_ids = options.message_ids || [];
+        this.summary_ids = options.summary_ids || [];
+        this.chat_metadata_json = options.chat_metadata ? JSON.stringify(options.chat_metadata) : undefined;
+        this.topic = options.topic;
+        this.domain = options.domain;
+    }
+    get chat_metadata() {
+        try {
+            return this.chat_metadata_json ? JSON.parse(this.chat_metadata_json) : undefined;
+        }
+        catch (e) {
+            console.error(`Failed to parse chat_metadata_json for chat ${this.id}:`, e);
+            return undefined;
+        }
+    }
+    set chat_metadata(data) {
+        this.chat_metadata_json = data ? JSON.stringify(data) : undefined;
+    }
+    static async createChat(initialTitleOrPrompt, dbWorker, options = {}) {
+        const chatId = options.id || crypto.randomUUID();
+        const now = Date.now();
+        const title = initialTitleOrPrompt.length > 50 ? initialTitleOrPrompt.split(' ').slice(0, 7).join(' ') + '...' : initialTitleOrPrompt;
+        let kgn_embedding_id_to_set;
+        if (options.kgn_embeddingInput && options.kgn_embeddingModel) {
+            const existingEmbedding = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.getByInputAndModel(options.kgn_embeddingInput, options.kgn_embeddingModel, dbWorker);
+            if (existingEmbedding) {
+                kgn_embedding_id_to_set = existingEmbedding.id;
+                if (options.kgn_embeddingVector !== undefined) {
+                    const vectorBuffer = _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.toArrayBuffer(options.kgn_embeddingVector);
+                    if (!_idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode.areArrayBuffersEqual(vectorBuffer, existingEmbedding.vector)) {
+                        await existingEmbedding.update({ vector: vectorBuffer });
+                    }
+                }
+            }
+            else {
+                let vectorToSave;
+                if (options.kgn_embeddingVector !== undefined) {
+                    vectorToSave = _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.toArrayBuffer(options.kgn_embeddingVector);
+                }
+                else if (options.modelWorker) {
+                    vectorToSave = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.generateVectorWithModelWorker(options.kgn_embeddingInput, options.kgn_embeddingModel, options.modelWorker);
+                }
+                else {
+                    throw new Error("Chat.createChat: Cannot create embedding - kgn_embeddingVector not provided and modelWorker is missing.");
+                }
+                kgn_embedding_id_to_set = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.create(options.kgn_embeddingInput, vectorToSave, options.kgn_embeddingModel, dbWorker);
+            }
+        }
+        const chat = new Chat(chatId, title, dbWorker, now, now, {
+            user_id: options.user_id, tabId: options.tabId, chat_timestamp: now,
+            isStarred: options.isStarred, status: options.status, topic: options.topic, domain: options.domain,
+            kgn_properties: options.kgn_properties, kgn_embedding_id: kgn_embedding_id_to_set, modelWorker: options.modelWorker
+        });
+        await chat.saveToDB();
+        if (initialTitleOrPrompt.length > title.length || (initialTitleOrPrompt && options.initialMessageSender)) {
+            await chat.addMessage({
+                text: initialTitleOrPrompt,
+                sender: options.initialMessageSender || 'user'
+            });
+        }
+        const dbChat = await Chat.read(chatId, dbWorker, options.modelWorker);
+        if (!dbChat)
+            throw new Error('Failed to retrieve chat from DB after creation');
+        return dbChat;
+    }
+    async saveToDB() {
+        const now = Date.now();
+        this.updated_at = now;
+        if (!this.created_at) {
+            this.created_at = this.chat_timestamp;
+        }
+        this.label = this.title;
+        await super.saveToDB();
+        const requestId = crypto.randomUUID();
+        const chatDataForStore = {
+            id: this.id, // Ensure id is part of the object
+            user_id: this.user_id,
+            tabId: this.tabId,
+            chat_timestamp: this.chat_timestamp,
+            title: this.title,
+            isStarred: this.isStarred,
+            status: this.status,
+            message_ids: this.message_ids,
+            summary_ids: this.summary_ids,
+            chat_metadata_json: this.chat_metadata_json,
+            topic: this.topic,
+            domain: this.domain,
+            kgn_type: this.type, kgn_label: this.label, kgn_properties_json: this.properties_json,
+            kgn_embedding_id: this.embedding_id, kgn_created_at: this.created_at, kgn_updated_at: this.updated_at,
+        };
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Chat saved, but DB_CHATS worker did not return a valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save chat to DB_CHATS'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS, chatDataForStore], requestId });
+            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout for DB_CHATS save (id: ${this.id})`)); }, 5000);
+        });
+    }
+    static async read(id, dbWorker, modelWorker) {
+        const requestId = crypto.randomUUID();
+        const chatData = await new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get chat (id: ${id}) from DB_CHATS`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS, id], requestId });
+            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting chat ${id}`)); }, 5000);
+        });
+        if (chatData) {
+            return new Chat(chatData.id, chatData.title, dbWorker, chatData.kgn_created_at, chatData.kgn_updated_at, {
+                user_id: chatData.user_id, tabId: chatData.tabId, chat_timestamp: chatData.chat_timestamp,
+                isStarred: chatData.isStarred, status: chatData.status, message_ids: chatData.message_ids || [],
+                summary_ids: chatData.summary_ids || [],
+                chat_metadata: chatData.chat_metadata_json ? JSON.parse(chatData.chat_metadata_json) : undefined,
+                topic: chatData.topic, domain: chatData.domain,
+                kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
+                kgn_embedding_id: chatData.kgn_embedding_id, modelWorker: modelWorker
+            });
+        }
+        return undefined;
+    }
+    async update(updates) {
+        const { ...allowedUpdates } = updates;
+        if (allowedUpdates.title !== undefined) {
+            this.title = allowedUpdates.title;
+            this.label = allowedUpdates.title;
+        }
+        if (allowedUpdates.chat_metadata && typeof allowedUpdates.chat_metadata === 'object') {
+            this.chat_metadata = allowedUpdates.chat_metadata;
+            delete allowedUpdates.chat_metadata;
+        }
+        else if (allowedUpdates.chat_metadata_json !== undefined) {
+            this.chat_metadata_json = allowedUpdates.chat_metadata_json;
+        }
+        if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
+            this.properties = allowedUpdates.properties;
+            delete allowedUpdates.properties;
+        }
+        else if (allowedUpdates.properties_json !== undefined) {
+            this.properties_json = allowedUpdates.properties_json;
+        }
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete(options = {}) {
+        const { deleteMessages = true, deleteSummaries = true, deleteKGNRels = true, deleteOrphanedEmbedding = false } = options;
+        if (deleteMessages) {
+            for (const msgId of this.message_ids) {
+                const message = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(msgId, this.dbWorker, this.modelWorker);
+                if (message) {
+                    await message.delete({ deleteAttachments: true, deleteKGNRels: true, deleteOrphanedEmbedding: true })
+                        .catch(e => console.warn(`Failed to delete message ${msgId} for chat ${this.id}: ${e.message}`));
+                }
+            }
+            this.message_ids = [];
+        }
+        if (deleteSummaries) {
+            for (const summaryId of this.summary_ids) {
+                const summary = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
+                if (summary) {
+                    await summary.delete().catch(e => console.warn(`Failed to delete summary ${summaryId} for chat ${this.id}: ${e.message}`));
+                }
+            }
+            this.summary_ids = [];
+        }
+        const requestId = crypto.randomUUID();
+        await new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete chat (id: ${this.id}) from DB_CHATS`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS, this.id], requestId });
+            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting chat ${this.id} from DB_CHATS`)); }, 5000);
+        });
+        await super.delete({ deleteOrphanedEmbedding, deleteEdges: deleteKGNRels });
+    }
+    async addMessage(data) {
+        const content = data.text || (data.attachment ? data.attachment.file_name : (data.attachmentsData && data.attachmentsData.length > 0 ? data.attachmentsData[0].file_name : 'Message with attachments'));
+        if (!data.text && !data.attachment && (!data.attachmentsData || data.attachmentsData.length === 0)) {
+            throw new Error("Cannot add an empty message without text or attachments.");
+        }
+        const messageId = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.createMessage(this.id, data.sender, content, this.dbWorker, {
+            message_type: data.message_type, metadata: data.metadata,
+            kgn_properties: data.kgn_properties, kgn_embeddingInput: data.kgn_embeddingInput,
+            kgn_embeddingModel: data.kgn_embeddingModel, kgn_embeddingVector: data.kgn_embeddingVector,
+            modelWorker: this.modelWorker
+        });
+        if (!this.message_ids.includes(messageId)) {
+            this.message_ids.push(messageId);
+        }
+        const messageInstance = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(messageId, this.dbWorker, this.modelWorker);
+        if (!messageInstance)
+            throw new Error("Failed to retrieve newly created message for attachment processing.");
+        if (data.attachment) {
+            await messageInstance.addAttachment(data.attachment);
+        }
+        if (data.attachmentsData) {
+            for (const attData of data.attachmentsData) {
+                await messageInstance.addAttachment(attData);
+            }
+        }
+        await this.saveToDB(); // Save chat after message_ids and potential attachments are processed
+        return messageId;
+    }
+    async getMessage(messageId) {
+        return _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(messageId, this.dbWorker, this.modelWorker);
+    }
+    async getMessages() {
+        const messages = [];
+        for (const msgId of this.message_ids) {
+            const msg = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(msgId, this.dbWorker, this.modelWorker);
+            if (msg)
+                messages.push(msg);
+        }
+        return messages;
+    }
+    async deleteMessage(messageId, deleteOptions = {}) {
+        const msg = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(messageId, this.dbWorker, this.modelWorker);
+        if (msg && msg.chat_id === this.id) {
+            await msg.delete(deleteOptions);
+            const initialLength = this.message_ids.length;
+            this.message_ids = this.message_ids.filter(id => id !== messageId);
+            if (this.message_ids.length < initialLength) {
+                await this.saveToDB();
+                return true;
+            }
+        }
+        return false;
+    }
+    async addSummary(message_ids_for_summary, summary_text, options) {
+        const summaryId = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.create(this.id, // chat_id
+        summary_text, this.dbWorker, {
+            ...options,
+            message_ids: message_ids_for_summary,
+            start_message_id: options?.start_message_id || (message_ids_for_summary.length > 0 ? message_ids_for_summary[0] : null),
+            end_message_id: options?.end_message_id || (message_ids_for_summary.length > 0 ? message_ids_for_summary[message_ids_for_summary.length - 1] : null),
+        });
+        if (!this.summary_ids.includes(summaryId)) {
+            this.summary_ids.push(summaryId);
+            await this.saveToDB();
+        }
+        return summaryId;
+    }
+    async getSummary(summaryId) {
+        return _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
+    }
+    async getSummaries() {
+        const summaries = [];
+        for (const summaryId of this.summary_ids) {
+            const summary = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
+            if (summary)
+                summaries.push(summary);
+        }
+        return summaries;
+    }
+    async deleteSummary(summaryId) {
+        const summary = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
+        if (summary && summary.chat_id === this.id) {
+            await summary.delete();
+            const initialLength = this.summary_ids.length;
+            this.summary_ids = this.summary_ids.filter(id => id !== summaryId);
+            if (this.summary_ids.length < initialLength) {
+                await this.saveToDB();
+                return true;
+            }
+        }
+        return false;
+    }
+    static async updateChat(chatId, updates, dbWorker, modelWorker) {
+        const chat = await Chat.read(chatId, dbWorker, modelWorker);
+        if (!chat)
+            return { success: false, error: 'Chat not found' };
+        try {
+            await chat.update(updates);
+            const updatedChat = await Chat.read(chatId, dbWorker, modelWorker);
+            return { success: true, chat: updatedChat };
+        }
+        catch (e) {
+            return { success: false, error: e.message || 'Update failed' };
+        }
+    }
+    static async deleteChat(chatId, dbWorker, modelWorker, options = {}) {
+        const chat = await Chat.read(chatId, dbWorker, modelWorker);
+        if (!chat)
+            return { success: false, error: 'Chat not found' };
+        try {
+            await chat.delete(options);
+            return { success: true };
+        }
+        catch (e) {
+            return { success: false, error: e.message || 'Delete failed' };
+        }
+    }
+    static async addMessageToChat(chatId, data, dbWorker, modelWorker) {
+        const chat = await Chat.read(chatId, dbWorker, modelWorker);
+        if (!chat)
+            return { success: false, error: 'Chat not found' };
+        try {
+            const messageId = await chat.addMessage(data);
+            return { success: true, messageId };
+        }
+        catch (e) {
+            return { success: false, error: e.message || 'Add message failed' };
+        }
+    }
+    static async getAllChats(dbWorker) {
+        const requestId = crypto.randomUUID();
+        const chatDatas = await new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to get all chats from DB_CHATS'));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.GET_ALL, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS], requestId });
+            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error('Timeout getting all chats')); }, 5000);
+        });
+        return (chatDatas || []).map(chatData => new Chat(chatData.id, chatData.title, dbWorker, chatData.kgn_created_at, chatData.kgn_updated_at, {
+            user_id: chatData.user_id, tabId: chatData.tabId, chat_timestamp: chatData.chat_timestamp,
+            isStarred: chatData.isStarred, status: chatData.status, message_ids: chatData.message_ids || [],
+            summary_ids: chatData.summary_ids || [],
+            chat_metadata: chatData.chat_metadata_json ? JSON.parse(chatData.chat_metadata_json) : undefined,
+            topic: chatData.topic, domain: chatData.domain,
+            kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
+            kgn_embedding_id: chatData.kgn_embedding_id
+        }));
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbEmbedding.ts":
+/*!********************************!*\
+  !*** ./src/DB/idbEmbedding.ts ***!
+  \********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Embedding: () => (/* binding */ Embedding)
+/* harmony export */ });
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+// idbEmbedding.ts
+// NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
+
+
+
+class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(id, input, vector, model, created_at, updated_at, dbWorker, label // optional, defaults to input
+    ) {
+        super(id, label ?? input, dbWorker);
+        this.input = input;
+        this.vector = vector;
+        this.model = model;
+        this.created_at = created_at;
+        this.updated_at = updated_at;
+    }
+    static toArrayBuffer(arr) {
+        if (arr instanceof ArrayBuffer)
+            return arr;
+        if (arr instanceof Float32Array)
+            return ArrayBuffer.prototype.slice.call(arr.buffer, arr.byteOffset, arr.byteOffset + arr.byteLength);
+        return new Float32Array(arr).buffer;
+    }
+    static fromArrayBuffer(buf) {
+        return new Float32Array(buf);
+    }
+    static async create(input, vectorData, model, dbWorker, options = {}) {
+        const id = options.id || crypto.randomUUID();
+        const now = Date.now();
+        const vector = Embedding.toArrayBuffer(vectorData);
+        const embeddingInstance = new Embedding(id, input, vector, model, now, now, dbWorker, options.label);
+        return embeddingInstance.saveToDB();
+    }
+    async saveToDB() {
+        const requestId = crypto.randomUUID();
+        const now = Date.now();
+        this.updated_at = now;
+        if (!this.created_at) {
+            this.created_at = now;
+        }
+        const embeddingData = { ...this };
+        if ('dbWorker' in embeddingData)
+            delete embeddingData.dbWorker;
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Embedding saved, but worker did not return a valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save embedding'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, embeddingData], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for embedding (id: ${this.id}) save confirmation`));
+            }, 5000);
+        });
+    }
+    static async get(id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && event.data.result) {
+                        const embData = event.data.result;
+                        resolve(new Embedding(embData.id, embData.input, embData.vector, embData.model, embData.created_at, embData.updated_at, dbWorker, embData.label));
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve(undefined);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get embedding (id: ${id})`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, id], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for get embedding (id: ${id}) confirmation`));
+            }, 5000);
+        });
+    }
+    static async getByInputAndModel(input, model, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && Array.isArray(event.data.result)) {
+                        const results = event.data.result;
+                        if (results.length > 0) {
+                            const embData = results[0];
+                            resolve(new Embedding(embData.id, embData.input, embData.vector, embData.model, embData.created_at, embData.updated_at, dbWorker, embData.label));
+                        }
+                        else {
+                            resolve(undefined);
+                        }
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve(undefined);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get embedding by input/model`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            const queryObj = { from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, where: { input: input, model: model }, limit: 1, orderBy: [{ field: 'input', direction: 'asc' }] };
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, queryObj], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for getByInputAndModel confirmation for input: "${input.substring(0, 30)}..."`));
+            }, 5000);
+        });
+    }
+    async update(updates) {
+        const { ...allowedUpdates } = updates;
+        if (allowedUpdates.vector && !(allowedUpdates.vector instanceof ArrayBuffer)) {
+            allowedUpdates.vector = Embedding.toArrayBuffer(allowedUpdates.vector);
+        }
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete() {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete embedding (id: ${this.id})`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, this.id], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for delete embedding (id: ${this.id}) confirmation`));
+            }, 5000);
+        });
+    }
+    static async generateVectorWithModelWorker(input, model, modelWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleModelResponse = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    modelWorker.removeEventListener('message', handleModelResponse);
+                    if (event.data.success && event.data.vector instanceof ArrayBuffer) {
+                        resolve(event.data.vector);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Model worker returned success but no valid vector.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Model worker failed to generate embedding vector.'));
+                    }
+                }
+            };
+            modelWorker.addEventListener('message', handleModelResponse);
+            modelWorker.postMessage({ action: 'generateEmbeddingVector', input, model, requestId });
+            setTimeout(() => {
+                modelWorker.removeEventListener('message', handleModelResponse);
+                reject(new Error(`Timeout waiting for model worker to generate vector for input: "${input.substring(0, 30)}..."`));
+            }, 15000);
+        });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbKnowledgeGraph.ts":
+/*!*************************************!*\
+  !*** ./src/DB/idbKnowledgeGraph.ts ***!
+  \*************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   KnowledgeGraphEdge: () => (/* binding */ KnowledgeGraphEdge),
+/* harmony export */   KnowledgeGraphNode: () => (/* binding */ KnowledgeGraphNode)
+/* harmony export */ });
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbEmbedding */ "./src/DB/idbEmbedding.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+// idbKnowledgeGraph.ts
+// NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
+
+
+
+
+class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(id, type, label, dbWorker, created_at, updated_at, properties_json, embedding_id, modelWorker) {
+        super(id, label, dbWorker);
+        this.edgesOut = [];
+        this.edgesIn = [];
+        this.type = type;
+        this.created_at = created_at;
+        this.updated_at = updated_at;
+        this.properties_json = properties_json;
+        this.embedding_id = embedding_id;
+        this.modelWorker = modelWorker;
+    }
+    get properties() {
+        try {
+            return this.properties_json ? JSON.parse(this.properties_json) : undefined;
+        }
+        catch (e) {
+            console.error(`Failed to parse node properties_json for node ${this.id}:`, e);
+            return undefined;
+        }
+    }
+    set properties(data) {
+        this.properties_json = data ? JSON.stringify(data) : undefined;
+    }
+    static async create(type, label, dbWorker, options = {}) {
+        const id = options.id || crypto.randomUUID();
+        const now = Date.now();
+        const properties_json = options.properties ? JSON.stringify(options.properties) : undefined;
+        let embedding_id_to_set = undefined;
+        if (options.embeddingInput && options.embeddingModel) {
+            const existingEmbedding = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.getByInputAndModel(options.embeddingInput, options.embeddingModel, dbWorker);
+            if (existingEmbedding) {
+                embedding_id_to_set = existingEmbedding.id;
+                if (options.embeddingVector !== undefined) {
+                    const vectorBuffer = _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.toArrayBuffer(options.embeddingVector);
+                    if (!KnowledgeGraphNode.areArrayBuffersEqual(vectorBuffer, existingEmbedding.vector)) {
+                        await existingEmbedding.update({ vector: vectorBuffer });
+                    }
+                }
+            }
+            else {
+                let vectorToSave;
+                if (options.embeddingVector !== undefined) {
+                    vectorToSave = _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.toArrayBuffer(options.embeddingVector);
+                }
+                else if (options.modelWorker) {
+                    vectorToSave = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.generateVectorWithModelWorker(options.embeddingInput, options.embeddingModel, options.modelWorker);
+                }
+                else {
+                    throw new Error("KnowledgeGraphNode.create: Cannot create embedding - embeddingVector not provided and modelWorker is missing.");
+                }
+                embedding_id_to_set = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.create(options.embeddingInput, vectorToSave, options.embeddingModel, dbWorker);
+            }
+        }
+        const nodeInstance = new KnowledgeGraphNode(id, type, label, dbWorker, now, now, properties_json, embedding_id_to_set, options.modelWorker);
+        return nodeInstance.saveToDB();
+    }
+    static async read(id, dbWorker, modelWorker) {
+        const nodeData = await KnowledgeGraphNode.getKGNNodeData(id, dbWorker);
+        if (nodeData) {
+            return KnowledgeGraphNode.fromKGNData(nodeData, dbWorker, modelWorker);
+        }
+        return undefined;
+    }
+    static fromKGNData(data, dbWorker, modelWorker) {
+        return new KnowledgeGraphNode(data.id, data.type, data.label, dbWorker, data.created_at, data.updated_at, data.properties_json, data.embedding_id, modelWorker);
+    }
+    static async getKGNNodeData(id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get KGN node data (id: ${id})`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_NODES, id], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for get KGN node data (id: ${id}) confirmation`));
+            }, 5000);
+        });
+    }
+    async update(updates) {
+        const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, _embedding, type, ...allowedUpdates } = updates;
+        if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
+            this.properties = allowedUpdates.properties;
+            delete allowedUpdates.properties;
+        }
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete(options = {}) {
+        const { deleteOrphanedEmbedding = false, deleteEdges = true } = options;
+        if (deleteEdges) {
+            await this.deleteAllEdges();
+        }
+        if (deleteOrphanedEmbedding && this.embedding_id) {
+            const emb = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.get(this.embedding_id, this.dbWorker);
+            if (emb) {
+                await emb.delete().catch(e => console.warn(`Attempted to delete embedding ${this.embedding_id}, but failed: ${e.message}`));
+            }
+        }
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete KGN node data (id: ${this.id})`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_NODES, this.id], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for delete KGN node data (id: ${this.id}) confirmation`));
+            }, 5000);
+        });
+    }
+    async saveToDB() {
+        const requestId = crypto.randomUUID();
+        const now = Date.now();
+        this.updated_at = now;
+        if (!this.created_at) {
+            this.created_at = now;
+        }
+        const { dbWorker, modelWorker, edgesOut, edgesIn, _embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...nodeSpecificsForStore } = this;
+        const nodeDataForStore = {
+            id: this.id, // Ensure id is part of the object if not captured by spread
+            type: this.type,
+            label: this.label,
+            properties_json: this.properties_json,
+            embedding_id: this.embedding_id,
+            created_at: this.created_at,
+            updated_at: this.updated_at,
+        };
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Node data saved, but worker did not return a valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save node data'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({
+                action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.PUT,
+                payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_NODES, nodeDataForStore],
+                requestId
+            });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for node data (id: ${this.id}) save confirmation`));
+            }, 5000);
+        });
+    }
+    async getEmbedding() {
+        if (this._embedding && this._embedding.id === this.embedding_id) {
+            return this._embedding;
+        }
+        if (this.embedding_id) {
+            this._embedding = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.get(this.embedding_id, this.dbWorker);
+            return this._embedding;
+        }
+        return undefined;
+    }
+    async addEdge(direction, target_node_id, edge_type, metadata) {
+        const from_id = direction === 'out' ? this.id : target_node_id;
+        const to_id = direction === 'out' ? target_node_id : this.id;
+        const edgeId = await KnowledgeGraphEdge.create(from_id, to_id, edge_type, this.dbWorker, { metadata });
+        return edgeId;
+    }
+    async fetchEdges(direction = 'both') {
+        const fetchedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, direction, this.dbWorker);
+        if (direction === 'out') {
+            this.edgesOut = fetchedEdges;
+        }
+        else if (direction === 'in') {
+            this.edgesIn = fetchedEdges;
+        }
+        else {
+            this.edgesOut = [];
+            this.edgesIn = [];
+            fetchedEdges.forEach(edge => {
+                if (edge.from_node_id === this.id)
+                    this.edgesOut.push(edge);
+                if (edge.to_node_id === this.id) {
+                    if (!this.edgesIn.find(e => e.id === edge.id) && !this.edgesOut.find(e => e.id === edge.id && edge.from_node_id === edge.to_node_id)) {
+                        this.edgesIn.push(edge);
+                    }
+                    else if (edge.from_node_id !== this.id && !this.edgesIn.find(e => e.id === edge.id)) {
+                        this.edgesIn.push(edge);
+                    }
+                }
+            });
+        }
+    }
+    async deleteEdge(edgeId) {
+        const edge = await KnowledgeGraphEdge.read(edgeId, this.dbWorker);
+        if (edge && (edge.from_node_id === this.id || edge.to_node_id === this.id)) {
+            await edge.delete();
+            this.edgesOut = this.edgesOut.filter(e => e.id !== edgeId);
+            this.edgesIn = this.edgesIn.filter(e => e.id !== edgeId);
+            return true;
+        }
+        return false;
+    }
+    async deleteAllEdges() {
+        const allRelatedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, 'both', this.dbWorker);
+        const uniqueEdgeIds = Array.from(new Set(allRelatedEdges.map(e => e.id)));
+        for (const edgeId of uniqueEdgeIds) {
+            const edgeInstance = await KnowledgeGraphEdge.read(edgeId, this.dbWorker);
+            if (edgeInstance) {
+                await edgeInstance.delete();
+            }
+        }
+        this.edgesOut = [];
+        this.edgesIn = [];
+    }
+    static areArrayBuffersEqual(buf1, buf2) {
+        if (buf1.byteLength !== buf2.byteLength)
+            return false;
+        const view1 = new Uint8Array(buf1);
+        const view2 = new Uint8Array(buf2);
+        for (let i = 0; i < view1.length; i++) {
+            if (view1[i] !== view2[i])
+                return false;
+        }
+        return true;
+    }
+}
+class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(id, from_node_id, to_node_id, edge_type, created_at, dbWorker, metadata_json, fromNode, toNode) {
+        super(id, edge_type, dbWorker); // use edge_type as label for now
+        this.from_node_id = from_node_id;
+        this.to_node_id = to_node_id;
+        this.edge_type = edge_type;
+        this.metadata_json = metadata_json;
+        this.created_at = created_at;
+        if (fromNode)
+            this.fromNode = fromNode;
+        if (toNode)
+            this.toNode = toNode;
+    }
+    get metadata() {
+        try {
+            return this.metadata_json ? JSON.parse(this.metadata_json) : undefined;
+        }
+        catch (e) {
+            console.error(`Failed to parse edge metadata_json for edge ${this.id}:`, e);
+            return undefined;
+        }
+    }
+    set metadata(data) {
+        this.metadata_json = data ? JSON.stringify(data) : undefined;
+    }
+    static async create(from_node_id, to_node_id, edge_type, dbWorker, options = {}) {
+        const id = options.id || crypto.randomUUID();
+        const now = Date.now();
+        const metadata_json = options.metadata ? JSON.stringify(options.metadata) : undefined;
+        const edgeInstance = new KnowledgeGraphEdge(id, from_node_id, to_node_id, edge_type, now, dbWorker, metadata_json);
+        return edgeInstance.saveToDB();
+    }
+    async saveToDB() {
+        const requestId = crypto.randomUUID();
+        if (!this.created_at) {
+            this.created_at = Date.now();
+        }
+        const { dbWorker, fromNode, toNode, ...edgeData } = this;
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Edge saved, but worker did not return a valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save edge'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({
+                action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.PUT,
+                payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, edgeData],
+                requestId
+            });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for edge (id: ${this.id}) save confirmation`));
+            }, 5000);
+        });
+    }
+    async update(updates) {
+        const { id, dbWorker, created_at, from_node_id, to_node_id, fromNode, toNode, ...allowedUpdates } = updates;
+        if (allowedUpdates.metadata && typeof allowedUpdates.metadata === 'object') {
+            this.metadata = allowedUpdates.metadata;
+            delete allowedUpdates.metadata;
+        }
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete() {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete edge (id: ${this.id})`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, this.id], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for delete edge (id: ${this.id}) confirmation`));
+            }, 5000);
+        });
+    }
+    static async getEdgesByNodeId(nodeId, direction, dbWorker) {
+        const results = [];
+        const errors = [];
+        const fetchDirection = async (dir) => {
+            const requestId = crypto.randomUUID();
+            const indexName = dir === 'out' ? 'from_node_id' : 'to_node_id';
+            const queryObj = { from: _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, where: { [indexName]: nodeId }, orderBy: [{ field: indexName, direction: 'asc' }] };
+            return new Promise((resolveQuery, rejectQuery) => {
+                const handleMessage = (event) => {
+                    if (event.data && event.data.requestId === requestId) {
+                        dbWorker.removeEventListener('message', handleMessage);
+                        if (event.data.success && Array.isArray(event.data.result)) {
+                            event.data.result.forEach((edgeData) => {
+                                results.push(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, dbWorker, edgeData.metadata_json));
+                            });
+                            resolveQuery();
+                        }
+                        else if (event.data.success) {
+                            resolveQuery();
+                        }
+                        else {
+                            const err = new Error(event.data.error || `Failed to get edges for node ${nodeId}, direction ${dir}`);
+                            errors.push(err);
+                            rejectQuery(err);
+                        }
+                    }
+                };
+                dbWorker.addEventListener('message', handleMessage);
+                dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.QUERY, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, queryObj], requestId });
+                setTimeout(() => {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    const err = new Error(`Timeout for getEdgesByNodeId (node: ${nodeId}, dir: ${dir})`);
+                    errors.push(err);
+                    rejectQuery(err);
+                }, 5000);
+            });
+        };
+        if (direction === 'out' || direction === 'both') {
+            await fetchDirection('out').catch(e => { });
+        }
+        if (direction === 'in' || direction === 'both') {
+            await fetchDirection('in').catch(e => { });
+        }
+        if (errors.length > 0 && results.length === 0) {
+            throw new Error(`Failed to fetch edges: ${errors.map(e => e.message).join(', ')}`);
+        }
+        if (direction === 'both' && results.length > 0) {
+            return Array.from(new Map(results.map(edge => [edge.id, edge])).values());
+        }
+        return results;
+    }
+    /**
+     * Fetch a single log entry by its unique ID.
+     * For fetching all or filtered logs, use getAll or the filtering methods.
+     */
+    static async read(id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && event.data.result) {
+                        const edgeData = event.data.result;
+                        resolve(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, dbWorker, edgeData.metadata_json));
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve(undefined);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get edge (id: ${id})`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, id], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for get edge (id: ${id}) confirmation`));
+            }, 5000);
+        });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbLog.ts":
+/*!**************************!*\
+  !*** ./src/DB/idbLog.ts ***!
+  \**************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   LogEntry: () => (/* binding */ LogEntry)
+/* harmony export */ });
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+// idbLog.ts
+
+
+
+class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(id, timestamp, level, message, component, extensionSessionId, dbWorker, chatSessionId) {
+        super(id, message, dbWorker); // Use message as label for consistency
+        this.timestamp = timestamp;
+        this.level = level;
+        this.message = message;
+        this.component = component;
+        this.extensionSessionId = extensionSessionId;
+        this.chatSessionId = chatSessionId;
+    }
+    static async create(data, dbWorker) {
+        const id = crypto.randomUUID();
+        const record = { id, ...data };
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to create log entry'));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, record], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error('Timeout waiting for create log entry confirmation'));
+            }, 5000);
+        });
+    }
+    /**
+     * Fetch a single log entry by its unique ID.
+     * For fetching all or filtered logs, use getAll or the filtering methods.
+     */
+    static async read(id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && event.data.result) {
+                        const l = event.data.result;
+                        resolve(new LogEntry(l.id, l.timestamp, l.level, l.message, l.component, l.extensionSessionId, dbWorker, l.chatSessionId));
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve(undefined);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get log entry (id: ${id})`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, id], requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for get log entry (id: ${id}) confirmation`));
+            }, 5000);
+        });
+    }
+    async update(updates) {
+        Object.assign(this, updates);
+        await this.saveToDB();
+    }
+    async delete() {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete log entry (id: ${this.id})`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, this.id], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for delete log entry (id: ${this.id}) confirmation`));
+            }, 5000);
+        });
+    }
+    async saveToDB() {
+        const requestId = crypto.randomUUID();
+        const record = {
+            id: this.id,
+            timestamp: this.timestamp,
+            level: this.level,
+            message: this.message,
+            component: this.component,
+            extensionSessionId: this.extensionSessionId,
+            chatSessionId: this.chatSessionId
+        };
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save log entry'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, record], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error('Timeout waiting for save log entry confirmation'));
+            }, 5000);
+        });
+    }
+    static async getAll(dbWorker, filters) {
+        const requestId = crypto.randomUUID();
+        // Build where clause for queryObj
+        let where = {};
+        if (filters?.levels) {
+            if (filters.levels.length === 1) {
+                where.level = filters.levels[0];
+            }
+            else if (filters.levels.length > 1) {
+                where.level = { op: 'in', value: filters.levels };
+            }
+        }
+        if (filters?.component) {
+            where.component = filters.component;
+        }
+        // If no filters, don't include where
+        const queryObj = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS,
+            orderBy: [{ field: 'timestamp', direction: 'desc' }]
+        };
+        if (Object.keys(where).length > 0) {
+            queryObj.where = where;
+        }
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && Array.isArray(event.data.result)) {
+                        resolve(event.data.result.map((l) => new LogEntry(l.id, l.timestamp, l.level, l.message, l.component, l.extensionSessionId, dbWorker, l.chatSessionId)));
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve([]);
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to get logs'));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({
+                action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY,
+                payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, queryObj],
+                requestId
+            });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error('Timeout waiting for log query confirmation'));
+            }, 5000);
+        });
+    }
+    static async getByLevel(level, dbWorker) {
+        return LogEntry.getAll(dbWorker, { levels: [level] });
+    }
+    static async getByLevels(levels, dbWorker) {
+        return LogEntry.getAll(dbWorker, { levels });
+    }
+    static async getByComponent(component, dbWorker) {
+        return LogEntry.getAll(dbWorker, { component });
+    }
+    static async getByComponentAndLevels(component, levels, dbWorker) {
+        return LogEntry.getAll(dbWorker, { component, levels });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbMessage.ts":
+/*!******************************!*\
+  !*** ./src/DB/idbMessage.ts ***!
+  \******************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Message: () => (/* binding */ Message)
+/* harmony export */ });
+/* harmony import */ var _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbKnowledgeGraph */ "./src/DB/idbKnowledgeGraph.ts");
+/* harmony import */ var _idbAttachment__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbAttachment */ "./src/DB/idbAttachment.ts");
+/* harmony import */ var _idbSummary__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./idbSummary */ "./src/DB/idbSummary.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./idbEmbedding */ "./src/DB/idbEmbedding.ts");
+// idbMessage.ts
+
+
+
+
+
+
+class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode {
+    constructor(id, chat_id, sender, content, dbWorker, timestamp, kgn_created_at, kgn_updated_at, options = {}) {
+        super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Message, content, dbWorker, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker);
+        this.upvotes = 0;
+        this.downvotes = 0;
+        this.starred = false;
+        this.attachment_ids = [];
+        this.chat_id = chat_id;
+        this.timestamp = timestamp;
+        this.sender = sender;
+        this.message_type = options.message_type || 'text';
+        this.content = content;
+        this.metadata_json = options.metadata ? JSON.stringify(options.metadata) : undefined;
+        this.attachment_ids = options.attachment_ids || [];
+        this.upvotes = options.upvotes || 0;
+        this.downvotes = options.downvotes || 0;
+        this.starred = options.starred || false;
+    }
+    get metadata() {
+        try {
+            return this.metadata_json ? JSON.parse(this.metadata_json) : undefined;
+        }
+        catch (e) {
+            console.error(`Failed to parse message metadata_json for message ${this.id}:`, e);
+            return undefined;
+        }
+    }
+    set metadata(data) {
+        this.metadata_json = data ? JSON.stringify(data) : undefined;
+    }
+    static async createMessage(chat_id, sender, content, dbWorker, options = {}) {
+        const messageId = options.id || crypto.randomUUID();
+        const now = Date.now();
+        const messageTimestamp = options.timestamp || now;
+        let kgn_embedding_id_to_set;
+        if (options.kgn_embeddingInput && options.kgn_embeddingModel) {
+            const existingEmbedding = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.getByInputAndModel(options.kgn_embeddingInput, options.kgn_embeddingModel, dbWorker);
+            if (existingEmbedding) {
+                kgn_embedding_id_to_set = existingEmbedding.id;
+                if (options.kgn_embeddingVector !== undefined) {
+                    const vectorBuffer = _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.toArrayBuffer(options.kgn_embeddingVector);
+                    if (!_idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode.areArrayBuffersEqual(vectorBuffer, existingEmbedding.vector)) {
+                        await existingEmbedding.update({ vector: vectorBuffer });
+                    }
+                }
+            }
+            else {
+                let vectorToSave;
+                if (options.kgn_embeddingVector !== undefined) {
+                    vectorToSave = _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.toArrayBuffer(options.kgn_embeddingVector);
+                }
+                else if (options.modelWorker) {
+                    vectorToSave = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.generateVectorWithModelWorker(options.kgn_embeddingInput, options.kgn_embeddingModel, options.modelWorker);
+                }
+                else {
+                    throw new Error("Message.createMessage: Cannot create embedding - kgn_embeddingVector not provided and modelWorker is missing.");
+                }
+                kgn_embedding_id_to_set = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.create(options.kgn_embeddingInput, vectorToSave, options.kgn_embeddingModel, dbWorker);
+            }
+        }
+        const msg = new Message(messageId, chat_id, sender, content, dbWorker, messageTimestamp, now, now, {
+            message_type: options.message_type,
+            metadata: options.metadata,
+            attachment_ids: options.attachment_ids,
+            upvotes: options.upvotes,
+            downvotes: options.downvotes,
+            starred: options.starred,
+            kgn_properties: options.kgn_properties,
+            kgn_embedding_id: kgn_embedding_id_to_set,
+            modelWorker: options.modelWorker
+        });
+        await msg.saveToDB();
+        return messageId;
+    }
+    async saveToDB() {
+        const now = Date.now();
+        this.updated_at = now;
+        if (!this.created_at) {
+            this.created_at = this.timestamp;
+        }
+        this.label = this.content;
+        await super.saveToDB();
+        const requestId = crypto.randomUUID();
+        const { dbWorker, modelWorker, edgesOut, edgesIn, _embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...messageSpecificsForStore } = this;
+        const messageDataForStore = {
+            id: this.id, // Ensure id is part of the object if not captured by spread
+            chat_id: this.chat_id,
+            timestamp: this.timestamp,
+            sender: this.sender,
+            message_type: this.message_type,
+            content: this.content,
+            metadata_json: this.metadata_json,
+            upvotes: this.upvotes,
+            downvotes: this.downvotes,
+            starred: this.starred,
+            attachment_ids: this.attachment_ids,
+            kgn_type: this.type,
+            kgn_label: this.label,
+            kgn_properties_json: this.properties_json,
+            kgn_embedding_id: this.embedding_id,
+            kgn_created_at: this.created_at,
+            kgn_updated_at: this.updated_at,
+        };
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Message saved, but DB_MESSAGES worker did not return a valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save message to DB_MESSAGES'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_MESSAGES, messageDataForStore], requestId });
+            setTimeout(() => {
+                this.dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout waiting for DB_MESSAGES save (id: ${this.id}) confirmation`));
+            }, 5000);
+        });
+    }
+    static async read(id, dbWorker, modelWorker) {
+        const requestId = crypto.randomUUID();
+        const messageData = await new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get message (id: ${id}) from DB_MESSAGES`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_MESSAGES, id], requestId });
+            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting message ${id}`)); }, 5000);
+        });
+        if (messageData) {
+            return new Message(messageData.id, messageData.chat_id, messageData.sender, messageData.content, dbWorker, messageData.timestamp, messageData.kgn_created_at, messageData.kgn_updated_at, {
+                message_type: messageData.message_type,
+                metadata: messageData.metadata_json ? JSON.parse(messageData.metadata_json) : undefined,
+                attachment_ids: messageData.attachment_ids || [],
+                upvotes: messageData.upvotes, downvotes: messageData.downvotes, starred: messageData.starred,
+                kgn_properties: messageData.kgn_properties_json ? JSON.parse(messageData.kgn_properties_json) : undefined,
+                kgn_embedding_id: messageData.kgn_embedding_id,
+                modelWorker: modelWorker
+            });
+        }
+        return undefined;
+    }
+    async update(updates) {
+        const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates;
+        if (allowedUpdates.content !== undefined) {
+            this.content = allowedUpdates.content;
+            this.label = allowedUpdates.content;
+        }
+        if (allowedUpdates.metadata && typeof allowedUpdates.metadata === 'object') {
+            this.metadata = allowedUpdates.metadata;
+            delete allowedUpdates.metadata;
+        }
+        else if (allowedUpdates.metadata_json !== undefined) {
+            this.metadata_json = allowedUpdates.metadata_json;
+        }
+        if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
+            this.properties = allowedUpdates.properties;
+            delete allowedUpdates.properties;
+        }
+        else if (allowedUpdates.properties_json !== undefined) {
+            this.properties_json = allowedUpdates.properties_json;
+        }
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete(options = {}) {
+        const { deleteAttachments = true, deleteKGNRels = true, deleteOrphanedEmbedding = false } = options;
+        if (deleteAttachments) {
+            for (const attId of this.attachment_ids) {
+                const attachment = await _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.read(attId, this.dbWorker);
+                if (attachment) {
+                    await attachment.delete().catch(e => console.warn(`Failed to delete attachment ${attId} for message ${this.id}: ${e.message}`));
+                }
+            }
+            this.attachment_ids = [];
+        }
+        const requestId = crypto.randomUUID();
+        await new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete message (id: ${this.id}) from DB_MESSAGES`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_MESSAGES, this.id], requestId });
+            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting message ${this.id} from DB_MESSAGES`)); }, 5000);
+        });
+        await super.delete({ deleteOrphanedEmbedding, deleteEdges: deleteKGNRels });
+    }
+    async addAttachment(fileData) {
+        const newAttachmentId = await _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.create(this.id, fileData.file_name, fileData.mime_type, fileData.data, this.dbWorker);
+        if (!this.attachment_ids.includes(newAttachmentId)) {
+            this.attachment_ids.push(newAttachmentId);
+            await this.saveToDB();
+        }
+        return newAttachmentId;
+    }
+    async getAttachments() {
+        if (!this.attachment_ids || this.attachment_ids.length === 0) {
+            return [];
+        }
+        return _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.getAllByMessageId(this.id, this.dbWorker);
+    }
+    async deleteAttachment(attachmentIdToDelete) {
+        const att = await _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.read(attachmentIdToDelete, this.dbWorker);
+        if (att && att.message_id === this.id) {
+            await att.delete();
+            const initialLength = this.attachment_ids.length;
+            this.attachment_ids = this.attachment_ids.filter(id => id !== attachmentIdToDelete);
+            if (this.attachment_ids.length < initialLength) {
+                await this.saveToDB();
+                return true;
+            }
+        }
+        return false;
+    }
+    async upvote() { this.upvotes++; await this.update({ upvotes: this.upvotes }); }
+    async downvote() { this.downvotes++; await this.update({ downvotes: this.downvotes }); }
+    async toggleStarred() { this.starred = !this.starred; await this.update({ starred: this.starred }); }
+    async addSummary(summary_text, options) {
+        const summaryId = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.create(this.id, // message id as chat_id/parent_id
+        summary_text, this.dbWorker, {
+            ...options,
+            message_ids: [this.id],
+            start_message_id: options?.start_message_id || this.id,
+            end_message_id: options?.end_message_id || this.id,
+        });
+        this.summary_id = summaryId;
+        await this.saveToDB();
+        return summaryId;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbModelAsset.ts":
+/*!*********************************!*\
+  !*** ./src/DB/idbModelAsset.ts ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   CHUNK_SIZE: () => (/* binding */ CHUNK_SIZE),
+/* harmony export */   MODEL_ASSET_TYPE_CHUNK: () => (/* binding */ MODEL_ASSET_TYPE_CHUNK),
+/* harmony export */   MODEL_ASSET_TYPE_MANIFEST: () => (/* binding */ MODEL_ASSET_TYPE_MANIFEST),
+/* harmony export */   ModelAsset: () => (/* binding */ ModelAsset),
+/* harmony export */   isModelAssetChunk: () => (/* binding */ isModelAssetChunk),
+/* harmony export */   isModelAssetManifest: () => (/* binding */ isModelAssetManifest)
+/* harmony export */ });
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+// idbModelAsset.ts
+
+
+
+const MODEL_ASSET_TYPE_MANIFEST = 'manifest';
+const MODEL_ASSET_TYPE_CHUNK = 'chunk';
+const CHUNK_SIZE = 10 * 1024 * 1024;
+function isModelAssetManifest(obj) {
+    return obj && obj.type === MODEL_ASSET_TYPE_MANIFEST;
+}
+function isModelAssetChunk(obj) {
+    return obj && obj.type === MODEL_ASSET_TYPE_CHUNK;
+}
+class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(data, dbWorker) {
+        super(data.id, data.fileName, dbWorker);
+        this.data = data;
+    }
+    async update(updates) {
+        const currentData = this.data;
+        if (isModelAssetManifest(currentData)) {
+            const { id, type, addedAt, ...restUpdates } = updates;
+            await ModelAsset.updateManifest(currentData.id, restUpdates, this.dbWorker);
+            Object.assign(this.data, restUpdates);
+        }
+        else if (isModelAssetChunk(currentData)) {
+            const { id, type, data, addedAt, ...restUpdates } = updates;
+            await ModelAsset.updateChunk(currentData.id, restUpdates, this.dbWorker);
+            Object.assign(this.data, restUpdates);
+        }
+        else {
+            throw new Error('Unknown ModelAsset type for instance update');
+        }
+    }
+    async delete() {
+        if (isModelAssetManifest(this.data)) {
+            await ModelAsset.deleteManifest(this.id, this.dbWorker);
+        }
+        else if (isModelAssetChunk(this.data)) {
+            await ModelAsset.deleteChunk(this.id, this.dbWorker);
+        }
+        else {
+            throw new Error('Unknown ModelAsset type for instance delete');
+        }
+    }
+    async saveToDB() {
+        const currentData = this.data;
+        if (isModelAssetManifest(currentData)) {
+            const payloadForCreate = {
+                chunkGroupId: currentData.chunkGroupId,
+                fileName: currentData.fileName,
+                folder: currentData.folder,
+                fileType: currentData.fileType,
+                totalFileSize: currentData.size,
+                totalChunks: currentData.totalChunks,
+                chunkSizeUsed: currentData.chunkSizeUsed,
+                status: currentData.status,
+                downloadTimestamp: currentData.downloadTimestamp || Date.now(),
+                checksum: currentData.checksum,
+                version: currentData.version,
+            };
+            if (currentData.id && currentData.id.startsWith('manifest:')) {
+                payloadForCreate.id = currentData.id;
+            }
+            return ModelAsset.createManifest(payloadForCreate, this.dbWorker);
+        }
+        else if (isModelAssetChunk(currentData)) {
+            if (typeof currentData.totalChunks !== 'number') {
+                console.warn(`[ModelAsset.saveToDB] Chunk instance ${currentData.id} is missing 'totalChunks' property. This is required by static ModelAsset.createChunk. Defaulting to 0, but this may be incorrect.`);
+            }
+            const payloadForCreate = {
+                folder: currentData.folder,
+                fileName: currentData.fileName,
+                fileType: currentData.fileType,
+                data: currentData.data,
+                chunkIndex: currentData.chunkIndex,
+                totalChunks: currentData.totalChunks || 0,
+                chunkGroupId: currentData.chunkGroupId,
+            };
+            if (currentData.id && currentData.id.includes(':')) {
+                payloadForCreate.id = currentData.id;
+            }
+            return ModelAsset.createChunk(payloadForCreate, this.dbWorker);
+        }
+        else {
+            throw new Error('Unknown ModelAsset type for instance saveToDB');
+        }
+    }
+    static sendWorkerRequest(dbWorker, action, payloadArray) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve(event.data.result);
+                    }
+                    else {
+                        const err = event.data.error;
+                        reject(new Error(err?.message || err || `Worker request failed for action ${action}`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action, payload: payloadArray, requestId });
+            setTimeout(() => {
+                dbWorker.removeEventListener('message', handleMessage);
+                reject(new Error(`Timeout for worker request action ${action}`));
+            }, 15000);
+        });
+    }
+    static async createChunk(chunkPayload, dbWorker) {
+        const id = chunkPayload.id || `${chunkPayload.chunkGroupId}:${chunkPayload.chunkIndex}`;
+        const record = {
+            id,
+            type: MODEL_ASSET_TYPE_CHUNK,
+            chunkGroupId: chunkPayload.chunkGroupId,
+            chunkIndex: chunkPayload.chunkIndex,
+            fileName: chunkPayload.fileName,
+            folder: chunkPayload.folder,
+            fileType: chunkPayload.fileType,
+            chunkSize: chunkPayload.data.byteLength,
+            data: chunkPayload.data,
+            addedAt: Date.now(),
+            totalChunks: chunkPayload.totalChunks,
+        };
+        return ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, record]);
+    }
+    static async createManifest(manifestPayload, dbWorker) {
+        const id = manifestPayload.id || `manifest:${manifestPayload.chunkGroupId}`;
+        const record = {
+            id,
+            type: MODEL_ASSET_TYPE_MANIFEST,
+            chunkGroupId: manifestPayload.chunkGroupId,
+            fileName: manifestPayload.fileName,
+            folder: manifestPayload.folder,
+            fileType: manifestPayload.fileType,
+            size: manifestPayload.totalFileSize,
+            totalChunks: manifestPayload.totalChunks,
+            chunkSizeUsed: manifestPayload.chunkSizeUsed,
+            status: manifestPayload.status,
+            downloadTimestamp: manifestPayload.downloadTimestamp,
+            addedAt: Date.now(),
+            checksum: manifestPayload.checksum,
+            version: manifestPayload.version,
+        };
+        return ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, record]);
+    }
+    static async readChunk(chunkId, dbWorker) {
+        const result = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, chunkId]);
+        return result && isModelAssetChunk(result) ? result : undefined;
+    }
+    static async readManifest(manifestId, dbWorker) {
+        const result = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, manifestId]);
+        return result && isModelAssetManifest(result) ? result : undefined;
+    }
+    static async readManifestByChunkGroupId(chunkGroupId, dbWorker) {
+        const query = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
+            where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_MANIFEST },
+            limit: 1
+        };
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        return results && results.length > 0 && isModelAssetManifest(results[0]) ? results[0] : undefined;
+    }
+    static async countStoredChunks(chunkGroupId, dbWorker) {
+        const query = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
+            select: ['id'],
+            where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_CHUNK }
+        };
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        return results ? results.length : 0;
+    }
+    static async queryManifests(queryParams, dbWorker) {
+        const whereClause = { folder: queryParams.folder, type: queryParams.type };
+        if (queryParams.fileName) {
+            whereClause.fileName = queryParams.fileName;
+        }
+        const query = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
+            where: whereClause
+        };
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        return results ? results.filter(isModelAssetManifest) : [];
+    }
+    static async getUniqueChunkGroupIds(folder, dbWorker) {
+        const query = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
+            select: ['chunkGroupId'],
+            where: { folder: folder }
+        };
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        if (!results)
+            return [];
+        return Array.from(new Set(results.map(r => r.chunkGroupId).filter(Boolean)));
+    }
+    static async getChunksByGroupId(chunkGroupId, metadataOnly, dbWorker) {
+        const query = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
+            where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_CHUNK },
+            orderBy: [{ field: 'chunkIndex', direction: 'asc' }]
+        };
+        if (metadataOnly) {
+            query.select = ['id', 'type', 'chunkGroupId', 'chunkIndex', 'fileName', 'folder', 'fileType', 'chunkSize', 'addedAt', 'lastAccessed', 'checksum', 'version', 'totalChunks'];
+        }
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        return results || [];
+    }
+    static async updateManifest(id, updates, dbWorker) {
+        const existing = await ModelAsset.readManifest(id, dbWorker);
+        if (!existing)
+            throw new Error(`Manifest with id ${id} not found for update.`);
+        const updatedRecord = {
+            ...existing,
+            ...updates,
+            id: existing.id,
+            type: MODEL_ASSET_TYPE_MANIFEST,
+            addedAt: existing.addedAt
+        };
+        await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, updatedRecord]);
+    }
+    static async updateChunk(id, updates, dbWorker) {
+        const existing = await ModelAsset.readChunk(id, dbWorker);
+        if (!existing)
+            throw new Error(`Chunk with id ${id} not found for update.`);
+        const updatedRecord = {
+            ...existing,
+            ...updates,
+            id: existing.id,
+            type: MODEL_ASSET_TYPE_CHUNK,
+            addedAt: existing.addedAt,
+            data: existing.data
+        };
+        await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, updatedRecord]);
+    }
+    static async deleteManifest(manifestId, dbWorker) {
+        await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, manifestId]);
+    }
+    static async deleteChunk(chunkId, dbWorker) {
+        await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, chunkId]);
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbSchema.ts":
+/*!*****************************!*\
+  !*** ./src/DB/idbSchema.ts ***!
+  \*****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   DBNames: () => (/* binding */ DBNames),
+/* harmony export */   LogLevel: () => (/* binding */ LogLevel),
+/* harmony export */   NodeType: () => (/* binding */ NodeType),
+/* harmony export */   dbChannel: () => (/* binding */ dbChannel),
+/* harmony export */   schema: () => (/* binding */ schema)
+/* harmony export */ });
+// idbSchema.ts
+// NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
+const DBNames = Object.freeze({
+    DB_USER_DATA: 'TabAgentUserData',
+    DB_LOGS: 'TabAgentLogs',
+    DB_MODELS: 'TabAgentModels',
+    DB_CHATS: 'TabAgentChats',
+    DB_MESSAGES: 'TabAgentMessages',
+    DB_EMBEDDINGS: 'TabAgentEmbeddings',
+    DB_KNOWLEDGE_GRAPH_NODES: 'TabAgentKnowledgeGraphNodes',
+    DB_KNOWLEDGE_GRAPH_EDGES: 'TabAgentKnowledgeGraphEdges',
+    DB_CHAT_SUMMARIES: 'TabAgentChatSummaries',
+    DB_ATTACHMENTS: 'TabAgentAttachments',
+});
+var NodeType;
+(function (NodeType) {
+    NodeType["Chat"] = "chat";
+    NodeType["Message"] = "message";
+    NodeType["Embedding"] = "embedding";
+    NodeType["Attachment"] = "attachment";
+    NodeType["Summary"] = "summary";
+})(NodeType || (NodeType = {}));
+var LogLevel;
+(function (LogLevel) {
+    LogLevel["Info"] = "info";
+    LogLevel["Log"] = "log";
+    LogLevel["Warn"] = "warn";
+    LogLevel["Error"] = "error";
+    LogLevel["Debug"] = "debug";
+})(LogLevel || (LogLevel = {}));
+const schema = {
+    [DBNames.DB_USER_DATA]: {
+        version: 2,
+        stores: {
+            [DBNames.DB_CHATS]: {
+                keyPath: 'id',
+                indexes: [{ name: 'chat_timestamp', keyPath: 'chat_timestamp' }, { name: 'user_id', keyPath: 'user_id' }]
+            },
+            [DBNames.DB_MESSAGES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'chat_id', keyPath: 'chat_id' }, { name: 'timestamp', keyPath: 'timestamp' }]
+            },
+            [DBNames.DB_EMBEDDINGS]: {
+                keyPath: 'id',
+                indexes: [{ name: 'input', keyPath: 'input', unique: false }, { name: 'model', keyPath: 'model', unique: false }]
+            },
+            [DBNames.DB_KNOWLEDGE_GRAPH_NODES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'type', keyPath: 'type', unique: false }, { name: 'label', keyPath: 'label', unique: false }, { name: 'embedding_id', keyPath: 'embedding_id', unique: false }]
+            },
+            [DBNames.DB_KNOWLEDGE_GRAPH_EDGES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'from_node_id', keyPath: 'from_node_id', unique: false }, { name: 'to_node_id', keyPath: 'to_node_id', unique: false }, { name: 'edge_type', keyPath: 'edge_type', unique: false }]
+            },
+            [DBNames.DB_ATTACHMENTS]: {
+                keyPath: 'id',
+                indexes: [{ name: 'message_id', keyPath: 'message_id' }]
+            },
+            [DBNames.DB_CHAT_SUMMARIES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'chat_id', keyPath: 'chat_id' }, { name: 'created_at', keyPath: 'created_at' }]
+            },
+        }
+    },
+    [DBNames.DB_LOGS]: {
+        version: 1,
+        stores: { [DBNames.DB_LOGS]: { keyPath: 'id', indexes: [{ name: 'timestamp', keyPath: 'timestamp' }, { name: 'level', keyPath: 'level' }] } }
+    },
+    [DBNames.DB_MODELS]: {
+        version: 2, // bump version if needed
+        stores: {
+            [DBNames.DB_MODELS]: {
+                keyPath: 'id',
+                indexes: [
+                    { name: 'chunkGroupId', keyPath: 'chunkGroupId' }, // Group all chunks/manifests for a file
+                    { name: 'type', keyPath: 'type' }, // 'manifest' or 'chunk'
+                    { name: 'chunkIndex', keyPath: 'chunkIndex' }, // For ordered chunk retrieval
+                    { name: 'fileName', keyPath: 'fileName' }, // File name
+                    { name: 'folder', keyPath: 'folder' }, // Folder or model id
+                    { name: 'fileType', keyPath: 'fileType' }, // File type (e.g., onnx, json)
+                    { name: 'addedAt', keyPath: 'addedAt' }, // For recency/cleanup
+                    { name: 'lastAccessed', keyPath: 'lastAccessed' }, // For LRU/cleanup
+                    { name: 'status', keyPath: 'status' }, // For manifest status (e.g., 'incomplete', 'complete')
+                    { name: 'totalChunks', keyPath: 'totalChunks' }, // For manifest: total number of chunks
+                    { name: 'size', keyPath: 'size' }, // For manifest: total file size
+                    { name: 'chunkSize', keyPath: 'chunkSize' }, // For chunk: size of this chunk
+                    { name: 'checksum', keyPath: 'checksum' }, // For chunk or manifest integrity
+                    { name: 'version', keyPath: 'version' }, // For file versioning
+                    // Add more as needed
+                ]
+            }
+        }
+    }
+};
+const dbChannel = new BroadcastChannel('tabagent-db');
+
+
+/***/ }),
+
+/***/ "./src/DB/idbSummary.ts":
+/*!******************************!*\
+  !*** ./src/DB/idbSummary.ts ***!
+  \******************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Summary: () => (/* binding */ Summary)
+/* harmony export */ });
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+// idbSummary.ts
+
+
+
+class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
+    constructor(id, chat_id, summary_text, dbWorker, created_at, updated_at, options = {}) {
+        super(id, summary_text, dbWorker);
+        this.parent_summary_id = null;
+        this.start_message_id = null;
+        this.end_message_id = null;
+        this.chat_id = chat_id;
+        this.summary_text = summary_text;
+        this.created_at = created_at;
+        this.updated_at = updated_at;
+        this.message_ids = options.message_ids || [];
+        this.parent_summary_id = options.parent_summary_id === undefined ? null : options.parent_summary_id;
+        this.start_message_id = options.start_message_id === undefined ? null : options.start_message_id;
+        this.end_message_id = options.end_message_id === undefined ? null : options.end_message_id;
+        this.start_timestamp = options.start_timestamp;
+        this.end_timestamp = options.end_timestamp;
+        this.token_count = options.token_count;
+        this.metadata_json = options.metadata ? JSON.stringify(options.metadata) : undefined;
+        this.embedding_id = options.embedding_id;
+    }
+    static async create(chat_id, summary_text, dbWorker, options = {}) {
+        const id = options.id || crypto.randomUUID();
+        const now = Date.now();
+        const summaryInstance = new Summary(id, chat_id, summary_text, dbWorker, now, now, options);
+        return summaryInstance.saveToDB();
+    }
+    get metadata() {
+        try {
+            return this.metadata_json ? JSON.parse(this.metadata_json) : undefined;
+        }
+        catch (e) {
+            console.error(`Failed to parse summary metadata_json for summary ${this.id}:`, e);
+            return undefined;
+        }
+    }
+    set metadata(data) {
+        this.metadata_json = data ? JSON.stringify(data) : undefined;
+    }
+    static async read(id, dbWorker) {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && event.data.result) {
+                        const sd = event.data.result;
+                        resolve(new Summary(sd.id, sd.chat_id, sd.summary_text, dbWorker, sd.created_at, sd.updated_at, { message_ids: sd.message_ids, parent_summary_id: sd.parent_summary_id, start_message_id: sd.start_message_id, end_message_id: sd.end_message_id, start_timestamp: sd.start_timestamp, end_timestamp: sd.end_timestamp, token_count: sd.token_count, metadata: sd.metadata_json ? JSON.parse(sd.metadata_json) : undefined, embedding_id: sd.embedding_id }));
+                    }
+                    else if (event.data.success && !event.data.result) {
+                        resolve(undefined);
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to get summary (id: ${id})`));
+                    }
+                }
+            };
+            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_CHAT_SUMMARIES, id], requestId });
+            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting summary ${id}`)); }, 5000);
+        });
+    }
+    async update(updates) {
+        const { id, chat_id, created_at, dbWorker, ...allowedUpdates } = updates;
+        if (allowedUpdates.metadata && typeof allowedUpdates.metadata === 'object') {
+            this.metadata = allowedUpdates.metadata;
+            delete allowedUpdates.metadata;
+        }
+        Object.assign(this, allowedUpdates);
+        await this.saveToDB();
+    }
+    async delete() {
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success) {
+                        resolve();
+                    }
+                    else {
+                        reject(new Error(event.data.error || `Failed to delete summary (id: ${this.id})`));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_CHAT_SUMMARIES, this.id], requestId });
+            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting summary ${this.id}`)); }, 5000);
+        });
+    }
+    async saveToDB() {
+        const requestId = crypto.randomUUID();
+        const now = Date.now();
+        this.updated_at = now;
+        if (!this.created_at) {
+            this.created_at = now;
+        }
+        const { dbWorker, ...summaryData } = this;
+        return new Promise((resolve, reject) => {
+            const handleMessage = (event) => {
+                if (event.data && event.data.requestId === requestId) {
+                    this.dbWorker.removeEventListener('message', handleMessage);
+                    if (event.data.success && typeof event.data.result === 'string') {
+                        resolve(event.data.result);
+                    }
+                    else if (event.data.success) {
+                        reject(new Error('Summary saved, but worker did not return valid ID.'));
+                    }
+                    else {
+                        reject(new Error(event.data.error || 'Failed to save summary'));
+                    }
+                }
+            };
+            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.postMessage({
+                action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT,
+                payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_CHAT_SUMMARIES, summaryData],
+                requestId
+            });
+            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout saving summary ${this.id}`)); }, 5000);
+        });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Home/chatRenderer.ts":
 /*!**********************************!*\
-  !*** ./src/Home/chatRenderer.js ***!
+  !*** ./src/Home/chatRenderer.ts ***!
   \**********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -2805,13 +6494,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   scrollToBottom: () => (/* binding */ scrollToBottom),
 /* harmony export */   setActiveSessionId: () => (/* binding */ setActiveSessionId)
 /* harmony export */ });
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../notifications.js */ "./src/notifications.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
-
-
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_4__);
 
 
 
@@ -2822,88 +6510,79 @@ let currentSessionId = null;
 let requestDbAndWaitFunc = null;
 let observer = null; // MutationObserver
 const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
-
 function handleMessagesUpdate(notification) {
     console.log('[ChatRenderer handleMessagesUpdate] handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
     if (!notification || !notification.sessionId || !notification.payload) {
         console.warn('[ChatRenderer][DEBUG] handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
         return;
     }
-    
     if (notification.sessionId === currentSessionId) {
         console.log(`[ChatRenderer handleMessagesUpdate] Received message update notification for active session ${currentSessionId}. Rendering.`);
-        
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
             console.error('[ChatRenderer handleMessagesUpdate] ERROR: notification.payload.messages is not an array! Got:', notification.payload);
             return;
         }
-        
         console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
-        if (!chatBodyElement) return;
+        if (!chatBodyElement)
+            return;
         chatBodyElement.innerHTML = '';
         if (messages.length === 0) {
             console.log(`[ChatRenderer handleMessagesUpdate] Active session ${currentSessionId} has no messages. Displaying welcome.`);
             displayWelcomeMessage();
-        } else {
-            messages.forEach(msg => renderSingleMessage(msg));
+        }
+        else {
+            messages.forEach((msg) => renderSingleMessage(msg));
             scrollToBottom();
         }
     }
 }
-
 function handleSessionMetadataUpdate(notification) {
-    if (!notification || !notification.sessionId || !notification.payload?.session) return;
-
+    if (!notification || !notification.sessionId || !notification.payload?.session)
+        return;
     if (notification.sessionId === currentSessionId) {
         const updatedSessionData = notification.payload.session;
         console.log(`[ChatRenderer] Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
-        
         updateChatHeader(updatedSessionData);
     }
 }
-
-document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification.type, (e) => {
-    console.log('[ChatRenderer] document event received for DbMessagesUpdatedNotification:', e);
-    handleMessagesUpdate(e.detail);
+document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification.type, (e) => {
+    const customEvent = e;
+    handleMessagesUpdate(customEvent.detail);
 });
-
-document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type, (e) => {
-    console.log('[ChatRenderer] Received DbSessionUpdatedNotification: ', e.detail);
-    handleSessionMetadataUpdate(e.detail);
+document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, (e) => {
+    const customEvent = e;
+    handleSessionMetadataUpdate(customEvent.detail);
 });
-
-_Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__.dbChannel.onmessage = (event) => {
+_DB_idbSchema__WEBPACK_IMPORTED_MODULE_3__.dbChannel.onmessage = (event) => {
     console.log('[ChatRenderer] dbChannel event received:', event.data);
     const message = event.data;
     const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
     const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
     console.log(`[ChatRenderer] dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
     const type = message?.type;
-    if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification.type) {
+    if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification.type) {
         handleMessagesUpdate(message.payload);
     }
-    if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type) {
+    if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type) {
         handleSessionMetadataUpdate(message.payload);
     }
 };
-
 // If browser.runtime.onMessage is used for notifications, add a similar log
-if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessage) {
-    browser.runtime.onMessage.addListener((message) => {
+if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default()) !== 'undefined' && (webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default().runtime) && (webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default().runtime).onMessage) {
+    webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default().runtime.onMessage.addListener((message) => {
         const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
         const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
         console.log(`[ChatRenderer] browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
         const type = message?.type;
-        if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbMessagesUpdatedNotification.type) {
+        if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification.type) {
             handleMessagesUpdate(message.payload);
         }
-        if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbSessionUpdatedNotification.type) {
+        if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type) {
             handleSessionMetadataUpdate(message.payload);
         }
     });
 }
-
 function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
         console.error("[ChatRenderer] chatBody element is required for initialization.");
@@ -2918,7 +6597,6 @@ function initializeRenderer(chatBody, requestDbFunc) {
     console.log("[ChatRenderer] Initialized with chat body element and DB request function.");
     initializeObserver();
 }
-
 function setActiveSessionId(sessionId) {
     console.log(`[ChatRenderer] Setting active session ID to: ${sessionId}`);
     currentSessionId = sessionId;
@@ -2927,14 +6605,15 @@ function setActiveSessionId(sessionId) {
     }
     if (!sessionId) {
         displayWelcomeMessage();
-    } else {
+    }
+    else {
         console.log(`[ChatRenderer] Proactively loading messages for new session: ${sessionId}`);
         loadAndRenderMessages(sessionId);
     }
 }
-
 function displayWelcomeMessage() {
-    if (!chatBodyElement) return;
+    if (!chatBodyElement)
+        return;
     chatBodyElement.innerHTML = '';
     const welcomeMsg = {
         messageId: 'welcome-msg',
@@ -2945,19 +6624,20 @@ function displayWelcomeMessage() {
     };
     renderSingleMessage(welcomeMsg);
 }
-
 function scrollToBottom() {
     if (chatBodyElement) {
         requestAnimationFrame(() => {
-             chatBodyElement.scrollTop = chatBodyElement.scrollHeight;
+            if (chatBodyElement) {
+                chatBodyElement.scrollTop = chatBodyElement.scrollHeight;
+            }
         });
     }
 }
-
 async function loadAndRenderMessages(sessionId) {
     if (!requestDbAndWaitFunc) {
         console.error("[ChatRenderer] Cannot load messages: requestDbAndWait function not available.");
-        if (chatBodyElement) chatBodyElement.innerHTML = '<div class="p-4 text-red-500">Error: Cannot load chat messages.</div>';
+        if (chatBodyElement)
+            chatBodyElement.innerHTML = '<div class="p-4 text-red-500">Error: Cannot load chat messages.</div>';
         return;
     }
     if (!sessionId) {
@@ -2965,66 +6645,67 @@ async function loadAndRenderMessages(sessionId) {
         displayWelcomeMessage();
         return;
     }
-
     console.log(`[ChatRenderer] Requesting messages for session ${sessionId}...`);
     try {
-        const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_2__.DbGetSessionRequest(sessionId);
+        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWaitFunc(request);
-
         if (sessionData && sessionData.messages) {
             console.log(`[ChatRenderer] Received ${sessionData.messages.length} messages for ${sessionId}. Rendering.`);
-            if (chatBodyElement) chatBodyElement.innerHTML = '';
+            if (chatBodyElement)
+                chatBodyElement.innerHTML = '';
             if (sessionData.messages.length === 0) {
                 displayWelcomeMessage();
-            } else {
-                sessionData.messages.forEach(msg => renderSingleMessage(msg));
+            }
+            else {
+                sessionData.messages.forEach((msg) => renderSingleMessage(msg));
                 scrollToBottom();
             }
-        } else {
+        }
+        else {
             console.warn(`[ChatRenderer] No messages found in session data for ${sessionId}. Displaying welcome.`, sessionData);
             displayWelcomeMessage();
         }
-    } catch (error) {
-        console.error(`[ChatRenderer] Failed to load messages for session ${sessionId}:`, error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to load chat: ${error.message}`);
-        if (chatBodyElement) chatBodyElement.innerHTML = `<div class="p-4 text-red-500">Failed to load chat: ${error.message}</div>`;
+    }
+    catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)(`Failed to load chat: ${errMsg}`);
+        if (chatBodyElement)
+            chatBodyElement.innerHTML = `<div class="p-4 text-red-500">Failed to load chat: ${errMsg}</div>`;
     }
 }
-
 function updateChatHeader(sessionData) {
     if (!sessionData) {
         console.log('[ChatRenderer] Clearing chat header (no active session).');
-    } else {
+    }
+    else {
         console.log(`[ChatRenderer] Updating chat header for ${sessionData.id}. Title: ${sessionData.title}, Starred: ${sessionData.isStarred}`);
     }
 }
-
 function renderSingleMessage(msg) {
-    if (!chatBodyElement) return;
-
+    if (!chatBodyElement)
+        return;
     console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
-
     // Parse metadata for type detection
     let meta = {};
-    try { meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {}); } catch {}
+    try {
+        meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {});
+    }
+    catch {
+        console.error('[ChatRenderer] Error parsing metadata for message:', msg.messageId);
+    }
     const extraction = meta.extraction;
     const isPageExtractor = (meta.extractionType === 'PageExtractor') || (extraction && extraction.__type === 'PageExtractor');
-
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('flex', 'mb-2');
     messageDiv.id = msg.messageId || `msg-fallback-${Date.now()}-${Math.random().toString(36).substring(2)}`;
-    
     const bubbleDiv = document.createElement('div');
     bubbleDiv.classList.add('rounded-lg', 'break-words', 'relative', 'group', 'p-2', 'min-w-0');
-
-    if (msg.sender !== _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.MessageSenderTypes.USER) {
+    if (msg.sender !== _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.MessageSenderTypes.USER) {
         bubbleDiv.classList.add('max-w-4xl');
     }
-
     // Actions container (copy/download) as before
     const actionsContainer = document.createElement('div');
     actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10';
-
     const copyButton = document.createElement('button');
     copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
     copyButton.title = 'Copy message text';
@@ -3034,198 +6715,166 @@ function renderSingleMessage(msg) {
             textToCopy = JSON.stringify(msg.metadata.scrapeData, null, 2);
         }
         navigator.clipboard.writeText(textToCopy).then(() => {
-            // Assuming originalUITooltipController is available globally or passed appropriately
-            if (window.originalUITooltipController) {
-                window.originalUITooltipController.showTooltip(copyButton, 'Copied!');
-            }
-        }).catch(err => console.error('Failed to copy text: ', err));
+            window.originalUITooltipController?.showTooltip(copyButton, 'Copied!');
+        }).catch((err) => console.error('Failed to copy text: ', err));
     };
     actionsContainer.appendChild(copyButton);
-
     if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
         const downloadButton = document.createElement('button');
         downloadButton.innerHTML = '<img src="icons/download.svg" alt="Download" class="w-4 h-4">';
         downloadButton.title = 'Download scrape data as JSON';
         downloadButton.onclick = () => {
             console.log('Download clicked for:', msg.metadata.scrapeData); // Placeholder
-            if (window.originalUITooltipController) {
-                window.originalUITooltipController.showTooltip(downloadButton, 'Download (placeholder)');
-            }
+            window.originalUITooltipController?.showTooltip(downloadButton, 'Download (placeholder)');
         };
         actionsContainer.appendChild(downloadButton);
     }
     // IMPORTANT: Append actionsContainer AFTER main content is set, or ensure it's not overwritten.
     // For now, we will append it after other content elements are added to bubbleDiv.
-
     let contentToParse = msg.text || msg.content || '';
     let specialHeaderHTML = '';
-
     // --- Special handling for PageExtractor results ---
     if (isPageExtractor && extraction) {
         specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Page Extraction</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${extraction.url || 'N/A'}</p></div>`;
         contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
         console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
-    } else if (msg.text) {
+    }
+    else if (msg.text) {
         console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
     }
-
     console.log(`[ChatRenderer] Before style application: msg.sender = ${msg.sender}`);
     // Apply sender-specific alignment and base bubble styling
     if (msg.isLoading) {
         messageDiv.classList.add('justify-start');
         bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-500', 'dark:text-gray-400', 'italic', 'border', 'border-gray-300', 'dark:border-gray-500');
-    } else if (msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_3__.MessageSenderTypes.USER) {
+    }
+    else if (msg.sender === _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.MessageSenderTypes.USER) {
         messageDiv.classList.add('justify-end', 'min-w-0');
-        bubbleDiv.classList.add(
-            'bg-[rgba(236,253,245,0.51)]', // very subtle green tint
-            'dark:bg-[rgba(20,83,45,0.12)]', // subtle dark green tint for dark mode
-            'text-green-900',
-            'dark:text-green-100',
-            'border',
-            'border-green-100',
-            'dark:border-green-900'
-        );
-    } else if (msg.sender === 'error') {
+        bubbleDiv.classList.add('bg-[rgba(236,253,245,0.51)]', // very subtle green tint
+        'dark:bg-[rgba(20,83,45,0.12)]', // subtle dark green tint for dark mode
+        'text-green-900', 'dark:text-green-100', 'border', 'border-green-100', 'dark:border-green-900');
+    }
+    else if (msg.sender === 'error') {
         messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add(
-            'bg-[rgba(254,226,226,0.37)]', // subtle red tint (light)
-            'dark:bg-[rgba(120,20,20,0.12)]', // subtle red tint (dark)
-            'text-red-700',
-            'dark:text-red-200',
-            'border',
-            'border-red-200',
-            'dark:border-red-700'
-        );
-    } else if (msg.sender === 'system') { 
+        bubbleDiv.classList.add('bg-[rgba(254,226,226,0.37)]', // subtle red tint (light)
+        'dark:bg-[rgba(120,20,20,0.12)]', // subtle red tint (dark)
+        'text-red-700', 'dark:text-red-200', 'border', 'border-red-200', 'dark:border-red-700');
+    }
+    else if (msg.sender === 'system') {
         messageDiv.classList.add('justify-start');
-        bubbleDiv.classList.add(
-            'bg-[rgba(219,234,254,0.5)]', // subtle blue tint
-            'dark:bg-[rgba(30,41,59,0.2)]', // subtle dark blue/gray for dark mode
-            'text-blue-900',
-            'dark:text-blue-100',
-            'border',
-            'border-blue-100',
-            'dark:border-blue-900'
-        );
-    } else { // Default for 'ai' or other non-user/non-error/non-system senders
+        bubbleDiv.classList.add('bg-[rgba(219,234,254,0.5)]', // subtle blue tint
+        'dark:bg-[rgba(30,41,59,0.2)]', // subtle dark blue/gray for dark mode
+        'text-blue-900', 'dark:text-blue-100', 'border', 'border-blue-100', 'dark:border-blue-900');
+    }
+    else { // Default for 'ai' or other non-user/non-error/non-system senders
         messageDiv.classList.add('justify-start');
         bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-900', 'dark:text-gray-100', 'border', 'border-gray-300', 'dark:border-gray-600');
     }
     console.log('[ChatRenderer] messageDiv classes:', messageDiv.className);
     console.log('[ChatRenderer] bubbleDiv classes:', bubbleDiv.className);
-
     // --- HEADER BAR WITH FOLDOUT AND ACTIONS ---
     const headerBar = document.createElement('div');
     headerBar.className = 'bubble-header flex items-center justify-between px-2 py-0.5 min-w-[300px] w-full bg-[rgba(200,200,200,0.18)] dark:bg-[rgba(50,50,50,0.28)] rounded-t-lg border-b border-gray-200 dark:border-gray-700 transition-all duration-150 group';
     headerBar.onmouseenter = () => headerBar.classList.add('bg-[rgba(200,200,200,0.28)]', 'dark:bg-[rgba(50,50,50,0.38)]');
     headerBar.onmouseleave = () => headerBar.classList.remove('bg-[rgba(200,200,200,0.28)]', 'dark:bg-[rgba(50,50,50,0.38)]');
-
     // Foldout button with SVG chevron
     const foldoutBtn = document.createElement('button');
     foldoutBtn.className = 'toggle-foldout mr-2 flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition cursor-pointer';
     foldoutBtn.title = 'Expand/collapse message';
     foldoutBtn.innerHTML = `<svg class="chevron-icon transition-transform duration-150" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8L10 12L14 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     headerBar.appendChild(foldoutBtn);
-
     // Actions container (already created above)
     actionsContainer.classList.add('ml-auto', 'flex', 'items-center', 'space-x-1');
     headerBar.appendChild(actionsContainer);
-
     // --- MAIN CONTENT (foldable) ---
     const mainContentDiv = document.createElement('div');
     mainContentDiv.className = 'message-main-content';
-
     if (window.marked && window.marked.parse) {
         try {
             const localRenderer = new window.marked.Renderer();
-
             const escapeHtmlEntities = (str) => {
-                if (typeof str !== 'string') return '';
-                return str.replace(/[&<>"'\/]/g, function (match) {
+                if (typeof str !== 'string')
+                    return '';
+                return str.replace(/[&<>"'/]/g, function (match) {
                     return {
                         '&': '&amp;',
                         '<': '&lt;',
                         '>': '&gt;',
-                        '\"': '&quot;',
+                        '"': '&quot;',
                         "'": '&#39;',
-                        '/': '&#x2F;' 
-                    }[match];
+                        '/': '&#x2F;'
+                    }[match] || '';
                 });
             };
-
             // ONLY override the .code() method for now
             localRenderer.code = (tokenOrCode, languageInfoString, isEscaped) => {
                 // Log what we receive
-                console.log('[ChatRenderer Custom Code] Received arguments:', 
-                    {
-                        tokenOrCode_type: typeof tokenOrCode,
-                        tokenOrCode_value: JSON.parse(JSON.stringify(tokenOrCode)), // Deep copy for logging
-                        languageInfoString_type: typeof languageInfoString,
-                        languageInfoString_value: languageInfoString,
-                        isEscaped_value: isEscaped
-                    }
-                );
-
+                console.log('[ChatRenderer Custom Code] Received arguments:', {
+                    tokenOrCode_type: typeof tokenOrCode,
+                    tokenOrCode_value: JSON.parse(JSON.stringify(tokenOrCode)), // Deep copy for logging
+                    languageInfoString_type: typeof languageInfoString,
+                    languageInfoString_value: languageInfoString,
+                    isEscaped_value: isEscaped
+                });
                 let actualCodeString = '';
                 let actualLanguageString = languageInfoString || '';
                 // let actuallyEscaped = isEscaped; // Not directly used with hljs which expects raw code
-
                 if (typeof tokenOrCode === 'object' && tokenOrCode !== null && typeof tokenOrCode.text === 'string') {
                     actualCodeString = tokenOrCode.text;
-                    actualLanguageString = tokenOrCode.lang || actualLanguageString; 
+                    actualLanguageString = tokenOrCode.lang || actualLanguageString;
                     // actuallyEscaped = typeof tokenOrCode.escaped === 'boolean' ? tokenOrCode.escaped : isEscaped;
                     console.log('[ChatRenderer Custom Code] Interpreted as token object. Using token.text and token.lang.');
-                } else if (typeof tokenOrCode === 'string') {
+                }
+                else if (typeof tokenOrCode === 'string') {
                     actualCodeString = tokenOrCode;
                     console.log('[ChatRenderer Custom Code] Interpreted as direct code string.');
-                } else {
+                }
+                else {
                     console.warn('[ChatRenderer Custom Code] Received unexpected type for code argument:', tokenOrCode);
                     actualCodeString = '[Error: Unexpected code content type]';
                 }
-                
                 // Initialize safeLanguage and langClass based on the *provided* language hint
                 let languageHint = actualLanguageString.trim();
                 let safeLanguage = escapeHtmlEntities(languageHint || 'plaintext');
                 let langClass = `language-${safeLanguage}`;
-                
-                const copyIcon = '<img src="icons/copy.svg" alt="Copy code" class="w-4 h-4">'; 
+                const copyIcon = '<img src="icons/copy.svg" alt="Copy code" class="w-4 h-4">';
                 const downloadIcon = '<img src="icons/download.svg" alt="Download code" class="w-4 h-4">';
-                
                 const encodedCodeForAttr = encodeURIComponent(actualCodeString);
-                
                 let highlightedCodeForDisplay = '';
                 if (window.hljs) {
-                    // highlight.js expects raw, unescaped code.
-                    // actualCodeString should be raw based on Marked.js default behavior without sanitize: true
+                    // highlight expects raw, unescaped code.
+                    // actualCodeString should be raw based on Marked default behavior without sanitize: true
                     if (actualLanguageString && window.hljs.getLanguage(actualLanguageString)) {
                         try {
                             highlightedCodeForDisplay = window.hljs.highlight(actualCodeString, { language: actualLanguageString, ignoreIllegals: true }).value;
                             console.log('[ChatRenderer Custom Code] Highlighted with specified language:', actualLanguageString);
-                        } catch (e) {
+                        }
+                        catch (e) {
                             console.error('[ChatRenderer Custom Code] hljs.highlight error:', e);
                             highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                         }
-                    } else {
+                    }
+                    else {
                         try {
                             const autoResult = window.hljs.highlightAuto(actualCodeString);
                             highlightedCodeForDisplay = autoResult.value;
                             const detectedLang = autoResult.language;
                             console.log('[ChatRenderer Custom Code] Highlighted with auto-detection. Detected:', detectedLang);
-
                             if (detectedLang) { // If auto-detection was successful
                                 safeLanguage = escapeHtmlEntities(detectedLang);
                                 langClass = `language-${safeLanguage}`; // Update based on detected language
                             }
-                        } catch (e) {
+                        }
+                        catch (e) {
                             console.error('[ChatRenderer Custom Code] hljs.highlightAuto error:', e);
                             highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                         }
                     }
-                } else {
+                }
+                else {
                     console.warn('[ChatRenderer Custom Code] window.hljs not found. Falling back to escaped code.');
                     highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                 }
-
                 return `
 <div class="code-block-wrapper bg-gray-800 dark:bg-gray-900 rounded-md shadow-md my-2 text-sm">
     <div class="code-block-header flex justify-between items-center px-3 py-1.5 bg-gray-700 dark:bg-gray-800 rounded-t-md border-b border-gray-600 dark:border-gray-700">
@@ -3242,29 +6891,28 @@ function renderSingleMessage(msg) {
     <pre class="p-3 overflow-x-auto"><code class="${langClass}">${highlightedCodeForDisplay}</code></pre>
 </div>`;
             };
-
             // DO NOT override .paragraph, .list, .listitem, .heading for this test.
-            // Let Marked.js use its defaults for these.
-
+            // Let Marked use its defaults for these.
             const parsedContent = window.marked.parse(contentToParse || '', {
                 renderer: localRenderer, // Use the renderer with only .code overridden
-                gfm: true, 
-                breaks: true 
+                gfm: true,
+                breaks: true
             });
             console.log('[ChatRenderer Minimal Custom Marked.parse() output:]', parsedContent);
             mainContentDiv.innerHTML = parsedContent;
             if (window.hljs) {
-                console.log('[ChatRenderer] Content set. highlight.js should have processed via Marked.js config.');
+                console.log('[ChatRenderer] Content set. highlight should have processed via Marked config.');
             }
-        } catch (e) {
-            console.error('Error during marked.parse:', e);
-            mainContentDiv.textContent = contentToParse || ''; 
         }
-    } else {
-        console.warn('Marked.js not available. Falling back to textContent.');
+        catch (e) {
+            console.error('Error during marked.parse:', e);
+            mainContentDiv.textContent = contentToParse || '';
+        }
+    }
+    else {
+        console.warn('Marked not available. Falling back to textContent.');
         mainContentDiv.textContent = contentToParse || '';
     }
-
     // FOLDOUT LOGIC
     let expanded = true;
     foldoutBtn.onclick = () => {
@@ -3272,11 +6920,11 @@ function renderSingleMessage(msg) {
         mainContentDiv.style.display = expanded ? '' : 'none';
         // Rotate chevron
         const svg = foldoutBtn.querySelector('.chevron-icon');
-        if (svg) svg.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+        if (svg)
+            svg.style.transform = expanded ? 'rotate(0deg)' : 'rotate(-90deg)';
     };
     // Default: expanded
     mainContentDiv.style.display = '';
-
     // --- ASSEMBLE BUBBLE ---
     bubbleDiv.innerHTML = '';
     bubbleDiv.appendChild(headerBar);
@@ -3287,15 +6935,12 @@ function renderSingleMessage(msg) {
     }
     bubbleDiv.appendChild(mainContentDiv);
     bubbleDiv.appendChild(actionsContainer); // Append actions container LAST to ensure it's not overwritten and is on top (due to z-10)
-    
     messageDiv.appendChild(bubbleDiv);
     chatBodyElement.appendChild(messageDiv);
     scrollToBottom();
     return messageDiv;
 }
-
 // --- NEW: Functions for Temporary Messages ---
-
 /**
  * Renders a temporary status message directly to the chat body.
  * These messages are not saved to the database.
@@ -3303,15 +6948,14 @@ function renderSingleMessage(msg) {
  * @param {string} text - The message content.
  */
 function renderTemporaryMessage(type, text) {
-    if (!chatBodyElement) return;
-
+    if (!chatBodyElement)
+        return;
     // Only log non-system temporary messages to reduce noise
     if (type !== 'system') {
         console.log(`[ChatRenderer] Rendering temporary message (${type}): ${text}`);
     }
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', `message-${type}`, TEMP_MESSAGE_CLASS);
-
     // Basic styling (can be enhanced in CSS)
     messageDiv.style.padding = '8px 12px';
     messageDiv.style.borderRadius = '8px';
@@ -3320,34 +6964,29 @@ function renderTemporaryMessage(type, text) {
     messageDiv.style.alignSelf = 'center'; // Center align system/error messages
     messageDiv.style.backgroundColor = type === 'error' ? '#fee2e2' : (type === 'success' ? '#dcfce7' : '#f3f4f6'); // Example colors
     messageDiv.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#166534' : '#374151'); // Example colors
-
     // Handle dark mode styling (basic example)
     if (document.documentElement.classList.contains('dark')) {
         messageDiv.style.backgroundColor = type === 'error' ? '#450a0a' : (type === 'success' ? '#14532d' : '#374151');
         messageDiv.style.color = type === 'error' ? '#fca5a5' : (type === 'success' ? '#bbf7d0' : '#d1d5db');
     }
-
     messageDiv.textContent = text;
-
     chatBodyElement.appendChild(messageDiv);
     scrollToBottom();
 }
-
 /**
  * Removes all temporary status messages from the chat body.
  */
 function clearTemporaryMessages() {
-    if (!chatBodyElement) return;
+    if (!chatBodyElement)
+        return;
     console.log("[ChatRenderer] Clearing temporary status messages.");
     const tempMessages = chatBodyElement.querySelectorAll(`.${TEMP_MESSAGE_CLASS}`);
-    tempMessages.forEach(msg => msg.remove());
+    tempMessages.forEach((msg) => msg.remove());
 }
-
 // --- END: Temporary Message Functions ---
-
 function initializeObserver() {
-    if (observer) observer.disconnect(); // Disconnect previous observer if any
-
+    if (observer)
+        observer.disconnect(); // Disconnect previous observer if any
     observer = new MutationObserver(mutations => {
         mutations.forEach(mutation => {
             if (mutation.type === 'childList') {
@@ -3368,55 +7007,49 @@ function initializeObserver() {
             }
         });
     });
-
     if (chatBodyElement) {
         observer.observe(chatBodyElement, { childList: true, subtree: true });
         console.log("[ChatRenderer] MutationObserver initialized and observing chat body.");
-
         // Event delegation for code block actions
         chatBodyElement.addEventListener('click', async (event) => {
             const target = event.target.closest('button');
-            if (!target) return;
-
+            if (!target)
+                return;
             if (target.classList.contains('code-action-copy-snippet')) {
                 const codeToCopy = target.dataset.code;
                 if (codeToCopy) {
                     try {
                         await navigator.clipboard.writeText(decodeURIComponent(codeToCopy));
-                        if (window.originalUITooltipController) {
-                            window.originalUITooltipController.showTooltip(target, 'Code Copied!');
-                        } else {
-                            (0,_notifications_js__WEBPACK_IMPORTED_MODULE_0__.showNotification)('Code snippet copied!', 'success', 1500);
-                        }
-                    } catch (err) {
+                        window.originalUITooltipController?.showTooltip(target, 'Code Copied!');
+                    }
+                    catch (err) {
                         console.error('Failed to copy code snippet:', err);
-                        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)('Failed to copy code snippet.');
+                        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)('Failed to copy code snippet.');
                     }
                 }
-            } else if (target.classList.contains('code-action-download-snippet')) {
+            }
+            else if (target.classList.contains('code-action-download-snippet')) {
                 const codeToDownload = target.dataset.code;
                 const lang = target.dataset.lang || 'txt';
                 const filename = `snippet.${lang}`;
                 if (codeToDownload) {
                     try {
                         downloadFile(filename, decodeURIComponent(codeToDownload), getMimeType(lang));
-                        if (window.originalUITooltipController) {
-                            window.originalUITooltipController.showTooltip(target, 'Downloading...');
-                        }
-                    } catch (err) {
+                        window.originalUITooltipController?.showTooltip(target, 'Downloading...');
+                    }
+                    catch (err) {
                         console.error('Failed to download code snippet:', err);
-                        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)('Failed to download code snippet.');
+                        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)('Failed to download code snippet.');
                     }
                 }
             }
         });
         console.log("[ChatRenderer] Event listeners for code block actions (copy/download) added to chatBody.");
-
-    } else {
+    }
+    else {
         console.error("[ChatRenderer] Cannot initialize MutationObserver or event listeners: chatBody is null.");
     }
 }
-
 // Helper function to get MIME type from language
 function getMimeType(lang) {
     const mimeTypes = {
@@ -3447,7 +7080,6 @@ function getMimeType(lang) {
     };
     return mimeTypes[lang.toLowerCase()] || 'text/plain';
 }
-
 // Helper function to trigger file download
 function downloadFile(filename, content, mimeType) {
     const blob = new Blob([content], { type: mimeType });
@@ -3461,11 +7093,12 @@ function downloadFile(filename, content, mimeType) {
     URL.revokeObjectURL(url);
 }
 
+
 /***/ }),
 
-/***/ "./src/Home/fileHandler.js":
+/***/ "./src/Home/fileHandler.ts":
 /*!*********************************!*\
-  !*** ./src/Home/fileHandler.js ***!
+  !*** ./src/Home/fileHandler.ts ***!
   \*********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -3476,67 +7109,60 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   handleFileSelected: () => (/* binding */ handleFileSelected),
 /* harmony export */   initializeFileHandling: () => (/* binding */ initializeFileHandling)
 /* harmony export */ });
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
 
 
-let db = null;
-let renderer = null;
 let getActiveSessionIdFunc = null;
 let ui = null;
-
 function initializeFileHandling(dependencies) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
     ui = dependencies.uiController;
-
     if (!getActiveSessionIdFunc || !ui) {
         console.error("FileHandler: Missing getActiveSessionIdFunc or uiController dependency!");
-    } else {
+    }
+    else {
         console.log("[FileHandler] Initialized (Note: DB/Renderer interaction via events assumed).");
     }
 }
-
 async function handleFileSelected(event) {
     if (!getActiveSessionIdFunc) {
-         console.error("FileHandler: Not initialized properly (missing getActiveSessionIdFunc).");
-         return;
+        console.error("FileHandler: Not initialized properly (missing getActiveSessionIdFunc).");
+        return;
     }
-
-    const files = event.target.files;
+    const input = event.target;
+    const files = input.files;
     if (!files || files.length === 0) {
         console.log("FileHandler: No file selected.");
         return;
     }
-
     const file = files[0];
     console.log(`FileHandler: File selected - ${file.name}, Type: ${file.type}, Size: ${file.size}`);
-
     const sessionId = getActiveSessionIdFunc();
     if (!sessionId) {
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_0__.showError)("Please start or select a chat before attaching a file.");
-        event.target.value = '';
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)("Please start or select a chat before attaching a file.");
+        input.value = '';
         return;
     }
-
     const fileMessage = {
         sender: 'system',
         text: `📎 Attached file: ${file.name}`,
         timestamp: Date.now(),
         isLoading: false,
     };
-
     try {
-        const request = new DbAddMessageRequest(sessionId, fileMessage);
-        eventBus.publish(DbAddMessageRequest.type, request);
+        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest(sessionId, fileMessage);
+        eventBus.publish(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type, request);
         console.log("[FileHandler] Published DbAddMessageRequest for file attachment.");
-
-    } catch (error) {
-         console.error("FileHandler: Error publishing file attachment message event:", error);
-         (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_0__.showError)("Failed to process file attachment.");
-    } finally {
-        event.target.value = ''; 
+    }
+    catch (error) {
+        console.error("FileHandler: Error publishing file attachment message event:", error);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)("Failed to process file attachment.");
+    }
+    finally {
+        input.value = '';
     }
 }
-
 function handleAttachClick() {
     if (!ui) {
         console.error("FileHandler: UI Controller not available to trigger file input.");
@@ -3546,11 +7172,12 @@ function handleAttachClick() {
     ui.triggerFileInputClick();
 }
 
+
 /***/ }),
 
-/***/ "./src/Home/messageOrchestrator.js":
+/***/ "./src/Home/messageOrchestrator.ts":
 /*!*****************************************!*\
-  !*** ./src/Home/messageOrchestrator.js ***!
+  !*** ./src/Home/messageOrchestrator.ts ***!
   \*****************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -3561,12 +7188,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _sidepanel_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../sidepanel.js */ "./src/sidepanel.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
-
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../sidepanel */ "./src/sidepanel.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _chatRenderer__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./chatRenderer */ "./src/Home/chatRenderer.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
 
 
 
@@ -3577,26 +7203,26 @@ let getActiveSessionIdFunc = null;
 let onSessionCreatedCallback = null;
 let getCurrentTabIdFunc = null;
 let isSendingMessage = false; // TODO: Remove this and rely on status check via DB event
-
-const pendingDbRequests = new Map();
-
-function requestDbAndWait(requestEvent, timeoutMs = 5000) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const result = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(requestEvent, timeoutMs);
-            console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
-            const response = Array.isArray(result) ? result[0] : result;
-            if (response && (response.success || response.error === undefined)) {
-                resolve(response.data || response.payload);
-            } else {
-                reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
+function requestDbAndWait(requestEvent) {
+    return new Promise((resolve, reject) => {
+        (async () => {
+            try {
+                const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(requestEvent);
+                console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
+                const response = Array.isArray(result) ? result[0] : result;
+                if (response && (response.success || response.error === undefined)) {
+                    resolve(response.data || response.payload);
+                }
+                else {
+                    reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
+                }
             }
-        } catch (error) {
-            reject(error);
-        }
+            catch (error) {
+                reject(error);
+            }
+        })();
     });
 }
-
 async function handleQuerySubmit(data) {
     const { text } = data;
     console.log(`[Orchestrator: handleQuerySubmit] received event with text: "${text}"`);
@@ -3605,77 +7231,80 @@ async function handleQuerySubmit(data) {
         return;
     }
     isSendingMessage = true;
-
-    let sessionId = getActiveSessionIdFunc();
-    const currentTabId = getCurrentTabIdFunc();
+    let sessionId = getActiveSessionIdFunc ? getActiveSessionIdFunc() : null;
+    const currentTabId = getCurrentTabIdFunc ? getCurrentTabIdFunc() : null;
     let placeholderMessageId = null;
-
     console.log(`[Orchestrator: handleQuerySubmit] Processing submission. Text: "${text}". Session: ${sessionId}`);
-    const isURL = _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.URL_REGEX.test(text);
-
+    const isURL = _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.URL_REGEX.test(text);
     try {
-        (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
+        (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
         const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
         if (!sessionId) {
             console.log("[Orchestrator: handleQuerySubmit] No active session, creating new one via event.");
-            const createRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbCreateSessionRequest(userMessage);
+            const createRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCreateSessionRequest(userMessage);
             const createResponse = await requestDbAndWait(createRequest);
             sessionId = createResponse.newSessionId;
             if (onSessionCreatedCallback) {
                 onSessionCreatedCallback(sessionId);
-            } else {
-                 console.error("[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!");
-                 throw new Error("Configuration error: Cannot notify about new session.");
             }
-        } else {
+            else {
+                console.error("[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!");
+                throw new Error("Configuration error: Cannot notify about new session.");
+            }
+        }
+        else {
             console.log(`[Orchestrator: handleQuerySubmit] Adding user message to existing session ${sessionId} via event.`);
-            (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
-            const addRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, userMessage);
+            (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
+            const addRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, userMessage);
             await requestDbAndWait(addRequest);
         }
         console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'processing' via event`);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'processing');
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'processing');
         await requestDbAndWait(statusRequest);
         let placeholder;
         if (isURL) {
             placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
-        } else {
+        }
+        else {
             placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
         }
         console.log(`[Orchestrator: handleQuerySubmit] Adding placeholder to session ${sessionId} via event.`);
-        const addPlaceholderRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, placeholder);
+        const addPlaceholderRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, placeholder);
         const placeholderResponse = await requestDbAndWait(addPlaceholderRequest);
         placeholderMessageId = placeholderResponse.newMessageId;
-        
         if (isURL) {
             // Always send scrape request to background, let background decide how to scrape
             try {
                 const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SCRAPE_REQUEST,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SCRAPE_REQUEST,
                     payload: {
                         url: text,
                         chatId: sessionId,
-                        messageId: placeholderMessageId
+                        messageId: placeholderMessageId,
+                        tabId: currentTabId
                     }
                 });
                 console.log("[Orchestrator: handleQuerySubmit] SCRAPE_REQUEST sent to background.", response);
-            } catch (error) {
-                console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_REQUEST:', error.message);
-                const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                    isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${error.message}`
+            }
+            catch (error) {
+                const errObj = error;
+                console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_REQUEST:', errObj.message);
+                const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
+                    isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${errObj.message}`
                 });
                 requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
+                requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
                 isSendingMessage = false;
             }
-        } else {
+        }
+        else {
             console.log("[Orchestrator: handleQuerySubmit] Sending query to background for AI response.");
             const messagePayload = {
-                type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SEND_CHAT_MESSAGE,
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SEND_CHAT_MESSAGE,
                 payload: {
                     chatId: sessionId,
-                    messages: [{ role: 'user', content: text }], 
-                    options: { /* model, temp, etc */ },
+                    messages: [{ role: 'user', content: text }],
+                    options: { /* model, temp, etc */},
                     messageId: placeholderMessageId
                 }
             };
@@ -3683,215 +7312,224 @@ async function handleQuerySubmit(data) {
                 const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(messagePayload);
                 if (response && response.success) {
                     console.log('[Orchestrator: handleQuerySubmit] Background acknowledged forwarding sendChatMessage. Actual AI response will follow separately.', response);
-                } else {
+                }
+                else {
                     console.error('[Orchestrator: handleQuerySubmit] Background reported an error while attempting to forward sendChatMessage:', response?.error);
                     const errorPayload = { isLoading: false, sender: 'error', text: `Error forwarding query: ${response?.error || 'Unknown error'}` };
-                    const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
+                    const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
                     await requestDbAndWait(errorUpdateRequest); // Can await here too
-                    await requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
+                    await requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
                     isSendingMessage = false; // Reset flag if forwarding failed
                 }
-            } catch (error) {
-                console.error('[Orchestrator: handleQuerySubmit] Error sending query to background or processing its direct ack:', error);
-                const errorText = error && typeof error.message === 'string' ? error.message : 'Unknown error during send/ack';
+            }
+            catch (error) {
+                const errObj = error;
+                console.error('[Orchestrator: handleQuerySubmit] Error sending query to background or processing its direct ack:', errObj);
+                const errorText = errObj && typeof errObj.message === 'string' ? errObj.message : 'Unknown error during send/ack';
                 const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
-                const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
+                const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
                 requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error (within catch):", e));
-                requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error (within catch):", e));
+                requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error (within catch):", e));
                 isSendingMessage = false; // Reset flag on send error
             }
         }
-    } catch (error) {
-        console.error("[Orchestrator: handleQuerySubmit] Error processing query submission:", error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error: ${error.message || error}`);
+    }
+    catch (error) {
+        const errObj = error;
+        console.error("[Orchestrator: handleQuerySubmit] Error processing query submission:", errObj);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error: ${errObj.message || errObj}`);
         if (sessionId) {
             console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'error' due to processing failure via event`);
-            requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on processing error:", e));
-        } else {
+            requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on processing error:", e));
+        }
+        else {
             console.error("[Orchestrator: handleQuerySubmit] Error occurred before session ID was established.");
         }
         isSendingMessage = false;
     }
 }
-
 async function handleBackgroundMsgResponse(message) {
     const { chatId, messageId, text } = message;
     console.log(`[Orchestrator: handleBackgroundMsgResponse] for chat ${chatId}, placeholder ${messageId}`);
     try {
         const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
-        const updateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
+        const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
         await requestDbAndWait(updateRequest);
         console.log(`[Orchestrator: handleBackgroundMsgResponse] Setting session ${chatId} status to 'idle' after response via event`);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'idle');
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'idle');
         await requestDbAndWait(statusRequest);
-    } catch (error) {
-        console.error(`[Orchestrator: handleBackgroundMsgResponse] Error handling background response for chat ${chatId}:`, error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with response: ${error.message || error}`);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
+    }
+    catch (error) {
+        const errObj = error;
+        console.error(`[Orchestrator: handleBackgroundMsgResponse] Error handling background response for chat ${chatId}:`, errObj);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with response: ${errObj.message || errObj}`);
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
         requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on response processing error:", e));
-    } finally {
-         isSendingMessage = false; // TODO: Remove later
+    }
+    finally {
+        isSendingMessage = false; // TODO: Remove later
     }
 }
-
 async function handleBackgroundMsgError(message) {
     console.error(`[Orchestrator: handleBackgroundMsgError] Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`); // Show global error regardless
-
-    const sessionId = getActiveSessionIdFunc(); // Get current session ID
-
+    (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`); // Show global error regardless
+    const sessionId = getActiveSessionIdFunc ? getActiveSessionIdFunc() : null; // Get current session ID
     if (sessionId && message.chatId === sessionId && message.messageId) {
         // Only update DB if the error belongs to the *active* session and has a message ID
         console.log(`[Orchestrator: handleBackgroundMsgError] Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
         const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
-        const errorUpdateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error');
+        const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error');
         try {
             await requestDbAndWait(errorUpdateRequest);
             console.log(`[Orchestrator: handleBackgroundMsgError] Error message update successful for session ${sessionId}.`);
             await requestDbAndWait(statusRequest);
             console.log(`[Orchestrator: handleBackgroundMsgError] Session ${sessionId} status set to 'error'.`);
-        } catch (dbError) {
-            console.error('[Orchestrator: handleBackgroundMsgError] Error updating chat/status on background error:', dbError);
+        }
+        catch (dbError) {
+            const dbErr = dbError;
+            console.error('[Orchestrator: handleBackgroundMsgError] Error updating chat/status on background error:', dbErr);
             // Show a more specific UI error if DB update fails
-            (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with error status: ${dbError.message}`);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with error status: ${dbErr.message}`);
             // Attempt to set status to error even if message update failed
             try {
-                 await requestDbAndWait(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
-            } catch (statusError) {
-                 console.error('[Orchestrator: handleBackgroundMsgError] Failed to set session status on error handling error:', statusError);
+                await requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
+            }
+            catch (statusError) {
+                console.error('[Orchestrator: handleBackgroundMsgError] Failed to set session status on error handling error:', statusError);
             }
         }
-    } else {
-         console.warn(`[Orchestrator: handleBackgroundMsgError] Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
-         // If the error is specifically a model load error (we might need a better way to signal this)
-         // ensure the UI controller knows. The direct worker:error event might be better.
     }
-
+    else {
+        console.warn(`[Orchestrator: handleBackgroundMsgError] Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
+        // If the error is specifically a model load error (we might need a better way to signal this)
+        // ensure the UI controller knows. The direct worker:error event might be better.
+    }
     isSendingMessage = false; // Reset flag after handling error
 }
-
 async function handleBackgroundScrapeStage(payload) {
     const { stage, success, chatId, messageId, error, ...rest } = payload;
     console.log(`[Orchestrator: handleBackgroundScrapeStage] Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
-
     let updatePayload = {};
     let finalStatus = 'idle'; // Default to idle on success
-
     if (success) {
         console.log(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} succeeded for chat ${chatId}.`);
         // Construct a success message matching the 'scrape_result_full' style
         const successText = `Full Scrape Result: ${rest.title || 'No Title'}`; // Use title for the text part
         // Use the 'scrape_result_full' type and structure
-        updatePayload = { 
-            isLoading: false, 
-            sender: 'system', 
+        updatePayload = {
+            isLoading: false,
+            sender: 'system',
             text: successText, // Main text shown outside bubble if needed
-            metadata: { 
-                type: 'scrape_result_full', 
+            metadata: {
+                type: 'scrape_result_full',
                 scrapeData: rest // Put the full data here for the renderer
             }
         };
         finalStatus = 'idle';
-
-    } else {
+    }
+    else {
         // If a stage fails, update the message immediately with the error
         const errorText = error || `Scraping failed (Stage ${stage}). Unknown error.`;
         console.error(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
         updatePayload = { isLoading: false, sender: 'error', text: `Scraping failed (Stage ${stage}): ${errorText}` };
         finalStatus = 'error';
     }
-
     // --- Update DB regardless of success/failure based on this stage result --- 
     try {
         console.log(`[Orchestrator: handleBackgroundScrapeStage] Updating message ${messageId} for stage ${stage} result.`);
-        const updateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
+        const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
         await requestDbAndWait(updateRequest);
         console.log(`[Orchestrator: handleBackgroundScrapeStage] Updated placeholder ${messageId} with stage ${stage} result.`);
-
         // Also set final session status based on this stage outcome
         console.log(`[Orchestrator: handleBackgroundScrapeStage] Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
         await requestDbAndWait(statusRequest);
-
-    } catch (dbError) {
-        console.error(`[Orchestrator: handleBackgroundScrapeStage] Failed to update DB after stage ${stage} result:`, dbError);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with scrape result: ${dbError.message || dbError}`);
+    }
+    catch (dbError) {
+        const dbErr = dbError;
+        console.error(`[Orchestrator: handleBackgroundScrapeStage] Failed to update DB after stage ${stage} result:`, dbErr);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with scrape result: ${dbErr.message || dbErr}`);
         // If DB update fails, maybe try setting status to error anyway?
         if (finalStatus !== 'error') {
-             try {
-                 const fallbackStatusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
-                 await requestDbAndWait(fallbackStatusRequest);
-             } catch (fallbackError) {
-                 console.error("Failed to set fallback error status:", fallbackError);
-             }
+            try {
+                const fallbackStatusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
+                await requestDbAndWait(fallbackStatusRequest);
+            }
+            catch (fallbackError) {
+                console.error("Failed to set fallback error status:", fallbackError);
+            }
         }
-    } finally {
+    }
+    finally {
         // Reset sending flag only after processing a stage result
         // This assumes the background script won't send more results for this specific scrape
         // Might need adjustment if background sends a final DIRECT_SCRAPE_RESULT later
-         isSendingMessage = false; 
-         console.log("[Orchestrator: handleBackgroundScrapeStage] Resetting isSendingMessage after processing scrape stage result.");
+        isSendingMessage = false;
+        console.log("[Orchestrator: handleBackgroundScrapeStage] Resetting isSendingMessage after processing scrape stage result.");
     }
 }
-
 async function handleBackgroundDirectScrapeResult(message) {
     const { chatId, messageId, success, error, ...scrapeData } = message;
     console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
     const updatePayload = { isLoading: false };
-     if (success) {
-         updatePayload.sender = 'system';
-         updatePayload.text = `Full Scrape Result: ${scrapeData.title || 'Scraped Content'}`;
-         updatePayload.metadata = {
-             type: 'scrape_result_full', 
-             scrapeData: scrapeData
-         };
-     } else {
-         updatePayload.sender = 'error';
-         updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
-     }
+    if (success) {
+        updatePayload.sender = 'system';
+        updatePayload.text = `Full Scrape Result: ${scrapeData.title || 'Scraped Content'}`;
+        updatePayload.metadata = {
+            type: 'scrape_result_full',
+            scrapeData: scrapeData
+        };
+    }
+    else {
+        updatePayload.sender = 'error';
+        updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
+    }
     try {
-        const updateRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
+        const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
         await requestDbAndWait(updateRequest);
         const finalStatus = success ? 'idle' : 'error';
         console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
         await requestDbAndWait(statusRequest);
-    } catch (error) {
-        console.error(`[Orchestrator: handleBackgroundDirectScrapeResult] Error handling direct scrape result for chat ${chatId}:`, error);
-        (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with direct scrape result: ${error.message || error}`);
-        const statusRequest = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
+    }
+    catch (error) {
+        const errObj = error;
+        console.error(`[Orchestrator: handleBackgroundDirectScrapeResult] Error handling direct scrape result for chat ${chatId}:`, errObj);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
+        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
         requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on direct scrape processing error:", e));
-    } finally {
-         isSendingMessage = false; // TODO: Remove later
+    }
+    finally {
+        isSendingMessage = false; // TODO: Remove later
     }
 }
-
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.QUERY_SUBMITTED, (e) => handleQuerySubmit(e.detail));
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => handleBackgroundMsgResponse(e.detail));
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => handleBackgroundMsgError(e.detail));
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
-
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.QUERY_SUBMITTED, (e) => handleQuerySubmit(e.detail));
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => handleBackgroundMsgResponse(e.detail));
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => handleBackgroundMsgError(e.detail));
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
 function initializeOrchestrator(dependencies) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    onSessionCreatedCallback = dependencies.onSessionCreatedCallback;
+    onSessionCreatedCallback = (sessionId) => {
+        console.log('[Orchestrator] onSessionCreatedCallback registered for sessionId:', sessionId);
+        dependencies.onSessionCreatedCallback(sessionId);
+    };
     getCurrentTabIdFunc = dependencies.getCurrentTabIdFunc;
-
     if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
         console.error("Orchestrator: Missing one or more dependencies during initialization!");
         return;
     }
-
     console.log("[Orchestrator] Initializing and subscribing to application events...");
     console.log("[Orchestrator] Event subscriptions complete.");
 }
 
+
 /***/ }),
 
-/***/ "./src/Home/uiController.js":
+/***/ "./src/Home/uiController.ts":
 /*!**********************************!*\
-  !*** ./src/Home/uiController.js ***!
+  !*** ./src/Home/uiController.ts ***!
   \**********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -3907,80 +7545,69 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   setActiveSession: () => (/* binding */ setActiveSession),
 /* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick)
 /* harmony export */ });
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _chatRenderer_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./chatRenderer.js */ "./src/Home/chatRenderer.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _chatRenderer__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./chatRenderer */ "./src/Home/chatRenderer.ts");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../notifications */ "./src/notifications.ts");
 
 
 
 
 
-let queryInput, sendButton, chatBody, attachButton, fileInput,  loadingIndicatorElement, 
-    historyButton, historyPopup, historyList, closeHistoryButton, newChatButton, historySearchInput, 
-    sessionListElement, driveButton, driveViewerModal, driveViewerClose, driveViewerBack, driveViewerContent, 
-    driveViewerList, driveViewerSearch, driveViewerBreadcrumbs, driveViewerSelectedArea, driveViewerCancel, 
-    driveViewerInsert, starredListElement, loadModelButton, modelLoadProgress;
+
+
+let queryInput, sendButton, chatBody, attachButton, fileInput, loadingIndicatorElement, newChatButton, loadModelButton, modelLoadProgress;
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
-
-
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     // Model ID (value) : Display Name
-  //  "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
-   // "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
+    //  "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
+    // "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
     //"HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
     //"HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
-   // "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
-   // "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
+    // "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
+    // "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
     //"microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
-   // "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
+    // "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
     //"Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
     //"google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
-
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
     // Add more models here as needed
 };
-
-document.addEventListener(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type, (e) => {
-    console.log('[UIController] Received DbStatusUpdatedNotification: ', e.detail);
-    handleStatusUpdate(e.detail);
-  });
-
+document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
+    const customEvent = e;
+    console.log('[UIController] Received DbStatusUpdatedNotification: ', customEvent.detail);
+    handleStatusUpdate(customEvent.detail);
+});
 // Add this at the top level to ensure UI progress bar updates
-webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
+webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
     const type = message?.type;
     console.log('[UIController] browser.runtime.onMessage Received progress update: ', message.type, message.payload);
-    if (message.type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type) {
+    if (message.type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DirectDBNames).includes(type)) {
+    if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(type)) {
         return false;
     }
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames).includes(type)) {
-        return false;
-    }
-    if (message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
-       
+    if (message.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
         handleLoadingProgress(message.payload);
     }
 });
-
-_Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_3__.dbChannel.onmessage = (event) => {
+_DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__.dbChannel.onmessage = (event) => {
     const message = event.data;
     const type = message?.type;
     console.log('[UIController] dbChannel.onmessage Received progress update: ', message.type, message.payload);
-    if (type === _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_4__.DbStatusUpdatedNotification.type) {
+    if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
     // Add other notification types as needed
 };
-
 function selectElements() {
     queryInput = document.getElementById('query-input');
     sendButton = document.getElementById('send-button');
@@ -3988,60 +7615,58 @@ function selectElements() {
     attachButton = document.getElementById('attach-button');
     fileInput = document.getElementById('file-input');
     loadingIndicatorElement = document.getElementById('loading-indicator');
+    modelLoadProgress = document.getElementById('model-load-progress');
     if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
         console.error("UIController: One or more essential elements not found (excluding session list)!");
         return false;
     }
     return true;
 }
-
 function attachListeners() {
     queryInput?.addEventListener('input', adjustTextareaHeight);
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
 }
-
 function removeListeners() {
     queryInput?.removeEventListener('input', adjustTextareaHeight);
     queryInput?.removeEventListener('keydown', handleEnterKey);
     sendButton?.removeEventListener('click', handleSendButtonClick);
     attachButton?.removeEventListener('click', handleAttachClick);
 }
-
 function handleEnterKey(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         const messageText = getInputValue();
         if (messageText && !queryInput.disabled) {
             console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
-            document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
             clearInput();
-        } else {
-             console.log("[UIController] Enter key pressed, but input is empty or disabled.");
+        }
+        else {
+            console.log("[UIController] Enter key pressed, but input is empty or disabled.");
         }
     }
 }
-
 function handleSendButtonClick() {
     const messageText = getInputValue();
     if (messageText && !queryInput.disabled) {
         console.log("[UIController] Send button clicked. Publishing ui:querySubmitted");
-        document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
         clearInput();
-    } else {
+    }
+    else {
         console.log("[UIController] Send button clicked, but input is empty or disabled.");
     }
 }
-
 function handleAttachClick() {
     if (attachFileCallback) {
         attachFileCallback();
     }
 }
-
 function adjustTextareaHeight() {
-    if (!queryInput) return;
+    if (!queryInput)
+        return;
     queryInput.style.height = 'auto';
     const maxHeight = 150;
     const scrollHeight = queryInput.scrollHeight;
@@ -4050,10 +7675,10 @@ function adjustTextareaHeight() {
         sendButton.disabled = queryInput.value.trim() === '' || queryInput.disabled;
     }
 }
-
 function setInputStateInternal(status) {
     console.log(`[UIController] setInputStateInternal called with status: ${status}`);
-    if (!isInitialized || !queryInput || !sendButton) return;
+    if (!isInitialized || !queryInput || !sendButton)
+        return;
     switch (status) {
         case 'processing':
             queryInput.disabled = true;
@@ -4069,51 +7694,46 @@ function setInputStateInternal(status) {
     }
     console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
 }
-
 function showLoadingIndicatorInternal(message = '', showSpinner = true) {
-    if (!isInitialized || !loadingIndicatorElement) return;
-
+    if (!isInitialized || !loadingIndicatorElement)
+        return;
     const textElement = loadingIndicatorElement.querySelector('span');
-    if (textElement) textElement.textContent = message;
-    
+    if (textElement)
+        textElement.textContent = message;
     const spinner = loadingIndicatorElement.querySelector('svg');
-    if (spinner) spinner.classList.toggle('hidden', !showSpinner);
-
+    if (spinner)
+        spinner.classList.toggle('hidden', !showSpinner);
     loadingIndicatorElement.classList.remove('hidden');
-
     if (message.startsWith('Downloading') || message.startsWith('Loading')) {
-        setLoadButtonState('loading', message); 
-    } 
+        setLoadButtonState('loading', message);
+    }
 }
-
 function hideLoadingIndicatorInternal() {
-    if (!isInitialized || !loadingIndicatorElement) return;
+    if (!isInitialized || !loadingIndicatorElement)
+        return;
     loadingIndicatorElement.classList.add('hidden');
 }
-
 function handleStatusUpdate(notification) {
-    if (!isInitialized || !notification || !notification.sessionId || !notification.payload) return;
+    if (!isInitialized || !notification || !notification.sessionId || !notification.payload)
+        return;
     if (notification.sessionId === currentSessionId) {
         setInputStateInternal(notification.payload.status || 'idle');
     }
 }
-
 function handleLoadingProgress(payload) {
-    if (!payload) return;
+    if (!payload)
+        return;
     const statusDiv = document.getElementById('model-load-status');
     const statusText = document.getElementById('model-load-status-text');
     const progressBar = document.getElementById('model-load-progress-bar');
     const progressInner = document.getElementById('model-load-progress-inner');
-
     if (!statusDiv || !statusText || !progressBar || !progressInner) {
         console.warn('[UIController] Model load progress bar not found.');
         return;
     }
-
     // Always show the status area while loading or on error
     statusDiv.style.display = 'block';
     progressBar.style.width = '100%';
-
     // Handle error
     if (payload.status === 'error' || payload.error) {
         statusText.textContent = payload.error || 'Error loading model';
@@ -4121,46 +7741,43 @@ function handleLoadingProgress(payload) {
         progressInner.style.width = '100%';
         return;
     }
-
     // Main progress bar (overall)
     let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
     progressInner.style.width = percent + '%';
     progressInner.style.background = '#4caf50'; // green
-
     // Status text
     let text = '';
     // Truncate file name for display
     function truncateFileName(name, maxLen = 32) {
-        if (!name) return '';
+        if (!name)
+            return '';
         return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
     }
     if (payload.summary && payload.message) {
         text = payload.message;
-    } else if (payload.status === 'progress' && payload.file) {
+    }
+    else if (payload.status === 'progress' && payload.file) {
         const shortFile = truncateFileName(payload.file);
         text = `Downloading ${shortFile}`;
         if (payload.chunkIndex && payload.totalChunks) {
             text += ` (chunk ${payload.chunkIndex} of ${payload.totalChunks})`;
         }
         text += `... ${Math.round(percent)}%`;
-    } else if (payload.status === 'done' && payload.file) {
+    }
+    else if (payload.status === 'done' && payload.file) {
         const shortFile = truncateFileName(payload.file);
         text = `${shortFile} downloaded. Preparing pipeline...`;
-    } else {
+    }
+    else {
         text = 'Loading...';
     }
     statusText.textContent = text;
-
     // Hide when done (but not on error)
     if ((percent >= 100 || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
     }
 }
-
-
-
-
 async function initializeUI(callbacks) {
     console.log("[UIController] Initializing...");
     if (isInitialized) {
@@ -4171,35 +7788,27 @@ async function initializeUI(callbacks) {
         return null;
     }
     attachFileCallback = callbacks?.onAttachFile;
-    
     attachListeners();
-    
-    const newChatButton = document.getElementById('new-chat-button');
+    newChatButton = document.getElementById('new-chat-button');
     if (newChatButton && callbacks?.onNewChat) {
         newChatButton.addEventListener('click', callbacks.onNewChat);
     }
-
     isInitialized = true;
     setInputStateInternal('idle');
     adjustTextareaHeight();
     console.log("[UIController] Initialized successfully.");
-
     console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
-
-    (0,_chatRenderer_js__WEBPACK_IMPORTED_MODULE_1__.clearTemporaryMessages)();
-
+    (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
     loadModelButton = document.getElementById('load-model-button');
     if (loadModelButton) {
         loadModelButton.addEventListener('click', handleLoadModelClick);
-    } else {
+    }
+    else {
         console.error("[UIController] Load Model button not found!");
     }
-
     disableInput("Model not loaded. Click 'Load'.");
     setLoadButtonState('idle');
-
     console.log("[UIController] Initializing UI elements...");
-
     // Populate model selector
     console.log("[UIController] Attempting to find model selector...");
     const modelSelector = document.getElementById('model-selector');
@@ -4214,31 +7823,26 @@ async function initializeUI(callbacks) {
             option.textContent = displayName;
             modelSelector.appendChild(option);
         }
-
-    } else {
+    }
+    else {
         console.warn("[UIController] Model selector dropdown not found.");
     }
-
     console.log("[UIController] UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
 }
-
 function setActiveSession(sessionId) {
     console.log(`[UIController] Setting active session for UI state: ${sessionId}`);
     currentSessionId = sessionId;
     if (!sessionId) {
-        setInputStateInternal('idle'); 
-    } 
+        setInputStateInternal('idle');
+    }
 }
-
 function checkInitialized() {
     return isInitialized;
 }
-
 function getInputValue() {
     return queryInput?.value.trim() || '';
 }
-
 function clearInput() {
     console.log("[UIController] Entering clearInput function.");
     if (queryInput) {
@@ -4246,37 +7850,31 @@ function clearInput() {
         adjustTextareaHeight();
     }
 }
-
 function focusInput() {
     queryInput?.focus();
 }
-
 function triggerFileInputClick() {
     fileInput?.click();
 }
-
 function handleLoadModelClick() {
-    if (!isInitialized) return;
+    if (!isInitialized)
+        return;
     console.log("[UIController] Load Model button clicked.");
-
     const modelSelector = document.getElementById('model-selector');
     const selectedModelId = modelSelector?.value;
-
     if (!selectedModelId) {
         console.error("[UIController] Cannot load: No model selected or selector not found.");
-        showNotification("Error: Please select a model.", "error");
+        (0,_notifications__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Error: Please select a model.", "error");
         return;
     }
-
     console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
-    setLoadButtonState('loading'); 
-    disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`); 
-    document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
+    setLoadButtonState('loading');
+    disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`);
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
 }
-
 function setLoadButtonState(state, text = 'Load') {
-    if (!isInitialized || !loadModelButton) return;
-
+    if (!isInitialized || !loadModelButton)
+        return;
     switch (state) {
         case 'idle':
             loadModelButton.disabled = false;
@@ -4288,12 +7886,12 @@ function setLoadButtonState(state, text = 'Load') {
             loadModelButton.disabled = true;
             loadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
             loadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
-             loadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
+            loadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
             break;
         case 'loaded':
             loadModelButton.disabled = true;
             loadModelButton.textContent = 'Loaded';
-            loadModelButton.classList.replace('bg-green-500', 'bg-gray-500'); 
+            loadModelButton.classList.replace('bg-green-500', 'bg-gray-500');
             loadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
             break;
         case 'error':
@@ -4305,32 +7903,33 @@ function setLoadButtonState(state, text = 'Load') {
             break;
     }
 }
-
 function disableInput(reason = "Processing...") {
-    if (!isInitialized || !queryInput || !sendButton) return;
+    if (!isInitialized || !queryInput || !sendButton)
+        return;
     queryInput.disabled = true;
     queryInput.placeholder = reason;
     sendButton.disabled = true;
 }
-
 function enableInput() {
-    if (!isInitialized || !queryInput || !sendButton) return;
-    queryInput.disabled = false; 
+    if (!isInitialized || !queryInput || !sendButton)
+        return;
+    queryInput.disabled = false;
     queryInput.placeholder = "Ask Tab Agent...";
     sendButton.disabled = queryInput.value.trim() === '';
 }
-
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_READY, (e) => {
-    const payload = e.detail;
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_READY, (e) => {
+    const customEvent = e;
+    const payload = customEvent.detail;
     console.log("[UIController] Received worker:ready signal", payload);
     // Hide progress bar area
     const statusDiv = document.getElementById('model-load-status');
-    if (statusDiv) statusDiv.style.display = 'none';
+    if (statusDiv)
+        statusDiv.style.display = 'none';
     setLoadButtonState('loaded');
 });
-
-document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_ERROR, (e) => {
-    const payload = e.detail;
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_ERROR, (e) => {
+    const customEvent = e;
+    const payload = customEvent.detail;
     console.error("[UIController] Received worker:error signal", payload);
     // Show error in progress bar area and keep it visible
     const statusDiv = document.getElementById('model-load-status');
@@ -4346,343 +7945,31 @@ document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIE
     disableInput("Model load failed. Check logs.");
 });
 
+
 /***/ }),
 
-/***/ "./src/Utilities/dbChannels.js":
+/***/ "./src/Utilities/dbChannels.ts":
 /*!*************************************!*\
-  !*** ./src/Utilities/dbChannels.js ***!
+  !*** ./src/Utilities/dbChannels.ts ***!
   \*************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   dbChannel: () => (/* binding */ dbChannel),
 /* harmony export */   llmChannel: () => (/* binding */ llmChannel),
 /* harmony export */   logChannel: () => (/* binding */ logChannel)
 /* harmony export */ });
-const dbChannel = new BroadcastChannel('tabagent-db');
 const llmChannel = new BroadcastChannel('tabagent-llm');
-const logChannel = new BroadcastChannel('tabagent-logs'); 
-
-/***/ }),
-
-/***/ "./src/Utilities/dbSchema.js":
-/*!***********************************!*\
-  !*** ./src/Utilities/dbSchema.js ***!
-  \***********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   ATTACHMENTS_TABLE_SQL: () => (/* binding */ ATTACHMENTS_TABLE_SQL),
-/* harmony export */   CHATS_TABLE_SQL: () => (/* binding */ CHATS_TABLE_SQL),
-/* harmony export */   CHAT_SUMMARIES_TABLE_SQL: () => (/* binding */ CHAT_SUMMARIES_TABLE_SQL),
-/* harmony export */   KNOWLEDGE_GRAPH_EDGES_TABLE_SQL: () => (/* binding */ KNOWLEDGE_GRAPH_EDGES_TABLE_SQL),
-/* harmony export */   KNOWLEDGE_GRAPH_NODES_TABLE_SQL: () => (/* binding */ KNOWLEDGE_GRAPH_NODES_TABLE_SQL),
-/* harmony export */   LOG_TABLE_SQL: () => (/* binding */ LOG_TABLE_SQL),
-/* harmony export */   MESSAGES_TABLE_SQL: () => (/* binding */ MESSAGES_TABLE_SQL),
-/* harmony export */   MODEL_ASSET_TABLE_SQL: () => (/* binding */ MODEL_ASSET_TABLE_SQL),
-/* harmony export */   USERS_TABLE_SQL: () => (/* binding */ USERS_TABLE_SQL)
-/* harmony export */ });
-const USERS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    email TEXT
-);
-`;
-
-const CHATS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS chats (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    tabId INTEGER,
-    timestamp INTEGER,
-    title TEXT,
-    isStarred INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'idle',
-    metadata TEXT,         -- JSON: {topic, domain, tags, ...}
-    summary TEXT,          -- High-level summary of the chat
-    embedding BLOB,        -- Vector for the whole chat
-    topic TEXT,            -- (optional, for fast lookup)
-    domain TEXT,           -- (optional)
-    FOREIGN KEY(user_id) REFERENCES users(id)
-);
-CREATE INDEX IF NOT EXISTS idx_chats_timestamp ON chats(timestamp);
-CREATE INDEX IF NOT EXISTS idx_chats_isStarred ON chats(isStarred);
-CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
-CREATE INDEX IF NOT EXISTS idx_chats_topic ON chats(topic);
-CREATE INDEX IF NOT EXISTS idx_chats_domain ON chats(domain);
-`;
-
-const LOG_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS logs (
-    id TEXT PRIMARY KEY,
-    timestamp INTEGER,
-    level TEXT CHECK(level IN ('error', 'warn', 'info', 'debug')),
-    message TEXT,
-    component TEXT,
-    extensionSessionId TEXT,
-    chatSessionId TEXT DEFAULT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
-CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
-CREATE INDEX IF NOT EXISTS idx_logs_component ON logs(component);
-CREATE INDEX IF NOT EXISTS idx_logs_extensionSessionId ON logs(extensionSessionId);
-CREATE INDEX IF NOT EXISTS idx_logs_chatSessionId ON logs(chatSessionId);
-`;
-
-const MODEL_ASSET_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS model_assets (
-    id TEXT PRIMARY KEY,
-    folder TEXT,
-    fileName TEXT,
-    fileType TEXT,
-    data BLOB,
-    size INTEGER,
-    addedAt INTEGER,
-    chunkIndex INTEGER DEFAULT 0,
-    totalChunks INTEGER DEFAULT 1,
-    chunkGroupId TEXT DEFAULT '',
-    binarySize INTEGER,
-    totalFileSize INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_model_assets_folder ON model_assets(folder);
-CREATE INDEX IF NOT EXISTS idx_model_assets_fileName ON model_assets(fileName);
-CREATE INDEX IF NOT EXISTS idx_model_assets_chunkGroupId ON model_assets(chunkGroupId);
-CREATE INDEX IF NOT EXISTS idx_model_assets_chunkGroupId_chunkIndex ON model_assets(chunkGroupId, chunkIndex);
-`;
-
-const MESSAGES_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    chat_id TEXT,
-    timestamp INTEGER,
-    sender TEXT,
-    type TEXT,         -- 'text', 'image', 'file', 'code', 'agent_action', etc.
-    content TEXT,      -- main content (text, JSON, or reference)
-    metadata TEXT,     -- JSON string for extra fields (language, tool args, etc.)
-    embedding BLOB,    -- vector embedding for semantic search (Float32Array, Uint8Array, etc.)
-    FOREIGN KEY(chat_id) REFERENCES chats(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
-CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
-CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type);
-`;
-
-const ATTACHMENTS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS attachments (
-    id TEXT PRIMARY KEY,
-    message_id TEXT,
-    file_name TEXT,
-    mime_type TEXT,
-    data BLOB,
-    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON attachments(message_id);
-`;
-
-const CHAT_SUMMARIES_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS chat_summaries (
-    id TEXT PRIMARY KEY,
-    chat_id TEXT NOT NULL,
-    parent_summary_id TEXT,      -- nullable, for summary-of-summary
-    start_message_id TEXT,       -- nullable if summarizing summaries
-    end_message_id TEXT,
-    start_timestamp INTEGER,
-    end_timestamp INTEGER,
-    summary TEXT NOT NULL,
-    embedding BLOB,              -- vector embedding
-    token_count INTEGER,
-    metadata TEXT,               -- JSON: {topic, tags, ...}
-    created_at INTEGER,
-    FOREIGN KEY(chat_id) REFERENCES chats(id),
-    FOREIGN KEY(parent_summary_id) REFERENCES chat_summaries(id)
-);
-CREATE INDEX IF NOT EXISTS idx_chat_summaries_chat_id ON chat_summaries(chat_id);
-CREATE INDEX IF NOT EXISTS idx_chat_summaries_parent ON chat_summaries(parent_summary_id);
-`;
-
-const KNOWLEDGE_GRAPH_EDGES_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
-    id TEXT PRIMARY KEY,
-    from_node_id TEXT NOT NULL,   -- can be chat, summary, topic, etc.
-    to_node_id TEXT NOT NULL,
-    edge_type TEXT,               -- e.g., 'summarizes', 'references', 'is_about'
-    metadata TEXT,                -- JSON for edge properties
-    created_at INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_kg_edges_from ON knowledge_graph_edges(from_node_id);
-CREATE INDEX IF NOT EXISTS idx_kg_edges_to ON knowledge_graph_edges(to_node_id);
-CREATE INDEX IF NOT EXISTS idx_kg_edges_type ON knowledge_graph_edges(edge_type);
-`;
-
-const KNOWLEDGE_GRAPH_NODES_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS knowledge_graph_nodes (
-    id TEXT PRIMARY KEY,
-    type TEXT,           -- e.g. 'entity', 'concept', 'document', etc.
-    label TEXT,          -- Human-readable label
-    properties TEXT,     -- JSON string for arbitrary node properties
-    embedding BLOB,      -- Optional: vector for semantic search
-    created_at INTEGER,
-    updated_at INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_kg_nodes_type ON knowledge_graph_nodes(type);
-CREATE INDEX IF NOT EXISTS idx_kg_nodes_label ON knowledge_graph_nodes(label);
-`; 
-
+const logChannel = new BroadcastChannel('tabagent-logs');
 
 
 /***/ }),
 
-/***/ "./src/Utilities/downloadUtils.js":
-/*!****************************************!*\
-  !*** ./src/Utilities/downloadUtils.js ***!
-  \****************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   initiateChatDownload: () => (/* binding */ initiateChatDownload)
-/* harmony export */ });
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _downloadFormatter_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../downloadFormatter.js */ "./src/downloadFormatter.js");
-
-
-
-/**
- * Fetches, formats, and initiates the download for a chat session.
- * @param {string} sessionId - The ID of the session to download.
- * @param {Function} requestDbAndWaitFunc - The function to make DB requests.
- * @param {Function} showNotificationFunc - The function to display notifications.
- */
-async function initiateChatDownload(sessionId, requestDbAndWaitFunc, showNotificationFunc) {
-    if (!sessionId || !requestDbAndWaitFunc || !showNotificationFunc) {
-        console.error("[initiateChatDownload] Failed: Missing sessionId, requestDbAndWaitFunc, or showNotificationFunc.");
-        if (showNotificationFunc) showNotificationFunc("Download failed due to internal error.", 'error');
-        return;
-    }
-
-    console.log(`[initiateChatDownload] Preparing download for: ${sessionId}`);
-    showNotificationFunc("Preparing download...", 'info');
-
-    try {
-        const sessionData = await requestDbAndWaitFunc(new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_0__.DbGetSessionRequest(sessionId));
-        if (!sessionData) {
-            throw new Error("Chat session data not found.");
-        }
-
-        const htmlContent = (0,_downloadFormatter_js__WEBPACK_IMPORTED_MODULE_1__.formatChatToHtml)(sessionData);
-        const safeTitle = (sessionData.title || sessionData.name || 'Chat_Session').replace(/[^a-z0-9_\-\.]/gi, '_').replace(/_{2,}/g, '_');
-        const filename = `${safeTitle}_${sessionId.substring(0, 8)}.html`;
-
-        (0,_downloadFormatter_js__WEBPACK_IMPORTED_MODULE_1__.downloadHtmlFile)(htmlContent, filename, (errorMessage) => {
-            showNotificationFunc(errorMessage, 'error');
-        });
-    } catch (error) {
-        console.error(`[initiateChatDownload] Error preparing download for ${sessionId}:`, error);
-        showNotificationFunc(`Failed to prepare download: ${error.message}`, 'error');
-    }
-} 
-
-/***/ }),
-
-/***/ "./src/Utilities/generalUtils.js":
-/*!***************************************!*\
-  !*** ./src/Utilities/generalUtils.js ***!
-  \***************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   URL_REGEX: () => (/* binding */ URL_REGEX),
-/* harmony export */   debounce: () => (/* binding */ debounce),
-/* harmony export */   getActiveTab: () => (/* binding */ getActiveTab),
-/* harmony export */   getActiveTabUrl: () => (/* binding */ getActiveTabUrl),
-/* harmony export */   showError: () => (/* binding */ showError)
-/* harmony export */ });
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-
-
-function showError(message) {
-    console.error("UI Error:", message);
-    const errorDiv = document.createElement('div');
-    errorDiv.style.position = 'fixed';
-    errorDiv.style.bottom = '10px';
-    errorDiv.style.left = '10px';
-    errorDiv.style.backgroundColor = 'red';
-    errorDiv.style.color = 'white';
-    errorDiv.style.padding = '10px';
-    errorDiv.style.borderRadius = '5px';
-    errorDiv.style.zIndex = '1000';
-    errorDiv.textContent = message;
-    document.body.appendChild(errorDiv);
-    setTimeout(() => errorDiv.remove(), 3000);
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-const URL_REGEX = /^(https?):\/\/[^\s/$.?#].[^\s]*$/i;
-
-function getActiveTab() {
-    if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default()) === 'undefined' || !(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs)) {
-         console.warn("Utils: Browser context or tabs API not available. Cannot get active tab.");
-         return Promise.resolve(null);
-    }
-    return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.query({ active: true, currentWindow: true })
-        .then(tabs => {
-            if (tabs && tabs.length > 0) {
-                return tabs[0];
-            } else {
-                return null;
-            }
-        })
-        .catch(error => {
-            console.error("Utils: Error querying active tab:", error.message);
-            return null;
-        });
-}
-
-function getActiveTabUrl() {
-    if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default()) === 'undefined' || !(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs)) {
-        console.warn("Utils: Browser context or tabs API not available.");
-        return Promise.resolve(null);
-    }
-    return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.query({ active: true, currentWindow: true })
-        .then(tabs => {
-            if (tabs && tabs.length > 0 && tabs[0].url) {
-                return tabs[0].url;
-            } else {
-                return null;
-            }
-        })
-        .catch(error => {
-            console.error("Utils: Error querying active tab URL:", error.message);
-            return Promise.reject(error);
-        });
-} 
-
-/***/ }),
-
-/***/ "./src/downloadFormatter.js":
-/*!**********************************!*\
-  !*** ./src/downloadFormatter.js ***!
-  \**********************************/
+/***/ "./src/Utilities/downloadFormatter.ts":
+/*!********************************************!*\
+  !*** ./src/Utilities/downloadFormatter.ts ***!
+  \********************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -4691,26 +7978,27 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   downloadHtmlFile: () => (/* binding */ downloadHtmlFile),
 /* harmony export */   formatChatToHtml: () => (/* binding */ formatChatToHtml)
 /* harmony export */ });
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__);
 
 
 /**
  * Formats a chat session object into a self-contained HTML string.
- * @param {object} sessionData - The chat session object from the database.
+ * @param sessionData - The chat session object from the database.
  * @returns {string} - The generated HTML string.
  */
 function formatChatToHtml(sessionData) {
-    if (!sessionData) return '';
-
+    if (!sessionData)
+        return '';
     const title = sessionData.title || 'Chat Session';
-    const messagesHtml = (sessionData.messages || []).map(msg => {
-        const senderClass = msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.USER ? 'user-message' : 'other-message';
-        const senderLabel = msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.USER ? 'You' : (msg.sender === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.AI ? 'Agent' : 'System');
+    const messagesHtml = (sessionData.messages || []).map((msg) => {
+        const senderClass = msg.sender === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.USER ? 'user-message' : 'other-message';
+        const senderLabel = msg.sender === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.USER ? 'You' : (msg.sender === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.MessageSenderTypes.AI ? 'Agent' : 'System');
         // Basic sanitization: escape HTML characters to prevent XSS if message text somehow contains HTML
         const escapedText = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
         // Convert newlines to <br> tags for display
         const formattedText = escapedText.replace(/\n/g, '<br>');
-
         return `
             <div class="message-row ${senderClass === 'user-message' ? 'row-user' : 'row-other'}">
                 <div class="message-bubble ${senderClass}">
@@ -4720,7 +8008,6 @@ function formatChatToHtml(sessionData) {
             </div>
         `;
     }).join('\n');
-
     // Basic CSS for styling the downloaded file
     const css = `
         body { font-family: sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #f8f9fa; color: #212529; }
@@ -4736,7 +8023,6 @@ function formatChatToHtml(sessionData) {
         .sender-label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9em; color: inherit; }
         .message-text { margin-top: 5px; }
     `;
-
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -4757,669 +8043,210 @@ function formatChatToHtml(sessionData) {
         </html>
     `;
 }
-
 /**
  * Initiates the download of the provided HTML content as a file.
  * Requires the "downloads" permission in manifest.json.
- * @param {string} htmlContent - The HTML string to download.
- * @param {string} filename - The suggested filename (e.g., "chat_session.html").
- * @param {(message: string) => void} [onError] - Optional callback function to handle errors.
+ * @param htmlContent - The HTML string to download.
+ * @param filename - The suggested filename (e.g., "chat_session.html").
+ * @param onError - Optional callback function to handle errors.
  */
-function downloadHtmlFile(htmlContent, filename, onError) {
+async function downloadHtmlFile(htmlContent, filename, onError) {
     try {
         const blob = new Blob([htmlContent], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
-
         console.log(`Initiating download for: ${filename} (prompting user)`);
-        chrome.downloads.download({
-            url: url,
-            filename: filename,
-            saveAs: true
-        }, (downloadId) => {
-            const lastError = chrome.runtime.lastError;
-            // Important: Always revoke the URL
+        try {
+            const downloadId = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().downloads.download({
+                url: url,
+                filename: filename,
+                saveAs: true
+            });
+            // Always revoke the URL
             setTimeout(() => URL.revokeObjectURL(url), 100);
-
-            if (lastError) {
-                const message = lastError.message;
-                console.error("Download API error:", message);
-                // Don't trigger error callback if the user simply cancelled the dialog
-                if (!message || !message.toLowerCase().includes('cancel')) {
-                    if (onError) {
-                        // Provide a user-friendly message
-                        onError(`Download failed: ${message || 'Unknown error'}`);
-                    } else {
-                        // Fallback if no callback provided (should not happen in our case)
-                        console.error("No error handler provided for download failure.");
-                        alert(`Download failed: ${message || 'Unknown error'}. Ensure extension has permissions.`);
-                    }
-                } else {
-                    console.log("Download cancelled by user.");
-                }
-            } else if (downloadId) {
-                // Successfully initiated (or dialog opened)
+            if (downloadId) {
                 console.log(`Download initiated (or dialog opened) with ID: ${downloadId}`);
-                // We could call an onSuccess callback here if needed
-            } else {
-                // This case might occur if the user cancels *before* an ID is assigned
+            }
+            else {
                 console.log("Download cancelled by user (no downloadId assigned).");
             }
-        });
-    } catch (error) {
+        }
+        catch (err) {
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+            const message = err?.message || String(err);
+            console.error("Download API error:", message);
+            if (!message || !message.toLowerCase().includes('cancel')) {
+                if (onError) {
+                    onError(`Download failed: ${message || 'Unknown error'}`);
+                }
+                else {
+                    console.error("No error handler provided for download failure.");
+                    alert(`Download failed: ${message || 'Unknown error'}. Ensure extension has permissions.`);
+                }
+            }
+            else {
+                console.log("Download cancelled by user.");
+            }
+        }
+    }
+    catch (error) {
         console.error("Error creating blob or initiating download:", error);
         if (onError) {
             onError("An error occurred while preparing the download.");
-        } else {
+        }
+        else {
             console.error("No error handler provided for download preparation error.");
             alert("An error occurred while preparing the download.");
         }
     }
-} 
+}
+
 
 /***/ }),
 
-/***/ "./src/events/dbEvents.js":
-/*!********************************!*\
-  !*** ./src/events/dbEvents.js ***!
-  \********************************/
+/***/ "./src/Utilities/downloadUtils.ts":
+/*!****************************************!*\
+  !*** ./src/Utilities/downloadUtils.ts ***!
+  \****************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   DbAddLogRequest: () => (/* binding */ DbAddLogRequest),
-/* harmony export */   DbAddMessageRequest: () => (/* binding */ DbAddMessageRequest),
-/* harmony export */   DbAddMessageResponse: () => (/* binding */ DbAddMessageResponse),
-/* harmony export */   DbAddModelAssetRequest: () => (/* binding */ DbAddModelAssetRequest),
-/* harmony export */   DbAddModelAssetResponse: () => (/* binding */ DbAddModelAssetResponse),
-/* harmony export */   DbClearLogsRequest: () => (/* binding */ DbClearLogsRequest),
-/* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
-/* harmony export */   DbCountModelAssetChunksRequest: () => (/* binding */ DbCountModelAssetChunksRequest),
-/* harmony export */   DbCountModelAssetChunksResponse: () => (/* binding */ DbCountModelAssetChunksResponse),
-/* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
-/* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
-/* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
-/* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
-/* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
-/* harmony export */   DbDeleteSessionResponse: () => (/* binding */ DbDeleteSessionResponse),
-/* harmony export */   DbEnsureInitializedRequest: () => (/* binding */ DbEnsureInitializedRequest),
-/* harmony export */   DbEnsureInitializedResponse: () => (/* binding */ DbEnsureInitializedResponse),
-/* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
-/* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
-/* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
-/* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
-/* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
-/* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
-/* harmony export */   DbGetLogsResponse: () => (/* binding */ DbGetLogsResponse),
-/* harmony export */   DbGetModelAssetChunkRequest: () => (/* binding */ DbGetModelAssetChunkRequest),
-/* harmony export */   DbGetModelAssetChunkResponse: () => (/* binding */ DbGetModelAssetChunkResponse),
-/* harmony export */   DbGetModelAssetChunksRequest: () => (/* binding */ DbGetModelAssetChunksRequest),
-/* harmony export */   DbGetModelAssetChunksResponse: () => (/* binding */ DbGetModelAssetChunksResponse),
-/* harmony export */   DbGetReadyStateRequest: () => (/* binding */ DbGetReadyStateRequest),
-/* harmony export */   DbGetReadyStateResponse: () => (/* binding */ DbGetReadyStateResponse),
-/* harmony export */   DbGetSessionRequest: () => (/* binding */ DbGetSessionRequest),
-/* harmony export */   DbGetSessionResponse: () => (/* binding */ DbGetSessionResponse),
-/* harmony export */   DbGetStarredSessionsRequest: () => (/* binding */ DbGetStarredSessionsRequest),
-/* harmony export */   DbGetStarredSessionsResponse: () => (/* binding */ DbGetStarredSessionsResponse),
-/* harmony export */   DbGetUniqueLogValuesRequest: () => (/* binding */ DbGetUniqueLogValuesRequest),
-/* harmony export */   DbGetUniqueLogValuesResponse: () => (/* binding */ DbGetUniqueLogValuesResponse),
-/* harmony export */   DbInitializationCompleteNotification: () => (/* binding */ DbInitializationCompleteNotification),
-/* harmony export */   DbInitializeRequest: () => (/* binding */ DbInitializeRequest),
-/* harmony export */   DbListModelFilesRequest: () => (/* binding */ DbListModelFilesRequest),
-/* harmony export */   DbListModelFilesResponse: () => (/* binding */ DbListModelFilesResponse),
-/* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
-/* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
-/* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
-/* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
-/* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
-/* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
-/* harmony export */   DbResetDatabaseResponse: () => (/* binding */ DbResetDatabaseResponse),
-/* harmony export */   DbResponseBase: () => (/* binding */ DbResponseBase),
-/* harmony export */   DbSessionUpdatedNotification: () => (/* binding */ DbSessionUpdatedNotification),
-/* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
-/* harmony export */   DbToggleStarRequest: () => (/* binding */ DbToggleStarRequest),
-/* harmony export */   DbToggleStarResponse: () => (/* binding */ DbToggleStarResponse),
-/* harmony export */   DbUpdateMessageRequest: () => (/* binding */ DbUpdateMessageRequest),
-/* harmony export */   DbUpdateMessageResponse: () => (/* binding */ DbUpdateMessageResponse),
-/* harmony export */   DbUpdateStatusRequest: () => (/* binding */ DbUpdateStatusRequest),
-/* harmony export */   DbUpdateStatusResponse: () => (/* binding */ DbUpdateStatusResponse)
+/* harmony export */   initiateChatDownload: () => (/* binding */ initiateChatDownload)
 /* harmony export */ });
-/* harmony import */ var _eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _downloadFormatter__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./downloadFormatter */ "./src/Utilities/downloadFormatter.ts");
 
 
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-
-class DbEventBase {
-  constructor(requestId = null) {
-    this.requestId = requestId || generateUUID();
-    this.timestamp = Date.now();
-  }
-}
-
-class DbResponseBase extends DbEventBase {
-  constructor(originalRequestId, success, data = null, error = null) {
-    super(originalRequestId);
-    this.success = success;
-    this.data = data;
-    this.error = error ? (error.message || String(error)) : null;
-  }
-}
-
-class DbNotificationBase {
-    constructor(sessionId) {
-        this.sessionId = sessionId;
-        this.timestamp = Date.now();
+/**
+ * Fetches, formats, and initiates the download for a chat session.
+ * @param {string} sessionId - The ID of the session to download.
+ * @param {Function} requestDbAndWaitFunc - The function to make DB requests.
+ * @param {Function} showNotificationFunc - The function to display notifications.
+ */
+async function initiateChatDownload(sessionId, requestDbAndWaitFunc, showNotificationFunc) {
+    if (!sessionId || !requestDbAndWaitFunc || !showNotificationFunc) {
+        console.error("[initiateChatDownload] Failed: Missing sessionId, requestDbAndWaitFunc, or showNotificationFunc.");
+        if (showNotificationFunc)
+            showNotificationFunc("Download failed due to internal error.", 'error');
+        return;
+    }
+    console.log(`[initiateChatDownload] Preparing download for: ${sessionId}`);
+    showNotificationFunc("Preparing download...", 'info');
+    try {
+        const sessionData = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbGetSessionRequest(sessionId));
+        if (!sessionData) {
+            throw new Error("Chat session data not found.");
+        }
+        const htmlContent = (0,_downloadFormatter__WEBPACK_IMPORTED_MODULE_1__.formatChatToHtml)(sessionData);
+        const safeTitle = (sessionData.title || sessionData.name || 'Chat_Session').replace(/[^a-z0-9_\-\.]/gi, '_').replace(/_{2,}/g, '_');
+        const filename = `${safeTitle}_${sessionId.substring(0, 8)}.html`;
+        (0,_downloadFormatter__WEBPACK_IMPORTED_MODULE_1__.downloadHtmlFile)(htmlContent, filename, (errorMessage) => {
+            showNotificationFunc(errorMessage, 'error');
+        });
+    }
+    catch (error) {
+        console.error(`[initiateChatDownload] Error preparing download for ${sessionId}:`, error);
+        let message = 'Unknown error';
+        if (error instanceof Error)
+            message = error.message;
+        showNotificationFunc(`Failed to prepare download: ${message}`, 'error');
     }
 }
 
-
-
-class DbGetSessionResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
-  constructor(originalRequestId, success, sessionData, error = null) {
-    super(originalRequestId, success, sessionData, error);
-    this.type = DbGetSessionResponse.type;
-  }
-}
-
-class DbAddMessageResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
-  constructor(originalRequestId, success, newMessageId, error = null) {
-    super(originalRequestId, success, { newMessageId }, error);
-    this.type = DbAddMessageResponse.type;
-  }
-}
-
-class DbUpdateMessageResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
-    constructor(originalRequestId, success, error = null) {
-        super(originalRequestId, success, null, error);
-        this.type = DbUpdateMessageResponse.type;
-    }
-}
-
-class DbUpdateStatusResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
-  constructor(originalRequestId, success, error = null) {
-    super(originalRequestId, success, null, error);
-    this.type = DbUpdateStatusResponse.type;
-  }
-}
-
-class DbDeleteMessageResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
-    constructor(originalRequestId, success, error = null) {
-        super(originalRequestId, success, null, error);
-        this.type = DbDeleteMessageResponse.type;
-    }
-}
-
-class DbToggleStarResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
-    constructor(originalRequestId, success, updatedSessionData, error = null) {
-        super(originalRequestId, success, updatedSessionData, error);
-        this.type = DbToggleStarResponse.type;
-    }
-}
-
-class DbCreateSessionResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
-    constructor(originalRequestId, success, newSessionId, error = null) {
-        super(originalRequestId, success, { newSessionId }, error);
-        this.type = DbCreateSessionResponse.type;
-        console.log(`[dbEvents] DbCreateSessionResponse constructor: type set to ${this.type}`);
-    }
-
-    get newSessionId() {
-        return this.data?.newSessionId;
-    }
-}
-
-class DbDeleteSessionResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
-    constructor(originalRequestId, success, error = null) {
-        super(originalRequestId, success, null, error);
-        this.type = DbDeleteSessionResponse.type;
-    }
-}
-
-class DbRenameSessionResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
-    constructor(originalRequestId, success, error = null) {
-        super(originalRequestId, success, null, error);
-        this.type = DbRenameSessionResponse.type;
-    }
-}
-
-class DbGetAllSessionsResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
-    constructor(requestId, success, sessions = null, error = null) {
-        super(requestId, success, sessions, error);
-        this.type = DbGetAllSessionsResponse.type;
-        this.payload = { sessions };
-    }
-}
-
-class DbGetStarredSessionsResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
-    constructor(requestId, success, starredSessions = null, error = null) {
-        super(requestId, success, starredSessions, error); 
-        this.type = DbGetStarredSessionsResponse.type;
-    }
-}
-
-class DbGetReadyStateResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
-    constructor(originalRequestId, success, ready, error = null) {
-        super(originalRequestId, success, { ready }, error);
-        this.type = DbGetReadyStateResponse.type;
-        this.payload = { ready };
-    }
-}
-
-// --- Request Events (Define After Response Events) ---
-
-class DbGetSessionRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_SESSION_RESPONSE;
-  constructor(sessionId) {
-    super();
-    this.type = DbGetSessionRequest.type;
-    this.payload = { sessionId };
-  }
-}
-
-class DbAddMessageRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MESSAGE_RESPONSE;
-  constructor(sessionId, messageObject) {
-    super();
-    this.type = DbAddMessageRequest.type;
-    this.payload = { sessionId, messageObject };
-  }
-}
-
-class DbUpdateMessageRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
-    constructor(sessionId, messageId, updates) {
-        super();
-        this.type = DbUpdateMessageRequest.type;
-        this.payload = { sessionId, messageId, updates };
-    }
-}
-
-class DbUpdateStatusRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_UPDATE_STATUS_RESPONSE;
-  constructor(sessionId, status) {
-    super();
-    this.type = DbUpdateStatusRequest.type;
-    this.payload = { sessionId, status };
-  }
-}
-
-class DbDeleteMessageRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
-    constructor(sessionId, messageId) {
-        super();
-        this.type = DbDeleteMessageRequest.type;
-        this.payload = { sessionId, messageId };
-    }
-}
-
-class DbToggleStarRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_TOGGLE_STAR_RESPONSE;
-    constructor(sessionId) {
-        super();
-        this.type = DbToggleStarRequest.type;
-        this.payload = { sessionId };
-    }
-}
-
-class DbCreateSessionRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CREATE_SESSION_RESPONSE;
-    constructor(initialMessage) {
-        super();
-        this.type = DbCreateSessionRequest.type;
-        this.payload = { initialMessage };
-        console.log(`[dbEvents] DbCreateSessionRequest constructor: type set to ${this.type}`);
-    }
-}
-
-class DbInitializeRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZE_REQUEST;
-    constructor() {
-        super();
-        this.type = DbInitializeRequest.type;
-        this.payload = {}; 
-    }
-}
-
-class DbDeleteSessionRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_DELETE_SESSION_RESPONSE;
-    constructor(sessionId) {
-        super();
-        this.type = DbDeleteSessionRequest.type;
-        this.payload = { sessionId };
-    }
-}
-
-class DbRenameSessionRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RENAME_SESSION_RESPONSE;
-    constructor(sessionId, newName) {
-        super();
-        this.type = DbRenameSessionRequest.type;
-        this.payload = { sessionId, newName };
-    }
-}
-
-class DbGetAllSessionsRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
-    constructor() {
-        super();
-        this.type = DbGetAllSessionsRequest.type;
-        console.log('[DEBUG][Create] DbGetAllSessionsRequest:', this, this.type);
-    }
-}
-
-class DbGetStarredSessionsRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
-    constructor() {
-        super();
-        this.type = DbGetStarredSessionsRequest.type;
-    }
-}
-
-class DbGetReadyStateRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_READY_STATE_RESPONSE;
-    constructor() {
-        super();
-        this.type = DbGetReadyStateRequest.type;
-    }
-}
-
-// --- Notification Events ---
-
-class DbMessagesUpdatedNotification extends DbNotificationBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
-    constructor(sessionId, messages) {
-        super(sessionId);
-        this.type = DbMessagesUpdatedNotification.type;
-        this.payload = { messages }; 
-    }
-}
-
-class DbStatusUpdatedNotification extends DbNotificationBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
-    constructor(sessionId, status) {
-        super(sessionId);
-        this.type = DbStatusUpdatedNotification.type;
-        this.payload = { status };
-    }
-}
-
-class DbSessionUpdatedNotification extends DbNotificationBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
-    constructor(sessionId, updatedSessionData) {
-        super(sessionId);
-        this.type = DbSessionUpdatedNotification.type;
-        this.payload = { session: updatedSessionData }; 
-    }
-}
-
-class DbInitializationCompleteNotification {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
-    constructor({ success, error = null }) {
-        this.type = DbInitializationCompleteNotification.type;
-        this.timestamp = Date.now();
-        this.payload = { success, error: error ? (error.message || String(error)) : null };
-    }
-}
-
-// --- Log Response Events ---
-
-class DbGetLogsResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
-  constructor(originalRequestId, success, logs, error = null) {
-    super(originalRequestId, success, logs, error); // data = logs array
-    this.type = DbGetLogsResponse.type;
-  }
-}
-
-class DbGetUniqueLogValuesResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
-  constructor(originalRequestId, success, values, error = null) {
-    super(originalRequestId, success, values, error); // data = values array
-    this.type = DbGetUniqueLogValuesResponse.type;
-  }
-}
-
-class DbClearLogsResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
-  constructor(originalRequestId, success, error = null) {
-    super(originalRequestId, success, null, error);
-    this.type = DbClearLogsResponse.type;
-  }
-}
-
-class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
-    constructor(originalRequestId, success, ids, error = null) {
-      // data = { currentLogSessionId: '...', previousLogSessionId: '...' | null }
-      super(originalRequestId, success, ids, error);
-      this.type = DbGetCurrentAndLastLogSessionIdsResponse.type;
-    }
-  }
-
-class DbAddLogRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_LOG_REQUEST;
-  // No responseEventName needed for fire-and-forget
-  constructor(logEntryData) {
-    super(); 
-    this.type = DbAddLogRequest.type;
-    this.payload = { logEntryData };
-  }
-}
-
-class DbGetLogsRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_LOGS_RESPONSE;
-  constructor(filters) {
-    // filters = { extensionSessionId: 'id' | 'current' | 'last' | 'all',
-    //             component: 'name' | 'all',
-    //             level: 'level' | 'all' }
-    super();
-    this.type = DbGetLogsRequest.type;
-    this.payload = { filters };
-  }
-}
-
-class DbGetUniqueLogValuesRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
-  constructor(fieldName) {
-    // fieldName = 'extensionSessionId', 'component', 'level'
-    super();
-    this.type = DbGetUniqueLogValuesRequest.type;
-    this.payload = { fieldName };
-  }
-}
-
-class DbClearLogsRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_CLEAR_LOGS_RESPONSE;
-    constructor(filter = 'all') { // 'all' or potentially 'last_session' or specific session ID later
-        super();
-        this.type = DbClearLogsRequest.type;
-        this.payload = { filter };
-    }
-}
-
-class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
-    static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
-    static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
-    constructor() {
-        super();
-        this.type = DbGetCurrentAndLastLogSessionIdsRequest.type;
-    }
-}
-
-class DbResetDatabaseRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RESET_DATABASE_REQUEST;
-  constructor() {
-    super();
-    this.type = DbResetDatabaseRequest.type;
-  }
-}
-
-class DbResetDatabaseResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_RESET_DATABASE_RESPONSE;
-  constructor(originalRequestId, success, error = null) {
-    super(originalRequestId, success, null, error);
-    this.type = DbResetDatabaseResponse.type;
-  }
-}
-
-// --- Model Asset DB Operations ---
-
-class DbAddModelAssetRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MODEL_ASSET_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
-  constructor(payload) {
-    super();
-    this.type = DbAddModelAssetRequest.type;
-    this.payload = payload;
-  }
-}
-class DbAddModelAssetResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
-  constructor(originalRequestId, success, result, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbAddModelAssetResponse.type;
-  }
-}
-
-class DbCountModelAssetChunksRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
-  constructor(payload) {
-    super();
-    this.type = DbCountModelAssetChunksRequest.type;
-    this.payload = payload;
-  }
-}
-class DbCountModelAssetChunksResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
-  constructor(originalRequestId, success, result, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbCountModelAssetChunksResponse.type;
-  }
-}
-
-class DbLogAllChunkGroupIdsForModelRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
-  constructor(payload) {
-    super();
-    this.type = DbLogAllChunkGroupIdsForModelRequest.type;
-    this.payload = payload;
-  }
-}
-class DbLogAllChunkGroupIdsForModelResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
-  constructor(originalRequestId, success, result, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbLogAllChunkGroupIdsForModelResponse.type;
-  }
-}
-
-class DbListModelFilesRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LIST_MODEL_FILES_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
-  constructor(payload) {
-    super();
-    this.type = DbListModelFilesRequest.type;
-    this.payload = payload;
-  }
-}
-class DbListModelFilesResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
-  constructor(originalRequestId, success, result, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbListModelFilesResponse.type;
-  }
-}
-
-class DbGetModelAssetChunksRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
-  constructor(payload) {
-    super();
-    this.type = DbGetModelAssetChunksRequest.type;
-    this.payload = payload;
-  }
-}
-class DbGetModelAssetChunksResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
-  constructor(originalRequestId, success, result, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbGetModelAssetChunksResponse.type;
-  }
-}
-
-class DbGetModelAssetChunkRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNK_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
-  constructor(payload) {
-    super();
-    this.type = DbGetModelAssetChunkRequest.type;
-    this.payload = payload;
-  }
-}
-class DbGetModelAssetChunkResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
-  constructor(originalRequestId, success, result, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbGetModelAssetChunkResponse.type;
-  }
-}
-
-class DbEnsureInitializedRequest extends DbEventBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ENSURE_INITIALIZED_REQUEST;
-  static responseEventName = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
-  constructor() {
-    super();
-    this.type = DbEnsureInitializedRequest.type;
-  }
-}
-class DbEnsureInitializedResponse extends DbResponseBase {
-  static type = _eventNames_js__WEBPACK_IMPORTED_MODULE_0__.DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
-  constructor(originalRequestId, success, result = null, error = null) {
-    super(originalRequestId, success, result, error);
-    this.type = DbEnsureInitializedResponse.type;
-  }
-} 
 
 /***/ }),
 
-/***/ "./src/events/eventNames.js":
+/***/ "./src/Utilities/generalUtils.ts":
+/*!***************************************!*\
+  !*** ./src/Utilities/generalUtils.ts ***!
+  \***************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   URL_REGEX: () => (/* binding */ URL_REGEX),
+/* harmony export */   debounce: () => (/* binding */ debounce),
+/* harmony export */   getActiveTab: () => (/* binding */ getActiveTab),
+/* harmony export */   getActiveTabUrl: () => (/* binding */ getActiveTabUrl),
+/* harmony export */   showError: () => (/* binding */ showError)
+/* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+
+function showError(message) {
+    console.error("UI Error:", message);
+    const errorDiv = document.createElement('div');
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.bottom = '10px';
+    errorDiv.style.left = '10px';
+    errorDiv.style.backgroundColor = 'red';
+    errorDiv.style.color = 'white';
+    errorDiv.style.padding = '10px';
+    errorDiv.style.borderRadius = '5px';
+    errorDiv.style.zIndex = '1000';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 3000);
+}
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+const URL_REGEX = /^(https?):\/\/[^\s/$.?#].[^\s]*$/i;
+function getActiveTab() {
+    if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default()) === 'undefined' || !(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs)) {
+        console.warn("Utils: Browser context or tabs API not available. Cannot get active tab.");
+        return Promise.resolve(null);
+    }
+    return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.query({ active: true, currentWindow: true })
+        .then((tabs) => {
+        if (tabs && tabs.length > 0) {
+            return tabs[0];
+        }
+        else {
+            return null;
+        }
+    })
+        .catch((error) => {
+        console.error("Utils: Error querying active tab:", error.message);
+        return null;
+    });
+}
+function getActiveTabUrl() {
+    if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default()) === 'undefined' || !(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs)) {
+        console.warn("Utils: Browser context or tabs API not available.");
+        return Promise.resolve(null);
+    }
+    return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.query({ active: true, currentWindow: true })
+        .then((tabs) => {
+        if (tabs && tabs.length > 0 && tabs[0].url) {
+            return tabs[0].url;
+        }
+        else {
+            return null;
+        }
+    })
+        .catch((error) => {
+        console.error("Utils: Error querying active tab URL:", error.message);
+        return Promise.reject(error);
+    });
+}
+
+
+/***/ }),
+
+/***/ "./src/events/eventNames.ts":
 /*!**********************************!*\
-  !*** ./src/events/eventNames.js ***!
+  !*** ./src/events/eventNames.ts ***!
   \**********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -5427,9 +8254,6 @@ class DbEnsureInitializedResponse extends DbResponseBase {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
-/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
-/* harmony export */   DBPaths: () => (/* binding */ DBPaths),
-/* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
 /* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
@@ -5442,1356 +8266,121 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
-const DirectDBNames = Object.freeze({
-  ADD_MODEL_ASSET: 'AddModelAsset',
-  REQUEST_MODEL_ASSET_CHUNK: 'RequestModelAssetChunk',
-  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
-});
-
-const DBEventNames = Object.freeze({
-  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
-  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
-  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
-  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
-  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
-  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
-  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
-  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
-  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
-  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
-  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
-  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
-  DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
-  DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
-  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
-  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
-  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
-  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
-  DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
-  DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
-  DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
-  DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
-  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
-  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
-  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
-  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
-  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
-  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
-  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
-  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
-  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
-  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
-  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
-  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
-  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
-  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
-  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
-  DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
-  DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
-  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
-  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
-
-  // Model Asset DB Operations
-  DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest',
-  DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
-  DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
-  DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
-  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
-  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
-  DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest',
-  DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
-  DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest',
-  DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
-  DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest',
-  DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
-  DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
-  DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
-  DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest',
-  DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
-  DB_WORKER_ERROR: 'DbWorkerError',
-  DB_WORKER_RESET: 'DbWorkerReset',
-});
-
 const UIEventNames = Object.freeze({
-  QUERY_SUBMITTED: 'querySubmitted',
-  BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
-  BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
-  BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
-  BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
-  BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
-  REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
-  WORKER_READY: 'worker:ready',
-  WORKER_ERROR: 'worker:error',
-  NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
-  SCRAPE_PAGE: 'SCRAPE_PAGE',
-  SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
-  DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-  MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
-  // Add more as needed
+    QUERY_SUBMITTED: 'querySubmitted',
+    BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
+    BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
+    BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
+    BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
+    BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
+    REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
+    WORKER_READY: 'worker:ready',
+    WORKER_ERROR: 'worker:error',
+    NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+    SCRAPE_PAGE: 'SCRAPE_PAGE',
+    SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
+    DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+    MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
+    // Add more as needed
 });
-
 const WorkerEventNames = Object.freeze({
-  WORKER_SCRIPT_READY: 'workerScriptReady',
-  WORKER_READY: 'workerReady',
-  LOADING_STATUS: 'loadingStatus',
-  GENERATION_STATUS: 'generationStatus',
-  GENERATION_UPDATE: 'generationUpdate',
-  GENERATION_COMPLETE: 'generationComplete',
-  GENERATION_ERROR: 'generationError',
-  RESET_COMPLETE: 'resetComplete',
-  ERROR: 'error',
-
+    WORKER_SCRIPT_READY: 'workerScriptReady',
+    WORKER_READY: 'workerReady',
+    LOADING_STATUS: 'loadingStatus',
+    GENERATION_STATUS: 'generationStatus',
+    GENERATION_UPDATE: 'generationUpdate',
+    GENERATION_COMPLETE: 'generationComplete',
+    GENERATION_ERROR: 'generationError',
+    RESET_COMPLETE: 'resetComplete',
+    ERROR: 'error',
 });
-
 const ModelWorkerStates = Object.freeze({
-  UNINITIALIZED: 'uninitialized',
-  CREATING_WORKER: 'creating_worker',
-  WORKER_SCRIPT_READY: 'worker_script_ready',
-  LOADING_MODEL: 'loading_model',
-  MODEL_READY: 'model_ready',
-  GENERATING: 'generating',
-  ERROR: 'error',
-  IDLE: 'idle',
+    UNINITIALIZED: 'uninitialized',
+    CREATING_WORKER: 'creating_worker',
+    WORKER_SCRIPT_READY: 'worker_script_ready',
+    LOADING_MODEL: 'loading_model',
+    MODEL_READY: 'model_ready',
+    GENERATING: 'generating',
+    ERROR: 'error',
+    IDLE: 'idle',
 });
-
 const RuntimeMessageTypes = Object.freeze({
-  LOAD_MODEL: 'loadModel',
-  SEND_CHAT_MESSAGE: 'sendChatMessage',
-  INTERRUPT_GENERATION: 'interruptGeneration',
-  RESET_WORKER: 'resetWorker',
-  GET_MODEL_WORKER_STATE: 'getModelWorkerState',
-  SCRAPE_REQUEST: 'scrapeRequest',
-  GET_DRIVE_FILE_LIST: 'getDriveFileList',
-  GET_LOG_SESSIONS: 'getLogSessions',
-  GET_LOG_ENTRIES: 'getLogEntries',
-  DETACH_SIDE_PANEL: 'detachSidePanel',
-  GET_DETACHED_STATE: 'getDetachedState',
-  GET_DB_READY_STATE: 'getDbReadyState',
+    LOAD_MODEL: 'loadModel',
+    SEND_CHAT_MESSAGE: 'sendChatMessage',
+    INTERRUPT_GENERATION: 'interruptGeneration',
+    RESET_WORKER: 'resetWorker',
+    GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+    SCRAPE_REQUEST: 'scrapeRequest',
+    GET_DRIVE_FILE_LIST: 'getDriveFileList',
+    GET_LOG_SESSIONS: 'getLogSessions',
+    GET_LOG_ENTRIES: 'getLogEntries',
+    DETACH_SIDE_PANEL: 'detachSidePanel',
+    GET_DETACHED_STATE: 'getDetachedState',
+    GET_DB_READY_STATE: 'getDbReadyState',
 });
-
 const SiteMapperMessageTypes = Object.freeze({
-  OPEN_TAB: 'openTab',
-  MAPPED: 'mapped',
+    OPEN_TAB: 'openTab',
+    MAPPED: 'mapped',
 });
-
 const ModelLoaderMessageTypes = Object.freeze({
-  INIT: 'init',
-  GENERATE: 'Generate',
-  INTERRUPT: 'Interrupt',
-  RESET: 'Reset',
-  DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
-  LIST_MODEL_FILES: 'ListModelFiles',
-  LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
+    INIT: 'init',
+    GENERATE: 'Generate',
+    INTERRUPT: 'Interrupt',
+    RESET: 'Reset',
+    DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
+    LIST_MODEL_FILES: 'ListModelFiles',
+    LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
 });
-
 const InternalEventBusMessageTypes = Object.freeze({
-  BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
+    BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
 });
-
 const RawDirectMessageTypes = Object.freeze({
-  WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
-  WORKER_GENERIC_ERROR: 'WorkerGenericError',
-  WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
-  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
-  WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
+    WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
+    WORKER_GENERIC_ERROR: 'WorkerGenericError',
+    WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
+    WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
+    WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
-
 const Contexts = Object.freeze({
-  BACKGROUND: 'Background',
-  MAIN_UI: 'MainUI',
-  POPUP: 'Popup',
-  OTHERS: 'Others',
-  UNKNOWN: 'Unknown',
+    BACKGROUND: 'Background',
+    MAIN_UI: 'MainUI',
+    POPUP: 'Popup',
+    OTHERS: 'Others',
+    UNKNOWN: 'Unknown',
 });
-
 const MessageSenderTypes = Object.freeze({
-  USER: 'user',
-  SYSTEM: 'system',
-  AI: 'ai',
-  AGENT: 'agent',
-  // Add more as needed
+    USER: 'user',
+    SYSTEM: 'system',
+    AI: 'ai',
+    AGENT: 'agent',
+    // Add more as needed
 });
-
 const MessageContentTypes = Object.freeze({
-  TEXT: 'text',
-  IMAGE: 'image',
-  FILE: 'file',
-  CODE: 'code',
-  AGENT_ACTION: 'agent_action',
-  // Add more as needed
+    TEXT: 'text',
+    IMAGE: 'image',
+    FILE: 'file',
+    CODE: 'code',
+    AGENT_ACTION: 'agent_action',
+    // Add more as needed
 });
-
-const DBPaths = Object.freeze({
-  CHAT: '/sql/chat.db',
-  LOGS: '/sql/logs.db',
-  MODELS: '/sql/models.db',
-  KNOWLEDGE: '/sql/knowledge.db',
-});
-
 const TableNames = Object.freeze({
-  CHATS: 'chats',
-  MESSAGES: 'messages',
-  CHAT_SUMMARIES: 'chat_summaries',
-  ATTACHMENTS: 'attachments',
-  USERS: 'users',
-  LOGS: 'logs',
-  MODEL_ASSETS: 'model_assets',
-  KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
-  KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
+    CHATS: 'chats',
+    MESSAGES: 'messages',
+    CHAT_SUMMARIES: 'chat_summaries',
+    ATTACHMENTS: 'attachments',
+    USERS: 'users',
+    LOGS: 'logs',
+    MODEL_ASSETS: 'model_assets',
+    KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
+    KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
 });
-
 
 
 /***/ }),
 
-/***/ "./src/minimaldb.js":
-/*!**************************!*\
-  !*** ./src/minimaldb.js ***!
-  \**************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   autoEnsureDbInitialized: () => (/* binding */ autoEnsureDbInitialized),
-/* harmony export */   forwardDbRequest: () => (/* binding */ forwardDbRequest),
-/* harmony export */   resetDatabase: () => (/* binding */ resetDatabase)
-/* harmony export */ });
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
-/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Utilities/dbSchema.js */ "./src/Utilities/dbSchema.js");
-/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
-// --- Imports ---
-
-
-
-
-
-
-// --- Constants ---
-const DB_INIT_TIMEOUT = 15000;
-const POLL_INTERVAL = 100;
-const LOG_THROTTLE_MS = 2000;
-
-// --- State ---
-let SQL = null;
-let absurdSqlBackendInitialized = false;
-let chatDB = null;
-let logDB = null;
-let modelDB = null;
-let isDbInitialized = false;
-let isLogDbInitialized = false;
-let isModelDbInitialized = false;
-let isDbReadyFlag = false;
-let currentExtensionSessionId = null;
-let previousExtensionSessionId = null;
-let dbReadyResolve;
-let dbReadyPromise = new Promise((resolve) => {
-  dbReadyResolve = resolve;
-});
-let dbInitPromise = null;
-let isDbInitInProgress = false;
-let dbWorker = null;
-let dbWorkerReady = false;
-let dbWorkerRequestId = 0;
-let dbWorkerCallbacks = {};
-
-// --- Error Handling ---
-class AppError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
-    this.code = code;
-    this.details = details;
-  }
-}
-
-async function withTimeout(promise, ms, errorMessage = `Operation timed out after ${ms}ms`) {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new AppError('TIMEOUT', errorMessage)), ms)
-  );
-  return Promise.race([promise, timeout]);
-}
-
-// --- Worker Management ---
-function getDbWorker() {
-  if (!dbWorker) {
-    const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL('js/absurd-sql-backends/sql-worker.js');
-    dbWorker = new Worker(workerUrl, { type: 'module' });
-    dbWorker.onmessage = (event) => {
-      const { requestId, type, result, error, stack } = event.data;
-      if (requestId && dbWorkerCallbacks[requestId]) {
-        if (error) {
-          let errObj = error;
-          if (typeof error === 'string') {
-            errObj = new Error(error);
-            if (stack) errObj.stack = stack;
-          } else if (error instanceof Object && !(error instanceof Error)) {
-            errObj = new Error(error.message || 'Worker error object');
-            Object.assign(errObj, error);
-            if (stack) errObj.stack = stack;
-          }
-          dbWorkerCallbacks[requestId].reject(errObj);
-        } else {
-          dbWorkerCallbacks[requestId].resolve(result);
-        }
-        delete dbWorkerCallbacks[requestId];
-      } else if (type === 'debug') {
-        // console.log(`[DB Worker Debug] ${event.data.message}`);
-      } else if (type === 'fatal') {
-        console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
-        Object.values(dbWorkerCallbacks).forEach((cb) =>
-          cb.reject(new Error('DB Worker encountered a fatal error'))
-        );
-        dbWorkerCallbacks = {};
-      } else if (type === 'ready') {
-        dbWorkerReady = true;
-        console.log('[DB] SQL Worker signaled script ready.');
-      }
-    };
-    dbWorker.onerror = (errEvent) => {
-      console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
-      Object.values(dbWorkerCallbacks).forEach((cb) =>
-        cb.reject(new Error(`DB Worker crashed: ${errEvent.message || 'Unknown worker error'}`))
-      );
-      dbWorkerCallbacks = {};
-      dbWorker = null;
-      dbWorkerReady = false;
-      absurdSqlBackendInitialized = false;
-    };
-  }
-  return dbWorker;
-}
-
-async function sendDbWorkerRequest(type, payload) {
-  console.log(`[Trace][minimaldb] sendDbWorkerRequest: Called with type=${type}, payload=`, payload);
-  const worker = getDbWorker();
-  if (!dbWorkerReady) {
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Worker 'ready' signal timeout")), 10000);
-      const check = () => {
-        if (dbWorkerReady) {
-          clearTimeout(timeout);
-          resolve();
-        } else {
-          setTimeout(check, 50);
-        }
-      };
-      check();
-    });
-  }
-  console.log('[Trace][minimaldb] sendDbWorkerRequest: Posting to worker', { type, payload });
-  return new Promise((resolve, reject) => {
-    const requestId = (++dbWorkerRequestId).toString();
-    dbWorkerCallbacks[requestId] = { resolve, reject };
-    worker.postMessage({ requestId, type, payload });
-  });
-}
-
-// --- Database Initialization ---
-async function initializeDatabasesAndBackend(isReset = false) {
-  console.log(`[DB] initializeDatabasesAndBackend called (isReset: ${isReset})`);
-  getDbWorker();
-  const wasmUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL('wasm/sql-wasm-debug.wasm');
-  const dbFilesToCreate = [
-    {
-      path: '/sql/chat.db',
-      schema:
-        _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.CHATS_TABLE_SQL +
-        '\n' +
-        _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MESSAGES_TABLE_SQL +
-        '\n' +
-        _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.CHAT_SUMMARIES_TABLE_SQL,
-    },
-    { path: '/sql/logs.db', schema: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.LOG_TABLE_SQL },
-    { path: '/sql/models.db', schema: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MODEL_ASSET_TABLE_SQL },
-    {
-      path: '/sql/knowledge.db',
-      schema: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.KNOWLEDGE_GRAPH_EDGES_TABLE_SQL + '\n' + _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.KNOWLEDGE_GRAPH_NODES_TABLE_SQL,
-    },
-  ];
-  const dbFilesAndTables = [
-    { path: '/sql/chat.db', tables: ['chats', 'messages', 'chat_summaries'] },
-    { path: '/sql/logs.db', tables: ['logs'] },
-    { path: '/sql/models.db', tables: ['model_assets'] },
-    { path: '/sql/knowledge.db', tables: ['knowledge_graph_edges', 'knowledge_graph_nodes'] },
-  ];
-  const payload = {
-    wasmUrl,
-    schema: {
-      CHATS_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.CHATS_TABLE_SQL,
-      LOG_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.LOG_TABLE_SQL,
-      MODEL_ASSET_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MODEL_ASSET_TABLE_SQL,
-      MESSAGES_TABLE_SQL: _Utilities_dbSchema_js__WEBPACK_IMPORTED_MODULE_3__.MESSAGES_TABLE_SQL,
-    },
-    dbFilesToCreate,
-    dbFilesAndTables,
-  };
-  console.log('[DB] Sending worker init/reset with payload:', payload);
-  await sendDbWorkerRequest(
-    isReset ? _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_WORKER_RESET : _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_INIT_WORKER_REQUEST,
-    payload
-  );
-  absurdSqlBackendInitialized = true;
-  isDbInitialized = true;
-  isLogDbInitialized = true;
-  isModelDbInitialized = true;
-  isDbReadyFlag = true;
-  if (dbReadyResolve) dbReadyResolve(true);
-  dbReadyPromise = Promise.resolve(true);
-}
-
-async function handleInitializeRequest(isAutoEnsureCall = false) {
-  console.log('[DB] handleInitializeRequest ENTRY', {
-    isDbReadyFlag,
-    isDbInitialized,
-    isLogDbInitialized,
-    isModelDbInitialized,
-    absurdSqlBackendInitialized,
-    SQL_exists: !!SQL,
-  });
-  if (
-    SQL &&
-    absurdSqlBackendInitialized &&
-    isDbInitialized &&
-    isLogDbInitialized &&
-    isModelDbInitialized &&
-    isDbReadyFlag &&
-    !isAutoEnsureCall
-  ) {
-    return { success: true };
-  }
-  try {
-    const ids = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
-    currentExtensionSessionId = ids.currentLogSessionId || null;
-    previousExtensionSessionId = ids.previousLogSessionId || null;
-    if (!currentExtensionSessionId) {
-      const msg = 'CRITICAL: currentLogSessionId not found in storage during DB init!';
-      console.error('[DB] Database:Initialize]', msg);
-      if (dbReadyResolve) dbReadyResolve(false);
-      dbReadyPromise = new Promise((resolve) => {
-        dbReadyResolve = resolve;
-      });
-      return { success: false, error: msg };
-    }
-  } catch (storageError) {
-    console.error('[DB] Failed to retrieve log session IDs from storage', {
-      error: storageError,
-      stack: storageError?.stack,
-    });
-    if (dbReadyResolve) dbReadyResolve(false);
-    dbReadyPromise = new Promise((resolve) => {
-      dbReadyResolve = resolve;
-    });
-    return { success: false, error: storageError.message || String(storageError) };
-  }
-  try {
-    await initializeDatabasesAndBackend(false);
-    console.log('[DB] Databases initialization complete.');
-    return { success: true };
-  } catch (error) {
-    console.error('[DB] CAUGHT ERROR during initializeDatabasesAndBackend:', error, error?.stack);
-    const appError =
-      error instanceof AppError
-        ? error
-        : new AppError('INIT_FAILED', 'Database initialization failed', {
-            originalError: error.message,
-          });
-    isDbInitialized = false;
-    isLogDbInitialized = false;
-    isModelDbInitialized = false;
-    isDbReadyFlag = false;
-    absurdSqlBackendInitialized = false;
-    if (dbReadyResolve) dbReadyResolve(false);
-    dbReadyPromise = new Promise((resolve) => {
-      dbReadyResolve = resolve;
-    });
-    return { success: false, error: appError.message || String(appError) };
-  }
-}
-
-async function autoEnsureDbInitialized() {
-  if (isDbReadyFlag && absurdSqlBackendInitialized) {
-    return { success: true };
-  }
-  if (isDbInitInProgress) {
-    return dbInitPromise;
-  }
-  isDbInitInProgress = true;
-  dbInitPromise = (async () => {
-    try {
-      const response = await handleInitializeRequest(true);
-      if (response?.success) {
-        return { success: true };
-      }
-      return { success: false, error: response?.error || 'Database failed to initialize (autoEnsure)' };
-    } catch (err) {
-      console.error('[DB] autoEnsureDbInitialized -> Initialization failed:', err);
-      isDbInitInProgress = false;
-      return { success: false, error: err.message || String(err) };
-    } finally {
-      isDbInitInProgress = false;
-    }
-  })();
-  return dbInitPromise;
-}
-
-async function ensureDbReady(type = 'chat') {
-  const dbInstanceGetter =
-    {
-      chat: () => chatDB,
-      log: () => logDB,
-      model: () => modelDB,
-      modelAssets: () => modelDB,
-    }[type] || (() => { throw new AppError('INVALID_INPUT', `Unknown DB type requested: ${type}`); });
-  const isInitializedFlagGetter =
-    {
-      chat: () => isDbInitialized,
-      log: () => isLogDbInitialized,
-      model: () => isModelDbInitialized,
-      modelAssets: () => isModelDbInitialized,
-    }[type] || (() => false);
-  if (!isDbInitInProgress && !(isDbReadyFlag && absurdSqlBackendInitialized)) {
-    try {
-      await autoEnsureDbInitialized();
-    } catch (initError) {
-      throttledLog(
-        'error',
-        `[DB][ensureDbReady] autoEnsureDbInitialized failed for DB type '${type}'`,
-        null,
-        initError
-      );
-      throw new AppError('DB_INIT_FAILED', `DB auto-init failed for type '${type}': ${initError.message}`);
-    }
-  } else if (isDbInitInProgress) {
-    await dbInitPromise;
-  }
-  const start = Date.now();
-  let waitingLogged = false;
-  while (Date.now() - start < DB_INIT_TIMEOUT) {
-    const dbInstance = dbInstanceGetter();
-    const isInitializedFlag = isInitializedFlagGetter();
-    if (dbInstance && isInitializedFlag && absurdSqlBackendInitialized && isDbReadyFlag) {
-      return dbInstance;
-    }
-    if (!waitingLogged && Date.now() - start > 300) {
-      throttledLog(
-        'log',
-        `[DB][ensureDbReady] Waiting for DB type '${type}'`,
-        null,
-        `(absurdSqlBackendInitialized: ${absurdSqlBackendInitialized}, isDbReadyFlag: ${isDbReadyFlag}, specific init: ${isInitializedFlag})... elapsed: ${Date.now() - start}ms`
-      );
-      waitingLogged = true;
-    }
-    await new Promise((res) => setTimeout(res, POLL_INTERVAL));
-  }
-  const dbInstance = dbInstanceGetter();
-  const isInitializedFlag = isInitializedFlagGetter();
-  if (!dbInstance || !isInitializedFlag || !absurdSqlBackendInitialized || !isDbReadyFlag) {
-    throttledLog(
-      'error',
-      `[DB][ensureDbReady] DB for type '${type}' not initialized after ${DB_INIT_TIMEOUT}ms`,
-      null,
-      `DB: ${!!dbInstance}, InitFlag: ${isInitializedFlag}, AbsurdReady: ${absurdSqlBackendInitialized}, GlobalReady: ${isDbReadyFlag}`
-    );
-    throw new AppError('DB_NOT_READY', `DB for type '${type}' not initialized after ${DB_INIT_TIMEOUT}ms`);
-  }
-  return dbInstance;
-}
-
-// --- Internal DB Operations ---
-async function createChatSessionInternal(initialMessage) {
-  if (!initialMessage?.text) {
-    return { success: false, error: 'Initial message with text is required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionRequest.type, { initialMessage });
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to create session' };
-  }
-  await publishSessionUpdate(result.data.id, 'create', result.data);
-  await publishMessagesUpdate(result.data.id, result.data.messages);
-  await publishStatusUpdate(result.data.id, result.data.status);
-  return { success: true, data: result.data };
-}
-
-async function getChatSessionByIdInternal(sessionId) {
-  if (!sessionId) {
-    return { success: false, error: 'Session ID is required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest.type, { sessionId });
-  if (!result?.success) {
-    return { success: false, error: result?.error || `Session ${sessionId} not found` };
-  }
-  return { success: true, data: result.data };
-}
-
-async function addMessageToChatInternal(chatId, messageObject) {
-  if (!chatId || !messageObject?.text) {
-    return { success: false, error: 'Chat ID and message with text are required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type, { chatId, messageObject });
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to add message' };
-  }
-  await publishSessionUpdate(chatId, 'update', result.data.updatedDoc);
-  await publishMessagesUpdate(chatId, result.data.updatedDoc.messages);
-  return { success: true, data: result.data };
-}
-
-async function updateMessageInChatInternal(chatId, messageId, updates) {
-  if (!chatId || !messageId || !updates || (!updates.text && typeof updates.isLoading === 'undefined')) {
-    return {
-      success: false,
-      error: 'Chat ID, message ID, and updates (with text or isLoading) are required',
-    };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageRequest.type, {
-    chatId,
-    messageId,
-    updates,
-  });
-  console.log('[minimaldb] updateMessageInChatInternal result:', result);
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to update message' };
-  }
-  await publishSessionUpdate(chatId, 'update', result.data);
-  await publishMessagesUpdate(chatId, result.data.messages);
-  return { success: true, data: result.data };
-}
-
-async function deleteMessageFromChatInternal(sessionId, messageId) {
-  if (!sessionId || !messageId) {
-    return { success: false, error: 'Session ID and message ID are required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageRequest.type, { sessionId, messageId });
-  if (!result?.success) {
-    return {
-      success: false,
-      error: result?.error || `Failed to delete message ${messageId} from session ${sessionId}`,
-    };
-  }
-  await publishSessionUpdate(sessionId, 'update', result.data.updatedDoc);
-  await publishMessagesUpdate(sessionId, result.data.updatedDoc.messages);
-  return { success: true, data: result.data };
-}
-
-async function updateSessionStatusInternal(sessionId, newStatus) {
-  const validStatuses = ['idle', 'processing', 'complete', 'error'];
-  if (!sessionId || !validStatuses.includes(newStatus)) {
-    return { success: false, error: `Invalid session ID or status: ${newStatus}` };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusRequest.type, { sessionId, status: newStatus });
-  if (!result?.success) {
-    return { success: false, error: result?.error || `Failed to update session status to ${newStatus}` };
-  }
-  await publishSessionUpdate(sessionId, 'update', result.data);
-  await publishStatusUpdate(sessionId, newStatus);
-  return { success: true, data: result.data };
-}
-
-async function toggleItemStarredInternal(itemId) {
-  if (!itemId) {
-    return { success: false, error: 'Item ID is required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest.type, { sessionId: itemId });
-  if (!result?.success) {
-    return { success: false, error: result?.error || `Failed to toggle starred status for item ${itemId}` };
-  }
-  await publishSessionUpdate(itemId, 'update', result.data);
-  return { success: true, data: result.data };
-}
-
-async function deleteHistoryItemInternal(itemId) {
-  if (!itemId) {
-    return { success: false, error: 'Item ID is required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest.type, { sessionId: itemId });
-  if (!result?.success) {
-    return { success: false, error: result?.error || `Failed to delete item ${itemId}` };
-  }
-  await publishSessionUpdate(itemId, 'delete');
-  return { success: true, data: result.data };
-}
-
-async function renameHistoryItemInternal(itemId, newTitle) {
-  if (!itemId || !newTitle) {
-    return { success: false, error: 'Item ID and new title are required' };
-  }
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest.type, {
-    sessionId: itemId,
-    newName: newTitle,
-  });
-  if (!result?.success) {
-    return { success: false, error: result?.error || `Failed to rename item ${itemId} to ${newTitle}` };
-  }
-  await publishSessionUpdate(itemId, 'rename', result.data);
-  return { success: true, data: result.data };
-}
-
-async function getAllSessionsInternal() {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest.type);
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to retrieve all sessions' };
-  }
-  return { success: true, data: result.data };
-}
-
-async function getStarredSessionsInternal() {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsRequest.type);
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to retrieve starred sessions' };
-  }
-  return { success: true, data: result.data };
-}
-
-async function getLogsInternal(filters) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsRequest.type, { filters });
-  if (!result?.success) return [];
-  return result.data;
-}
-
-async function getUniqueLogValuesInternal(fieldName) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesRequest.type, { fieldName });
-  if (!result?.success) return [];
-  return result.data;
-}
-
-async function clearLogsInternal(sessionIdsToDelete) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsRequest.type, { sessionIdsToDelete });
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to clear logs', data: { deletedCount: 0 } };
-  }
-  return result;
-}
-
-async function getAllUniqueLogSessionIdsInternal() {
-  try {
-    const db = await ensureDbReady('log');
-    const rows = await queryAll(db, `SELECT DISTINCT extensionSessionId FROM logs WHERE extensionSessionId IS NOT NULL`);
-    const uniqueIds = new Set(rows.map((r) => r.extensionSessionId));
-    return { success: true, data: uniqueIds };
-  } catch (error) {
-    return { success: false, error: error.message || String(error) };
-  }
-}
-
-// --- Request Handlers ---
-async function handleRequest(
-  event,
-  internalHandler,
-  ResponseClass,
-  timeout = 5000,
-  successDataExtractor = (result) => result.data,
-  errorDetailsExtractor = () => ({})
-) {
-  const requestId = event?.requestId || crypto.randomUUID();
-  try {
-    await autoEnsureDbInitialized();
-    const result = await withTimeout(internalHandler(event.payload), timeout);
-    console.log('[Trace][minimaldb] handleRequest: result', result);
-    if (!result.success) {
-      throw new AppError('INTERNAL_OPERATION_FAILED', result.error || 'Unknown internal error', errorDetailsExtractor(result));
-    }
-    const responseData = successDataExtractor(result);
-    return new ResponseClass(requestId, true, responseData);
-  } catch (error) {
-    const appError =
-      error instanceof AppError
-        ? error
-        : new AppError('UNKNOWN_HANDLER_ERROR', error.message || 'Failed in request handler', {
-            originalError: error,
-            ...errorDetailsExtractor(error),
-          });
-    return new ResponseClass(requestId, false, null, appError);
-  }
-}
-
-const dbHandlerMap = {
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetReadyStateRequest.type]: handleDbGetReadyStateRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionRequest.type]: handleDbCreateSessionRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest.type]: handleDbGetSessionRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type]: handleDbAddMessageRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageRequest.type]: handleDbUpdateMessageRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageRequest.type]: handleDbDeleteMessageRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusRequest.type]: handleDbUpdateStatusRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest.type]: handleDbToggleStarRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest.type]: handleDbGetAllSessionsRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsRequest.type]: handleDbGetStarredSessionsRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionRequest.type]: handleDbDeleteSessionRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest.type]: handleDbRenameSessionRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddLogRequest.type]: handleDbAddLogRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsRequest.type]: handleDbGetLogsRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesRequest.type]: handleDbGetUniqueLogValuesRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsRequest.type]: handleDbClearLogsRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsRequest.type]: handleDbGetCurrentAndLastLogSessionIdsRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbResetDatabaseRequest.type]: handleDbResetDatabaseRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetRequest.type]: handleDbAddModelAssetRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksRequest.type]: handleDbCountModelAssetChunksRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelRequest.type]: handleDbLogAllChunkGroupIdsForModelRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesRequest.type]: handleDbListModelFilesRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksRequest.type]: handleDbGetModelAssetChunksRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkRequest.type]: handleDbGetModelAssetChunkRequest,
-  [_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedRequest.type]: async (event) => {
-    try {
-      await autoEnsureDbInitialized();
-      return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedResponse(event.requestId, true);
-    } catch (e) {
-      return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbEnsureInitializedResponse(event.requestId, false, null, e);
-    }
-  },
-};
-
-async function handleDbGetReadyStateRequest(event) {
-  const requestId = event?.requestId || crypto.randomUUID();
-  return { success: true, data: { ready: isDbReadyFlag && absurdSqlBackendInitialized } };
-}
-
-async function handleDbCreateSessionRequest(event) {
-  console.log('[Trace][minimaldb] handleDbCreateSessionRequest: called with', event);
-  if (!event?.payload?.initialMessage?.text) {
-    throw new AppError('INVALID_INPUT', 'Missing initialMessage or message text');
-  }
-  return handleRequest(
-    event,
-    (payload) => createChatSessionInternal(payload.initialMessage),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCreateSessionResponse,
-    5000,
-    (res) => res.data.id
-  );
-}
-
-async function handleDbGetSessionRequest(event) {
-  if (!event?.payload?.sessionId) {
-    throw new AppError('INVALID_INPUT', 'Session ID is required');
-  }
-  return handleRequest(
-    event,
-    (payload) => getChatSessionByIdInternal(payload.sessionId),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionResponse,
-    5000,
-    (res) => (res.data ? res.data : null)
-  );
-}
-
-async function handleDbAddMessageRequest(event) {
-  if (!event?.payload?.sessionId || !event?.payload?.messageObject?.text) {
-    throw new AppError('INVALID_INPUT', 'Session ID and message with text are required');
-  }
-  return handleRequest(
-    event,
-    (payload) => addMessageToChatInternal(payload.sessionId, payload.messageObject),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageResponse,
-    5000,
-    (res) => res.data.newMessageId
-  );
-}
-
-async function handleDbUpdateMessageRequest(event) {
-  console.log('[minimaldb] handleDbUpdateMessageRequest called with event:', event);
-  if (
-    !event?.payload?.sessionId ||
-    !event?.payload?.messageId ||
-    !event?.payload?.updates ||
-    (!event.payload.updates.text && typeof event.payload.updates.isLoading === 'undefined')
-  ) {
-    throw new AppError(
-      'INVALID_INPUT',
-      'Session ID, message ID, and updates (with text or isLoading) are required'
-    );
-  }
-  return handleRequest(
-    event,
-    (payload) => updateMessageInChatInternal(payload.sessionId, payload.messageId, payload.updates),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateMessageResponse,
-    5000,
-    () => true
-  );
-}
-
-async function handleDbDeleteMessageRequest(event) {
-  if (!event?.payload?.sessionId || !event?.payload?.messageId) {
-    throw new AppError('INVALID_INPUT', 'Session ID and message ID are required');
-  }
-  return handleRequest(
-    event,
-    (payload) => deleteMessageFromChatInternal(payload.sessionId, payload.messageId),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteMessageResponse,
-    5000,
-    () => true
-  );
-}
-
-async function handleDbUpdateStatusRequest(event) {
-  if (!event?.payload?.sessionId || !event?.payload?.status) {
-    throw new AppError('INVALID_INPUT', 'Session ID and status are required');
-  }
-  const wrappedHandler = async (payload) => {
-    try {
-      return await updateSessionStatusInternal(payload.sessionId, payload.status);
-    } catch (e) {
-      await publishStatusUpdate(payload.sessionId, 'error');
-      throw e;
-    }
-  };
-  return handleRequest(event, wrappedHandler, _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbUpdateStatusResponse, 5000, () => true);
-}
-
-async function handleDbToggleStarRequest(event) {
-  if (!event?.payload?.sessionId) {
-    throw new AppError('INVALID_INPUT', 'Session ID is required');
-  }
-  return handleRequest(
-    event,
-    (payload) => toggleItemStarredInternal(payload.sessionId),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarResponse,
-    5000,
-    (res) => res.data
-  );
-}
-
-async function handleDbGetAllSessionsRequest(event) {
-  console.log('[Trace][minimaldb] handleDbGetAllSessionsRequest: called with', event);
-  return handleRequest(
-    event,
-    getAllSessionsInternal,
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsResponse,
-    5000,
-    (res) => (res.data || []).sort((a, b) => b.timestamp - a.timestamp)
-  );
-}
-
-async function handleDbGetStarredSessionsRequest(event) {
-  return handleRequest(
-    event,
-    getStarredSessionsInternal,
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetStarredSessionsResponse,
-    5000,
-    (res) =>
-      (res.data || [])
-        .map((s) => ({ sessionId: s.id, name: s.title, lastUpdated: s.timestamp, isStarred: s.isStarred }))
-        .sort((a, b) => b.lastUpdatedpls - a.lastUpdated)
-  );
-}
-
-async function handleDbDeleteSessionRequest(event) {
-  if (!event?.payload?.sessionId) {
-    throw new AppError('INVALID_INPUT', 'Session ID is required');
-  }
-  return handleRequest(
-    event,
-    (payload) => deleteHistoryItemInternal(payload.sessionId),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbDeleteSessionResponse,
-    5000,
-    () => true
-  );
-}
-
-async function handleDbRenameSessionRequest(event) {
-  if (!event?.payload?.sessionId || !event?.payload?.newName) {
-    throw new AppError('INVALID_INPUT', 'Session ID and new name are required');
-  }
-  return handleRequest(
-    event,
-    (payload) => renameHistoryItemInternal(payload.sessionId, payload.newName),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionResponse,
-    5000,
-    () => true
-  );
-}
-
-async function handleDbAddLogRequest(event) {
-  const requestId = event?.requestId || crypto.randomUUID();
-  try {
-    await autoEnsureDbInitialized();
-    if (!event?.payload?.logEntryData) {
-      throw new AppError('INVALID_INPUT', 'Missing logEntryData in payload');
-    }
-    const db = await ensureDbReady('log');
-    const entry = event.payload.logEntryData;
-    await runQuery(
-      db,
-      `INSERT INTO logs (id, timestamp, level, message, component, extensionSessionId, chatSessionId)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        entry.id,
-        entry.timestamp,
-        entry.level,
-        entry.message,
-        entry.component,
-        entry.extensionSessionId,
-        entry.chatSessionId || null,
-      ]
-    );
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message || String(error) };
-  }
-}
-
-async function handleDbGetLogsRequest(event) {
-  if (!event?.payload?.filters) {
-    throw new AppError('INVALID_INPUT', 'Missing filters in payload');
-  }
-  return handleRequest(event, (payload) => getLogsInternal(payload.filters), _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetLogsResponse);
-}
-
-async function handleDbGetUniqueLogValuesRequest(event) {
-  if (!event?.payload?.fieldName) {
-    throw new AppError('INVALID_INPUT', 'Missing fieldName in payload');
-  }
-  return handleRequest(
-    event,
-    (payload) => getUniqueLogValuesInternal(payload.fieldName),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetUniqueLogValuesResponse
-  );
-}
-
-async function handleDbClearLogsRequest(event) {
-  const requestId = event?.requestId || crypto.randomUUID();
-  try {
-    await autoEnsureDbInitialized();
-    const allLogSessionIdsResult = await getAllUniqueLogSessionIdsInternal();
-    if (!allLogSessionIdsResult.success) {
-      throw new AppError(
-        'FETCH_FAILED',
-        allLogSessionIdsResult.error || 'Failed to get unique log session IDs for clearing.'
-      );
-    }
-    const allLogSessionIds = allLogSessionIdsResult.data;
-    const sessionsToKeep = new Set();
-    if (currentExtensionSessionId) sessionsToKeep.add(currentExtensionSessionId);
-    if (previousExtensionSessionId) sessionsToKeep.add(previousExtensionSessionId);
-    const sessionIdsToDelete = Array.from(allLogSessionIds).filter((id) => !sessionsToKeep.has(id));
-    let deletedCount = 0;
-    if (sessionIdsToDelete.length > 0) {
-      const clearResult = await clearLogsInternal(sessionIdsToDelete);
-      if (clearResult.success) deletedCount = clearResult.data.deletedCount;
-      else throw new AppError('DELETE_FAILED', clearResult.error || 'Failed to delete old logs.');
-    }
-    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse(requestId, true, { deletedCount });
-  } catch (error) {
-    const appError =
-      error instanceof AppError
-        ? error
-        : new AppError('UNKNOWN', 'Failed to clear logs', { originalError: error });
-    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbClearLogsResponse(requestId, false, null, appError);
-  }
-}
-
-async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
-  const requestId = event?.requestId || crypto.randomUUID();
-  try {
-    await autoEnsureDbInitialized();
-    const ids = { currentLogSessionId: currentExtensionSessionId, previousLogSessionId: previousExtensionSessionId };
-    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, true, ids);
-  } catch (error) {
-    const appError = new AppError('UNKNOWN', 'Failed to get current/last log session IDs', {
-      originalError: error,
-    });
-    return new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetCurrentAndLastLogSessionIdsResponse(requestId, false, null, appError);
-  }
-}
-
-async function handleDbResetDatabaseRequest(event) {
-  return await sendDbWorkerRequest(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_WORKER_RESET);
-}
-
-// --- Notification Utilities ---
-function smartNotify(notification) {
-  const payloadKeys = notification && notification.payload ? Object.keys(notification.payload) : [];
-  const sessionId = notification.sessionId || (notification.payload && notification.payload.session && notification.payload.session.id) || 'N/A';
-  let deliveryPath = '';
-  if (typeof window === 'undefined') {
-    deliveryPath = 'background (browser.runtime.sendMessage)';
-    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
-    webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(notification);
-  } else if (window.EXTENSION_CONTEXT === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.Contexts.MAIN_UI) {
-    deliveryPath = 'same-context (document.dispatchEvent)';
-    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
-    document.dispatchEvent(new CustomEvent(notification.type, { detail: notification }));
-    deliveryPath = 'cross-context (dbChannel.postMessage)';
-    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
-    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__.dbChannel.postMessage(notification);
-  } else {
-    deliveryPath = 'cross-context (dbChannel.postMessage)';
-    console.log(`[minimaldb] smartNotify: type=${notification.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}], path=${deliveryPath}`);
-    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_4__.dbChannel.postMessage(notification);
-  }
-}
-
-async function publishSessionUpdate(sessionId, updateType = 'update', sessionDataOverride = null) {
-  try {
-    let sessionData = sessionDataOverride;
-    if (!sessionData) {
-      const result = await getChatSessionByIdInternal(sessionId);
-      if (result.success && result.data) {
-        sessionData = result.data;
-      } else if (updateType === 'delete') {
-        sessionData = { id: sessionId };
-      } else {
-        return;
-      }
-    }
-    let plainSession = sessionData;
-    if (sessionData && typeof sessionData.toJSON === 'function') {
-      plainSession = sessionData.toJSON();
-    } else if (sessionData) {
-      try {
-        plainSession = JSON.parse(JSON.stringify(sessionData));
-      } catch (e) {
-        return;
-      }
-    }
-    const notification = {
-      type: _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type,
-      payload: { session: plainSession, updateType },
-    };
-    smartNotify(notification);
-  } catch (e) {
-    // console.error('[DB] Failed to publish session update notification', e, { sessionId, updateType });
-  }
-}
-
-/**
- * Publishes a messages update notification for a session.
- * Always expects messages to be an array of message objects.
- */
-async function publishMessagesUpdate(sessionId, messages) {
-  try {
-    if (!Array.isArray(messages)) {
-      console.error('[minimaldb] publishMessagesUpdate: messages is not an array! Got:', messages);
-      return;
-    }
-    let plainMessages = messages.map((m) => ({ ...m }));
-    const notification = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(sessionId, plainMessages);
-    smartNotify(notification);
-  } catch (e) {
-    console.error('[DB] Failed to publish messages update notification', e, { sessionId });
-  }
-}
-
-async function publishStatusUpdate(sessionId, status) {
-  try {
-    const notification = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(sessionId, status);
-    smartNotify(notification);
-  } catch (e) {
-    console.error('[DB] Failed to publish status update notification', e, { sessionId });
-  }
-}
-
-// --- Model Asset Management ---
-async function ensureModelAssetsReady() {
-  return await ensureDbReady('model');
-}
-
-function shouldLogOrSendChunkProgress(chunkIndex, totalChunks) {
-  return chunkIndex === 0 || (totalChunks && chunkIndex === totalChunks - 1) || chunkIndex % 100 === 0;
-}
-
-async function addModelAsset(
-  folder,
-  fileName,
-  fileType,
-  data,
-  chunkIndex = 0,
-  totalChunks = 1,
-  chunkGroupId = '',
-  binarySize = null,
-  totalFileSize = null
-) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetRequest.type, {
-    folder,
-    fileName,
-    fileType,
-    data,
-    chunkIndex,
-    totalChunks,
-    chunkGroupId,
-    binarySize,
-    totalFileSize,
-  });
-  if (!result?.success) throw new Error(result?.error || 'Failed to add model asset');
-  return result;
-}
-
-async function getModelAssetChunks(chunkGroupId) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksRequest.type, { chunkGroupId });
-  if (!result?.success) return [];
-  return result.data;
-}
-
-async function countModelAssetChunks(folder, fileName, expectedSize, expectedChunks) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksRequest.type, {
-    folder,
-    fileName,
-    expectedSize,
-    expectedChunks,
-  });
-  if (!result?.success) {
-    return { success: false, error: result?.error || 'Failed to count model asset chunks' };
-  }
-  return result;
-}
-
-async function logAllChunkGroupIdsForModel(folder) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelRequest.type, { folder });
-  if (!result?.success) return [];
-  return result.data;
-}
-
-async function listModelFiles(modelId) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesRequest.type, { modelId });
-  if (!result?.success) return [];
-  return result.data;
-}
-
-async function getModelAssetChunk(folder, fileName, chunkIndex) {
-  const result = await sendDbWorkerRequest(_events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkRequest.type, {
-    folder,
-    fileName,
-    chunkIndex,
-  });
-  if (!result?.success) return null;
-  return result.data;
-}
-
-async function handleDbAddModelAssetRequest(event) {
-  return handleRequest(
-    event,
-    (payload) =>
-      addModelAsset(
-        payload.folder,
-        payload.fileName,
-        payload.fileType,
-        payload.data,
-        payload.chunkIndex,
-        payload.totalChunks,
-        payload.chunkGroupId,
-        payload.binarySize,
-        payload.totalFileSize
-      ),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetResponse,
-    5000,
-    (res) => res
-  );
-}
-
-async function handleDbCountModelAssetChunksRequest(event) {
-  return handleRequest(
-    event,
-    (payload) =>
-      countModelAssetChunks(payload.folder, payload.fileName, payload.expectedSize, payload.expectedChunks),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbCountModelAssetChunksResponse,
-    5000,
-    (res) => res
-  );
-}
-
-async function handleDbLogAllChunkGroupIdsForModelRequest(event) {
-  return handleRequest(
-    event,
-    (payload) => logAllChunkGroupIdsForModel(payload.folder),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbLogAllChunkGroupIdsForModelResponse,
-    5000,
-    (res) => res
-  );
-}
-
-async function handleDbListModelFilesRequest(event) {
-  return handleRequest(
-    event,
-    (payload) => listModelFiles(payload.modelId),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbListModelFilesResponse
-  );
-}
-
-async function handleDbGetModelAssetChunksRequest(event) {
-  return handleRequest(
-    event,
-    (payload) => getModelAssetChunks(payload.chunkGroupId),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunksResponse
-  );
-}
-
-async function handleDbGetModelAssetChunkRequest(event) {
-  return handleRequest(
-    event,
-    (payload) => getModelAssetChunk(payload.folder, payload.fileName, payload.chunkIndex),
-    _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse
-  );
-}
-
-// --- Logging Utilities ---
-const logThrottleCache = {};
-const logLastContext = {};
-
-function throttledLog(type, staticMsg, contextKey = null, ...args) {
-  const now = Date.now();
-  const cacheKey = contextKey ? `${staticMsg}__${contextKey}` : staticMsg;
-  if (!logThrottleCache[type]) logThrottleCache[type] = {};
-  if (contextKey !== null) {
-    if (logLastContext[staticMsg] === contextKey && now - (logThrottleCache[type][cacheKey] || 0) < LOG_THROTTLE_MS) {
-      return;
-    }
-    logLastContext[staticMsg] = contextKey;
-  }
-  if (!logThrottleCache[type][cacheKey] || now - logThrottleCache[type][cacheKey] > LOG_THROTTLE_MS) {
-    logThrottleCache[type][cacheKey] = now;
-    const fullMessage = contextKey !== null ? [staticMsg, contextKey, ...args] : [staticMsg, ...args];
-    if (type === 'log') console.log(...fullMessage);
-    else if (type === 'warn') console.warn(...fullMessage);
-    else if (type === 'error') console.error(...fullMessage);
-  }
-}
-
-// --- Message Listener ---
-webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type || !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_2__.DBEventNames).includes(message.type)) {
-    return false;
-  }
-  forwardDbRequest(message)
-    .then((result) => {
-      console.log('[Trace][minimaldb] onMessage: Handler result', result);
-      sendResponse(result);
-    })
-    .catch((err) => {
-      console.error('[Trace][minimaldb] onMessage: Handler error', err);
-      sendResponse({ success: false, error: err.message || 'Unknown error in handler' });
-    });
-  return true;
-});
-
-// --- Exported Functions ---
-async function forwardDbRequest(request) {
-  const handler = dbHandlerMap[request?.type];
-  if (!handler) {
-    throw new Error(`No DB handler for type: ${request?.type}`);
-  }
-  try {
-    const result = await handler(request);
-    return result;
-  } catch (err) {
-    return { success: false, error: err.message || 'Unknown error in handler' };
-  }
-}
-
-async function resetDatabase() {
-  try {
-    await initializeDatabasesAndBackend(true);
-    return { success: true };
-  } catch (e) {
-    throw e;
-  }
-}
-
-
-
-/***/ }),
-
-/***/ "./src/modelAssetDownloader.js":
+/***/ "./src/modelAssetDownloader.ts":
 /*!*************************************!*\
-  !*** ./src/modelAssetDownloader.js ***!
+  !*** ./src/modelAssetDownloader.ts ***!
   \*************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -6802,10 +8391,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _sidepanel_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./sidepanel.js */ "./src/sidepanel.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./sidepanel */ "./src/sidepanel.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./DB/dbEvents */ "./src/DB/dbEvents.ts");
 
 
 
@@ -6815,30 +8403,29 @@ const CHUNK_SIZE = 10 * 1024 * 1024;
 const MAX_RETRIES = 3;
 const PROGRESS_THROTTLE_MS = 2000;
 const PROGRESS_THROTTLE_CHUNKS = 200;
-
 function logMemory(label) {
-    if (performance && performance.memory) {
+    if (typeof performance !== 'undefined' && performance.memory) {
         const usedMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
         const totalMB = (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
         console.log(`${prefix} [Memory][${label}] Used: ${usedMB} MB / Total: ${totalMB} MB`);
-    } else {
+    }
+    else {
         console.log(`${prefix} [Memory][${label}] performance.memory not available`);
     }
 }
-
 function shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastSent, now) {
     return chunkIndex === 0 ||
-           (totalChunks && chunkIndex === totalChunks - 1) ||
-           chunkIndex % PROGRESS_THROTTLE_CHUNKS === 0 ||
-           (now - lastSent >= PROGRESS_THROTTLE_MS);
+        (totalChunks && chunkIndex === totalChunks - 1) ||
+        chunkIndex % PROGRESS_THROTTLE_CHUNKS === 0 ||
+        (now - lastSent >= PROGRESS_THROTTLE_MS);
 }
-
 async function tryStoreChunkInternal(payload, maxRetries = MAX_RETRIES) {
     let attempt = 0;
     while (attempt < maxRetries) {
-        const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbAddModelAssetRequest(payload);
-        const addResult = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
-        if (addResult && addResult.success) return true;
+        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddModelAssetRequest(payload);
+        const addResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+        if (addResult && addResult.success)
+            return true;
         attempt++;
         console.log(`${prefix} Retrying chunk store, attempt ${attempt} for ${payload.fileName} chunk ${payload.chunkIndex}`);
         await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
@@ -6846,13 +8433,11 @@ async function tryStoreChunkInternal(payload, maxRetries = MAX_RETRIES) {
     console.error(`${prefix} Failed to store chunk after ${maxRetries} retries:`, payload.fileName, payload.chunkIndex);
     return false;
 }
-
 async function countModelAssetChunksViaMessage(folder, fileName, expectedSize, expectedChunks) {
-    const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_3__.DbCountModelAssetChunksRequest({ folder, fileName, expectedSize, expectedChunks });
-    const result = await (0,_sidepanel_js__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+    const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCountModelAssetChunksRequest({ folder, fileName, expectedSize, expectedChunks });
+    const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
     return result && result.success ? result.data : result;
 }
-
 async function fetchModelMetadataInternal(modelId) {
     const apiUrl = `https://huggingface.co/api/models/${encodeURIComponent(modelId)}`;
     console.log(prefix, `Fetching model metadata from: ${apiUrl}`);
@@ -6866,22 +8451,20 @@ async function fetchModelMetadataInternal(modelId) {
         const metadata = await response.json();
         console.log(prefix, `Model metadata fetched successfully for ${modelId}.`);
         return metadata;
-    } catch (error) {
+    }
+    catch (error) {
         console.error(prefix, `Error fetching metadata for ${modelId}:`, error);
         throw error;
     }
 }
-
 async function filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl) {
     const hfFileEntries = metadata.siblings || [];
-    const neededFileEntries = hfFileEntries.filter(f => f.rfilename.endsWith('.onnx') || f.rfilename.endsWith('.json') || f.rfilename.endsWith('.txt'));
-    const neededFileNames = neededFileEntries.map(f => f.rfilename);
+    const neededFileEntries = hfFileEntries.filter((f) => f.rfilename.endsWith('.onnx') || f.rfilename.endsWith('on') || f.rfilename.endsWith('.txt'));
+    const neededFileNames = neededFileEntries.map((f) => f.rfilename);
     console.log(prefix, `Identified ${neededFileNames.length} needed files for ${modelId}:`, neededFileNames);
-
     if (neededFileEntries.length === 0) {
-        return { neededFileEntries: [], message: "No .onnx, .json, or .txt files found in model metadata." };
+        return { neededFileEntries: [], message: "No .onnx, on, or .txt files found in model metadata." };
     }
-
     async function getFileSizeWithHEAD(url) {
         try {
             const headResp = await fetch(url, { method: 'HEAD' });
@@ -6889,12 +8472,12 @@ async function filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl
                 const len = headResp.headers.get('Content-Length');
                 return len ? parseInt(len, 10) : null;
             }
-        } catch (e) {
+        }
+        catch (e) {
             console.warn(prefix, `HEAD request failed for ${url}:`, e);
         }
         return null;
     }
-
     const sizePromises = neededFileEntries.map(async (entry) => {
         if (typeof entry.size !== 'number' || !isFinite(entry.size) || entry.size <= 0) {
             const url = baseDownloadUrl + entry.rfilename;
@@ -6902,19 +8485,18 @@ async function filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl
             if (size && isFinite(size) && size > 0) {
                 entry.size = size;
                 console.log(prefix, `Got file size via HEAD for ${entry.rfilename}: ${size}`);
-            } else {
+            }
+            else {
                 console.error(prefix, `Skipping file ${entry.rfilename}: missing/invalid size (HEAD failed or Content-Length missing)`);
                 entry._skip = true;
             }
         }
     });
-
     await Promise.all(sizePromises);
     return { neededFileEntries, message: null };
 }
-
 function buildDownloadPlanInternal(neededFileEntries) {
-    const downloadPlan = neededFileEntries.filter(e => !e._skip).map((entry, idx) => ({
+    const downloadPlan = neededFileEntries.filter((e) => !e._skip).map((entry, idx) => ({
         fileName: entry.rfilename,
         fileSize: entry.size,
         totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
@@ -6926,7 +8508,6 @@ function buildDownloadPlanInternal(neededFileEntries) {
     console.log(prefix, "Built download plan:", { downloadPlan, totalBytesToDownload, totalChunksToDownload });
     return { downloadPlan, totalBytesToDownload, totalChunksToDownload };
 }
-
 async function getMissingFilesInternal(downloadPlan, modelId) {
     const missingFiles = [];
     const presentFiles = {};
@@ -6937,22 +8518,22 @@ async function getMissingFilesInternal(downloadPlan, modelId) {
         console.log(prefix, '[DB ChunkCount Check] Result:', { modelId, fileName, expectedChunks: totalChunks, countResult });
         if (countResult && countResult.success && countResult.verified && countResult.count === totalChunks) {
             presentFiles[fileName] = true;
-        } else {
+        }
+        else {
             missingFiles.push(plan);
         }
     }
     return { missingFiles, presentFiles };
 }
-
 // Helper to format bytes as human-readable string
 function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0)
+        return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
-
 async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalBytesToDownload, totalChunksToDownload, totalBytesDownloaded, totalChunksDownloaded, totalFilesToAttempt) {
     const { fileName, fileSize, totalChunks, fileIdx, fileType } = plan;
     const downloadUrl = baseDownloadUrl + fileName;
@@ -6964,14 +8545,12 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
     let allChunksSuccess = true;
     const chunkGroupId = `${modelId}/${fileName}`;
     let currentFileSource = "Download_Attempt";
-
     try {
         if (fileSize > 10 * 1024 * 1024) {
             logMemory(`Before file ${fileName}`);
         }
         console.log(prefix, `Downloading file from: ${downloadUrl}`);
         const downloadResponse = await fetch(downloadUrl);
-
         if (!downloadResponse.ok) {
             const errorText = await downloadResponse.text();
             console.error(prefix, `Failed to download ${modelId}/${fileName}: ${downloadResponse.status} ${downloadResponse.statusText}`, errorText);
@@ -6986,19 +8565,20 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                 totalFiles: totalFilesToAttempt,
                 fileTotalBytes: fileSize,
                 fileTotalBytesHuman: formatBytes(fileSize)
-            }).catch(e => console.warn(`${prefix} Error sending progress on download fail: ${e.message}`));
-            return { fileFailed: true };
+            }).catch((e) => console.warn(`${prefix} Error sending progress on download fail: ${e.message}`));
+            return { fileFailed: true, fileName, fileBytesDownloaded, fileChunksDownloaded };
         }
         currentFileSource = "Download_Success_Store_Attempt";
-
+        if (!downloadResponse.body) {
+            throw new Error('Download response body is null');
+        }
         const reader = downloadResponse.body.getReader();
         let buffer = new Uint8Array(CHUNK_SIZE);
         let bufferOffset = 0;
-
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-
+            if (done)
+                break;
             if (!(value instanceof Uint8Array)) {
                 console.error(prefix, `Invalid chunk data for ${fileName}, chunk ${chunkIndex}:`, typeof value);
                 fileFailed = true;
@@ -7014,11 +8594,10 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                     failType: 'invalid_chunk',
                     fileTotalBytes: fileSize,
                     fileTotalBytesHuman: formatBytes(fileSize)
-                }).catch(e => console.warn(`${prefix} Error sending progress on invalid chunk: ${e.message}`));
+                }).catch((e) => console.warn(`${prefix} Error sending progress on invalid chunk: ${e.message}`));
                 reader.cancel('Invalid chunk data');
                 break;
             }
-
             let valueOffset = 0;
             while (valueOffset < value.length) {
                 const remainingBuffer = CHUNK_SIZE - bufferOffset;
@@ -7026,17 +8605,14 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                 buffer.set(value.subarray(valueOffset, valueOffset + copyLength), bufferOffset);
                 bufferOffset += copyLength;
                 valueOffset += copyLength;
-
                 if (bufferOffset === CHUNK_SIZE) {
                     let chunkToStore = buffer;
                     buffer = new Uint8Array(CHUNK_SIZE);
                     bufferOffset = 0;
-
                     const now = Date.now();
                     if (shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastProgressSent, now)) {
                         console.log(prefix, '[Chunk] About to store chunk:', { fileName, chunkIndex, chunkLength: chunkToStore.length });
                     }
-
                     const dbPayload = {
                         modelId,
                         fileName,
@@ -7049,7 +8625,6 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                         totalFileSize: fileSize
                     };
                     const success = await tryStoreChunkInternal(dbPayload);
-
                     if (!success) {
                         allChunksSuccess = false;
                         fileFailed = true;
@@ -7065,17 +8640,15 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                             failType: 'chunk_write',
                             fileTotalBytes: fileSize,
                             fileTotalBytesHuman: formatBytes(fileSize)
-                        }).catch(e => console.warn(`${prefix} Error sending progress on chunk store fail: ${e.message}`));
+                        }).catch((e) => console.warn(`${prefix} Error sending progress on chunk store fail: ${e.message}`));
                         reader.cancel('Chunk storage failed');
                         break;
                     }
-
                     chunkIndex++;
                     fileChunksDownloaded++;
                     totalChunksDownloaded.value++;
                     fileBytesDownloaded += chunkToStore.byteLength;
                     totalBytesDownloaded.value += chunkToStore.byteLength;
-
                     if (chunkIndex === totalChunks || shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastProgressSent, now)) {
                         await sendUiProgress({
                             modelId,
@@ -7096,86 +8669,44 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                             progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
                             status: 'progress',
                             currentFileSource
-                        }).catch(e => console.warn(`${prefix} Error sending progress update: ${e.message}`));
+                        }).catch((e) => console.warn(`${prefix} Error sending progress update: ${e.message}`));
                         lastProgressSent = now;
                     }
-                    chunkToStore = null;
                 }
             }
-            if (fileFailed) break;
+            if (fileFailed)
+                break;
         }
-
         if (allChunksSuccess && !fileFailed && bufferOffset > 0) {
             let finalChunkToStore = buffer.subarray(0, bufferOffset);
-            buffer = null;
-
-            console.log(prefix, '[Chunk] About to store final chunk:', { fileName, chunkIndex, chunkLength: finalChunkToStore.length });
-
-            const dbPayload = {
+            await sendUiProgress({
                 modelId,
-                fileName,
-                fileType,
-                data: finalChunkToStore,
+                file: fileName,
+                fileIdx,
+                totalFiles: totalFilesToAttempt,
                 chunkIndex,
                 totalChunks,
-                chunkGroupId,
-                binarySize: finalChunkToStore.byteLength,
-                totalFileSize: fileSize
-            };
-            const success = await tryStoreChunkInternal(dbPayload);
-
-            if (!success) {
-                allChunksSuccess = false;
-                fileFailed = true;
-                await sendUiProgress({
-                    modelId,
-                    file: fileName,
-                    fileIdx,
-                    totalFiles: totalFilesToAttempt,
-                    chunkIndex,
-                    totalChunks,
-                    error: `Failed to store final chunk ${chunkIndex + 1} after ${MAX_RETRIES} retries`,
-                    currentFileSource,
-                    failType: 'chunk_write',
-                    fileTotalBytes: fileSize,
-                    fileTotalBytesHuman: formatBytes(fileSize)
-                }).catch(e => console.warn(`${prefix} Error sending progress on final chunk store fail: ${e.message}`));
-            } else {
-                chunkIndex++;
-                fileChunksDownloaded++;
-                totalChunksDownloaded.value++;
-                fileBytesDownloaded += finalChunkToStore.byteLength;
-                totalBytesDownloaded.value += finalChunkToStore.byteLength;
-                await sendUiProgress({
-                    modelId,
-                    file: fileName,
-                    fileIdx,
-                    totalFiles: totalFilesToAttempt,
-                    chunkIndex,
-                    totalChunks,
-                    fileBytesDownloaded,
-                    fileTotalBytes: fileSize,
-                    fileTotalBytesHuman: formatBytes(fileSize),
-                    totalBytesDownloaded: totalBytesDownloaded.value,
-                    totalBytesToDownload,
-                    totalChunksDownloaded: totalChunksDownloaded.value,
-                    totalChunksToDownload,
-                    percent: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
-                    filePercent: 100,
-                    progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
-                    status: 'progress',
-                    currentFileSource
-                }).catch(e => console.warn(`${prefix} Error sending progress for final chunk: ${e.message}`));
-            }
-            finalChunkToStore = null;
+                fileBytesDownloaded,
+                fileTotalBytes: fileSize,
+                fileTotalBytesHuman: formatBytes(fileSize),
+                totalBytesDownloaded: totalBytesDownloaded.value,
+                totalBytesToDownload,
+                totalChunksDownloaded: totalChunksDownloaded.value,
+                totalChunksToDownload,
+                percent: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
+                filePercent: 100,
+                progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
+                status: 'progress',
+                currentFileSource
+            }).catch((e) => console.warn(`${prefix} Error sending progress for final chunk: ${e.message}`));
         }
-
         if (allChunksSuccess && !fileFailed) {
             const countResult = await countModelAssetChunksViaMessage(modelId, fileName, fileSize, totalChunks);
             if (countResult.success && countResult.verified && countResult.count === totalChunks) {
                 currentFileSource = "DB_Stored_After_Download";
                 console.log(prefix, `Successfully downloaded, stored, and verified all chunks for ${modelId}/${fileName} in DB.`);
-            } else {
+            }
+            else {
                 fileFailed = true;
                 await sendUiProgress({
                     modelId,
@@ -7187,11 +8718,12 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                     currentFileSource,
                     fileTotalBytes: fileSize,
                     fileTotalBytesHuman: formatBytes(fileSize)
-                }).catch(e => console.warn(`${prefix} Error sending progress on verification fail: ${e.message}`));
+                }).catch((e) => console.warn(`${prefix} Error sending progress on verification fail: ${e.message}`));
             }
-        } else if (fileFailed || !allChunksSuccess) {
+        }
+        else if (fileFailed || !allChunksSuccess) {
             console.error(prefix, `Failed to store all chunks for ${modelId}/${fileName} in DB after download.`);
-             await sendUiProgress({
+            await sendUiProgress({
                 modelId,
                 file: fileName,
                 error: `DB store failed after download (chunked)`,
@@ -7201,39 +8733,37 @@ async function streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalB
                 failType: 'file_fail_internal',
                 fileTotalBytes: fileSize,
                 fileTotalBytesHuman: formatBytes(fileSize)
-            }).catch(e => console.warn(`${prefix} Error sending progress on internal file fail: ${e.message}`));
+            }).catch((e) => console.warn(`${prefix} Error sending progress on internal file fail: ${e.message}`));
         }
-
         if (fileSize > 10 * 1024 * 1024) {
             logMemory(`After file ${fileName}`);
         }
-    } catch (error) {
+    }
+    catch (error) {
         fileFailed = true;
+        const errMsg = error instanceof Error ? error.message : String(error);
         console.error(prefix, `Error downloading ${modelId}/${fileName}:`, error);
         await sendUiProgress({
             modelId,
             file: fileName,
             fileIdx,
             totalFiles: totalFilesToAttempt,
-            error: error.message,
+            error: errMsg,
             failType: 'exception',
             currentFileSource,
             fileTotalBytes: fileSize,
             fileTotalBytesHuman: formatBytes(fileSize)
-        }).catch(e => console.warn(`${prefix} Error sending progress on exception: ${e.message}`));
+        }).catch((e) => console.warn(`${prefix} Error sending progress on exception: ${e.message}`));
     }
-
     return { fileFailed, fileName, fileBytesDownloaded, fileChunksDownloaded };
 }
-
 async function downloadMissingFilesInternal(missingFiles, modelId, downloadPlan, totalBytesToDownload, totalChunksToDownload, presentFiles, baseDownloadUrl) {
     let filesSuccessfullyProcessedCount = Object.keys(presentFiles).length;
-    const totalBytesDownloaded = { value: downloadPlan.filter(p => presentFiles[p.fileName]).reduce((sum, p) => sum + p.fileSize, 0) };
-    const totalChunksDownloaded = { value: downloadPlan.filter(p => presentFiles[p.fileName]).reduce((sum, p) => sum + p.totalChunks, 0) };
+    const totalBytesDownloaded = { value: downloadPlan.filter((p) => presentFiles[p.fileName]).reduce((sum, p) => sum + p.fileSize, 0) };
+    const totalChunksDownloaded = { value: downloadPlan.filter((p) => presentFiles[p.fileName]).reduce((sum, p) => sum + p.totalChunks, 0) };
     const totalFilesToAttempt = downloadPlan.length;
     const successfullyProcessedFileMap = { ...presentFiles };
     const failedFiles = [];
-
     console.log(prefix, "Initial download progress state:", {
         filesSuccessfullyProcessedCount,
         totalBytesDownloaded: totalBytesDownloaded.value,
@@ -7241,27 +8771,16 @@ async function downloadMissingFilesInternal(missingFiles, modelId, downloadPlan,
         totalFilesToAttempt,
         presentFiles
     });
-
     for (const plan of missingFiles) {
-        const result = await streamAndStoreFileInternal(
-            plan,
-            modelId,
-            baseDownloadUrl,
-            totalBytesToDownload,
-            totalChunksToDownload,
-            totalBytesDownloaded,
-            totalChunksDownloaded,
-            totalFilesToAttempt
-        );
-
+        const result = await streamAndStoreFileInternal(plan, modelId, baseDownloadUrl, totalBytesToDownload, totalChunksToDownload, totalBytesDownloaded, totalChunksDownloaded, totalFilesToAttempt);
         if (!result.fileFailed) {
             successfullyProcessedFileMap[result.fileName] = true;
             filesSuccessfullyProcessedCount++;
-        } else {
+        }
+        else {
             failedFiles.push(result.fileName);
         }
     }
-
     console.log(prefix, "Final download progress state after processing missing files:", {
         filesSuccessfullyProcessedCount,
         totalBytesDownloaded: totalBytesDownloaded.value,
@@ -7270,38 +8789,33 @@ async function downloadMissingFilesInternal(missingFiles, modelId, downloadPlan,
     });
     return { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles };
 }
-
 function sendUiProgress(payload) {
     return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
         payload
-    }).catch(e => console.warn(`${prefix} Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`));
+    }).catch((e) => console.warn(`${prefix} Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`));
 }
-
 async function downloadModelAssets(modelId) {
     console.log(prefix, `Starting downloadModelAssets for modelId: ${modelId}`);
     const baseDownloadUrl = `https://huggingface.co/${modelId}/resolve/main/`;
-
+    let totalBytesToDownload = 0;
     try {
         const metadata = await fetchModelMetadataInternal(modelId);
         const { neededFileEntries, message: filterMessage } = await filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl);
-
         if (neededFileEntries.length === 0) {
             console.warn(prefix, filterMessage || "No needed files after filtering.");
             return { success: true, fileMap: {}, message: filterMessage || "No needed files to download." };
         }
-
-        const { downloadPlan, totalBytesToDownload, totalChunksToDownload } = buildDownloadPlanInternal(neededFileEntries);
+        const { downloadPlan, totalBytesToDownload: tBytes, totalChunksToDownload } = buildDownloadPlanInternal(neededFileEntries);
+        totalBytesToDownload = tBytes;
         if (downloadPlan.length === 0) {
             const msg = `No valid files to download for ${modelId} after validation and plan building.`;
             console.warn(prefix, msg);
             return { success: true, fileMap: {}, message: msg };
         }
-
         const { missingFiles, presentFiles } = await getMissingFilesInternal(downloadPlan, modelId);
         console.log(prefix, `Files already present in DB for ${modelId}:`, Object.keys(presentFiles));
-        console.log(prefix, `Files missing and will be downloaded for ${modelId}:`, missingFiles.map(f => f.fileName));
-
+        console.log(prefix, `Files missing and will be downloaded for ${modelId}:`, missingFiles.map((f) => f.fileName));
         await sendUiProgress({
             modelId,
             initialScanComplete: true,
@@ -7309,12 +8823,10 @@ async function downloadModelAssets(modelId) {
             filesAlreadyPresent: Object.keys(presentFiles).length,
             filesToDownload: missingFiles.length,
             totalBytesToDownload,
-            totalBytesAlreadyPresent: downloadPlan.filter(p => presentFiles[p.fileName]).reduce((sum, p) => sum + p.fileSize, 0),
+            totalBytesAlreadyPresent: downloadPlan.filter((p) => presentFiles[p.fileName]).reduce((sum, p) => sum + p.fileSize, 0),
             fileTotalBytes: totalBytesToDownload,
             fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-        }).catch(e => console.warn(`${prefix} Error sending initial scan progress: ${e.message}`));
-
-
+        }).catch((e) => console.warn(`${prefix} Error sending initial scan progress: ${e.message}`));
         if (missingFiles.length === 0) {
             const msg = `All ${downloadPlan.length} assets for ${modelId} are already available in DB.`;
             console.log(prefix, msg);
@@ -7328,26 +8840,15 @@ async function downloadModelAssets(modelId) {
                 message: msg,
                 fileTotalBytes: totalBytesToDownload,
                 fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-            }).catch(e => console.warn(`${prefix} Error sending progress for 'all files present': ${e.message}`));
+            }).catch((e) => console.warn(`${prefix} Error sending progress for 'all files present': ${e.message}`));
             return { success: true, fileMap: presentFiles, message: msg, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
         }
-
-        const { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles } = await downloadMissingFilesInternal(
-            missingFiles,
-            modelId,
-            downloadPlan,
-            totalBytesToDownload,
-            totalChunksToDownload,
-            presentFiles,
-            baseDownloadUrl
-        );
-
+        const { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles } = await downloadMissingFilesInternal(missingFiles, modelId, downloadPlan, totalBytesToDownload, totalChunksToDownload, presentFiles, baseDownloadUrl);
         console.log(prefix, `Finished processing all ${downloadPlan.length} needed files for ${modelId}. Successfully processed ${filesSuccessfullyProcessedCount} files.`);
         const overallSuccess = filesSuccessfullyProcessedCount === downloadPlan.length;
         const finalMessage = overallSuccess
             ? `All ${downloadPlan.length} assets for ${modelId} are now available in DB.`
             : `Failed to process all assets for ${modelId}. Got ${filesSuccessfullyProcessedCount} of ${downloadPlan.length}. Failed files: ${failedFiles.join(', ')}. Check logs for details.`;
-
         await sendUiProgress({
             modelId,
             summary: true,
@@ -7358,29 +8859,31 @@ async function downloadModelAssets(modelId) {
             message: finalMessage,
             fileTotalBytes: totalBytesToDownload,
             fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-        }).catch(e => console.warn(`${prefix} Error sending final summary progress: ${e.message}`));
+        }).catch((e) => console.warn(`${prefix} Error sending final summary progress: ${e.message}`));
         console.log(prefix, finalMessage);
         return { success: overallSuccess, fileMap: successfullyProcessedFileMap, message: finalMessage, failedFiles, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
-
-    } catch (error) {
+    }
+    catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
         console.error(prefix, `Critical error in downloadModelAssets for ${modelId}:`, error);
         await sendUiProgress({
             modelId,
             summary: true,
-            error: `Download process failed: ${error.message}`,
+            error: `Download process failed: ${errMsg}`,
             success: false,
             fileTotalBytes: totalBytesToDownload,
             fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-        }).catch(e => console.warn(`${prefix} Error sending progress on critical error: ${e.message}`));
-        return { success: false, error: `Download process failed for ${modelId}: ${error.message}`, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
+        }).catch((e) => console.warn(`${prefix} Error sending progress on critical error: ${e.message}`));
+        return { success: false, error: `Download process failed for ${modelId}: ${errMsg}`, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
     }
 }
 
+
 /***/ }),
 
-/***/ "./src/navigation.js":
+/***/ "./src/navigation.ts":
 /*!***************************!*\
-  !*** ./src/navigation.js ***!
+  !*** ./src/navigation.ts ***!
   \***************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -7390,75 +8893,66 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeNavigation: () => (/* binding */ initializeNavigation),
 /* harmony export */   navigateTo: () => (/* binding */ navigateTo)
 /* harmony export */ });
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+// Add EXTENSION_CONTEXT to the Window interface
 
-window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
-
-let pageContainers = [];
-let navButtons = [];
-let mainHeaderTitle = null;
+window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
+let pageContainers = document.querySelectorAll('.page-container');
+let navButtons = document.querySelectorAll('.nav-button');
+let mainHeaderTitle = document.querySelector('#header h1');
 const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles = {
-    'page-home': 'Tab Agent', 
+    'page-home': 'Tab Agent',
     'page-spaces': 'Spaces',
     'page-library': 'Library',
     'page-settings': 'Settings'
 };
-
-
-async function navigateTo(pageId) { 
+async function navigateTo(pageId) {
     console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
-   
     pageContainers.forEach(container => {
         container.classList.add('hidden');
         container.classList.remove('active-page');
     });
-
     const targetPage = document.getElementById(pageId);
     if (targetPage) {
         targetPage.classList.remove('hidden');
         targetPage.classList.add('active-page');
-    } else {
+    }
+    else {
         console.error(CONTEXT_PREFIX + `Navigation error: Page with ID ${pageId} not found. Showing home.`);
         const homePage = document.getElementById('page-home');
         if (homePage) {
-             homePage.classList.remove('hidden');
-             homePage.classList.add('active-page');
+            homePage.classList.remove('hidden');
+            homePage.classList.add('active-page');
         }
-        pageId = 'page-home'; 
+        pageId = 'page-home';
     }
-    
     if (mainHeaderTitle && pageTitles[pageId]) {
-         mainHeaderTitle.textContent = pageTitles[pageId];
-    } else if (mainHeaderTitle) {
-         mainHeaderTitle.textContent = 'Tab Agent'; 
+        mainHeaderTitle.textContent = pageTitles[pageId];
     }
-
+    else if (mainHeaderTitle) {
+        mainHeaderTitle.textContent = 'Tab Agent';
+    }
     navButtons.forEach(button => {
         if (button.dataset.page === pageId) {
             button.classList.add('active');
-        } else {
+        }
+        else {
             button.classList.remove('active');
         }
     });
-
-    document.dispatchEvent(new CustomEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
     console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
-
     const queryInput = document.getElementById('query-input');
-     if (pageId === 'page-home' && queryInput) {
-         queryInput.focus(); 
-     }
+    if (pageId === 'page-home' && queryInput) {
+        queryInput.focus();
+    }
 }
-
 function initializeNavigation() {
     console.log(CONTEXT_PREFIX + "Initializing navigation...");
-
     pageContainers = document.querySelectorAll('.page-container');
     navButtons = document.querySelectorAll('.nav-button');
     mainHeaderTitle = document.querySelector('#header h1');
-
-
     navButtons.forEach(button => {
         button.addEventListener('click', () => {
             const pageId = button.dataset.page;
@@ -7467,18 +8961,17 @@ function initializeNavigation() {
             }
         });
     });
-
     navigateTo('page-home');
     console.log(CONTEXT_PREFIX + "Navigation initialized.");
 }
 
- 
+
 
 /***/ }),
 
-/***/ "./src/notifications.js":
+/***/ "./src/notifications.ts":
 /*!******************************!*\
-  !*** ./src/notifications.js ***!
+  !*** ./src/notifications.ts ***!
   \******************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -7488,21 +8981,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   hideNotification: () => (/* binding */ hideNotification),
 /* harmony export */   showNotification: () => (/* binding */ showNotification)
 /* harmony export */ });
-
-
 let notificationTimeout;
-
 /**
- * @param {string} message 
- * @param {'info' | 'success' | 'error'} [type='info'] 
- * @param {number} [duration=4000] 
+ * @param message - The notification message
+ * @param type - The notification type
+ * @param duration - Duration in ms
  */
 function showNotification(message, type = 'info', duration = 3000) {
     console.log(`[Notification] ${type.toUpperCase()}: ${message} (Duration: ${duration}ms)`);
-
 }
-
-
 function hideNotification() {
     const banner = document.getElementById('notification-banner');
     if (banner) {
@@ -7515,13 +9002,14 @@ function hideNotification() {
     if (banner) {
         banner.onclick = null;
     }
-} 
+}
+
 
 /***/ }),
 
-/***/ "./src/sidepanel.js":
+/***/ "./src/sidepanel.ts":
 /*!**************************!*\
-  !*** ./src/sidepanel.js ***!
+  !*** ./src/sidepanel.ts ***!
   \**************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -7530,27 +9018,29 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart)
 /* harmony export */ });
-/* harmony import */ var _minimaldb_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./minimaldb.js */ "./src/minimaldb.js");
-/* harmony import */ var _modelAssetDownloader_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./modelAssetDownloader.js */ "./src/modelAssetDownloader.js");
+/* harmony import */ var _DB_db__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./DB/db */ "./src/DB/db.ts");
+/* harmony import */ var _modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./modelAssetDownloader */ "./src/modelAssetDownloader.ts");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var _navigation_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./navigation.js */ "./src/navigation.js");
-/* harmony import */ var _Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/uiController.js */ "./src/Home/uiController.js");
-/* harmony import */ var _Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/chatRenderer.js */ "./src/Home/chatRenderer.js");
-/* harmony import */ var _Home_messageOrchestrator_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Home/messageOrchestrator.js */ "./src/Home/messageOrchestrator.js");
-/* harmony import */ var _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Home/fileHandler.js */ "./src/Home/fileHandler.js");
-/* harmony import */ var _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./Utilities/generalUtils.js */ "./src/Utilities/generalUtils.js");
-/* harmony import */ var _notifications_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./notifications.js */ "./src/notifications.js");
-/* harmony import */ var _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./events/dbEvents.js */ "./src/events/dbEvents.js");
-/* harmony import */ var _Controllers_HistoryPopupController_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./Controllers/HistoryPopupController.js */ "./src/Controllers/HistoryPopupController.js");
-/* harmony import */ var _Controllers_LibraryController_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/LibraryController.js */ "./src/Controllers/LibraryController.js");
-/* harmony import */ var _Controllers_DiscoverController_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/DiscoverController.js */ "./src/Controllers/DiscoverController.js");
-/* harmony import */ var _Controllers_SettingsController_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SettingsController.js */ "./src/Controllers/SettingsController.js");
-/* harmony import */ var _Controllers_SpacesController_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/SpacesController.js */ "./src/Controllers/SpacesController.js");
-/* harmony import */ var _Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/DriveController.js */ "./src/Controllers/DriveController.js");
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
-/* harmony import */ var _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Utilities/dbChannels.js */ "./src/Utilities/dbChannels.js");
+/* harmony import */ var _navigation__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./navigation */ "./src/navigation.ts");
+/* harmony import */ var _Home_uiController__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/uiController */ "./src/Home/uiController.ts");
+/* harmony import */ var _Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/chatRenderer */ "./src/Home/chatRenderer.ts");
+/* harmony import */ var _Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Home/messageOrchestrator */ "./src/Home/messageOrchestrator.ts");
+/* harmony import */ var _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Home/fileHandler */ "./src/Home/fileHandler.ts");
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./notifications */ "./src/notifications.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./Controllers/HistoryPopupController */ "./src/Controllers/HistoryPopupController.ts");
+/* harmony import */ var _Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/LibraryController */ "./src/Controllers/LibraryController.ts");
+/* harmony import */ var _Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/DiscoverController */ "./src/Controllers/DiscoverController.ts");
+/* harmony import */ var _Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SettingsController */ "./src/Controllers/SettingsController.ts");
+/* harmony import */ var _Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/SpacesController */ "./src/Controllers/SpacesController.ts");
+/* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
 // --- Imports ---
+
 
 
 
@@ -7576,9 +9066,7 @@ __webpack_require__.r(__webpack_exports__);
 // --- Constants ---
 const LOG_QUEUE_MAX = 1000;
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
-
 // --- Global State ---
-let currentTab = null;
 let activeSessionId = null;
 let isPopup = false;
 let originalTabIdFromPopup = null;
@@ -7586,656 +9074,618 @@ let currentTabId = null;
 let isDbReady = false;
 let historyPopupController = null;
 let logQueue = [];
-const pendingDbRequests = new Map();
-
 // --- Global Setup ---
 // Set EXTENSION_CONTEXT based on URL query string
 (function () {
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    const contextParam = urlParams.get('context');
-    const viewParam = urlParams.get('view');
-    window.EXTENSION_CONTEXT =
-      contextParam === 'popup'
-        ? _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.POPUP
-        : viewParam === 'logs'
-        ? _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.OTHERS
-        : _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI;
-  } catch (e) {
-    window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.UNKNOWN;
-  }
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const contextParam = urlParams.get('context');
+        const viewParam = urlParams.get('view');
+        window.EXTENSION_CONTEXT =
+            contextParam === 'popup'
+                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.POPUP
+                : viewParam === 'logs'
+                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.OTHERS
+                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI;
+    }
+    catch (e) {
+        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.UNKNOWN;
+        console.error('[Sidepanel] Error setting EXTENSION_CONTEXT:', e);
+    }
 })();
-
-// Marked.js Setup
+// Marked Setup
 if (window.marked) {
-  window.marked.setOptions({
-    highlight: function (code, lang) {
-      if (lang && window.hljs && window.hljs.getLanguage(lang)) {
-        try {
-          return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
-        } catch (e) {
-          console.error('hljs error:', e);
-        }
-      } else if (window.hljs) {
-        try {
-          return window.hljs.highlightAuto(code).value;
-        } catch (e) {
-          console.error('hljs auto error:', e);
-        }
-      }
-      const escapeHtml = (htmlStr) =>
-        htmlStr
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-      return escapeHtml(code);
-    },
-    langPrefix: 'language-',
-    gfm: true,
-    breaks: true,
-  });
-  console.log('[Sidepanel] Marked.js globally configured to use highlight.js.');
-} else {
-  console.error('[Sidepanel] Marked.js library (window.marked) not found.');
+    window.marked.setOptions({
+        highlight: function (code, lang) {
+            if (lang && window.hljs && window.hljs.getLanguage(lang)) {
+                try {
+                    return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+                }
+                catch (e) {
+                    console.error('hljs error:', e);
+                }
+            }
+            else if (window.hljs) {
+                try {
+                    return window.hljs.highlightAuto(code).value;
+                }
+                catch (e) {
+                    console.error('hljs auto error:', e);
+                }
+            }
+            const escapeHtml = (htmlStr) => htmlStr
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+            return escapeHtml(code);
+        },
+        langPrefix: 'language-',
+        gfm: true,
+        breaks: true,
+    });
+    console.log('[Sidepanel] Marked globally configured to use highlight.');
 }
-
+else {
+    console.error('[Sidepanel] Marked library (window.marked) not found.');
+}
 // --- DB and Channel Utilities ---
 function isDbRequest(type) {
-  return typeof type === 'string' && type.endsWith('_REQUEST');
+    return typeof type === 'string' && type.endsWith('_REQUEST');
 }
-
 function isDbLocalContext() {
-  return typeof _minimaldb_js__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest === 'function';
+    return typeof _DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest === 'function';
 }
-
-async function sendDbRequestViaChannel(request) {
-  return new Promise((resolve) => {
-    const responseType = request.type + '_RESPONSE_' + Math.random();
-    const requestId = request.requestId || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-    function onResponse(event) {
-      if (event.data?.type === responseType && event.data.requestId === requestId) {
-        _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.removeEventListener('message', onResponse);
-        resolve(event.data.payload);
-      }
+async function sendDbRequestSmart(request) {
+    if (isDbLocalContext()) {
+        return await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest)(request);
     }
-    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.addEventListener('message', onResponse);
-    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.postMessage({ ...request, responseType, requestId });
-  });
+    return await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage(request);
 }
-
-async function sendDbRequestSmart(request, timeoutMs = 5000) {
-  if (isDbLocalContext()) {
-    return await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest)(request);
-  }
-  return await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage(request);
+// Re-add: fire-and-forget DB request via channel (for logs)
+function sendDbRequestViaChannel(request) {
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage(request);
 }
-
-function requestDbAndWait(requestEvent, timeoutMs = 5000) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const result = await sendDbRequestSmart(requestEvent, timeoutMs);
-      console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
-      const response = Array.isArray(result) ? result[0] : result;
-      if (response && (response.success || response.error === undefined)) {
-        resolve(response.data || response.payload);
-      } else {
-        reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
-      }
-    } catch (error) {
-      reject(error);
-    }
-  });
+function requestDbAndWait(requestEvent) {
+    return new Promise((resolve, reject) => {
+        (async () => {
+            try {
+                const result = await sendDbRequestSmart(requestEvent);
+                console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
+                const response = Array.isArray(result) ? result[0] : result;
+                if (response && (response.success || response.error === undefined)) {
+                    resolve(response.data || response.payload);
+                }
+                else {
+                    reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
+                }
+            }
+            catch (error) {
+                reject(error);
+            }
+        })();
+    });
 }
-
 // --- Logging ---
 function bufferOrWriteLog(logPayload) {
-  if (!isDbReady) {
-    if (logQueue.length >= LOG_QUEUE_MAX) {
-      logQueue.shift();
+    if (!isDbReady) {
+        if (logQueue.length >= LOG_QUEUE_MAX) {
+            logQueue.shift();
+        }
+        logQueue.push(logPayload);
     }
-    logQueue.push(logPayload);
-  } else {
-    const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
-    sendDbRequestViaChannel(req);
-  }
+    else {
+        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
+        sendDbRequestViaChannel(req);
+    }
 }
-
-_Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.logChannel.onmessage = (event) => {
-  const { type, payload } = event.data;
-  if (type === 'LOG_TO_DB' && payload) {
-    bufferOrWriteLog(payload);
-  }
+_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.logChannel.onmessage = (event) => {
+    const { type, payload } = event.data;
+    if (type === 'LOG_TO_DB' && payload) {
+        bufferOrWriteLog(payload);
+    }
 };
-
 // --- UI and Worker Utilities ---
 function sendUiEvent(type, payload) {
-  webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type, payload });
+    webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type, payload });
 }
-
 function sendWorkerError(message) {
-  webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.WORKER_ERROR, payload: message });
+    webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.WORKER_ERROR, payload: message });
 }
-
 function getActiveChatSessionId() {
-  return activeSessionId;
+    return activeSessionId;
 }
-
 async function setActiveChatSessionId(newSessionId) {
-  console.log(`[Sidepanel] Setting active session ID to: ${newSessionId}`);
-  activeSessionId = newSessionId;
-  if (newSessionId) {
-    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ lastSessionId: newSessionId });
-  } else {
-    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
-  }
-  (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__.setActiveSessionId)(newSessionId);
-  (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.setActiveSession)(newSessionId);
+    console.log(`[Sidepanel] Setting active session ID to: ${newSessionId}`);
+    activeSessionId = newSessionId;
+    if (newSessionId) {
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ lastSessionId: newSessionId });
+    }
+    else {
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
+    }
+    (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__.setActiveSessionId)(newSessionId);
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.setActiveSession)(newSessionId);
 }
-
 // --- Channel Handlers ---
-if (window.EXTENSION_CONTEXT === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI) {
-  _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.onmessage = async (event) => {
-    const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
-    if (!isDbRequest(type)) return;
-    try {
-      const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
-        type,
-        payload,
-        requestId,
-        senderId: reqSenderId,
-      });
-      const respType = responseType || type + '_RESPONSE';
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
-    } catch (err) {
-      const respType = responseType || type + '_RESPONSE';
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.dbChannel.postMessage({
-        type: respType,
-        payload: { success: false, error: err.message },
-        requestId,
-        senderId,
-      });
-    }
-  };
-
-  _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.onmessage = async (event) => {
-    const { type, payload, requestId, senderId } = event.data;
-    if (
-      [
-        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
-        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
-        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
-        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
-        _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
-      ].includes(type)
-    ) {
-      return;
-    }
-    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE && typeof window.sendChatMessage === 'function') {
-      const result = await window.sendChatMessage(payload);
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (
-      type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION &&
-      typeof window.interruptGeneration === 'function'
-    ) {
-      const result = await window.interruptGeneration(payload);
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER && typeof window.resetWorker === 'function') {
-      const result = await window.resetWorker(payload);
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL && typeof window.loadModel === 'function') {
-      const result = await window.loadModel(payload);
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-      const state = window.currentModelWorkerState || 'UNINITIALIZED';
-      const modelId = window.currentModelIdForWorker || null;
-      _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-        type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
-        payload: { state, modelId },
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    }
-  };
+if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI) {
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.onmessage = async (event) => {
+        const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
+        if (!isDbRequest(type))
+            return;
+        try {
+            const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
+                type,
+                payload,
+                requestId,
+                senderId: reqSenderId,
+            });
+            const respType = responseType || type + '_RESPONSE';
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
+        }
+        catch (err) {
+            const respType = responseType || type + '_RESPONSE';
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage({
+                type: respType,
+                payload: { success: false, error: err.message },
+                requestId,
+                senderId,
+            });
+        }
+    };
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.onmessage = async (event) => {
+        const { type, payload, requestId, senderId: msgSenderId } = event.data;
+        if (msgSenderId && msgSenderId !== senderId)
+            return; // Only process messages for this context
+        if ([
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
+        ].includes(type)) {
+            return;
+        }
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE && typeof window.sendChatMessage === 'function') {
+            const result = await window.sendChatMessage(payload);
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE + '_RESPONSE',
+                payload: result,
+                requestId,
+                senderId: 'sidepanel',
+                timestamp: Date.now(),
+            });
+        }
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION &&
+            typeof window.interruptGeneration === 'function') {
+            const result = await window.interruptGeneration(payload);
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION + '_RESPONSE',
+                payload: result,
+                requestId,
+                senderId: 'sidepanel',
+                timestamp: Date.now(),
+            });
+        }
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER && typeof window.resetWorker === 'function') {
+            const result = await window.resetWorker(payload);
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+                payload: result,
+                requestId,
+                senderId: 'sidepanel',
+                timestamp: Date.now(),
+            });
+        }
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL && typeof window.loadModel === 'function') {
+            const result = await window.loadModel(payload);
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                payload: result,
+                requestId,
+                senderId: 'sidepanel',
+                timestamp: Date.now(),
+            });
+        }
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+            const state = window.currentModelWorkerState || 'UNINITIALIZED';
+            const modelId = window.currentModelIdForWorker || null;
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+                payload: { state, modelId },
+                requestId,
+                senderId: 'sidepanel',
+                timestamp: Date.now(),
+            });
+        }
+    };
 }
-
 // --- Event Handlers ---
 function handleMessage(message, sender, sendResponse) {
-  const { type } = message;
-  if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.DirectDBNames).includes(type) || Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.DBEventNames).includes(type)) {
-    return false;
-  }
-  if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
-    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
-      chatId: message.chatId,
-      messageId: message.messageId,
-      text: message.text,
-    });
-  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
-    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
-      chatId: message.chatId,
-      messageId: message.messageId,
-      error: message.error,
-    });
-    sendResponse({});
-  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
-    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
-    sendResponse({ status: 'received', type });
-  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
-    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
-    sendResponse({});
-  } else if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
-    sendUiEvent(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
-  } else if (
-    type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
-    type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_DOWNLOAD_PROGRESS
-  ) {
-    // No action needed
-  } else {
-    console.warn('[Sidepanel] Received unknown message type from background:', type, message);
-  }
+    const { type } = message;
+    if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DBEventNames).includes(type)) {
+        return false;
+    }
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
+            chatId: message.chatId,
+            messageId: message.messageId,
+            text: message.text,
+        });
+    }
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+            chatId: message.chatId,
+            messageId: message.messageId,
+            error: message.error,
+        });
+        sendResponse({});
+    }
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
+        sendResponse({ status: 'received', type });
+    }
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
+        sendResponse({});
+    }
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
+    }
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_DOWNLOAD_PROGRESS) {
+        // No action needed
+    }
+    else {
+        console.warn('[Sidepanel] Received unknown message type from background:', type, message);
+    }
 }
-
 async function handleSessionCreated(newSessionId) {
-  console.log(`[Sidepanel] Orchestrator reported new session created: ${newSessionId}`);
-  await setActiveChatSessionId(newSessionId);
-  try {
-    const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(newSessionId);
-    const sessionData = await requestDbAndWait(request);
-    if (!sessionData?.messages) {
-      console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}.`, sessionData);
-    }
-  } catch (error) {
-    console.error(`[Sidepanel] Failed to fetch messages for new session ${newSessionId}:`, error);
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load initial messages for new chat: ${error.message}`);
-  }
-}
-
-async function handleNewChat() {
-  console.log('[Sidepanel] New Chat button clicked.');
-  await setActiveChatSessionId(null);
-  (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.clearInput)();
-  (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.focusInput)();
-}
-
-async function handleChatSessionClick(event) {
-  const sessionId = event.currentTarget.dataset.sessionId;
-  if (!sessionId) {
-    console.warn('[Sidepanel] Session list click event missing sessionId:', event.currentTarget);
-    return;
-  }
-  if (sessionId === activeSessionId) {
-    console.log(`[Sidepanel] Clicked already active session: ${sessionId}`);
-    (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__.scrollToBottom)();
-  } else {
-    console.log(`[Sidepanel] Session list item clicked: ${sessionId}`);
-    await loadAndDisplaySession(sessionId);
-  }
-}
-
-async function loadAndDisplaySession(sessionId) {
-  if (!sessionId) {
-    console.log('[Sidepanel] No session ID to load, setting renderer to null.');
-    await setActiveChatSessionId(null);
-    return;
-  }
-  console.log(`[Sidepanel] Loading session data for: ${sessionId}`);
-  try {
-    const request = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(sessionId);
-    const sessionData = await requestDbAndWait(request);
-    console.log(`[Sidepanel] Session data successfully loaded for ${sessionId}.`);
-    await setActiveChatSessionId(sessionId);
-    if (!sessionData?.messages) {
-      console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}.`);
-    }
-  } catch (error) {
-    console.error(`[Sidepanel] Failed to load session ${sessionId}:`, error);
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load chat: ${error.message}`);
-    await setActiveChatSessionId(null);
-  }
-}
-
-async function handleDetach() {
-  if (!currentTabId) {
-    console.error('Cannot detach: Missing tab ID');
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)('Cannot detach: Missing tab ID');
-    return;
-  }
-  const currentSessionId = getActiveChatSessionId();
-  try {
-    const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
-      type: 'getPopupForTab',
-      tabId: currentTabId,
-    });
-    if (response?.popupId) {
-      await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.update(response.popupId, { focused: true });
-      return;
-    }
-    const storageKey = `detachedSessionId_${currentTabId}`;
-    await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ [storageKey]: currentSessionId });
-    console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
-    const popup = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.create({
-      url: webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
-      type: 'popup',
-      width: 400,
-      height: 600,
-    });
-    if (popup?.id) {
-      await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
-        type: 'popupCreated',
-        tabId: currentTabId,
-        popupId: popup.id,
-      });
-    } else {
-      throw new Error('Failed to create popup window.');
-    }
-  } catch (error) {
-    console.error('Error during detach:', error);
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Error detaching chat: ${error.message}`);
-  }
-}
-
-async function handlePageChange(event) {
-  if (!event?.pageId) return;
-  console.log(`[Sidepanel] Navigation changed to: ${event.pageId}`);
-  if (!isDbReady) {
-    console.log('[Sidepanel] DB not ready yet, skipping session load on initial navigation event.');
-    return;
-  }
-  if (event.pageId === 'page-home') {
-    console.log('[Sidepanel] Navigated to home page, checking for specific session load signal...');
+    console.log(`[Sidepanel] Orchestrator reported new session created: ${newSessionId}`);
+    console.log('[Sidepanel] handleSessionCreated callback received sessionId:', newSessionId);
+    await setActiveChatSessionId(newSessionId);
     try {
-      const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(['lastSessionId']);
-      if (lastSessionId) {
-        console.log(`[Sidepanel] Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
-        await loadAndDisplaySession(lastSessionId);
-        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
-      } else {
-        console.log('[Sidepanel] No load signal found. Resetting to welcome state.');
-        await loadAndDisplaySession(null);
-      }
-    } catch (error) {
-      console.error('[Sidepanel] Error checking/loading session based on signal:', error);
-      (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)('Failed to load session state.');
-      await loadAndDisplaySession(null);
+        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(newSessionId);
+        const sessionData = await requestDbAndWait(request);
+        if (!sessionData?.messages) {
+            console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}.`, sessionData);
+        }
     }
-  }
+    catch (error) {
+        const err = error;
+        console.error(`[Sidepanel] Failed to fetch messages for new session ${newSessionId}:`, err);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load initial messages for new chat: ${err.message}`);
+    }
 }
-
+async function handleNewChat() {
+    console.log('[Sidepanel] New Chat button clicked.');
+    await setActiveChatSessionId(null);
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.clearInput)();
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.focusInput)();
+}
+async function loadAndDisplaySession(sessionId) {
+    if (!sessionId) {
+        console.log('[Sidepanel] No session ID to load, setting renderer to null.');
+        await setActiveChatSessionId(null);
+        return;
+    }
+    console.log(`[Sidepanel] Loading session data for: ${sessionId}`);
+    try {
+        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(sessionId);
+        const sessionData = await requestDbAndWait(request);
+        console.log(`[Sidepanel] Session data successfully loaded for ${sessionId}.`);
+        await setActiveChatSessionId(sessionId);
+        if (!sessionData?.messages) {
+            console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}.`);
+        }
+    }
+    catch (error) {
+        const err = error;
+        console.error(`[Sidepanel] Failed to load session ${sessionId}:`, err);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load chat: ${err.message}`);
+        await setActiveChatSessionId(null);
+    }
+}
+async function handleDetach() {
+    if (!currentTabId) {
+        console.error('Cannot detach: Missing tab ID');
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)('Cannot detach: Missing tab ID');
+        return;
+    }
+    const currentSessionId = getActiveChatSessionId();
+    try {
+        const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
+            type: 'getPopupForTab',
+            tabId: currentTabId,
+        });
+        if (response?.popupId) {
+            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.update(response.popupId, { focused: true });
+            return;
+        }
+        const storageKey = `detachedSessionId_${currentTabId}`;
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ [storageKey]: currentSessionId });
+        console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+        const popup = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.create({
+            url: webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
+            type: 'popup',
+            width: 400,
+            height: 600,
+        });
+        if (popup?.id) {
+            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({
+                type: 'popupCreated',
+                tabId: currentTabId,
+                popupId: popup.id,
+            });
+        }
+        else {
+            throw new Error('Failed to create popup window.');
+        }
+    }
+    catch (error) {
+        const err = error;
+        console.error('Error during detach:', err);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Error detaching chat: ${err.message}`);
+    }
+}
+async function handlePageChange(event) {
+    if (!event?.pageId)
+        return;
+    console.log(`[Sidepanel] Navigation changed to: ${event.pageId}`);
+    if (!isDbReady) {
+        console.log('[Sidepanel] DB not ready yet, skipping session load on initial navigation event.');
+        return;
+    }
+    if (event.pageId === 'page-home') {
+        console.log('[Sidepanel] Navigated to home page, checking for specific session load signal...');
+        try {
+            const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(['lastSessionId']);
+            if (lastSessionId) {
+                console.log(`[Sidepanel] Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+                await loadAndDisplaySession(lastSessionId);
+                await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
+            }
+            else {
+                console.log('[Sidepanel] No load signal found. Resetting to welcome state.');
+                await loadAndDisplaySession(null);
+            }
+        }
+        catch (error) {
+            const err = error;
+            console.error('[Sidepanel] Error checking/loading session based on signal:', err);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)('Failed to load session state.');
+            await loadAndDisplaySession(null);
+        }
+    }
+}
 // --- Worker Status Broadcasting ---
 function handleWorkerStatusEvent(event) {
-  const { type, payload } = event.data;
-  if (
-    [
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
-      _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
-    ].includes(type)
-  ) {
-    _Utilities_dbChannels_js__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type, payload, senderId: 'sidepanel', timestamp: Date.now() });
-  }
+    const { type, payload } = event.data;
+    if ([
+        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
+        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
+        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
+        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
+        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
+    ].includes(type)) {
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type, payload, senderId: 'sidepanel', timestamp: Date.now() });
+    }
 }
-
 if (window.modelWorker) {
-  window.modelWorker.onmessage = (event) => {
-    handleWorkerStatusEvent(event);
-  };
+    window.modelWorker.onmessage = (event) => {
+        handleWorkerStatusEvent(event);
+    };
 }
-
 // --- Main Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('[Sidepanel] DOM Content Loaded.');
-  const urlParams = new URLSearchParams(window.location.search);
-  const requestedView = urlParams.get('view');
-
-  // Log Viewer Mode
-  if (requestedView === 'logs') {
-    console.log('[Sidepanel] Initializing in Log Viewer Mode.');
-    document.body.classList.add('log-viewer-mode');
-    document.getElementById('header')?.classList.add('hidden');
-    document.getElementById('bottom-nav')?.classList.add('hidden');
-    document
-      .querySelectorAll('#main-content > .page-container:not(#page-log-viewer)')
-      .forEach((el) => el.classList.add('hidden'));
-    const logViewerPage = document.getElementById('page-log-viewer');
-    if (logViewerPage) {
-      logViewerPage.classList.remove('hidden');
-    } else {
-      console.error('CRITICAL: #page-log-viewer element not found!');
-      document.body.innerHTML =
-        "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>";
-      return;
-    }
-    try {
-      const logViewerModule = await __webpack_require__.e(/*! import() */ "src_Controllers_LogViewerController_js").then(__webpack_require__.bind(__webpack_require__, /*! ./Controllers/LogViewerController.js */ "./src/Controllers/LogViewerController.js"));
-      await logViewerModule.initializeLogViewerController();
-      console.log('[Sidepanel] Log Viewer Controller initialized.');
-    } catch (err) {
-      console.error('Failed to load or initialize LogViewerController:', err);
-      if (logViewerPage) {
-        logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${err.message}</div>`;
-      }
-    }
-    return;
-  }
-
-  // Standard Mode
-  console.log('[Sidepanel] Initializing in Standard Mode.');
-  document.getElementById('page-log-viewer')?.classList.add('hidden');
-
-  // Initialize DB
-  try {
-    const result = await (0,_minimaldb_js__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)();
-    if (result?.success) {
-      console.log('[Sidepanel] DB initialized directly.');
-      isDbReady = true;
-      for (const logPayload of logQueue) {
-        const req = new _events_dbEvents_js__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
-        sendDbRequestViaChannel(req);
-      }
-      logQueue = [];
-    } else {
-      throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
-    }
-  } catch (error) {
-    console.error('[Sidepanel] DB Initialization failed:', error);
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${error.message}. Please try reloading.`);
-    const chatBody = document.getElementById('chat-body');
-    if (chatBody) {
-      chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${error.message}. Please reload the extension.</div>`;
-    }
-    return;
-  }
-
-  // Initialize UI and Core Components
-  try {
-    const { chatBody, newChatButton, chatInputElement, sendButton, fileInput } = (0,_Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__.initializeUI)({
-      onNewChat: handleNewChat,
-      onSessionClick: handleChatSessionClick,
-      onAttachFile: _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__.handleAttachClick,
-    });
-    console.log('[Sidepanel] UI Controller Initialized.');
-
-    const chatBodyForRenderer = document.getElementById('chat-body');
-    if (!chatBodyForRenderer) {
-      console.error('[Sidepanel] CRITICAL: chatBodyForRenderer is null before initializeRenderer!');
-    }
-    (0,_Home_chatRenderer_js__WEBPACK_IMPORTED_MODULE_5__.initializeRenderer)(chatBodyForRenderer, requestDbAndWait);
-    console.log('[Sidepanel] Chat Renderer Initialized.');
-
-    (0,_navigation_js__WEBPACK_IMPORTED_MODULE_3__.initializeNavigation)();
-    console.log('[Sidepanel] Navigation Initialized.');
-
-    document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
-
-    (0,_Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__.initializeFileHandling)({
-      uiController: _Home_uiController_js__WEBPACK_IMPORTED_MODULE_4__,
-      getActiveSessionIdFunc: getActiveChatSessionId,
-    });
-    console.log('[Sidepanel] File Handler Initialized.');
-
-    const fileInputForListener = document.getElementById('file-input');
-    if (fileInputForListener) {
-      fileInputForListener.addEventListener('change', _Home_fileHandler_js__WEBPACK_IMPORTED_MODULE_7__.handleFileSelected);
-    } else {
-      console.warn('[Sidepanel] File input element not found before adding listener.');
-    }
-
-    const activeTab = await (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.getActiveTab)();
-    currentTabId = activeTab?.id;
-    currentTab = activeTab;
-    console.log(`[Sidepanel] Current Tab ID: ${currentTabId}`);
-
-    (0,_Home_messageOrchestrator_js__WEBPACK_IMPORTED_MODULE_6__.initializeOrchestrator)({
-      getActiveSessionIdFunc: getActiveChatSessionId,
-      onSessionCreatedCallback: handleSessionCreated,
-      getCurrentTabIdFunc: () => currentTabId,
-    });
-    console.log('[Sidepanel] Message Orchestrator Initialized.');
-
-    webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.onMessage.addListener(handleMessage);
-    console.log('[Sidepanel] Background message listener added.');
-
-    // Initialize Controllers
-    const historyPopupElement = document.getElementById('history-popup');
-    const historyListElement = document.getElementById('history-list');
-    const historySearchElement = document.getElementById('history-search');
-    const closeHistoryButtonElement = document.getElementById('close-history');
-    const historyButton = document.getElementById('history-button');
-    const detachButton = document.getElementById('detach-button');
-
-    if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
-      historyPopupController = (0,_Controllers_HistoryPopupController_js__WEBPACK_IMPORTED_MODULE_11__.initializeHistoryPopup)(
-        {
-          popupContainer: historyPopupElement,
-          listContainer: historyListElement,
-          searchInput: historySearchElement,
-          closeButton: closeHistoryButtonElement,
-        },
-        requestDbAndWait
-      );
-      if (!historyPopupController) {
-        console.error('[Sidepanel] History Popup Controller initialization failed.');
-      }
-    } else {
-      console.warn('[Sidepanel] Could not find all required elements for History Popup Controller.');
-    }
-
-    if (historyButton && historyPopupController) {
-      historyButton.addEventListener('click', () => historyPopupController.show());
-    } else {
-      console.warn('[Sidepanel] History button or controller not available for listener.');
-    }
-
-    if (detachButton) {
-      detachButton.addEventListener('click', handleDetach);
-    } else {
-      console.warn('[Sidepanel] Detach button not found.');
-    }
-
-    const libraryListElement = document.getElementById('starred-list');
-    if (libraryListElement) {
-      (0,_Controllers_LibraryController_js__WEBPACK_IMPORTED_MODULE_12__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
-      console.log('[Sidepanel] Library Controller Initialized.');
-    } else {
-      console.warn('[Sidepanel] Could not find #starred-list element for Library Controller.');
-    }
-
-    document.addEventListener(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_LOAD, (e) => {
-      const { modelId } = e.detail || {};
-      if (!modelId) {
-        sendWorkerError('No model ID specified for loading.');
+    console.log('[Sidepanel] DOM Content Loaded.');
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedView = urlParams.get('view');
+    // Log Viewer Mode
+    if (requestedView === 'logs') {
+        console.log('[Sidepanel] Initializing in Log Viewer Mode.');
+        document.body.classList.add('log-viewer-mode');
+        document.getElementById('header')?.classList.add('hidden');
+        document.getElementById('bottom-nav')?.classList.add('hidden');
+        document
+            .querySelectorAll('#main-content > .page-container:not(#page-log-viewer)')
+            .forEach((el) => el.classList.add('hidden'));
+        const logViewerPage = document.getElementById('page-log-viewer');
+        if (logViewerPage) {
+            logViewerPage.classList.remove('hidden');
+        }
+        else {
+            console.error('CRITICAL: #page-log-viewer element not found!');
+            document.body.innerHTML =
+                "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>";
+            return;
+        }
+        try {
+            const logViewerModule = await __webpack_require__.e(/*! import() */ "src_Controllers_LogViewerController_ts").then(__webpack_require__.bind(__webpack_require__, /*! ./Controllers/LogViewerController */ "./src/Controllers/LogViewerController.ts"));
+            await logViewerModule.initializeLogViewerController();
+            console.log('[Sidepanel] Log Viewer Controller initialized.');
+        }
+        catch (err) {
+            const error = err;
+            console.error('Failed to load or initialize LogViewerController:', error);
+            if (logViewerPage) {
+                logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${error.message}</div>`;
+            }
+        }
         return;
-      }
-      webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime
-        .sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL, payload: { modelId } })
-        .catch((err) => sendWorkerError(`Failed to send load request: ${err.message}`));
-    });
-
-    (0,_Controllers_DiscoverController_js__WEBPACK_IMPORTED_MODULE_13__.initializeDiscoverController)();
-    console.log('[Sidepanel] Discover Controller Initialized.');
-
-    (0,_Controllers_SettingsController_js__WEBPACK_IMPORTED_MODULE_14__.initializeSettingsController)();
-    console.log('[Sidepanel] Settings Controller Initialized.');
-
-    (0,_Controllers_SpacesController_js__WEBPACK_IMPORTED_MODULE_15__.initializeSpacesController)();
-    console.log('[Sidepanel] Spaces Controller Initialized.');
-
-    (0,_Controllers_DriveController_js__WEBPACK_IMPORTED_MODULE_16__.initializeDriveController)({
-      requestDbAndWaitFunc: requestDbAndWait,
-      getActiveChatSessionId,
-      setActiveChatSessionId,
-      showNotification: _notifications_js__WEBPACK_IMPORTED_MODULE_9__.showNotification,
-      debounce: _Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.debounce,
-    });
-    console.log('[Sidepanel] Drive Controller Initialized.');
-
-    // Handle Popup Context
-    const popupContext = urlParams.get('context');
-    originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
-    isPopup = popupContext === 'popup';
-    console.log(
-      `[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${
-        isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''
-      }`
-    );
-
-    if (isPopup && originalTabIdFromPopup) {
-      const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
-      const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(storageKey);
-      const detachedSessionId = result[storageKey];
-      if (detachedSessionId) {
-        console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
-        await loadAndDisplaySession(detachedSessionId);
-      } else {
-        console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
-        await setActiveChatSessionId(null);
-      }
-    } else {
-      console.log('[Sidepanel] Starting fresh. Loading empty/welcome state.');
-      await loadAndDisplaySession(null);
     }
-
-    console.log('[Sidepanel] Initialization complete.');
-  } catch (error) {
-    console.error('[Sidepanel] Initialization failed:', error);
-    (0,_Utilities_generalUtils_js__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${error.message}. Please try reloading.`);
-    const chatBody = document.getElementById('chat-body');
-    if (chatBody) {
-      chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${error.message}. Please reload the extension.</div>`;
+    // Standard Mode
+    console.log('[Sidepanel] Initializing in Standard Mode.');
+    document.getElementById('page-log-viewer')?.classList.add('hidden');
+    // Initialize DB
+    try {
+        const result = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)();
+        if (result?.success) {
+            console.log('[Sidepanel] DB initialized directly.');
+            isDbReady = true;
+            for (const logPayload of logQueue) {
+                const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
+                sendDbRequestViaChannel(req);
+            }
+            logQueue = [];
+        }
+        else {
+            throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
+        }
     }
-  }
+    catch (error) {
+        const err = error;
+        console.error('[Sidepanel] DB Initialization failed:', err);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
+        const chatBody = document.getElementById('chat-body');
+        if (chatBody) {
+            chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
+        }
+        return;
+    }
+    // Initialize UI and Core Components
+    try {
+        const uiInitResult = await (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.initializeUI)({
+            onNewChat: handleNewChat,
+            onAttachFile: _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.handleAttachClick,
+        });
+        if (!uiInitResult)
+            throw new Error('UI initialization failed');
+        const { chatBody, fileInput } = uiInitResult;
+        console.log('[Sidepanel] UI Controller Initialized.');
+        if (!chatBody) {
+            console.error('[Sidepanel] CRITICAL: chatBody is null before initializeRenderer!');
+            throw new Error('chatBody is null');
+        }
+        (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__.initializeRenderer)(chatBody, requestDbAndWait);
+        console.log('[Sidepanel] Chat Renderer Initialized.');
+        (0,_navigation__WEBPACK_IMPORTED_MODULE_3__.initializeNavigation)();
+        console.log('[Sidepanel] Navigation Initialized.');
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
+        (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.initializeFileHandling)({
+            uiController: _Home_uiController__WEBPACK_IMPORTED_MODULE_4__,
+            getActiveSessionIdFunc: getActiveChatSessionId,
+        });
+        console.log('[Sidepanel] File Handler Initialized.');
+        if (fileInput) {
+            fileInput.addEventListener('change', _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.handleFileSelected);
+        }
+        else {
+            console.warn('[Sidepanel] File input element not found before adding listener.');
+        }
+        const activeTab = await (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.getActiveTab)();
+        currentTabId = activeTab?.id;
+        console.log(`[Sidepanel] Current Tab ID: ${currentTabId}`);
+        (0,_Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_6__.initializeOrchestrator)({
+            getActiveSessionIdFunc: getActiveChatSessionId,
+            onSessionCreatedCallback: handleSessionCreated,
+            getCurrentTabIdFunc: () => currentTabId,
+        });
+        console.log('[Sidepanel] Message Orchestrator Initialized.');
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.onMessage.addListener(handleMessage);
+        console.log('[Sidepanel] Background message listener added.');
+        // Initialize Controllers
+        const historyPopupElement = document.getElementById('history-popup');
+        const historyListElement = document.getElementById('history-list');
+        const historySearchElement = document.getElementById('history-search');
+        const closeHistoryButtonElement = document.getElementById('close-history');
+        const historyButton = document.getElementById('history-button');
+        const detachButton = document.getElementById('detach-button');
+        if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
+            historyPopupController = (0,_Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_11__.initializeHistoryPopup)({
+                popupContainer: historyPopupElement,
+                listContainer: historyListElement,
+                searchInput: historySearchElement,
+                closeButton: closeHistoryButtonElement,
+            }, requestDbAndWait);
+            if (!historyPopupController) {
+                console.error('[Sidepanel] History Popup Controller initialization failed.');
+            }
+        }
+        else {
+            console.warn('[Sidepanel] Could not find all required elements for History Popup Controller.');
+        }
+        if (historyButton && historyPopupController) {
+            historyButton.addEventListener('click', () => historyPopupController.show());
+        }
+        else {
+            console.warn('[Sidepanel] History button or controller not available for listener.');
+        }
+        if (detachButton) {
+            detachButton.addEventListener('click', handleDetach);
+        }
+        else {
+            console.warn('[Sidepanel] Detach button not found.');
+        }
+        const libraryListElement = document.getElementById('starred-list');
+        if (libraryListElement) {
+            (0,_Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_12__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
+            console.log('[Sidepanel] Library Controller Initialized.');
+        }
+        else {
+            console.warn('[Sidepanel] Could not find #starred-list element for Library Controller.');
+        }
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_LOAD, (e) => {
+            const { modelId } = e.detail || {};
+            if (!modelId) {
+                sendWorkerError('No model ID specified for loading.');
+                return;
+            }
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime
+                .sendMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL, payload: { modelId } })
+                .catch((err) => sendWorkerError(`Failed to send load request: ${err.message}`));
+        });
+        (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_13__.initializeDiscoverController)();
+        console.log('[Sidepanel] Discover Controller Initialized.');
+        (0,_Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_14__.initializeSettingsController)();
+        console.log('[Sidepanel] Settings Controller Initialized.');
+        (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_15__.initializeSpacesController)();
+        console.log('[Sidepanel] Spaces Controller Initialized.');
+        (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_16__.initializeDriveController)({
+            requestDbAndWaitFunc: requestDbAndWait,
+            getActiveChatSessionId,
+            setActiveChatSessionId,
+            showNotification: _notifications__WEBPACK_IMPORTED_MODULE_9__.showNotification,
+            debounce: _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.debounce,
+        });
+        console.log('[Sidepanel] Drive Controller Initialized.');
+        // Handle Popup Context
+        const popupContext = urlParams.get('context');
+        originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
+        isPopup = popupContext === 'popup';
+        console.log(`[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
+        if (isPopup && originalTabIdFromPopup) {
+            const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
+            const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(storageKey);
+            const detachedSessionId = result[storageKey];
+            if (detachedSessionId) {
+                console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
+                await loadAndDisplaySession(detachedSessionId);
+            }
+            else {
+                console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
+                await setActiveChatSessionId(null);
+            }
+        }
+        else {
+            console.log('[Sidepanel] Starting fresh. Loading empty/welcome state.');
+            await loadAndDisplaySession(null);
+        }
+        console.log('[Sidepanel] Initialization complete.');
+    }
+    catch (error) {
+        const err = error;
+        console.error('[Sidepanel] Initialization failed:', err);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
+        const chatBody = document.getElementById('chat-body');
+        if (chatBody) {
+            chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
+        }
+    }
 });
-
 // --- Exports ---
+
 
 
 /***/ })
@@ -8312,7 +9762,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "c85e5d206fdb891a6d10" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "a3b44a367401c554eb25" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	
@@ -8508,7 +9958,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
-/******/ 	var __webpack_exports__ = __webpack_require__("./src/sidepanel.js");
+/******/ 	var __webpack_exports__ = __webpack_require__("./src/sidepanel.ts");
 /******/ 	
 /******/ })()
 ;

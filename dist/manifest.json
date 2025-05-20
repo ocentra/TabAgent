@@ -48,16 +48,14 @@
         "sidepanel.html",
         "modelAssetDownloader.js",
         "model-worker.js",
-        "js/absurd-sql-backends/sql-worker.js",
         "pageExtractor.js",
         "assets/*",
         "sidepanel.css",
         "icons/*",
         "xenova/*",
         "model/*",
-        "wasm/*",
-        "wasm/sql-wasm.wasm",
-        "wasm/sql-wasm-debug.wasm"
+        "wasm/*"
+
       ],
       "matches": ["<all_urls>"]
     }

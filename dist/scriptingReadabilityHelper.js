@@ -2,18 +2,15 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ "./src/events/eventNames.js":
+/***/ "./src/events/eventNames.ts":
 /*!**********************************!*\
-  !*** ./src/events/eventNames.js ***!
+  !*** ./src/events/eventNames.ts ***!
   \**********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
-/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
-/* harmony export */   DBPaths: () => (/* binding */ DBPaths),
-/* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
 /* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
@@ -26,204 +23,114 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
-const DirectDBNames = Object.freeze({
-  ADD_MODEL_ASSET: 'AddModelAsset',
-  REQUEST_MODEL_ASSET_CHUNK: 'RequestModelAssetChunk',
-  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
-});
-
-const DBEventNames = Object.freeze({
-  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
-  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
-  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
-  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
-  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
-  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
-  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
-  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
-  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
-  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
-  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
-  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
-  DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
-  DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
-  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
-  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
-  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
-  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
-  DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
-  DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
-  DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
-  DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
-  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
-  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
-  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
-  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
-  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
-  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
-  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
-  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
-  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
-  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
-  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
-  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
-  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
-  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
-  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
-  DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
-  DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
-  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
-  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
-
-  // Model Asset DB Operations
-  DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest',
-  DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
-  DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
-  DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
-  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
-  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
-  DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest',
-  DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
-  DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest',
-  DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
-  DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest',
-  DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
-  DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
-  DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
-  DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest',
-  DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
-  DB_WORKER_ERROR: 'DbWorkerError',
-  DB_WORKER_RESET: 'DbWorkerReset',
-});
-
 const UIEventNames = Object.freeze({
-  QUERY_SUBMITTED: 'querySubmitted',
-  BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
-  BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
-  BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
-  BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
-  BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
-  REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
-  WORKER_READY: 'worker:ready',
-  WORKER_ERROR: 'worker:error',
-  NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
-  SCRAPE_PAGE: 'SCRAPE_PAGE',
-  SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
-  DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-  MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
-  // Add more as needed
+    QUERY_SUBMITTED: 'querySubmitted',
+    BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
+    BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
+    BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
+    BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
+    BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
+    REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
+    WORKER_READY: 'worker:ready',
+    WORKER_ERROR: 'worker:error',
+    NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+    SCRAPE_PAGE: 'SCRAPE_PAGE',
+    SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
+    DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+    MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
+    // Add more as needed
 });
-
 const WorkerEventNames = Object.freeze({
-  WORKER_SCRIPT_READY: 'workerScriptReady',
-  WORKER_READY: 'workerReady',
-  LOADING_STATUS: 'loadingStatus',
-  GENERATION_STATUS: 'generationStatus',
-  GENERATION_UPDATE: 'generationUpdate',
-  GENERATION_COMPLETE: 'generationComplete',
-  GENERATION_ERROR: 'generationError',
-  RESET_COMPLETE: 'resetComplete',
-  ERROR: 'error',
-
+    WORKER_SCRIPT_READY: 'workerScriptReady',
+    WORKER_READY: 'workerReady',
+    LOADING_STATUS: 'loadingStatus',
+    GENERATION_STATUS: 'generationStatus',
+    GENERATION_UPDATE: 'generationUpdate',
+    GENERATION_COMPLETE: 'generationComplete',
+    GENERATION_ERROR: 'generationError',
+    RESET_COMPLETE: 'resetComplete',
+    ERROR: 'error',
 });
-
 const ModelWorkerStates = Object.freeze({
-  UNINITIALIZED: 'uninitialized',
-  CREATING_WORKER: 'creating_worker',
-  WORKER_SCRIPT_READY: 'worker_script_ready',
-  LOADING_MODEL: 'loading_model',
-  MODEL_READY: 'model_ready',
-  GENERATING: 'generating',
-  ERROR: 'error',
-  IDLE: 'idle',
+    UNINITIALIZED: 'uninitialized',
+    CREATING_WORKER: 'creating_worker',
+    WORKER_SCRIPT_READY: 'worker_script_ready',
+    LOADING_MODEL: 'loading_model',
+    MODEL_READY: 'model_ready',
+    GENERATING: 'generating',
+    ERROR: 'error',
+    IDLE: 'idle',
 });
-
 const RuntimeMessageTypes = Object.freeze({
-  LOAD_MODEL: 'loadModel',
-  SEND_CHAT_MESSAGE: 'sendChatMessage',
-  INTERRUPT_GENERATION: 'interruptGeneration',
-  RESET_WORKER: 'resetWorker',
-  GET_MODEL_WORKER_STATE: 'getModelWorkerState',
-  SCRAPE_REQUEST: 'scrapeRequest',
-  GET_DRIVE_FILE_LIST: 'getDriveFileList',
-  GET_LOG_SESSIONS: 'getLogSessions',
-  GET_LOG_ENTRIES: 'getLogEntries',
-  DETACH_SIDE_PANEL: 'detachSidePanel',
-  GET_DETACHED_STATE: 'getDetachedState',
-  GET_DB_READY_STATE: 'getDbReadyState',
+    LOAD_MODEL: 'loadModel',
+    SEND_CHAT_MESSAGE: 'sendChatMessage',
+    INTERRUPT_GENERATION: 'interruptGeneration',
+    RESET_WORKER: 'resetWorker',
+    GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+    SCRAPE_REQUEST: 'scrapeRequest',
+    GET_DRIVE_FILE_LIST: 'getDriveFileList',
+    GET_LOG_SESSIONS: 'getLogSessions',
+    GET_LOG_ENTRIES: 'getLogEntries',
+    DETACH_SIDE_PANEL: 'detachSidePanel',
+    GET_DETACHED_STATE: 'getDetachedState',
+    GET_DB_READY_STATE: 'getDbReadyState',
 });
-
 const SiteMapperMessageTypes = Object.freeze({
-  OPEN_TAB: 'openTab',
-  MAPPED: 'mapped',
+    OPEN_TAB: 'openTab',
+    MAPPED: 'mapped',
 });
-
 const ModelLoaderMessageTypes = Object.freeze({
-  INIT: 'init',
-  GENERATE: 'Generate',
-  INTERRUPT: 'Interrupt',
-  RESET: 'Reset',
-  DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
-  LIST_MODEL_FILES: 'ListModelFiles',
-  LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
+    INIT: 'init',
+    GENERATE: 'Generate',
+    INTERRUPT: 'Interrupt',
+    RESET: 'Reset',
+    DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
+    LIST_MODEL_FILES: 'ListModelFiles',
+    LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
 });
-
 const InternalEventBusMessageTypes = Object.freeze({
-  BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
+    BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
 });
-
 const RawDirectMessageTypes = Object.freeze({
-  WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
-  WORKER_GENERIC_ERROR: 'WorkerGenericError',
-  WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
-  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
-  WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
+    WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
+    WORKER_GENERIC_ERROR: 'WorkerGenericError',
+    WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
+    WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
+    WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
-
 const Contexts = Object.freeze({
-  BACKGROUND: 'Background',
-  MAIN_UI: 'MainUI',
-  POPUP: 'Popup',
-  OTHERS: 'Others',
-  UNKNOWN: 'Unknown',
+    BACKGROUND: 'Background',
+    MAIN_UI: 'MainUI',
+    POPUP: 'Popup',
+    OTHERS: 'Others',
+    UNKNOWN: 'Unknown',
 });
-
 const MessageSenderTypes = Object.freeze({
-  USER: 'user',
-  SYSTEM: 'system',
-  AI: 'ai',
-  AGENT: 'agent',
-  // Add more as needed
+    USER: 'user',
+    SYSTEM: 'system',
+    AI: 'ai',
+    AGENT: 'agent',
+    // Add more as needed
 });
-
 const MessageContentTypes = Object.freeze({
-  TEXT: 'text',
-  IMAGE: 'image',
-  FILE: 'file',
-  CODE: 'code',
-  AGENT_ACTION: 'agent_action',
-  // Add more as needed
+    TEXT: 'text',
+    IMAGE: 'image',
+    FILE: 'file',
+    CODE: 'code',
+    AGENT_ACTION: 'agent_action',
+    // Add more as needed
 });
-
-const DBPaths = Object.freeze({
-  CHAT: '/sql/chat.db',
-  LOGS: '/sql/logs.db',
-  MODELS: '/sql/models.db',
-  KNOWLEDGE: '/sql/knowledge.db',
-});
-
 const TableNames = Object.freeze({
-  CHATS: 'chats',
-  MESSAGES: 'messages',
-  CHAT_SUMMARIES: 'chat_summaries',
-  ATTACHMENTS: 'attachments',
-  USERS: 'users',
-  LOGS: 'logs',
-  MODEL_ASSETS: 'model_assets',
-  KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
-  KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
+    CHATS: 'chats',
+    MESSAGES: 'messages',
+    CHAT_SUMMARIES: 'chat_summaries',
+    ATTACHMENTS: 'attachments',
+    USERS: 'users',
+    LOGS: 'logs',
+    MODEL_ASSETS: 'model_assets',
+    KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
+    KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
 });
-
 
 
 /***/ })
@@ -288,30 +195,24 @@ var __webpack_exports__ = {};
 // This entry needs to be wrapped in an IIFE because it needs to be isolated against other modules in the chunk.
 (() => {
 /*!*******************************************!*\
-  !*** ./src/scriptingReadabilityHelper.js ***!
+  !*** ./src/scriptingReadabilityHelper.ts ***!
   \*******************************************/
 __webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
 
-window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
-// DO NOT use import statements here - they won't work in scripts injected via registerContentScripts.
-// Readability should be globally available because Readability.js is injected first.
-
-(function() {
+window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
+(function () {
     // This must match eventNames.js UIEventNames.DYNAMIC_SCRIPT_MESSAGE_TYPE
     const DYNAMIC_SCRIPT_MESSAGE_TYPE = 'offscreenIframeResult';
     // Polyfill for browser API if only chrome is available
     const browser = typeof window.browser !== 'undefined' ? window.browser : (typeof window.chrome !== 'undefined' ? window.chrome : undefined);
     console.log('[Dynamic Script Helper] Running in iframe...');
-
     let result = { success: false, source: 'dynamic-script-helper' };
-
     const runReadabilityAndSend = () => {
         try {
             if (typeof Readability === 'undefined') {
                 throw new Error('Readability library not found in iframe context.');
             }
-
             const article = new Readability(document).parse();
             result = {
                 success: true,
@@ -325,26 +226,27 @@ window.EXTENSION_CONTEXT = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_0__.Co
                 siteName: article ? article.siteName : ''
             };
             console.log('[Dynamic Script Helper] Readability parsing successful.');
-        } catch (e) {
+        }
+        catch (e) {
             console.error('[Dynamic Script Helper] Error:', e);
             result.error = e.message || 'Unknown error in dynamic script helper';
         }
         console.log('[Dynamic Script Helper] Sending result back to background:', result);
         browser.runtime.sendMessage({ type: DYNAMIC_SCRIPT_MESSAGE_TYPE, payload: result });
     };
-
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-         console.log('[Dynamic Script Helper] Document already ready. Running Readability...');
-         runReadabilityAndSend();
-    } else {
-         console.log('[Dynamic Script Helper] Document not ready. Adding load listener...');
-         window.addEventListener('load', () => {
-              console.log('[Dynamic Script Helper] Window load event fired. Running Readability...');
-              runReadabilityAndSend();
-         }, { once: true });
+        console.log('[Dynamic Script Helper] Document already ready. Running Readability...');
+        runReadabilityAndSend();
     }
+    else {
+        console.log('[Dynamic Script Helper] Document not ready. Adding load listener...');
+        window.addEventListener('load', () => {
+            console.log('[Dynamic Script Helper] Window load event fired. Running Readability...');
+            runReadabilityAndSend();
+        }, { once: true });
+    }
+})();
 
-})(); 
 })();
 
 /******/ })()

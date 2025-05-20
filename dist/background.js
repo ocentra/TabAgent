@@ -1231,9 +1231,722 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 
 /***/ }),
 
-/***/ "./src/events/eventNames.js":
+/***/ "./src/DB/dbEvents.ts":
+/*!****************************!*\
+  !*** ./src/DB/dbEvents.ts ***!
+  \****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
+/* harmony export */   DbAddLogRequest: () => (/* binding */ DbAddLogRequest),
+/* harmony export */   DbAddLogResponse: () => (/* binding */ DbAddLogResponse),
+/* harmony export */   DbAddManifestRequest: () => (/* binding */ DbAddManifestRequest),
+/* harmony export */   DbAddManifestResponse: () => (/* binding */ DbAddManifestResponse),
+/* harmony export */   DbAddMessageRequest: () => (/* binding */ DbAddMessageRequest),
+/* harmony export */   DbAddMessageResponse: () => (/* binding */ DbAddMessageResponse),
+/* harmony export */   DbAddModelAssetRequest: () => (/* binding */ DbAddModelAssetRequest),
+/* harmony export */   DbAddModelAssetResponse: () => (/* binding */ DbAddModelAssetResponse),
+/* harmony export */   DbClearLogsRequest: () => (/* binding */ DbClearLogsRequest),
+/* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
+/* harmony export */   DbCountModelAssetChunksRequest: () => (/* binding */ DbCountModelAssetChunksRequest),
+/* harmony export */   DbCountModelAssetChunksResponse: () => (/* binding */ DbCountModelAssetChunksResponse),
+/* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
+/* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
+/* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
+/* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
+/* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
+/* harmony export */   DbDeleteSessionResponse: () => (/* binding */ DbDeleteSessionResponse),
+/* harmony export */   DbEnsureInitializedRequest: () => (/* binding */ DbEnsureInitializedRequest),
+/* harmony export */   DbEnsureInitializedResponse: () => (/* binding */ DbEnsureInitializedResponse),
+/* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
+/* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
+/* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
+/* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
+/* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
+/* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
+/* harmony export */   DbGetLogsResponse: () => (/* binding */ DbGetLogsResponse),
+/* harmony export */   DbGetManifestRequest: () => (/* binding */ DbGetManifestRequest),
+/* harmony export */   DbGetManifestResponse: () => (/* binding */ DbGetManifestResponse),
+/* harmony export */   DbGetModelAssetChunkRequest: () => (/* binding */ DbGetModelAssetChunkRequest),
+/* harmony export */   DbGetModelAssetChunkResponse: () => (/* binding */ DbGetModelAssetChunkResponse),
+/* harmony export */   DbGetModelAssetChunksRequest: () => (/* binding */ DbGetModelAssetChunksRequest),
+/* harmony export */   DbGetModelAssetChunksResponse: () => (/* binding */ DbGetModelAssetChunksResponse),
+/* harmony export */   DbGetReadyStateRequest: () => (/* binding */ DbGetReadyStateRequest),
+/* harmony export */   DbGetReadyStateResponse: () => (/* binding */ DbGetReadyStateResponse),
+/* harmony export */   DbGetSessionRequest: () => (/* binding */ DbGetSessionRequest),
+/* harmony export */   DbGetSessionResponse: () => (/* binding */ DbGetSessionResponse),
+/* harmony export */   DbGetStarredSessionsRequest: () => (/* binding */ DbGetStarredSessionsRequest),
+/* harmony export */   DbGetStarredSessionsResponse: () => (/* binding */ DbGetStarredSessionsResponse),
+/* harmony export */   DbGetUniqueLogValuesRequest: () => (/* binding */ DbGetUniqueLogValuesRequest),
+/* harmony export */   DbGetUniqueLogValuesResponse: () => (/* binding */ DbGetUniqueLogValuesResponse),
+/* harmony export */   DbInitWorkerRequest: () => (/* binding */ DbInitWorkerRequest),
+/* harmony export */   DbInitWorkerResponse: () => (/* binding */ DbInitWorkerResponse),
+/* harmony export */   DbInitializationCompleteNotification: () => (/* binding */ DbInitializationCompleteNotification),
+/* harmony export */   DbInitializeRequest: () => (/* binding */ DbInitializeRequest),
+/* harmony export */   DbListModelFilesRequest: () => (/* binding */ DbListModelFilesRequest),
+/* harmony export */   DbListModelFilesResponse: () => (/* binding */ DbListModelFilesResponse),
+/* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
+/* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
+/* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
+/* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
+/* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
+/* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
+/* harmony export */   DbResetDatabaseResponse: () => (/* binding */ DbResetDatabaseResponse),
+/* harmony export */   DbResponseBase: () => (/* binding */ DbResponseBase),
+/* harmony export */   DbSessionUpdatedNotification: () => (/* binding */ DbSessionUpdatedNotification),
+/* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
+/* harmony export */   DbToggleStarRequest: () => (/* binding */ DbToggleStarRequest),
+/* harmony export */   DbToggleStarResponse: () => (/* binding */ DbToggleStarResponse),
+/* harmony export */   DbUpdateMessageRequest: () => (/* binding */ DbUpdateMessageRequest),
+/* harmony export */   DbUpdateMessageResponse: () => (/* binding */ DbUpdateMessageResponse),
+/* harmony export */   DbUpdateStatusRequest: () => (/* binding */ DbUpdateStatusRequest),
+/* harmony export */   DbUpdateStatusResponse: () => (/* binding */ DbUpdateStatusResponse)
+/* harmony export */ });
+// dbEvents.js
+const DBEventNames = Object.freeze({
+    DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
+    DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
+    DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
+    DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
+    DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
+    DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
+    DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
+    DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
+    DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
+    DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
+    DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
+    DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
+    DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
+    DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
+    DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
+    DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
+    DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
+    DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
+    DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
+    DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
+    DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
+    DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
+    DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
+    DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
+    DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
+    DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
+    DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
+    DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
+    DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
+    DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
+    DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
+    DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
+    DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
+    DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
+    DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
+    DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
+    DB_ADD_LOG_RESPONSE: 'DbAddLogResponse', // Response for add log, if ever needed (currently fire-and-forget)
+    DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
+    DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
+    DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
+    DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
+    // Model Asset DB Operations
+    DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest', // For adding chunks
+    DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
+    DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
+    DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
+    DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
+    DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
+    DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest', // Should ideally list manifests
+    DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
+    DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest', // Gets multiple chunk records (metadata or full)
+    DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
+    DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest', // Gets a single chunk record (with data)
+    DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
+    // Model Asset Manifest Operations (NEW)
+    DB_ADD_MANIFEST_REQUEST: 'DbAddManifestRequest',
+    DB_ADD_MANIFEST_RESPONSE: 'DbAddManifestResponse',
+    DB_GET_MANIFEST_REQUEST: 'DbGetManifestRequest',
+    DB_GET_MANIFEST_RESPONSE: 'DbGetManifestResponse',
+    // General DB Worker and Initialization
+    DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
+    DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
+    DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest', // This was unused in db.js handler map
+    DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
+    DB_WORKER_ERROR: 'DbWorkerError', // Notification from worker for unhandled errors
+    DB_WORKER_RESET: 'DbWorkerReset', // Potential command or notification for worker reset
+});
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+class DbEventBase {
+    constructor(requestId = null) {
+        this.requestId = requestId || generateUUID();
+        this.timestamp = Date.now();
+    }
+}
+class DbResponseBase extends DbEventBase {
+    constructor(originalRequestId, success, data = null, error = null) {
+        super(originalRequestId);
+        this.success = success;
+        this.data = data;
+        this.error = error ? (typeof error === 'string' ? error : (error.message || String(error))) : null;
+    }
+}
+class DbNotificationBase {
+    constructor(sessionId) {
+        this.sessionId = sessionId;
+        this.timestamp = Date.now();
+    }
+}
+// --- Standard Session/Message/Log Events (Existing - no changes needed below unless specified) ---
+class DbGetSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, sessionData, error = null) {
+        super(originalRequestId, success, sessionData, error);
+        this.type = DbGetSessionResponse.type;
+    }
+}
+DbGetSessionResponse.type = DBEventNames.DB_GET_SESSION_RESPONSE;
+class DbAddMessageResponse extends DbResponseBase {
+    constructor(originalRequestId, success, newMessageId, error = null) {
+        super(originalRequestId, success, { newMessageId }, error);
+        this.type = DbAddMessageResponse.type;
+    }
+}
+DbAddMessageResponse.type = DBEventNames.DB_ADD_MESSAGE_RESPONSE;
+class DbUpdateMessageResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbUpdateMessageResponse.type;
+    }
+}
+DbUpdateMessageResponse.type = DBEventNames.DB_UPDATE_MESSAGE_RESPONSE;
+class DbUpdateStatusResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbUpdateStatusResponse.type;
+    }
+}
+DbUpdateStatusResponse.type = DBEventNames.DB_UPDATE_STATUS_RESPONSE;
+class DbDeleteMessageResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbDeleteMessageResponse.type;
+    }
+}
+DbDeleteMessageResponse.type = DBEventNames.DB_DELETE_MESSAGE_RESPONSE;
+class DbToggleStarResponse extends DbResponseBase {
+    constructor(originalRequestId, success, updatedSessionData, error = null) {
+        super(originalRequestId, success, updatedSessionData, error);
+        this.type = DbToggleStarResponse.type;
+    }
+}
+DbToggleStarResponse.type = DBEventNames.DB_TOGGLE_STAR_RESPONSE;
+class DbCreateSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, newSessionId, error = null) {
+        super(originalRequestId, success, { newSessionId }, error);
+        this.type = DbCreateSessionResponse.type;
+    }
+    get newSessionId() { return this.data?.newSessionId; }
+}
+DbCreateSessionResponse.type = DBEventNames.DB_CREATE_SESSION_RESPONSE;
+class DbDeleteSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbDeleteSessionResponse.type;
+    }
+}
+DbDeleteSessionResponse.type = DBEventNames.DB_DELETE_SESSION_RESPONSE;
+class DbRenameSessionResponse extends DbResponseBase {
+    constructor(originalRequestId, success, updatedSessionData, error = null) {
+        super(originalRequestId, success, updatedSessionData, error);
+        this.type = DbRenameSessionResponse.type;
+    }
+}
+DbRenameSessionResponse.type = DBEventNames.DB_RENAME_SESSION_RESPONSE;
+class DbGetAllSessionsResponse extends DbResponseBase {
+    constructor(requestId, success, sessions = null, error = null) {
+        super(requestId, success, sessions, error); // sessions are directly in 'data'
+        this.type = DbGetAllSessionsResponse.type;
+    }
+}
+DbGetAllSessionsResponse.type = DBEventNames.DB_GET_ALL_SESSIONS_RESPONSE;
+class DbGetStarredSessionsResponse extends DbResponseBase {
+    constructor(requestId, success, starredSessions = null, error = null) {
+        super(requestId, success, starredSessions, error); // starredSessions are directly in 'data'
+        this.type = DbGetStarredSessionsResponse.type;
+    }
+}
+DbGetStarredSessionsResponse.type = DBEventNames.DB_GET_STARRED_SESSIONS_RESPONSE;
+class DbGetReadyStateResponse extends DbResponseBase {
+    constructor(originalRequestId, success, readyState, error = null) {
+        super(originalRequestId, success, readyState, error);
+        this.type = DbGetReadyStateResponse.type;
+    }
+}
+DbGetReadyStateResponse.type = DBEventNames.DB_GET_READY_STATE_RESPONSE;
+class DbGetSessionRequest extends DbEventBase {
+    constructor(sessionId) {
+        super();
+        this.type = DbGetSessionRequest.type;
+        this.payload = { sessionId };
+    }
+}
+DbGetSessionRequest.type = DBEventNames.DB_GET_SESSION_REQUEST;
+class DbAddMessageRequest extends DbEventBase {
+    constructor(sessionId, messageObject) {
+        super();
+        this.type = DbAddMessageRequest.type;
+        this.payload = { sessionId, messageObject };
+    }
+}
+DbAddMessageRequest.type = DBEventNames.DB_ADD_MESSAGE_REQUEST;
+class DbUpdateMessageRequest extends DbEventBase {
+    constructor(sessionId, messageId, updates) {
+        super();
+        this.type = DbUpdateMessageRequest.type;
+        this.payload = { sessionId, messageId, updates };
+    }
+}
+DbUpdateMessageRequest.type = DBEventNames.DB_UPDATE_MESSAGE_REQUEST;
+class DbUpdateStatusRequest extends DbEventBase {
+    constructor(sessionId, status) {
+        super();
+        this.type = DbUpdateStatusRequest.type;
+        this.payload = { sessionId, status };
+    }
+}
+DbUpdateStatusRequest.type = DBEventNames.DB_UPDATE_STATUS_REQUEST;
+class DbDeleteMessageRequest extends DbEventBase {
+    constructor(sessionId, messageId) {
+        super();
+        this.type = DbDeleteMessageRequest.type;
+        this.payload = { sessionId, messageId };
+    }
+}
+DbDeleteMessageRequest.type = DBEventNames.DB_DELETE_MESSAGE_REQUEST;
+class DbToggleStarRequest extends DbEventBase {
+    constructor(sessionId) {
+        super();
+        this.type = DbToggleStarRequest.type;
+        this.payload = { sessionId };
+    }
+}
+DbToggleStarRequest.type = DBEventNames.DB_TOGGLE_STAR_REQUEST;
+class DbCreateSessionRequest extends DbEventBase {
+    constructor(initialMessage) {
+        super();
+        this.type = DbCreateSessionRequest.type;
+        this.payload = { initialMessage };
+    }
+}
+DbCreateSessionRequest.type = DBEventNames.DB_CREATE_SESSION_REQUEST;
+class DbInitializeRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbInitializeRequest.type;
+        this.payload = {};
+    }
+}
+DbInitializeRequest.type = DBEventNames.DB_INITIALIZE_REQUEST;
+class DbDeleteSessionRequest extends DbEventBase {
+    constructor(sessionId) {
+        super();
+        this.type = DbDeleteSessionRequest.type;
+        this.payload = { sessionId };
+    }
+}
+DbDeleteSessionRequest.type = DBEventNames.DB_DELETE_SESSION_REQUEST;
+class DbRenameSessionRequest extends DbEventBase {
+    constructor(sessionId, newName) {
+        super();
+        this.type = DbRenameSessionRequest.type;
+        this.payload = { sessionId, newName };
+    }
+}
+DbRenameSessionRequest.type = DBEventNames.DB_RENAME_SESSION_REQUEST;
+class DbGetAllSessionsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetAllSessionsRequest.type;
+    }
+}
+DbGetAllSessionsRequest.type = DBEventNames.DB_GET_ALL_SESSIONS_REQUEST;
+class DbGetStarredSessionsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetStarredSessionsRequest.type;
+    }
+}
+DbGetStarredSessionsRequest.type = DBEventNames.DB_GET_STARRED_SESSIONS_REQUEST;
+class DbGetReadyStateRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetReadyStateRequest.type;
+    }
+}
+DbGetReadyStateRequest.type = DBEventNames.DB_GET_READY_STATE_REQUEST;
+class DbMessagesUpdatedNotification extends DbNotificationBase {
+    constructor(sessionId, messages) {
+        super(sessionId);
+        this.type = DbMessagesUpdatedNotification.type;
+        this.payload = { messages };
+    }
+}
+DbMessagesUpdatedNotification.type = DBEventNames.DB_MESSAGES_UPDATED_NOTIFICATION;
+class DbStatusUpdatedNotification extends DbNotificationBase {
+    constructor(sessionId, status) {
+        super(sessionId);
+        this.type = DbStatusUpdatedNotification.type;
+        this.payload = { status };
+    }
+}
+DbStatusUpdatedNotification.type = DBEventNames.DB_STATUS_UPDATED_NOTIFICATION;
+class DbSessionUpdatedNotification extends DbNotificationBase {
+    constructor(sessionId, updatedSessionData, updateType = 'update') {
+        super(sessionId);
+        this.type = DbSessionUpdatedNotification.type;
+        this.payload = { session: updatedSessionData, updateType };
+    }
+}
+DbSessionUpdatedNotification.type = DBEventNames.DB_SESSION_UPDATED_NOTIFICATION;
+class DbInitializationCompleteNotification {
+    constructor({ success, error = null, dbStatus = null, sessionIds = null }) {
+        this.type = DbInitializationCompleteNotification.type;
+        this.timestamp = Date.now();
+        this.payload = { success, error: error ? (typeof error === 'string' ? error : (error.message || String(error))) : null, dbStatus, sessionIds };
+    }
+}
+DbInitializationCompleteNotification.type = DBEventNames.DB_INITIALIZATION_COMPLETE_NOTIFICATION;
+class DbGetLogsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, logs, error = null) {
+        super(originalRequestId, success, logs, error);
+        this.type = DbGetLogsResponse.type;
+    }
+}
+DbGetLogsResponse.type = DBEventNames.DB_GET_LOGS_RESPONSE;
+class DbGetUniqueLogValuesResponse extends DbResponseBase {
+    constructor(originalRequestId, success, values, error = null) {
+        super(originalRequestId, success, values, error);
+        this.type = DbGetUniqueLogValuesResponse.type;
+    }
+}
+DbGetUniqueLogValuesResponse.type = DBEventNames.DB_GET_UNIQUE_LOG_VALUES_RESPONSE;
+class DbClearLogsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = { deletedCount: 0 }, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbClearLogsResponse.type;
+    }
+}
+DbClearLogsResponse.type = DBEventNames.DB_CLEAR_LOGS_RESPONSE;
+class DbGetCurrentAndLastLogSessionIdsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, ids, error = null) {
+        super(originalRequestId, success, ids, error);
+        this.type = DbGetCurrentAndLastLogSessionIdsResponse.type;
+    }
+}
+DbGetCurrentAndLastLogSessionIdsResponse.type = DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE;
+class DbAddLogRequest extends DbEventBase {
+    constructor(logEntryData) {
+        super();
+        this.type = DbAddLogRequest.type;
+        this.payload = { logEntryData };
+    }
+}
+DbAddLogRequest.type = DBEventNames.DB_ADD_LOG_REQUEST;
+// DbAddLogResponse is not strictly necessary if it's fire and forget,
+// but can be added for consistency if db.js handler for it sends one.
+class DbAddLogResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbAddLogResponse.type;
+    }
+}
+DbAddLogResponse.type = DBEventNames.DB_ADD_LOG_RESPONSE;
+class DbGetLogsRequest extends DbEventBase {
+    constructor(filters) {
+        super();
+        this.type = DbGetLogsRequest.type;
+        this.payload = { filters };
+    }
+}
+DbGetLogsRequest.type = DBEventNames.DB_GET_LOGS_REQUEST;
+class DbGetUniqueLogValuesRequest extends DbEventBase {
+    constructor(fieldName) {
+        super();
+        this.type = DbGetUniqueLogValuesRequest.type;
+        this.payload = { fieldName };
+    }
+}
+DbGetUniqueLogValuesRequest.type = DBEventNames.DB_GET_UNIQUE_LOG_VALUES_REQUEST;
+class DbClearLogsRequest extends DbEventBase {
+    constructor(filter = 'all') {
+        super();
+        this.type = DbClearLogsRequest.type;
+        this.payload = { filter };
+    }
+}
+DbClearLogsRequest.type = DBEventNames.DB_CLEAR_LOGS_REQUEST;
+class DbGetCurrentAndLastLogSessionIdsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetCurrentAndLastLogSessionIdsRequest.type;
+    }
+}
+DbGetCurrentAndLastLogSessionIdsRequest.type = DBEventNames.DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST;
+class DbResetDatabaseRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbResetDatabaseRequest.type;
+    }
+}
+DbResetDatabaseRequest.type = DBEventNames.DB_RESET_DATABASE_REQUEST;
+class DbResetDatabaseResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = true, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbResetDatabaseResponse.type;
+    }
+}
+DbResetDatabaseResponse.type = DBEventNames.DB_RESET_DATABASE_RESPONSE;
+// --- Model Asset DB Operations ---
+/**
+ * @typedef {Object} ModelAssetChunkPayloadForRequest
+ * @property {string} folder - The modelId or folder name.
+ * @property {string} fileName - The name of the asset file.
+ * @property {string} fileType - The type/extension of the file.
+ * @property {ArrayBuffer} data - The binary data of the chunk.
+ * @property {number} chunkIndex - The 0-based index of this chunk.
+ * @property {number} totalChunks - The total number of chunks for this file.
+ * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
+ * // @property {number} [totalFileSize] - Optional: Total size of the parent file (contextual).
+ */
+class DbAddModelAssetRequest extends DbEventBase {
+    /**
+     * @param {ModelAssetChunkPayloadForRequest} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbAddModelAssetRequest.type;
+        this.payload = payload;
+    }
+}
+DbAddModelAssetRequest.type = DBEventNames.DB_ADD_MODEL_ASSET_REQUEST;
+class DbAddModelAssetResponse extends DbResponseBase {
+    /**
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {{ chunkId: string } | null} data - On success, object containing the ID of the stored chunk.
+     * @param {string | null} error
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbAddModelAssetResponse.type;
+    }
+}
+DbAddModelAssetResponse.type = DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
+class DbCountModelAssetChunksRequest extends DbEventBase {
+    /**
+     * @param {{folder: string, fileName: string, expectedSize?: number, expectedChunks?: number}} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbCountModelAssetChunksRequest.type;
+        this.payload = payload;
+    }
+}
+DbCountModelAssetChunksRequest.type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST;
+class DbCountModelAssetChunksResponse extends DbResponseBase {
+    /**
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {{ count: number, verified: boolean, error?: string } | null} data - Result of count/verification.
+     * @param {string | null} error - Top-level error for the request.
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error); // data = { count, verified, (optional error for count op itself) }
+        this.type = DbCountModelAssetChunksResponse.type;
+    }
+    get count() { return this.data?.count; }
+    get verified() { return this.data?.verified; }
+}
+DbCountModelAssetChunksResponse.type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
+class DbLogAllChunkGroupIdsForModelRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbLogAllChunkGroupIdsForModelRequest.type;
+        this.payload = payload;
+    }
+}
+DbLogAllChunkGroupIdsForModelRequest.type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST;
+class DbLogAllChunkGroupIdsForModelResponse extends DbResponseBase {
+    constructor(originalRequestId, success, groupIdsArray, error = null) {
+        super(originalRequestId, success, groupIdsArray, error);
+        this.type = DbLogAllChunkGroupIdsForModelResponse.type;
+    }
+}
+DbLogAllChunkGroupIdsForModelResponse.type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
+class DbListModelFilesRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbListModelFilesRequest.type;
+        this.payload = payload;
+    }
+}
+DbListModelFilesRequest.type = DBEventNames.DB_LIST_MODEL_FILES_REQUEST;
+class DbListModelFilesResponse extends DbResponseBase {
+    constructor(originalRequestId, success, fileNamesArray, error = null) {
+        super(originalRequestId, success, fileNamesArray, error);
+        this.type = DbListModelFilesResponse.type;
+    }
+}
+DbListModelFilesResponse.type = DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
+class DbGetModelAssetChunksRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbGetModelAssetChunksRequest.type;
+        this.payload = payload;
+    }
+}
+DbGetModelAssetChunksRequest.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_REQUEST;
+class DbGetModelAssetChunksResponse extends DbResponseBase {
+    constructor(originalRequestId, success, chunksArray, error = null) {
+        super(originalRequestId, success, chunksArray, error);
+        this.type = DbGetModelAssetChunksResponse.type;
+    }
+}
+DbGetModelAssetChunksResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
+class DbGetModelAssetChunkRequest extends DbEventBase {
+    constructor(payload) {
+        super();
+        this.type = DbGetModelAssetChunkRequest.type;
+        this.payload = payload;
+    }
+}
+DbGetModelAssetChunkRequest.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_REQUEST;
+class DbGetModelAssetChunkResponse extends DbResponseBase {
+    constructor(originalRequestId, success, chunkData, error = null) {
+        super(originalRequestId, success, chunkData, error);
+        this.type = DbGetModelAssetChunkResponse.type;
+    }
+    get chunk() { return this.data; }
+}
+DbGetModelAssetChunkResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
+// --- Model Asset Manifest Operations (NEW - Definitions) ---
+/**
+ * @typedef {Object} ModelAssetManifestPayloadForRequest
+ * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
+ * @property {string} fileName - The original name of the model asset file.
+ * @property {string} folder - The "folder" or modelId this asset belongs to.
+ * @property {string} fileType - The type/extension of the file (e.g., 'onnx', 'json').
+ * @property {number} totalFileSize - The total size of the complete file in bytes.
+ * @property {number} totalChunks - The total number of chunks the file was split into.
+ * @property {number} chunkSizeUsed - The CHUNK_SIZE (in bytes) that was used.
+ * @property {'complete' | 'incomplete' | string} status - The status of this asset.
+ * @property {number} downloadTimestamp - Timestamp of when the download/processing was completed.
+ * @property {string} [id] - Optional: if pre-defining the manifest ID.
+ * @property {string} [checksum] - Optional: checksum of the full file.
+ * @property {string | number} [version] - Optional: version of the file.
+ */
+class DbAddManifestRequest extends DbEventBase {
+    /**
+     * @param {ModelAssetManifestPayloadForRequest} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbAddManifestRequest.type;
+        this.payload = payload;
+    }
+}
+DbAddManifestRequest.type = DBEventNames.DB_ADD_MANIFEST_REQUEST;
+class DbAddManifestResponse extends DbResponseBase {
+    /**
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {{ manifestId: string } | null} data - On success, object containing the ID of the stored/updated manifest.
+     * @param {string | null} error
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbAddManifestResponse.type;
+    }
+    get manifestId() { return this.data?.manifestId; }
+}
+DbAddManifestResponse.type = DBEventNames.DB_ADD_MANIFEST_RESPONSE;
+/**
+ * @typedef {Object} GetManifestPayload
+ * @property {string} folder - The folder (modelId) of the asset.
+ * @property {string} fileName - The fileName of the asset.
+ */
+class DbGetManifestRequest extends DbEventBase {
+    /**
+     * @param {GetManifestPayload} payload
+     */
+    constructor(payload) {
+        super();
+        this.type = DbGetManifestRequest.type;
+        this.payload = payload;
+    }
+}
+DbGetManifestRequest.type = DBEventNames.DB_GET_MANIFEST_REQUEST;
+class DbGetManifestResponse extends DbResponseBase {
+    /**
+     * The manifest object (from idbHelper.ts ModelAssetManifest interface) is expected
+     * to be the direct value of the `data` property in this response.
+     * @param {string} originalRequestId
+     * @param {boolean} success
+     * @param {?import('./idbHelper.ts').ModelAssetManifest} data - The manifest object or null.
+     * @param {string | null} error
+     */
+    constructor(originalRequestId, success, data, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbGetManifestResponse.type;
+    }
+    /** @returns {import('./idbHelper.ts').ModelAssetManifest | null} */
+    get manifest() { return this.data; }
+}
+DbGetManifestResponse.type = DBEventNames.DB_GET_MANIFEST_RESPONSE;
+// --- General DB Worker and Initialization ---
+class DbEnsureInitializedRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbEnsureInitializedRequest.type;
+    }
+}
+DbEnsureInitializedRequest.type = DBEventNames.DB_ENSURE_INITIALIZED_REQUEST;
+class DbEnsureInitializedResponse extends DbResponseBase {
+    // data can be { success: boolean, dbStatus: object, sessionIds: object } or null on error
+    constructor(originalRequestId, success, data = null, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbEnsureInitializedResponse.type;
+    }
+}
+DbEnsureInitializedResponse.type = DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
+// DbInitWorkerRequest was previously noted as unused in db.js handler map.
+// If it becomes used, define its payload and response. For now, just the request.
+class DbInitWorkerRequest extends DbEventBase {
+    constructor(payload = {}) {
+        super();
+        this.type = DbInitWorkerRequest.type;
+        this.payload = payload;
+    }
+}
+DbInitWorkerRequest.type = DBEventNames.DB_INIT_WORKER_REQUEST;
+// DbInitWorkerResponse already exists in your DBEventNames, assuming a simple success/error response.
+class DbInitWorkerResponse extends DbResponseBase {
+    constructor(originalRequestId, success, data = null, error = null) {
+        super(originalRequestId, success, data, error);
+        this.type = DbInitWorkerResponse.type;
+    }
+}
+DbInitWorkerResponse.type = DBEventNames.DB_INIT_WORKER_RESPONSE;
+
+
+/***/ }),
+
+/***/ "./src/events/eventNames.ts":
 /*!**********************************!*\
-  !*** ./src/events/eventNames.js ***!
+  !*** ./src/events/eventNames.ts ***!
   \**********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -1241,9 +1954,6 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
-/* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
-/* harmony export */   DBPaths: () => (/* binding */ DBPaths),
-/* harmony export */   DirectDBNames: () => (/* binding */ DirectDBNames),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
 /* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
 /* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
@@ -1256,204 +1966,114 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
-const DirectDBNames = Object.freeze({
-  ADD_MODEL_ASSET: 'AddModelAsset',
-  REQUEST_MODEL_ASSET_CHUNK: 'RequestModelAssetChunk',
-  COUNT_MODEL_ASSET_CHUNKS: 'CountModelAssetChunks',
-});
-
-const DBEventNames = Object.freeze({
-  DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
-  DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
-  DB_ADD_MESSAGE_REQUEST: 'DbAddMessageRequest',
-  DB_ADD_MESSAGE_RESPONSE: 'DbAddMessageResponse',
-  DB_UPDATE_MESSAGE_REQUEST: 'DbUpdateMessageRequest',
-  DB_UPDATE_MESSAGE_RESPONSE: 'DbUpdateMessageResponse',
-  DB_UPDATE_STATUS_REQUEST: 'DbUpdateStatusRequest',
-  DB_UPDATE_STATUS_RESPONSE: 'DbUpdateStatusResponse',
-  DB_DELETE_MESSAGE_REQUEST: 'DbDeleteMessageRequest',
-  DB_DELETE_MESSAGE_RESPONSE: 'DbDeleteMessageResponse',
-  DB_TOGGLE_STAR_REQUEST: 'DbToggleStarRequest',
-  DB_TOGGLE_STAR_RESPONSE: 'DbToggleStarResponse',
-  DB_CREATE_SESSION_REQUEST: 'DbCreateSessionRequest',
-  DB_CREATE_SESSION_RESPONSE: 'DbCreateSessionResponse',
-  DB_DELETE_SESSION_REQUEST: 'DbDeleteSessionRequest',
-  DB_DELETE_SESSION_RESPONSE: 'DbDeleteSessionResponse',
-  DB_RENAME_SESSION_REQUEST: 'DbRenameSessionRequest',
-  DB_RENAME_SESSION_RESPONSE: 'DbRenameSessionResponse',
-  DB_GET_ALL_SESSIONS_REQUEST: 'DbGetAllSessionsRequest',
-  DB_GET_ALL_SESSIONS_RESPONSE: 'DbGetAllSessionsResponse',
-  DB_GET_STARRED_SESSIONS_REQUEST: 'DbGetStarredSessionsRequest',
-  DB_GET_STARRED_SESSIONS_RESPONSE: 'DbGetStarredSessionsResponse',
-  DB_MESSAGES_UPDATED_NOTIFICATION: 'DbMessagesUpdatedNotification',
-  DB_STATUS_UPDATED_NOTIFICATION: 'DbStatusUpdatedNotification',
-  DB_SESSION_UPDATED_NOTIFICATION: 'DbSessionUpdatedNotification',
-  DB_INITIALIZE_REQUEST: 'DbInitializeRequest',
-  DB_INITIALIZATION_COMPLETE_NOTIFICATION: 'DbInitializationCompleteNotification',
-  DB_GET_LOGS_REQUEST: 'DbGetLogsRequest',
-  DB_GET_LOGS_RESPONSE: 'DbGetLogsResponse',
-  DB_GET_UNIQUE_LOG_VALUES_REQUEST: 'DbGetUniqueLogValuesRequest',
-  DB_GET_UNIQUE_LOG_VALUES_RESPONSE: 'DbGetUniqueLogValuesResponse',
-  DB_CLEAR_LOGS_REQUEST: 'DbClearLogsRequest',
-  DB_CLEAR_LOGS_RESPONSE: 'DbClearLogsResponse',
-  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_REQUEST: 'DbGetCurrentAndLastLogSessionIdsRequest',
-  DB_GET_CURRENT_AND_LAST_LOG_SESSION_IDS_RESPONSE: 'DbGetCurrentAndLastLogSessionIdsResponse',
-  DB_ADD_LOG_REQUEST: 'DbAddLogRequest',
-  DB_ADD_LOG_RESPONSE: 'DbAddLogResponse',
-  DB_GET_READY_STATE_REQUEST: 'DbGetReadyStateRequest',
-  DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
-  DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
-  DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
-
-  // Model Asset DB Operations
-  DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest',
-  DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
-  DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
-  DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
-  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
-  DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
-  DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest',
-  DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
-  DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest',
-  DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
-  DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest',
-  DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
-  DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
-  DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
-  DB_INIT_WORKER_REQUEST: 'DbInitWorkerRequest',
-  DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
-  DB_WORKER_ERROR: 'DbWorkerError',
-  DB_WORKER_RESET: 'DbWorkerReset',
-});
-
 const UIEventNames = Object.freeze({
-  QUERY_SUBMITTED: 'querySubmitted',
-  BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
-  BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
-  BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
-  BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
-  BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
-  REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
-  WORKER_READY: 'worker:ready',
-  WORKER_ERROR: 'worker:error',
-  NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
-  SCRAPE_PAGE: 'SCRAPE_PAGE',
-  SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
-  DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-  MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
-  // Add more as needed
+    QUERY_SUBMITTED: 'querySubmitted',
+    BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
+    BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
+    BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
+    BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
+    BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
+    REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
+    WORKER_READY: 'worker:ready',
+    WORKER_ERROR: 'worker:error',
+    NAVIGATION_PAGE_CHANGED: 'navigation:pageChanged',
+    SCRAPE_PAGE: 'SCRAPE_PAGE',
+    SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
+    DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
+    MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
+    // Add more as needed
 });
-
 const WorkerEventNames = Object.freeze({
-  WORKER_SCRIPT_READY: 'workerScriptReady',
-  WORKER_READY: 'workerReady',
-  LOADING_STATUS: 'loadingStatus',
-  GENERATION_STATUS: 'generationStatus',
-  GENERATION_UPDATE: 'generationUpdate',
-  GENERATION_COMPLETE: 'generationComplete',
-  GENERATION_ERROR: 'generationError',
-  RESET_COMPLETE: 'resetComplete',
-  ERROR: 'error',
-
+    WORKER_SCRIPT_READY: 'workerScriptReady',
+    WORKER_READY: 'workerReady',
+    LOADING_STATUS: 'loadingStatus',
+    GENERATION_STATUS: 'generationStatus',
+    GENERATION_UPDATE: 'generationUpdate',
+    GENERATION_COMPLETE: 'generationComplete',
+    GENERATION_ERROR: 'generationError',
+    RESET_COMPLETE: 'resetComplete',
+    ERROR: 'error',
 });
-
 const ModelWorkerStates = Object.freeze({
-  UNINITIALIZED: 'uninitialized',
-  CREATING_WORKER: 'creating_worker',
-  WORKER_SCRIPT_READY: 'worker_script_ready',
-  LOADING_MODEL: 'loading_model',
-  MODEL_READY: 'model_ready',
-  GENERATING: 'generating',
-  ERROR: 'error',
-  IDLE: 'idle',
+    UNINITIALIZED: 'uninitialized',
+    CREATING_WORKER: 'creating_worker',
+    WORKER_SCRIPT_READY: 'worker_script_ready',
+    LOADING_MODEL: 'loading_model',
+    MODEL_READY: 'model_ready',
+    GENERATING: 'generating',
+    ERROR: 'error',
+    IDLE: 'idle',
 });
-
 const RuntimeMessageTypes = Object.freeze({
-  LOAD_MODEL: 'loadModel',
-  SEND_CHAT_MESSAGE: 'sendChatMessage',
-  INTERRUPT_GENERATION: 'interruptGeneration',
-  RESET_WORKER: 'resetWorker',
-  GET_MODEL_WORKER_STATE: 'getModelWorkerState',
-  SCRAPE_REQUEST: 'scrapeRequest',
-  GET_DRIVE_FILE_LIST: 'getDriveFileList',
-  GET_LOG_SESSIONS: 'getLogSessions',
-  GET_LOG_ENTRIES: 'getLogEntries',
-  DETACH_SIDE_PANEL: 'detachSidePanel',
-  GET_DETACHED_STATE: 'getDetachedState',
-  GET_DB_READY_STATE: 'getDbReadyState',
+    LOAD_MODEL: 'loadModel',
+    SEND_CHAT_MESSAGE: 'sendChatMessage',
+    INTERRUPT_GENERATION: 'interruptGeneration',
+    RESET_WORKER: 'resetWorker',
+    GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+    SCRAPE_REQUEST: 'scrapeRequest',
+    GET_DRIVE_FILE_LIST: 'getDriveFileList',
+    GET_LOG_SESSIONS: 'getLogSessions',
+    GET_LOG_ENTRIES: 'getLogEntries',
+    DETACH_SIDE_PANEL: 'detachSidePanel',
+    GET_DETACHED_STATE: 'getDetachedState',
+    GET_DB_READY_STATE: 'getDbReadyState',
 });
-
 const SiteMapperMessageTypes = Object.freeze({
-  OPEN_TAB: 'openTab',
-  MAPPED: 'mapped',
+    OPEN_TAB: 'openTab',
+    MAPPED: 'mapped',
 });
-
 const ModelLoaderMessageTypes = Object.freeze({
-  INIT: 'init',
-  GENERATE: 'Generate',
-  INTERRUPT: 'Interrupt',
-  RESET: 'Reset',
-  DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
-  LIST_MODEL_FILES: 'ListModelFiles',
-  LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
+    INIT: 'init',
+    GENERATE: 'Generate',
+    INTERRUPT: 'Interrupt',
+    RESET: 'Reset',
+    DOWNLOAD_MODEL_ASSETS: 'DownloadModelAssets',
+    LIST_MODEL_FILES: 'ListModelFiles',
+    LIST_MODEL_FILES_RESULT: 'ListModelFilesResult',
 });
-
 const InternalEventBusMessageTypes = Object.freeze({
-  BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
+    BACKGROUND_EVENT_BROADCAST: 'BackgroundEventBroadcast'
 });
-
 const RawDirectMessageTypes = Object.freeze({
-  WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
-  WORKER_GENERIC_ERROR: 'WorkerGenericError',
-  WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
-  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
-  WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
+    WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
+    WORKER_GENERIC_ERROR: 'WorkerGenericError',
+    WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
+    WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
+    WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
-
 const Contexts = Object.freeze({
-  BACKGROUND: 'Background',
-  MAIN_UI: 'MainUI',
-  POPUP: 'Popup',
-  OTHERS: 'Others',
-  UNKNOWN: 'Unknown',
+    BACKGROUND: 'Background',
+    MAIN_UI: 'MainUI',
+    POPUP: 'Popup',
+    OTHERS: 'Others',
+    UNKNOWN: 'Unknown',
 });
-
 const MessageSenderTypes = Object.freeze({
-  USER: 'user',
-  SYSTEM: 'system',
-  AI: 'ai',
-  AGENT: 'agent',
-  // Add more as needed
+    USER: 'user',
+    SYSTEM: 'system',
+    AI: 'ai',
+    AGENT: 'agent',
+    // Add more as needed
 });
-
 const MessageContentTypes = Object.freeze({
-  TEXT: 'text',
-  IMAGE: 'image',
-  FILE: 'file',
-  CODE: 'code',
-  AGENT_ACTION: 'agent_action',
-  // Add more as needed
+    TEXT: 'text',
+    IMAGE: 'image',
+    FILE: 'file',
+    CODE: 'code',
+    AGENT_ACTION: 'agent_action',
+    // Add more as needed
 });
-
-const DBPaths = Object.freeze({
-  CHAT: '/sql/chat.db',
-  LOGS: '/sql/logs.db',
-  MODELS: '/sql/models.db',
-  KNOWLEDGE: '/sql/knowledge.db',
-});
-
 const TableNames = Object.freeze({
-  CHATS: 'chats',
-  MESSAGES: 'messages',
-  CHAT_SUMMARIES: 'chat_summaries',
-  ATTACHMENTS: 'attachments',
-  USERS: 'users',
-  LOGS: 'logs',
-  MODEL_ASSETS: 'model_assets',
-  KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
-  KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
+    CHATS: 'chats',
+    MESSAGES: 'messages',
+    CHAT_SUMMARIES: 'chat_summaries',
+    ATTACHMENTS: 'attachments',
+    USERS: 'users',
+    LOGS: 'logs',
+    MODEL_ASSETS: 'model_assets',
+    KNOWLEDGE_GRAPH_NODES: 'knowledge_graph_nodes',
+    KNOWLEDGE_GRAPH_EDGES: 'knowledge_graph_edges',
 });
-
 
 
 /***/ })
@@ -1531,52 +2151,47 @@ var __webpack_exports__ = {};
 (() => {
 "use strict";
 /*!***************************!*\
-  !*** ./src/background.js ***!
+  !*** ./src/background.ts ***!
   \***************************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames.js */ "./src/events/eventNames.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./DB/dbEvents */ "./src/DB/dbEvents.ts");
 
 
 
 const CONTEXT_PREFIX = '[Background]';
-
 let detachedPopups = {}; // TabId to Popup WindowId
 let popupIdToTabId = {}; // Popup WindowId to Original TabId
-
 const DNR_RULE_ID_1 = 1;
 const DNR_RULE_PRIORITY_1 = 1;
-
-let globalModelWorkerActiveState = _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelWorkerStates.UNINITIALIZED; // Conceptual state
+let globalModelWorkerActiveState = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.ModelWorkerStates.UNINITIALIZED; // Conceptual state
 let currentActiveModelIdInSidePanel = null; // Tracks modelId believed to be in sidepanel's worker
-
 let currentLogSessionId = null;
 let previousLogSessionId = null;
-
 let background_lastLoggedProgress = -1; // For model pipeline loading progress
-
 async function initializeSessionIds() {
     let { currentLogSessionId: storedCurrentId, previousLogSessionId: storedPreviousId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
     if (storedCurrentId) {
         currentLogSessionId = storedCurrentId;
         previousLogSessionId = storedPreviousId || null;
-    } else {
+    }
+    else {
         currentLogSessionId = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ currentLogSessionId: currentLogSessionId });
         if (storedPreviousId) {
-             previousLogSessionId = storedPreviousId;
+            previousLogSessionId = storedPreviousId;
         }
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ previousLogSessionId: currentLogSessionId });
     }
     console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
     console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
 }
-
 async function updateDeclarativeNetRequestRules() {
     try {
         const currentRules = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().declarativeNetRequest.getDynamicRules();
-        const rulesToRemove = currentRules.filter(rule => rule.id === DNR_RULE_ID_1).map(rule => rule.id);
+        const rulesToRemove = currentRules.filter((rule) => rule.id === DNR_RULE_ID_1).map((rule) => rule.id);
         const rulesToAdd = [
             {
                 id: DNR_RULE_ID_1,
@@ -1601,27 +2216,25 @@ async function updateDeclarativeNetRequestRules() {
             addRules: rulesToAdd
         });
         console.log(CONTEXT_PREFIX + ' Declarative Net Request rules updated successfully.');
-    } catch (error) {
+    }
+    catch (error) {
         console.error("Error updating Declarative Net Request rules:", error);
     }
 }
-
 async function scrapeUrlWithTempTabExecuteScript(url, chatId, messageId) {
     console.log(CONTEXT_PREFIX + ' [BG-Scrape] Temp Tab + executeScript: ' + url);
     let tempTabId = null;
     const TEMP_TAB_LOAD_TIMEOUT = 30000;
-
     return new Promise(async (resolve, reject) => {
         const cleanupAndReject = (errorMsg, errorObj = null) => {
             const finalError = errorObj ? errorObj : new Error(errorMsg);
-            console.warn(CONTEXT_PREFIX +`[BG-Scrape] Cleanup & Reject: ${errorMsg}`, errorObj);
-            if (tempTabId) {
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.remove(tempTabId).catch(err => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId}: ${err.message}`));
+            console.warn(CONTEXT_PREFIX + `[BG-Scrape] Cleanup & Reject: ${errorMsg}`, errorObj);
+            if (tempTabId !== null) {
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.remove(tempTabId).catch((err) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId}: ${err.message}`));
                 tempTabId = null;
             }
             reject(finalError);
         };
-
         try {
             const tab = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.create({ url: url, active: false });
             tempTabId = tab.id;
@@ -1630,13 +2243,13 @@ async function scrapeUrlWithTempTabExecuteScript(url, chatId, messageId) {
                 return;
             }
             console.log(CONTEXT_PREFIX + ' [BG-Scrape] Created temp tab ' + tempTabId + '.');
-
             let loadTimeoutId = null;
             const loadPromise = new Promise((resolveLoad, rejectLoad) => {
                 const listener = (tabIdUpdated, changeInfo) => {
                     if (tabIdUpdated === tempTabId && changeInfo.status === 'complete') {
                         console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tab ' + tempTabId + ' loaded.');
-                        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+                        if (loadTimeoutId)
+                            clearTimeout(loadTimeoutId);
                         webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.onUpdated.removeListener(listener);
                         resolveLoad();
                     }
@@ -1647,26 +2260,31 @@ async function scrapeUrlWithTempTabExecuteScript(url, chatId, messageId) {
                     rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load in tab ${tempTabId}.`));
                 }, TEMP_TAB_LOAD_TIMEOUT);
             });
-
             await loadPromise;
             console.log(CONTEXT_PREFIX + ' [BG-Scrape] Injecting pageExtractor.js into tab ' + tempTabId + '...');
-            
             await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().scripting.executeScript({
                 target: { tabId: tempTabId },
                 files: ['pageExtractor.js']
             });
             console.log(CONTEXT_PREFIX + ' [BG-Scrape] pageExtractor.js INJECTED into tab ' + tempTabId + '.');
-            
             const injectionResults = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().scripting.executeScript({
                 target: { tabId: tempTabId },
                 func: () => {
                     if (window.TabAgentPageExtractor && typeof window.TabAgentPageExtractor.extract === 'function') {
-                        try { return window.TabAgentPageExtractor.extract(document); }
-                        catch (e) { return { error: `Error in PageExtractor.extract: ${e.message} (Stack: ${e.stack})` }; }
-                    } else { return { error: 'TabAgentPageExtractor.extract function not found on window.' }; }
+                        try {
+                            return window.TabAgentPageExtractor.extract(document);
+                        }
+                        catch (e) {
+                            const errMsg = e instanceof Error ? e.message : String(e);
+                            const errStack = e instanceof Error ? e.stack : '';
+                            return { error: `Error in PageExtractor.extract: ${errMsg} (Stack: ${errStack})` };
+                        }
+                    }
+                    else {
+                        return { error: 'TabAgentPageExtractor.extract function not found on window.' };
+                    }
                 }
             });
-
             if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
                 cleanupAndReject('[BG-Scrape] No result from executeScript.', injectionResults?.[0]?.error);
                 return;
@@ -1682,7 +2300,7 @@ async function scrapeUrlWithTempTabExecuteScript(url, chatId, messageId) {
                 // Add __type marker to the extraction object
                 const extractionWithType = { ...scriptResult, __type: "PageExtractor" };
                 const updateMsg = {
-                    type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
+                    type: _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
                     payload: {
                         sessionId: chatId,
                         messageId: messageId,
@@ -1702,45 +2320,49 @@ async function scrapeUrlWithTempTabExecuteScript(url, chatId, messageId) {
                 forwardToSidePanel(updateMsg);
             }
             resolve(scriptResult);
-        } catch (error) {
-            cleanupAndReject(`[BG-Scrape] Error: ${error.message}`, error);
-        } finally {
-            if (tempTabId) {
-                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.remove(tempTabId).catch(err => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId} in finally: ${err.message}`));
+        }
+        catch (error) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            cleanupAndReject(`[BG-Scrape] Error: ${errMsg}`, error);
+        }
+        finally {
+            if (tempTabId !== null) {
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.remove(tempTabId).catch((err) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId} in finally: ${err.message}`));
             }
         }
     });
 }
-
 async function scrapeUrlMultiStage(url, chatId, messageId) {
     console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Starting for ' + url + '. ChatID: ' + chatId + ', MessageID: ' + messageId);
     const sendStageResult = (stageResult) => {
         console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Sending WORKER_SCRAPE_STAGE_RESULT Stage ' + stageResult.stage + ', Success: ' + stageResult.success);
-        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT, payload: stageResult })
-            .catch(e => console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Failed to send result Stage ${stageResult.stage}:`, e));
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT, payload: stageResult })
+            .catch((e) => console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Failed to send result Stage ${stageResult.stage}:`, e));
     };
-
     try {
         const executeScriptResult = await scrapeUrlWithTempTabExecuteScript(url, chatId, messageId);
         console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Stage 1 Succeeded for ' + url + '.');
         sendStageResult({ stage: 1, success: true, chatId, messageId, method: 'tempTabExecuteScript', url, length: executeScriptResult?.text?.length || 0, ...executeScriptResult });
-    } catch (stage1Error) {
-        console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Stage 1 Failed for ${url}: ${stage1Error.message}`);
-        sendStageResult({ stage: 1, success: false, chatId, messageId, method: 'tempTabExecuteScript', error: stage1Error.message });
-    } finally {
+    }
+    catch (stage1Error) {
+        const errMsg = stage1Error instanceof Error ? stage1Error.message : String(stage1Error);
+        console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Stage 1 Failed for ${url}: ${errMsg}`);
+        sendStageResult({ stage: 1, success: false, chatId, messageId, method: 'tempTabExecuteScript', error: errMsg });
+    }
+    finally {
         console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Finished for ' + url + '.');
     }
 }
-
 async function getDriveToken() {
     return new Promise((resolve, reject) => {
         webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().identity.getAuthToken({ interactive: true }, (token) => {
-            if ((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError) reject(new Error((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message));
-            else resolve(token);
+            if ((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError)
+                reject(new Error((webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime).lastError.message));
+            else
+                resolve(token);
         });
     });
 }
-
 async function fetchDriveFileList(token, folderId = 'root') {
     const fields = "files(id, name, mimeType, iconLink, webViewLink, size, createdTime, modifiedTime)";
     const query = `'${folderId}' in parents and trashed=false`;
@@ -1756,7 +2378,6 @@ async function fetchDriveFileList(token, folderId = 'root') {
     console.log(CONTEXT_PREFIX + ' [BG-Drive] API success (Folder: ' + folderId + '). Found ' + (data.files?.length || 0) + ' items.');
     return data.files || [];
 }
-
 async function forwardToSidePanel(message) {
     console.log(CONTEXT_PREFIX + ' Attempting to forward message type: ' + message?.type + ' to active side panel.');
     try {
@@ -1764,12 +2385,13 @@ async function forwardToSidePanel(message) {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(message);
         console.log(CONTEXT_PREFIX + ' Message type: ' + message?.type + ' forwarded (presumed to side panel).');
         return { success: true };
-    } catch (error) {
-        console.error( CONTEXT_PREFIX +` Error forwarding message type '${message?.type}' to side panel:`, error.message);
-        return { success: false, error: `Side panel not available or error: ${error.message}` };
+    }
+    catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(CONTEXT_PREFIX + ` Error forwarding message type '${message?.type}' to side panel:`, errMsg);
+        return { success: false, error: `Side panel not available or error: ${errMsg}` };
     }
 }
-
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled.addListener(async (details) => {
     console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);
     await initializeSessionIds();
@@ -1777,21 +2399,18 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
         .catch((error) => console.error('Error setting side panel behavior:', error));
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(null).then((items) => {
-        const keysToRemove = Object.keys(items).filter(key => key.startsWith('detachedState_'));
-        if (keysToRemove.length > 0) webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(keysToRemove);
+        const keysToRemove = Object.keys(items).filter((key) => key.startsWith('detachedState_'));
+        if (keysToRemove.length > 0)
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(keysToRemove);
     });
 });
-
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onStartup.addListener(async () => {
     console.log(CONTEXT_PREFIX + ' onStartup event.');
     await initializeSessionIds();
 });
-
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().action.onClicked.addListener(async (tab) => {
     console.log(CONTEXT_PREFIX + ' Action clicked for tab ' + (tab.id || 'N/A'));
-
 });
-
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.onRemoved.addListener(async (windowId) => {
     console.log(CONTEXT_PREFIX + ' Window removed: ' + windowId);
     const tabId = popupIdToTabId[windowId];
@@ -1799,21 +2418,23 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.onRemoved.a
         console.log(CONTEXT_PREFIX + ' Popup window ' + windowId + ' for tab ' + tabId + ' was closed.');
         delete detachedPopups[tabId];
         delete popupIdToTabId[windowId];
-        try { await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(`detachedState_${tabId}`); }
-        catch (error) { console.error(`Error cleaning storage for tab ${tabId} on popup close:`, error); }
+        try {
+            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(`detachedState_${tabId}`);
+        }
+        catch (error) {
+            console.error(`Error cleaning storage for tab ${tabId} on popup close:`, error);
+        }
     }
 });
-
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log(CONTEXT_PREFIX + ` Received message type: '${message?.type}' from: ${sender.id}`,  message);
+    console.log(CONTEXT_PREFIX + ` Received message type: '${message?.type}' from: ${sender.id}`, message);
     if (!message || !message.type) {
         console.warn(CONTEXT_PREFIX + ' Received message without type:', message, 'From:', sender.id);
         return false;
     }
     const { type, payload } = message;
     let isResponseAsync = false;
-
-    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.SCRAPE_REQUEST) {
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.SCRAPE_REQUEST) {
         isResponseAsync = true;
         (async () => {
             try {
@@ -1826,55 +2447,60 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
                     const tabId = tabs[0].id;
                     console.log(CONTEXT_PREFIX + ' [BG-Scrape] Found open tab (' + tabId + ') for URL: ' + payload?.url + '. Sending SCRAPE_PAGE to content script.');
                     try {
-                        const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(tabId, { type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SCRAPE_PAGE });
+                        const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().tabs.sendMessage(tabId, { type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SCRAPE_PAGE });
                         console.log(CONTEXT_PREFIX + ' [BG-Scrape] Content script scrape response:', response);
                         if (response && response.success) {
                             console.log(CONTEXT_PREFIX + ' [BG-Scrape] Content script scrape succeeded for tab ' + tabId + '.');
                             webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                                type: _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT,
+                                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT,
                                 payload: { stage: 1, success: true, chatId: payload?.chatId, messageId: payload?.messageId, method: 'contentScript', url: payload?.url, length: response?.text?.length || 0, ...response }
                             });
                             sendResponse({ success: true, message: `Scraping for ${payload?.url} (content script) started.` });
-                        } else {
+                        }
+                        else {
                             console.warn(CONTEXT_PREFIX + `[BG-Scrape] Content script scrape failed or returned error for tab ${tabId}. Falling back to temp tab scrape.`);
                             // Fallback to temp tab scrape
                             await scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId);
                             sendResponse({ success: true, message: `Scraping for ${payload?.url} (fallback temp tab) started.` });
                         }
-                    } catch (err) {
+                    }
+                    catch (err) {
                         console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error sending SCRAPE_PAGE to content script in tab ${tabId}:`, err);
                         // Fallback to temp tab scrape
                         await scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId);
                         sendResponse({ success: true, message: `Scraping for ${payload?.url} (fallback temp tab) started.` });
                     }
-                } else {
+                }
+                else {
                     console.log(CONTEXT_PREFIX + ' [BG-Scrape] No open tab found for URL:', payload?.url, '. Using temp tab scrape.');
                     // No open tab, use temp tab scrape
                     await scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId);
                     sendResponse({ success: true, message: `Scraping for ${payload?.url} (temp tab) started.` });
                 }
-            } catch (error) {
+            }
+            catch (error) {
                 console.error(CONTEXT_PREFIX + ' [BG-Scrape] Error in SCRAPE_REQUEST handler:', error);
-                sendResponse({ success: false, error: error.message });
+                const errMsg = error instanceof Error ? error.message : String(error);
+                sendResponse({ success: false, error: errMsg });
             }
         })();
         return isResponseAsync;
     }
-
-    if (type === _events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST) {
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST) {
         isResponseAsync = true;
         (async () => {
             try {
                 const token = await getDriveToken();
                 const files = await fetchDriveFileList(token, message.folderId);
                 sendResponse({ success: true, files: files, folderId: message.folderId });
-            } catch (error) {
-                sendResponse({ success: false, error: error.message, folderId: message.folderId });
+            }
+            catch (error) {
+                const errMsg = error instanceof Error ? error.message : String(error);
+                sendResponse({ success: false, error: errMsg, folderId: message.folderId });
             }
         })();
         return isResponseAsync;
     }
-    
     if (type === 'popupCreated') {
         const { tabId, popupId } = payload;
         detachedPopups[tabId] = popupId;
@@ -1888,30 +2514,24 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         sendResponse({ popupId: existingPopupId || null });
         return false;
     }
-
-    if (Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(type)) {
-
+    if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DBEventNames).includes(type)) {
         return false;
     }
-
-    if (
-        !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes).includes(type) &&
-        !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DirectDBNames).includes(type) &&
-        !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames).includes(type) &&
-        !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes).includes(type) &&
-        !Object.values(_events_eventNames_js__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(type) &&
-        type !== 'popupCreated' && type !== 'getPopupForTab'
-    ) {
+    if (!Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes).includes(type) &&
+        !Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames).includes(type) &&
+        !Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes).includes(type) &&
+        !Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DBEventNames).includes(type) &&
+        type !== 'popupCreated' && type !== 'getPopupForTab') {
         return false;
     }
     return false;
 });
-
 (async () => {
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
     console.log(CONTEXT_PREFIX + ' Initialized.');
 })();
+
 })();
 
 /******/ })()

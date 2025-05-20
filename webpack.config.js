@@ -1,6 +1,12 @@
-const fs = require('fs');
-const path = require('path');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
+import fs from 'fs';
+import path from 'path';
+import { URL } from 'url';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
+
+// ESM-compatible __dirname (fix for Windows)
+const __dirname = path.dirname(
+  new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+);
 
 // Reusable function to generate patterns for all items in a folder
 function copyFolder(srcDir, destDir) {
@@ -12,24 +18,25 @@ function copyFolder(srcDir, destDir) {
   }));
 }
 
-module.exports = {
+export default {
   mode: 'development', // Change to 'production' for minified output
   entry: {
-    sidepanel: path.resolve(__dirname, 'src/sidepanel.js'),
-    background: path.resolve(__dirname, 'src/background.js'),
-    modelWorker: path.resolve(__dirname, 'src/model-worker.js'),
-    scriptingReadabilityHelper: path.resolve(__dirname, 'src/scriptingReadabilityHelper.js'),
-    pageExtractor: path.resolve(__dirname, 'src/PageExtractor.js'),
-    minimaldb: path.resolve(__dirname, 'src/minimaldb.js'),
-    sqlWorker: path.resolve(__dirname, 'src/js/absurd-sql-backends/sql-worker.js'),
+    sidepanel: path.resolve(__dirname, 'src/sidepanel.ts'),
+    background: path.resolve(__dirname, 'src/background.ts'),
+    modelWorker: path.resolve(__dirname, 'src/model-worker.ts'),
+    scriptingReadabilityHelper: path.resolve(__dirname, 'src/scriptingReadabilityHelper.ts'),
+    pageExtractor: path.resolve(__dirname, 'src/PageExtractor.ts'),
+    db: path.resolve(__dirname, 'src/DB/db.ts'),
+    content: path.resolve(__dirname, 'src/content.ts'),
+    indexedDBBackendWorker: path.resolve(__dirname, 'src/DB/indexedDBBackendWorker.ts'),
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: (pathData) => {
-      if (pathData.chunk && pathData.chunk.name === 'sqlWorker') {
-        return 'js/absurd-sql-backends/sql-worker.js';
+      if (pathData.chunk && pathData.chunk.name === 'indexedDBBackendWorker') {
+        return 'DB/[name].js'; // Output worker to dist/DB/indexedDBBackendWorker.js
       }
-      return '[name].js';
+      return '[name].js'; // All others to dist/[name].js
     },
     chunkFilename: 'assets/[name]-[contenthash].js',
     assetModuleFilename: 'assets/[name]-[contenthash][ext]',
@@ -44,28 +51,20 @@ module.exports = {
       patterns: [
         { from: 'manifest.json', to: '.' },      
         { from: 'src/sidepanel.html', to: '.' },
-        { from: 'src/content.js', to: '.' },
-        { from: 'src/model-worker.js', to: '.' },
-        { from: 'src/theme-loader.js', to: '.' },       
         { from: 'src/output.css', to: '.' },
         { from: 'src/sidepanel.css', to: '.' },
-        { from: 'src/notifications.js', to: '.' },
-        { from: 'src/downloadFormatter.js', to: '.' },
-        { from: 'src/modelAssetDownloader.js', to: '.' },
         { from: 'src/events', to: 'events' },
+        { from: 'src/theme-loader.js', to: '.' },
         ...copyFolder('icons', 'icons'),
-        ...copyFolder('src/events', 'events'),
         ...copyFolder('src/assets', 'assets'),
         ...copyFolder('src/xenova', 'xenova'),
         ...copyFolder('src/model', 'model'),
         ...copyFolder('src/wasm', 'wasm'),
-        ...copyFolder('src/vendor/absurd-sql/dist', 'absurd-sql'),
-        ...copyFolder('src/vendor/sql.js/dist', 'sql.js'),
       ],
     }),
   ],
   resolve: {
-    extensions: ['.js', '.json'],
+    extensions: ['.ts', '.js', '.json'],
     alias: {
       '@vendor': path.resolve(__dirname, 'src/vendor'),
     },
@@ -77,6 +76,11 @@ module.exports = {
   },
   module: {
     rules: [
+      {
+        test: /\.ts$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
       // Add loaders here if you need to handle CSS, images, etc.
     ],
   },

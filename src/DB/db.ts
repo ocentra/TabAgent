@@ -135,6 +135,8 @@ function createDbWorker() {
         } else if (type === DBActions.WORKER_READY) {
           dbWorkerReady = true;
           console.log('[DB] DB Worker signaled script ready.');
+        } else if (requestId) {
+          // This is a normal response to a request, no warning needed.
         } else {
           console.warn('[DB] Worker received unknown message type:', type, event.data);
         }
@@ -348,12 +350,29 @@ async function handleDbGetSessionRequest(event: any) {
     const worker = getDbWorker();
     const chat = await Chat.read(payload.sessionId, worker);
     if (!chat) return { success: false, error: `Session ${payload.sessionId} not found` };
+
+    // Load all messages for this chat
+    const messages = [];
+    for (const msgId of chat.message_ids) {
+      const msg = await chat.getMessage(msgId);
+      if (msg) {
+        // Load all attachments for this message, if any
+        if (msg.attachment_ids && msg.attachment_ids.length > 0 && typeof msg.getAttachments === 'function') {
+          (msg as any).attachments = await msg.getAttachments();
+        }
+        messages.push(msg);
+      }
+    }
+    // Attach messages to chat object for return
+    (chat as any).messages = messages;
+
     return { success: true, data: chat };
   }, DbGetSessionResponse);
 }
 
 async function handleDbAddMessageRequest(event: any) {
   return handleRequest(event, async (payload: any) => {
+    console.log('[DB][TRACE] handleDbAddMessageRequest: sessionId:', payload?.sessionId, 'messageObject:', payload?.messageObject);
     if (!payload?.sessionId || !payload.messageObject?.text) throw new AppError('INVALID_INPUT', 'Session ID and message text are required');
     const worker = getDbWorker();
     let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await Chat.read(payload.sessionId, worker);
@@ -369,8 +388,13 @@ async function handleDbAddMessageRequest(event: any) {
 
 async function handleDbUpdateMessageRequest(event: any) {
   return handleRequest(event, async (payload: any) => {
+    console.log('[DB][TRACE] handleDbUpdateMessageRequest: sessionId:', payload?.sessionId, 'messageId:', payload?.messageId, 'updates:', payload?.updates);
     if (!payload?.sessionId || !payload.messageId || !payload.updates || (payload.updates.text === undefined && payload.updates.isLoading === undefined && payload.updates.content === undefined /* Added content */)) {
       throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates (text, content or isLoading) are required');
+    }
+    if (typeof payload.messageId !== 'string') {
+      console.error('[DB] handleDbUpdateMessageRequest: messageId is not a string:', payload.messageId);
+      throw new AppError('INVALID_INPUT', 'messageId must be a string');
     }
     const worker = getDbWorker();
     let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await Chat.read(payload.sessionId, worker);
@@ -729,6 +753,20 @@ async function publishSessionUpdate(sessionId: string, updateType = 'update', se
         else { console.warn(`[DB] publishSessionUpdate: Session ${sessionId} not found for ${updateType}.`); return; }
       }
     }
+    // Load all messages and their attachments for the session
+    if (sessionData && sessionData.message_ids && typeof sessionData.getMessage === 'function') {
+      const messages = [];
+      for (const msgId of sessionData.message_ids) {
+        const msg = await sessionData.getMessage(msgId);
+        if (msg) {
+          if (msg.attachment_ids && msg.attachment_ids.length > 0 && typeof msg.getAttachments === 'function') {
+            (msg as any).attachments = await msg.getAttachments();
+          }
+          messages.push(msg);
+        }
+      }
+      (sessionData as any).messages = messages;
+    }
     const plainSession = (sessionData && typeof sessionData.toJSON === 'function') ? sessionData.toJSON() : JSON.parse(JSON.stringify(sessionData || {}));
     smartNotify(new DbSessionUpdatedNotification(sessionId, plainSession, updateType));
   } catch (e) { console.error('[DB] Failed to publish session update:', e, { sessionId, updateType }); }
@@ -737,7 +775,14 @@ async function publishSessionUpdate(sessionId: string, updateType = 'update', se
 async function publishMessagesUpdate(sessionId: string, messages: any) {
   try {
     if (!Array.isArray(messages)) { console.error('[DB] publishMessagesUpdate: messages not an array:', messages); return; }
-    const plainMessages = messages.map(m => (typeof m.toJSON === 'function' ? m.toJSON() : { ...m }));
+    // Use toJSON and filter out any unserializable fields as a safety net
+    const plainMessages = messages.map(m => {
+      let json = (typeof m.toJSON === 'function' ? m.toJSON() : { ...m });
+      // Remove any unserializable fields just in case
+      delete json.dbWorker;
+      delete json.modelWorker;
+      return json;
+    });
     smartNotify(new DbMessagesUpdatedNotification(sessionId, plainMessages));
   } catch (e) { console.error('[DB] Failed to publish messages update:', e, { sessionId });}
 }

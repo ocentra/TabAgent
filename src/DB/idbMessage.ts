@@ -154,7 +154,7 @@ export class Message extends KnowledgeGraphNode {
     await super.saveToDB();
 
     const requestId = crypto.randomUUID();
-    const { dbWorker, modelWorker, edgesOut, edgesIn, _embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...messageSpecificsForStore } = this;
+    const { dbWorker, modelWorker, edgesOut, edgesIn, embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...messageSpecificsForStore } = this;
     
     const messageDataForStore = {
         id: this.id, // Ensure id is part of the object if not captured by spread
@@ -175,7 +175,7 @@ export class Message extends KnowledgeGraphNode {
         kgn_created_at: this.created_at,
         kgn_updated_at: this.updated_at,
     };
-
+    console.log('[DB][TRACE] Message.saveToDB: messageDataForStore:', messageDataForStore);
 
     return new Promise((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
@@ -350,5 +350,23 @@ export class Message extends KnowledgeGraphNode {
     this.summary_id = summaryId;
     await this.saveToDB();
     return summaryId;
+  }
+
+  toJSON() {
+    return {
+      id: this.id,
+      chat_id: this.chat_id,
+      timestamp: this.timestamp,
+      sender: this.sender,
+      message_type: this.message_type,
+      content: this.content,
+      metadata_json: this.metadata_json,
+      upvotes: this.upvotes,
+      downvotes: this.downvotes,
+      starred: this.starred,
+      attachment_ids: this.attachment_ids,
+      summary_id: this.summary_id,
+      attachments: (this as any).attachments,
+    };
   }
 }

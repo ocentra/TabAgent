@@ -17,7 +17,7 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
 
   public edgesOut: KnowledgeGraphEdge[] = [];
   public edgesIn: KnowledgeGraphEdge[] = [];
-  public _embedding?: Embedding;
+  public embedding?: Embedding;
 
   constructor(
     id: string,
@@ -130,8 +130,8 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
     });
   }
 
-  async update(updates: Partial<Omit<KnowledgeGraphNode, 'dbWorker' | 'modelWorker' | 'id' | 'created_at' | 'edgesOut' | 'edgesIn' | '_embedding' | 'type' >>): Promise<void> {
-    const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, _embedding, type, ...allowedUpdates } = updates as any;
+  async update(updates: Partial<Omit<KnowledgeGraphNode, 'dbWorker' | 'modelWorker' | 'id' | 'created_at' | 'edgesOut' | 'edgesIn' | 'embedding' | 'type' >>): Promise<void> {
+    const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, embedding, type, ...allowedUpdates } = updates as any;
     if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
         this.properties = allowedUpdates.properties;
         delete allowedUpdates.properties;
@@ -179,7 +179,7 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
     if (!this.created_at) {
       this.created_at = now;
     }
-    const { dbWorker, modelWorker, edgesOut, edgesIn, _embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...nodeSpecificsForStore } = this;
+    const { dbWorker, modelWorker, edgesOut, edgesIn, embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...nodeSpecificsForStore } = this;
     
     const nodeDataForStore = {
         id: this.id, // Ensure id is part of the object if not captured by spread
@@ -218,12 +218,12 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
   }
 
   async getEmbedding(): Promise<Embedding | undefined> {
-    if (this._embedding && this._embedding.id === this.embedding_id) {
-      return this._embedding;
+    if (this.embedding && this.embedding.id === this.embedding_id) {
+      return this.embedding;
     }
     if (this.embedding_id) {
-      this._embedding = await Embedding.get(this.embedding_id, this.dbWorker);
-      return this._embedding;
+      this.embedding = await Embedding.get(this.embedding_id, this.dbWorker);
+      return this.embedding;
     }
     return undefined;
   }

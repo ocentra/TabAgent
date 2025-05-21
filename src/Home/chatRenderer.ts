@@ -197,6 +197,10 @@ function renderSingleMessage(msg: any) {
 
     console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
 
+    // Prefer content over text for display
+    let displayContent = (typeof msg.content === 'string' && msg.content.trim() !== '') ? msg.content : msg.text;
+    console.log(`[ChatRenderer] renderSingleMessage: Using displayContent:`, displayContent, ' (from', (msg.content ? 'content' : 'text'), ')');
+
     // Parse metadata for type detection
     let meta: any = {};
     try { meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {}); } catch {
@@ -224,7 +228,7 @@ function renderSingleMessage(msg: any) {
     copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
     copyButton.title = 'Copy message text';
     copyButton.onclick = () => {
-        let textToCopy = msg.text;
+        let textToCopy = displayContent;
         if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
             textToCopy = JSON.stringify(msg.metadata.scrapeData, null, 2);
         }
@@ -247,7 +251,7 @@ function renderSingleMessage(msg: any) {
     // IMPORTANT: Append actionsContainer AFTER main content is set, or ensure it's not overwritten.
     // For now, we will append it after other content elements are added to bubbleDiv.
 
-    let contentToParse = msg.text || msg.content || '';
+    let contentToParse = displayContent || '';
     let specialHeaderHTML = '';
 
     // --- Special handling for PageExtractor results ---
@@ -255,7 +259,7 @@ function renderSingleMessage(msg: any) {
         specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Page Extraction</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${extraction.url || 'N/A'}</p></div>`;
         contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
         console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
-    } else if (msg.text) {
+    } else if (displayContent) {
         console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
     }
 

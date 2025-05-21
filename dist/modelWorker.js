@@ -27471,6 +27471,7 @@ var __webpack_exports__ = {};
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _xenova_transformers_dist_transformers_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./xenova/transformers/dist/transformers.js */ "./src/xenova/transformers/dist/transformers.js");
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/// <reference lib="dom" />
 // model-worker.js
 
 
@@ -27722,7 +27723,7 @@ self.onmessage = async (event) => {
     const { type, payload } = event.data;
     console.log(`[ModelWorker] Received message: Type: ${type}`);
     switch (type) {
-        case 'init':
+        case 'init': {
             console.log(`[ModelWorker] 'init' payload:`, payload);
             const modelIdToInit = payload?.modelId;
             const wasmPathForEnv = payload?.wasmPath;
@@ -27790,7 +27791,8 @@ self.onmessage = async (event) => {
                 isModelPipelineReady = false;
             }
             break;
-        case 'generate':
+        }
+        case 'generate': {
             console.log(`[ModelWorker] 'generate' payload:`, payload);
             if (!isModelPipelineReady || !pipelineInstance || !currentModelIdForPipeline) {
                 console.error(`[ModelWorker] Cannot generate. Model pipeline not ready.`);
@@ -27874,11 +27876,13 @@ self.onmessage = async (event) => {
                 self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: `Generation process failed: ${errMsg}` });
             }
             break;
-        case 'interrupt':
+        }
+        case 'interrupt': {
             console.log("[ModelWorker] Received 'interrupt'. Setting flag.");
             isGenerationInterrupted = true;
             break;
-        case 'reset':
+        }
+        case 'reset': {
             console.log("[ModelWorker] Received 'reset'.");
             isGenerationInterrupted = false;
             if (pipelineInstance && typeof pipelineInstance.dispose === 'function') {
@@ -27896,12 +27900,15 @@ self.onmessage = async (event) => {
             console.log("[ModelWorker] Pipeline instance reset.");
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET_COMPLETE });
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT:
+        }
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT: {
             break;
-        default:
+        }
+        default: {
             console.warn(`[ModelWorker] Unknown message type: ${type}. Payload:`, payload);
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `[ModelWorker] Unknown message type: ${type}` });
             break;
+        }
     }
 };
 

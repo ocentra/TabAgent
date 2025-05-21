@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 declare global {
     interface Window {
         originalUITooltipController?: { showTooltip: (el: HTMLElement, msg: string) => void };

@@ -1,11 +1,14 @@
+/**
+ * @reference lib="dom"
+ */
 // Add EXTENSION_CONTEXT to the Window interface
 
 
 import { UIEventNames, Contexts } from './events/eventNames';
 window.EXTENSION_CONTEXT = Contexts.OTHERS;
 
-let pageContainers: NodeListOf<HTMLElement> = document.querySelectorAll('.page-container');
-let navButtons: NodeListOf<HTMLElement> = document.querySelectorAll('.nav-button');
+let pageContainers = document.querySelectorAll('.page-container');
+let navButtons = document.querySelectorAll('.nav-button');
 let mainHeaderTitle: HTMLElement | null = document.querySelector('#header h1');
 const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles: { [key: string]: string } = {
@@ -44,10 +47,11 @@ async function navigateTo(pageId: string) {
     }
 
     navButtons.forEach(button => {
-        if (button.dataset.page === pageId) {
-            button.classList.add('active');
+        const btn = button as HTMLElement;
+        if (btn.dataset.page === pageId) {
+            btn.classList.add('active');
         } else {
-            button.classList.remove('active');
+            btn.classList.remove('active');
         }
     });
 
@@ -68,8 +72,9 @@ function initializeNavigation() {
     mainHeaderTitle = document.querySelector('#header h1');
 
     navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const pageId = button.dataset.page;
+        const btn = button as HTMLElement;
+        btn.addEventListener('click', () => {
+            const pageId = btn.dataset.page;
             if (pageId) {
                 navigateTo(pageId);
             }

@@ -79,110 +79,113 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
     let tempTabId: number | null = null;
     const TEMP_TAB_LOAD_TIMEOUT = 30000;
 
-    return new Promise<any>(async (resolve, reject) => {
-        const cleanupAndReject = (errorMsg: string, errorObj: any = null) => {
-            const finalError = errorObj ? errorObj : new Error(errorMsg);
-            console.warn(CONTEXT_PREFIX +`[BG-Scrape] Cleanup & Reject: ${errorMsg}`, errorObj);
-            if (tempTabId !== null) {
-                browser.tabs.remove(tempTabId).catch((err: any) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId}: ${err.message}`));
-                tempTabId = null;
-            }
-            reject(finalError);
-        };
-
-        try {
-            const tab = await browser.tabs.create({ url: url, active: false });
-            tempTabId = tab.id;
-            if (!tempTabId) {
-                cleanupAndReject('[BG-Scrape] Failed to get temporary tab ID.');
-                return;
-            }
-            console.log(CONTEXT_PREFIX + ' [BG-Scrape] Created temp tab ' + tempTabId + '.');
-
-            let loadTimeoutId: ReturnType<typeof setTimeout> | null = null;
-            const loadPromise = new Promise<void>((resolveLoad, rejectLoad) => {
-                const listener = (tabIdUpdated: number, changeInfo: any) => {
-                    if (tabIdUpdated === tempTabId && changeInfo.status === 'complete') {
-                        console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tab ' + tempTabId + ' loaded.');
-                        if (loadTimeoutId) clearTimeout(loadTimeoutId);
-                        browser.tabs.onUpdated.removeListener(listener);
-                        resolveLoad();
-                    }
-                };
-                browser.tabs.onUpdated.addListener(listener);
-
-                loadTimeoutId = setTimeout(() => {
-                    browser.tabs.onUpdated.removeListener(listener);
-                    rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load in tab ${tempTabId}.`));
-                }, TEMP_TAB_LOAD_TIMEOUT);
-            });
-
-            await loadPromise;
-            console.log(CONTEXT_PREFIX + ' [BG-Scrape] Injecting pageExtractor.js into tab ' + tempTabId + '...');
-            
-            await browser.scripting.executeScript({
-                target: { tabId: tempTabId },
-                files: ['pageExtractor.js']
-            });
-            console.log(CONTEXT_PREFIX + ' [BG-Scrape] pageExtractor.js INJECTED into tab ' + tempTabId + '.');
-            
-            const injectionResults = await browser.scripting.executeScript({
-                target: { tabId: tempTabId },
-                func: () => {
-                    if (window.TabAgentPageExtractor && typeof window.TabAgentPageExtractor.extract === 'function') {
-                        try { return window.TabAgentPageExtractor.extract(document); }
-                        catch (e: unknown) {
-                            const errMsg = e instanceof Error ? e.message : String(e);
-                            const errStack = e instanceof Error ? e.stack : '';
-                            return { error: `Error in PageExtractor.extract: ${errMsg} (Stack: ${errStack})` };
-                        }
-                    } else { return { error: 'TabAgentPageExtractor.extract function not found on window.' }; }
+    return new Promise((resolve, reject) => {
+        (async () => {
+            const cleanupAndReject = (errorMsg: string, errorObj: any = null) => {
+                const finalError = errorObj ? errorObj : new Error(errorMsg);
+                console.warn(CONTEXT_PREFIX +`[BG-Scrape] Cleanup & Reject: ${errorMsg}`, errorObj);
+                if (tempTabId !== null) {
+                    browser.tabs.remove(tempTabId).catch((err: any) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId}: ${err.message}`));
+                    tempTabId = null;
                 }
-            });
+                reject(finalError);
+            };
 
-            if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
-                cleanupAndReject('[BG-Scrape] No result from executeScript.', injectionResults?.[0]?.error);
-                return;
-            }
-            const scriptResult = injectionResults[0].result;
-            console.log('[BG-Scrape] Extracted scriptResult:', scriptResult);
-            if (scriptResult?.error) {
-                cleanupAndReject(`[BG-Scrape] Script error: ${scriptResult.error}`, scriptResult);
-                return;
-            }
-            // Update the placeholder message in the DB via forwardToSidePanel
-            if (typeof forwardToSidePanel === 'function' && chatId && messageId) {
-                // Add __type marker to the extraction object
-                const extractionWithType = { ...scriptResult, __type: "PageExtractor" };
-                const updateMsg = {
-                    type: DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
-                    payload: {
-                        sessionId: chatId,
-                        messageId: messageId,
-                        updates: {
-                            text: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
-                            extraction: extractionWithType,
-                            type: "code",
-                            metadata: JSON.stringify({
-                                language: "json",
-                                isJson: true,
-                                extractionType: "PageExtractor",
-                                extraction: extractionWithType
-                            })
+            try {
+                const tab = await browser.tabs.create({ url: url, active: false });
+                tempTabId = tab.id;
+                if (!tempTabId) {
+                    cleanupAndReject('[BG-Scrape] Failed to get temporary tab ID.');
+                    return;
+                }
+                console.log(CONTEXT_PREFIX + ' [BG-Scrape] Created temp tab ' + tempTabId + '.');
+
+                let loadTimeoutId: ReturnType<typeof setTimeout> | null = null;
+                const loadPromise = new Promise<void>((resolveLoad, rejectLoad) => {
+                    const listener = (tabIdUpdated: number, changeInfo: any) => {
+                        if (tabIdUpdated === tempTabId && changeInfo.status === 'complete') {
+                            console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tab ' + tempTabId + ' loaded.');
+                            if (loadTimeoutId) clearTimeout(loadTimeoutId);
+                            browser.tabs.onUpdated.removeListener(listener);
+                            resolveLoad();
                         }
+                    };
+                    browser.tabs.onUpdated.addListener(listener);
+
+                    loadTimeoutId = setTimeout(() => {
+                        browser.tabs.onUpdated.removeListener(listener);
+                        rejectLoad(new Error(`Timeout (${TEMP_TAB_LOAD_TIMEOUT / 1000}s) waiting for page load in tab ${tempTabId}.`));
+                    }, TEMP_TAB_LOAD_TIMEOUT);
+                });
+
+                await loadPromise;
+                console.log(CONTEXT_PREFIX + ' [BG-Scrape] Injecting pageExtractor.js into tab ' + tempTabId + '...');
+                
+                await browser.scripting.executeScript({
+                    target: { tabId: tempTabId },
+                    files: ['pageExtractor.js']
+                });
+                console.log(CONTEXT_PREFIX + ' [BG-Scrape] pageExtractor.js INJECTED into tab ' + tempTabId + '.');
+                
+                const injectionResults = await browser.scripting.executeScript({
+                    target: { tabId: tempTabId },
+                    func: () => {
+                        if (window.TabAgentPageExtractor && typeof window.TabAgentPageExtractor.extract === 'function') {
+                            try { return window.TabAgentPageExtractor.extract(document); }
+                            catch (e: unknown) {
+                                const errMsg = e instanceof Error ? e.message : String(e);
+                                const errStack = e instanceof Error ? e.stack : '';
+                                return { error: `Error in PageExtractor.extract: ${errMsg} (Stack: ${errStack})` };
+                            }
+                        } else { return { error: 'TabAgentPageExtractor.extract function not found on window.' }; }
                     }
-                };
-                forwardToSidePanel(updateMsg);
+                });
+
+                if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
+                    cleanupAndReject('[BG-Scrape] No result from executeScript.', injectionResults?.[0]?.error);
+                    return;
+                }
+                const scriptResult = injectionResults[0].result;
+                console.log('[BG-Scrape] Extracted scriptResult:', scriptResult);
+                if (scriptResult?.error) {
+                    cleanupAndReject(`[BG-Scrape] Script error: ${scriptResult.error}`, scriptResult);
+                    return;
+                }
+                // Update the placeholder message in the DB via forwardToSidePanel
+                if (typeof forwardToSidePanel === 'function' && chatId && messageId) {
+                    // Add __type marker to the extraction object
+                    const extractionWithType = { ...scriptResult, __type: "PageExtractor" };
+                    const updateMsg = {
+                        type: DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
+                        payload: {
+                            sessionId: chatId,
+                            messageId: messageId,
+                            updates: {
+                                text: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
+                                content: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
+                                extraction: extractionWithType,
+                                type: "code",
+                                metadata: JSON.stringify({
+                                    language: "json",
+                                    isJson: true,
+                                    extractionType: "PageExtractor",
+                                    extraction: extractionWithType
+                                })
+                            }
+                        }
+                    };
+                    forwardToSidePanel(updateMsg);
+                }
+                resolve(scriptResult);
+            } catch (error: unknown) {
+                const errMsg = error instanceof Error ? error.message : String(error);
+                cleanupAndReject(`[BG-Scrape] Error: ${errMsg}`, error);
+            } finally {
+                if (tempTabId !== null) {
+                    browser.tabs.remove(tempTabId).catch((err: any) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId} in finally: ${err.message}`));
+                }
             }
-            resolve(scriptResult);
-        } catch (error: unknown) {
-            const errMsg = error instanceof Error ? error.message : String(error);
-            cleanupAndReject(`[BG-Scrape] Error: ${errMsg}`, error);
-        } finally {
-            if (tempTabId !== null) {
-                browser.tabs.remove(tempTabId).catch((err: any) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId} in finally: ${err.message}`));
-            }
-        }
+        })();
     });
 }
 

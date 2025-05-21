@@ -84,7 +84,17 @@ async function handleQuerySubmit(data: any) {
         console.log(`[Orchestrator: handleQuerySubmit] Adding placeholder to session ${sessionId} via event.`);
         const addPlaceholderRequest = new DbAddMessageRequest(sessionId!, placeholder);
         const placeholderResponse = await requestDbAndWait(addPlaceholderRequest);
+        console.log(`[Orchestrator: handleQuerySubmit] Placeholder response:`, placeholderResponse);
         placeholderMessageId = (placeholderResponse as any).newMessageId;
+        if (typeof placeholderMessageId !== 'string' && placeholderMessageId && placeholderMessageId.newMessageId) {
+            placeholderMessageId = placeholderMessageId.newMessageId;
+        }
+        // Log the type and value for debugging
+        if (typeof placeholderMessageId === 'string') {
+            console.log(`[Orchestrator: handleQuerySubmit] placeholderMessageId (string):`, placeholderMessageId);
+        } else {
+            console.warn(`[Orchestrator: handleQuerySubmit] placeholderMessageId is not a string! Full value:`, placeholderMessageId);
+        }
         
         if (isURL) {
             // Always send scrape request to background, let background decide how to scrape
@@ -225,13 +235,13 @@ async function handleBackgroundScrapeStage(payload: any) {
 
     if (success) {
         console.log(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} succeeded for chat ${chatId}.`);
-        // Construct a success message matching the 'scrape_result_full' style
-        const successText = `Full Scrape Result: ${rest.title || 'No Title'}`; // Use title for the text part
-        // Use the 'scrape_result_full' type and structure
+        // Use the main extracted content if available
+        let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
         updatePayload = { 
             isLoading: false, 
             sender: 'system', 
-            text: successText, // Main text shown outside bubble if needed
+            text: mainContent, // <-- Show main extracted content in UI
+            content: mainContent, // <-- Also update content for UI rendering
             metadata: { 
                 type: 'scrape_result_full', 
                 scrapeData: rest // Put the full data here for the renderer
@@ -287,7 +297,10 @@ async function handleBackgroundDirectScrapeResult(message: any) {
     const updatePayload: any = { isLoading: false };
      if (success) {
          updatePayload.sender = 'system';
-         updatePayload.text = `Full Scrape Result: ${scrapeData.title || 'Scraped Content'}`;
+         // Use the main extracted content if available
+         let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
+         updatePayload.text = mainContent;
+         updatePayload.content = mainContent; // <-- Also update content for UI rendering
          updatePayload.metadata = {
              type: 'scrape_result_full', 
              scrapeData: scrapeData

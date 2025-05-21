@@ -28,7 +28,7 @@ export async function initiateChatDownload(
         }
 
         const htmlContent = formatChatToHtml(sessionData);
-        const safeTitle = (sessionData.title || sessionData.name || 'Chat_Session').replace(/[^a-z0-9_\-\.]/gi, '_').replace(/_{2,}/g, '_');
+        const safeTitle = (sessionData.title || sessionData.name || 'Chat_Session').replace(/[^a-z0-9_\-.]/gi, '_').replace(/_{2,}/g, '_');
         const filename = `${safeTitle}_${sessionId.substring(0, 8)}.html`;
 
         downloadHtmlFile(htmlContent, filename, (errorMessage) => {

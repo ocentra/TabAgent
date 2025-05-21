@@ -2794,6 +2794,9 @@ function createDbWorker() {
                     dbWorkerReady = true;
                     console.log('[DB] DB Worker signaled script ready.');
                 }
+                else if (requestId) {
+                    // This is a normal response to a request, no warning needed.
+                }
                 else {
                     console.warn('[DB] Worker received unknown message type:', type, event.data);
                 }
@@ -2996,11 +2999,26 @@ async function handleDbGetSessionRequest(event) {
         const chat = await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
         if (!chat)
             return { success: false, error: `Session ${payload.sessionId} not found` };
+        // Load all messages for this chat
+        const messages = [];
+        for (const msgId of chat.message_ids) {
+            const msg = await chat.getMessage(msgId);
+            if (msg) {
+                // Load all attachments for this message, if any
+                if (msg.attachment_ids && msg.attachment_ids.length > 0 && typeof msg.getAttachments === 'function') {
+                    msg.attachments = await msg.getAttachments();
+                }
+                messages.push(msg);
+            }
+        }
+        // Attach messages to chat object for return
+        chat.messages = messages;
         return { success: true, data: chat };
     }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionResponse);
 }
 async function handleDbAddMessageRequest(event) {
     return handleRequest(event, async (payload) => {
+        console.log('[DB][TRACE] handleDbAddMessageRequest: sessionId:', payload?.sessionId, 'messageObject:', payload?.messageObject);
         if (!payload?.sessionId || !payload.messageObject?.text)
             throw new AppError('INVALID_INPUT', 'Session ID and message text are required');
         const worker = getDbWorker();
@@ -3018,8 +3036,13 @@ async function handleDbAddMessageRequest(event) {
 }
 async function handleDbUpdateMessageRequest(event) {
     return handleRequest(event, async (payload) => {
+        console.log('[DB][TRACE] handleDbUpdateMessageRequest: sessionId:', payload?.sessionId, 'messageId:', payload?.messageId, 'updates:', payload?.updates);
         if (!payload?.sessionId || !payload.messageId || !payload.updates || (payload.updates.text === undefined && payload.updates.isLoading === undefined && payload.updates.content === undefined /* Added content */)) {
             throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates (text, content or isLoading) are required');
+        }
+        if (typeof payload.messageId !== 'string') {
+            console.error('[DB] handleDbUpdateMessageRequest: messageId is not a string:', payload.messageId);
+            throw new AppError('INVALID_INPUT', 'messageId must be a string');
         }
         const worker = getDbWorker();
         let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await _idbChat__WEBPACK_IMPORTED_MODULE_5__.Chat.read(payload.sessionId, worker);
@@ -3383,6 +3406,20 @@ async function publishSessionUpdate(sessionId, updateType = 'update', sessionDat
                 }
             }
         }
+        // Load all messages and their attachments for the session
+        if (sessionData && sessionData.message_ids && typeof sessionData.getMessage === 'function') {
+            const messages = [];
+            for (const msgId of sessionData.message_ids) {
+                const msg = await sessionData.getMessage(msgId);
+                if (msg) {
+                    if (msg.attachment_ids && msg.attachment_ids.length > 0 && typeof msg.getAttachments === 'function') {
+                        msg.attachments = await msg.getAttachments();
+                    }
+                    messages.push(msg);
+                }
+            }
+            sessionData.messages = messages;
+        }
         const plainSession = (sessionData && typeof sessionData.toJSON === 'function') ? sessionData.toJSON() : JSON.parse(JSON.stringify(sessionData || {}));
         smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification(sessionId, plainSession, updateType));
     }
@@ -3396,7 +3433,14 @@ async function publishMessagesUpdate(sessionId, messages) {
             console.error('[DB] publishMessagesUpdate: messages not an array:', messages);
             return;
         }
-        const plainMessages = messages.map(m => (typeof m.toJSON === 'function' ? m.toJSON() : { ...m }));
+        // Use toJSON and filter out any unserializable fields as a safety net
+        const plainMessages = messages.map(m => {
+            let json = (typeof m.toJSON === 'function' ? m.toJSON() : { ...m });
+            // Remove any unserializable fields just in case
+            delete json.dbWorker;
+            delete json.modelWorker;
+            return json;
+        });
         smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(sessionId, plainMessages));
     }
     catch (e) {
@@ -4456,6 +4500,29 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         this.topic = options.topic;
         this.domain = options.domain;
     }
+    toJSON() {
+        return {
+            id: this.id,
+            user_id: this.user_id,
+            tabId: this.tabId,
+            chat_timestamp: this.chat_timestamp,
+            title: this.title,
+            isStarred: this.isStarred,
+            status: this.status,
+            message_ids: this.message_ids,
+            summary_ids: this.summary_ids,
+            chat_metadata_json: this.chat_metadata_json,
+            topic: this.topic,
+            domain: this.domain,
+            kgn_type: this.type,
+            kgn_label: this.label,
+            kgn_properties_json: this.properties_json,
+            kgn_embedding_id: this.embedding_id,
+            kgn_created_at: this.created_at,
+            kgn_updated_at: this.updated_at
+            // dbWorker and modelWorker are intentionally omitted
+        };
+    }
     get chat_metadata() {
         try {
             return this.chat_metadata_json ? JSON.parse(this.chat_metadata_json) : undefined;
@@ -5126,7 +5193,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         });
     }
     async update(updates) {
-        const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, _embedding, type, ...allowedUpdates } = updates;
+        const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, embedding, type, ...allowedUpdates } = updates;
         if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
             this.properties = allowedUpdates.properties;
             delete allowedUpdates.properties;
@@ -5173,7 +5240,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         if (!this.created_at) {
             this.created_at = now;
         }
-        const { dbWorker, modelWorker, edgesOut, edgesIn, _embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...nodeSpecificsForStore } = this;
+        const { dbWorker, modelWorker, edgesOut, edgesIn, embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...nodeSpecificsForStore } = this;
         const nodeDataForStore = {
             id: this.id, // Ensure id is part of the object if not captured by spread
             type: this.type,
@@ -5211,12 +5278,12 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         });
     }
     async getEmbedding() {
-        if (this._embedding && this._embedding.id === this.embedding_id) {
-            return this._embedding;
+        if (this.embedding && this.embedding.id === this.embedding_id) {
+            return this.embedding;
         }
         if (this.embedding_id) {
-            this._embedding = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.get(this.embedding_id, this.dbWorker);
-            return this._embedding;
+            this.embedding = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.get(this.embedding_id, this.dbWorker);
+            return this.embedding;
         }
         return undefined;
     }
@@ -5780,7 +5847,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         this.label = this.content;
         await super.saveToDB();
         const requestId = crypto.randomUUID();
-        const { dbWorker, modelWorker, edgesOut, edgesIn, _embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...messageSpecificsForStore } = this;
+        const { dbWorker, modelWorker, edgesOut, edgesIn, embedding, type, label, properties_json, embedding_id, created_at, updated_at, ...messageSpecificsForStore } = this;
         const messageDataForStore = {
             id: this.id, // Ensure id is part of the object if not captured by spread
             chat_id: this.chat_id,
@@ -5800,6 +5867,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
             kgn_created_at: this.created_at,
             kgn_updated_at: this.updated_at,
         };
+        console.log('[DB][TRACE] Message.saveToDB: messageDataForStore:', messageDataForStore);
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
@@ -5948,6 +6016,23 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         this.summary_id = summaryId;
         await this.saveToDB();
         return summaryId;
+    }
+    toJSON() {
+        return {
+            id: this.id,
+            chat_id: this.chat_id,
+            timestamp: this.timestamp,
+            sender: this.sender,
+            message_type: this.message_type,
+            content: this.content,
+            metadata_json: this.metadata_json,
+            upvotes: this.upvotes,
+            downvotes: this.downvotes,
+            starred: this.starred,
+            attachment_ids: this.attachment_ids,
+            summary_id: this.summary_id,
+            attachments: this.attachments,
+        };
     }
 }
 
@@ -6685,6 +6770,9 @@ function renderSingleMessage(msg) {
     if (!chatBodyElement)
         return;
     console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
+    // Prefer content over text for display
+    let displayContent = (typeof msg.content === 'string' && msg.content.trim() !== '') ? msg.content : msg.text;
+    console.log(`[ChatRenderer] renderSingleMessage: Using displayContent:`, displayContent, ' (from', (msg.content ? 'content' : 'text'), ')');
     // Parse metadata for type detection
     let meta = {};
     try {
@@ -6710,7 +6798,7 @@ function renderSingleMessage(msg) {
     copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
     copyButton.title = 'Copy message text';
     copyButton.onclick = () => {
-        let textToCopy = msg.text;
+        let textToCopy = displayContent;
         if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
             textToCopy = JSON.stringify(msg.metadata.scrapeData, null, 2);
         }
@@ -6731,7 +6819,7 @@ function renderSingleMessage(msg) {
     }
     // IMPORTANT: Append actionsContainer AFTER main content is set, or ensure it's not overwritten.
     // For now, we will append it after other content elements are added to bubbleDiv.
-    let contentToParse = msg.text || msg.content || '';
+    let contentToParse = displayContent || '';
     let specialHeaderHTML = '';
     // --- Special handling for PageExtractor results ---
     if (isPageExtractor && extraction) {
@@ -6739,7 +6827,7 @@ function renderSingleMessage(msg) {
         contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
         console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
     }
-    else if (msg.text) {
+    else if (displayContent) {
         console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
     }
     console.log(`[ChatRenderer] Before style application: msg.sender = ${msg.sender}`);
@@ -7271,7 +7359,18 @@ async function handleQuerySubmit(data) {
         console.log(`[Orchestrator: handleQuerySubmit] Adding placeholder to session ${sessionId} via event.`);
         const addPlaceholderRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, placeholder);
         const placeholderResponse = await requestDbAndWait(addPlaceholderRequest);
+        console.log(`[Orchestrator: handleQuerySubmit] Placeholder response:`, placeholderResponse);
         placeholderMessageId = placeholderResponse.newMessageId;
+        if (typeof placeholderMessageId !== 'string' && placeholderMessageId && placeholderMessageId.newMessageId) {
+            placeholderMessageId = placeholderMessageId.newMessageId;
+        }
+        // Log the type and value for debugging
+        if (typeof placeholderMessageId === 'string') {
+            console.log(`[Orchestrator: handleQuerySubmit] placeholderMessageId (string):`, placeholderMessageId);
+        }
+        else {
+            console.warn(`[Orchestrator: handleQuerySubmit] placeholderMessageId is not a string! Full value:`, placeholderMessageId);
+        }
         if (isURL) {
             // Always send scrape request to background, let background decide how to scrape
             try {
@@ -7414,13 +7513,13 @@ async function handleBackgroundScrapeStage(payload) {
     let finalStatus = 'idle'; // Default to idle on success
     if (success) {
         console.log(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} succeeded for chat ${chatId}.`);
-        // Construct a success message matching the 'scrape_result_full' style
-        const successText = `Full Scrape Result: ${rest.title || 'No Title'}`; // Use title for the text part
-        // Use the 'scrape_result_full' type and structure
+        // Use the main extracted content if available
+        let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
         updatePayload = {
             isLoading: false,
             sender: 'system',
-            text: successText, // Main text shown outside bubble if needed
+            text: mainContent, // <-- Show main extracted content in UI
+            content: mainContent, // <-- Also update content for UI rendering
             metadata: {
                 type: 'scrape_result_full',
                 scrapeData: rest // Put the full data here for the renderer
@@ -7475,7 +7574,10 @@ async function handleBackgroundDirectScrapeResult(message) {
     const updatePayload = { isLoading: false };
     if (success) {
         updatePayload.sender = 'system';
-        updatePayload.text = `Full Scrape Result: ${scrapeData.title || 'Scraped Content'}`;
+        // Use the main extracted content if available
+        let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
+        updatePayload.text = mainContent;
+        updatePayload.content = mainContent; // <-- Also update content for UI rendering
         updatePayload.metadata = {
             type: 'scrape_result_full',
             scrapeData: scrapeData
@@ -8139,7 +8241,7 @@ async function initiateChatDownload(sessionId, requestDbAndWaitFunc, showNotific
             throw new Error("Chat session data not found.");
         }
         const htmlContent = (0,_downloadFormatter__WEBPACK_IMPORTED_MODULE_1__.formatChatToHtml)(sessionData);
-        const safeTitle = (sessionData.title || sessionData.name || 'Chat_Session').replace(/[^a-z0-9_\-\.]/gi, '_').replace(/_{2,}/g, '_');
+        const safeTitle = (sessionData.title || sessionData.name || 'Chat_Session').replace(/[^a-z0-9_\-.]/gi, '_').replace(/_{2,}/g, '_');
         const filename = `${safeTitle}_${sessionId.substring(0, 8)}.html`;
         (0,_downloadFormatter__WEBPACK_IMPORTED_MODULE_1__.downloadHtmlFile)(htmlContent, filename, (errorMessage) => {
             showNotificationFunc(errorMessage, 'error');
@@ -8488,7 +8590,7 @@ async function filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl
             }
             else {
                 console.error(prefix, `Skipping file ${entry.rfilename}: missing/invalid size (HEAD failed or Content-Length missing)`);
-                entry._skip = true;
+                entry.skip = true;
             }
         }
     });
@@ -8496,7 +8598,7 @@ async function filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl
     return { neededFileEntries, message: null };
 }
 function buildDownloadPlanInternal(neededFileEntries) {
-    const downloadPlan = neededFileEntries.filter((e) => !e._skip).map((entry, idx) => ({
+    const downloadPlan = neededFileEntries.filter((e) => !e.skip).map((entry, idx) => ({
         fileName: entry.rfilename,
         fileSize: entry.size,
         totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
@@ -8894,6 +8996,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   navigateTo: () => (/* binding */ navigateTo)
 /* harmony export */ });
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/**
+ * @reference lib="dom"
+ */
 // Add EXTENSION_CONTEXT to the Window interface
 
 window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.Contexts.OTHERS;
@@ -8934,11 +9039,12 @@ async function navigateTo(pageId) {
         mainHeaderTitle.textContent = 'Tab Agent';
     }
     navButtons.forEach(button => {
-        if (button.dataset.page === pageId) {
-            button.classList.add('active');
+        const btn = button;
+        if (btn.dataset.page === pageId) {
+            btn.classList.add('active');
         }
         else {
-            button.classList.remove('active');
+            btn.classList.remove('active');
         }
     });
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
@@ -8954,8 +9060,9 @@ function initializeNavigation() {
     navButtons = document.querySelectorAll('.nav-button');
     mainHeaderTitle = document.querySelector('#header h1');
     navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const pageId = button.dataset.page;
+        const btn = button;
+        btn.addEventListener('click', () => {
+            const pageId = btn.dataset.page;
             if (pageId) {
                 navigateTo(pageId);
             }
@@ -9762,7 +9869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "a3b44a367401c554eb25" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "15bbfaf6f75622402e02" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // model-worker.js
 import { pipeline, env } from './xenova/transformers/dist/transformers.js';
 import { WorkerEventNames, ModelLoaderMessageTypes } from './events/eventNames';
@@ -83,7 +84,7 @@ async function fetchChunk(modelId: string, fileName: string, chunkIndex: number)
     }
 }
 
-self.fetch = async (resource: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
+self.fetch = async (resource: any, options?: any): Promise<Response> => {
     let resourceURLString: string;
     if (typeof resource === 'string') {
         resourceURLString = resource;
@@ -266,7 +267,7 @@ self.onmessage = async (event: MessageEvent) => {
     console.log(`[ModelWorker] Received message: Type: ${type}`);
 
     switch (type) {
-        case 'init':
+        case 'init': {
             console.log(`[ModelWorker] 'init' payload:`, payload);
             const modelIdToInit: string | undefined = payload?.modelId;
             const wasmPathForEnv: string | undefined = payload?.wasmPath;
@@ -339,8 +340,8 @@ self.onmessage = async (event: MessageEvent) => {
                 isModelPipelineReady = false;
             }
             break;
-
-        case 'generate':
+        }
+        case 'generate': {
             console.log(`[ModelWorker] 'generate' payload:`, payload);
             if (!isModelPipelineReady || !pipelineInstance || !currentModelIdForPipeline) {
                 console.error(`[ModelWorker] Cannot generate. Model pipeline not ready.`);
@@ -424,13 +425,13 @@ self.onmessage = async (event: MessageEvent) => {
                 self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: `Generation process failed: ${errMsg}` });
             }
             break;
-
-        case 'interrupt':
+        }
+        case 'interrupt': {
             console.log("[ModelWorker] Received 'interrupt'. Setting flag.");
             isGenerationInterrupted = true;
             break;
-
-        case 'reset':
+        }
+        case 'reset': {
             console.log("[ModelWorker] Received 'reset'.");
             isGenerationInterrupted = false;
             if (pipelineInstance && typeof pipelineInstance.dispose === 'function') {
@@ -443,12 +444,14 @@ self.onmessage = async (event: MessageEvent) => {
             console.log("[ModelWorker] Pipeline instance reset.");
             self.postMessage({ type: WorkerEventNames.RESET_COMPLETE });
             break;
-
-        case ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT:
+        }
+        case ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT: {
             break;
-        default:
+        }
+        default: {
             console.warn(`[ModelWorker] Unknown message type: ${type}. Payload:`, payload);
             self.postMessage({ type: WorkerEventNames.ERROR, payload: `[ModelWorker] Unknown message type: ${type}` });
             break;
+        }
     }
 };

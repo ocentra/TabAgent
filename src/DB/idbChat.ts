@@ -62,6 +62,30 @@ export class Chat extends KnowledgeGraphNode {
     this.domain = options.domain;
   }
 
+  toJSON() {
+    return {
+      id: this.id,
+      user_id: this.user_id,
+      tabId: this.tabId,
+      chat_timestamp: this.chat_timestamp,
+      title: this.title,
+      isStarred: this.isStarred,
+      status: this.status,
+      message_ids: this.message_ids,
+      summary_ids: this.summary_ids,
+      chat_metadata_json: this.chat_metadata_json,
+      topic: this.topic,
+      domain: this.domain,
+      kgn_type: this.type,
+      kgn_label: this.label,
+      kgn_properties_json: this.properties_json,
+      kgn_embedding_id: this.embedding_id,
+      kgn_created_at: this.created_at,
+      kgn_updated_at: this.updated_at
+      // dbWorker and modelWorker are intentionally omitted
+    };
+  }
+
   get chat_metadata(): Record<string, any> | undefined {
     try {
         return this.chat_metadata_json ? JSON.parse(this.chat_metadata_json) : undefined;

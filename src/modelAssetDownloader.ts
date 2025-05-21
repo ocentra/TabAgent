@@ -97,7 +97,7 @@ async function filterAndValidateFilesInternal(metadata: any, modelId: string, ba
                 console.log(prefix, `Got file size via HEAD for ${entry.rfilename}: ${size}`);
             } else {
                 console.error(prefix, `Skipping file ${entry.rfilename}: missing/invalid size (HEAD failed or Content-Length missing)`);
-                entry._skip = true;
+                entry.skip = true;
             }
         }
     });
@@ -107,7 +107,7 @@ async function filterAndValidateFilesInternal(metadata: any, modelId: string, ba
 }
 
 function buildDownloadPlanInternal(neededFileEntries: any[]): { downloadPlan: any[], totalBytesToDownload: number, totalChunksToDownload: number } {
-    const downloadPlan = neededFileEntries.filter((e: any) => !e._skip).map((entry: any, idx: number) => ({
+    const downloadPlan = neededFileEntries.filter((e: any) => !e.skip).map((entry: any, idx: number) => ({
         fileName: entry.rfilename,
         fileSize: entry.size,
         totalChunks: Math.ceil(entry.size / CHUNK_SIZE),

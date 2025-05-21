@@ -289,6 +289,7 @@ function extractSegments(element) {
             var img = el.querySelector('img');
             if (img) {
                 if (segments.length > 0 && segments[segments.length - 1].type === 'image' && segments[segments.length - 1].data?.src === img.src) {
+                    // Do nothing, image already added
                 }
                 else {
                     segments.push({
@@ -559,20 +560,20 @@ function extractContent(doc) {
         console.log(`[PageExtractor] Extracted text length after cleaning: ${text.length}`);
         if (text.length < 50) {
             console.warn('[PageExtractor] Extracted text too short, using body fallback.');
-            var bodyText = doc.body.innerText.trim() || '';
+            const fallbackBodyText = doc.body.innerText.trim() || '';
             return {
                 title: doc.title.trim() || 'Untitled',
                 content: '',
-                text: bodyText,
-                segments: [{ type: 'paragraph', text: bodyText }],
+                text: fallbackBodyText,
+                segments: [{ type: 'paragraph', text: fallbackBodyText }],
                 images: [],
                 videos: [],
                 tables: [],
                 links: [],
                 url: doc.location.href,
                 extractedAt: new Date().toISOString(),
-                wordCount: bodyText.split(/\s+/).length,
-                readingTime: Math.ceil(bodyText.split(/\s+/).length / 200),
+                wordCount: fallbackBodyText.split(/\s+/).length,
+                readingTime: Math.ceil(fallbackBodyText.split(/\s+/).length / 200),
                 author: metadata.author,
                 publishDate: metadata.publishDate,
                 metaDescription: metadata.metaDescription,
@@ -613,20 +614,20 @@ function extractContent(doc) {
     }
     catch (error) {
         console.error('Content extraction failed:', error);
-        var bodyText = doc.body.innerText.trim() || '';
+        const fallbackBodyText = doc.body.innerText.trim() || '';
         return {
             title: doc.title.trim() || 'Untitled',
             content: '',
-            text: bodyText,
-            segments: [{ type: 'paragraph', text: bodyText }],
+            text: fallbackBodyText,
+            segments: [{ type: 'paragraph', text: fallbackBodyText }],
             images: [],
             videos: [],
             tables: [],
             links: [],
             url: doc.location.href,
             extractedAt: new Date().toISOString(),
-            wordCount: bodyText.split(/\s+/).length,
-            readingTime: Math.ceil(bodyText.split(/\s+/).length / 200)
+            wordCount: fallbackBodyText.split(/\s+/).length,
+            readingTime: Math.ceil(fallbackBodyText.split(/\s+/).length / 200)
         };
     }
 }

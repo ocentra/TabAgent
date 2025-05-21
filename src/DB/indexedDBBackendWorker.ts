@@ -361,6 +361,7 @@ class DataOperations {
             updatedAt: now,
             recordVersion: (record.recordVersion || 0) + 1,
         } as T;
+        console.log('[idbWorker][TRACE] DataOperations.add: fullRecord:', fullRecord);
 
         return new Promise((resolve, reject) => {
             const txStoreNames = this.getTxStoreNamesForFTS(dbName, storeName);
@@ -396,6 +397,7 @@ class DataOperations {
             updatedAt: now,
             recordVersion: (record.recordVersion || 0) + 1,
         } as T;
+        console.log('[idbWorker][TRACE] DataOperations.put: fullRecord:', fullRecord);
 
         return new Promise((resolve, reject) => {
             const txStoreNames = this.getTxStoreNamesForFTS(dbName, storeName);

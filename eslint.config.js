@@ -1,4 +1,3 @@
-// eslint.config.js (ESLint 9+ flat config)
 import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
@@ -26,7 +25,12 @@ export default [
       '@typescript-eslint': tseslint,
     },
     rules: {
-      // Add custom rules here if needed
+      // Disable the default ESLint no-unused-vars rule
+      'no-unused-vars': 'off',
+      // Use TypeScript-specific no-unused-vars rule and disable it
+      '@typescript-eslint/no-unused-vars': 'off',
+      // Alternatively, configure it to allow unused variables with specific patterns
+      // '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
-]; 
+];

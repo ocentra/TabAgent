@@ -60,12 +60,12 @@
                  </div>
                  <!-- Bottom Controls Row -->
                  <div class="flex items-center justify-between text-xs">
-                     <div class="flex items-center space-x-2">
-                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500">
+                     <div class="flex items-center space-x-2 flex-1 min-w-0">
+                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 max-w-[120px] min-w-[60px] w-full truncate">
                            <!-- Model options will be populated by uiController.js -->
                         </select>
                         <!-- ONNX Variant Dropdown -->
-                        <select id="onnx-variant-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 ml-1">
+                        <select id="onnx-variant-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 ml-1 max-w-[120px] min-w-[60px] w-full truncate">
                            <!-- ONNX variant options will be populated dynamically -->
                         </select>
                         <button id="load-model-button" title="Load selected model" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
@@ -96,28 +96,7 @@
                 class="hidden"
                 accept="image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, .md, .txt, application/pdf"
              />
-            <!-- Hidden History Popup Area (remains within Home page context for now) -->
-            <div id="history-popup" class="popup hidden">
-                 <div class="popup-header bg-gray-200 dark:bg-gray-800">
-                    <h2>Chat History</h2>
-                    <button id="close-history" class="icon-button" title="Close History">
-                        <!-- Close Icon (<img>) --> <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
-                    </button>
-                </div>
-                <div class="popup-content">
-                    <div class="search-container">
-                        <input type="text" id="history-search" placeholder="Search history..." />
-                    </div>
-                    <div id="history-list">
-                        <!-- History items will be dynamically added here -->
-                        <ul id="session-list" class="divide-y divide-gray-200 dark:divide-gray-700">
-                            <!-- Session items will be populated by uiController.js -->
-                        </ul>
-                    </div>
-                    <!-- Load More button will be added here by JS if needed -->
-                    <div id="history-footer" class="history-content p-2 text-center"></div> 
-                </div>
-            </div>
+
         </div>
 
         <!-- Discover Page -->
@@ -275,9 +254,32 @@
 
     </div>
 
+   <!-- History Popup Area -->
+    <div id="history-popup" class="popup hidden">
+        <div class="popup-header bg-gray-200 dark:bg-gray-800">
+            <h2>Chat History</h2>
+            <button id="close-history" class="icon-button" title="Close History">
+                <!-- Close Icon (<img>) --> <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+            </button>
+        </div>
+        <div class="popup-content">
+            <div class="search-container">
+                <input type="text" id="history-search" placeholder="Search history..." />
+            </div>
+            <div id="history-list">
+                <!-- History items will be dynamically added here -->
+                <ul id="session-list" class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <!-- Session items will be populated by uiController.js -->
+                </ul>
+            </div>
+            <!-- Load More button will be added here by JS if needed -->
+            <div id="history-footer" class="history-content p-2 text-center"></div> 
+        </div>
+    </div>
+
     <!-- ONNX File Selection Modal -->
     <div id="onnx-selection-modal" class="popup hidden">
-      <div class="rounded-lg shadow-xl p-0 w-full max-w-2xl mx-auto my-0 mb-2 bg-white dark:bg-gray-800 flex flex-col overflow-hidden">
+      <div class="rounded-lg shadow-xl p-0 w-full bg-white dark:bg-gray-800 flex flex-col overflow-hidden">
         <!-- Header -->
         <div class="flex justify-between items-center p-2 px-3 flex-shrink-0 border-b border-gray-300 dark:border-gray-700 bg-gray-200 dark:bg-gray-800">
           <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Select ONNX Files to Download</h2>
@@ -296,7 +298,65 @@
       </div>
     </div>
     <!-- End ONNX File Selection Modal -->
-       
+
+    <!-- Drive Viewer Modal (Based on History Popup) -->
+    <div id="drive-viewer-modal" class="popup hidden"> 
+        <!-- Main Content Box - Apply background via CSS -->
+        <div id="drive-modal-content" class="rounded-lg shadow-xl p-0 w-full max-h-[85vh] flex flex-col overflow-hidden">
+             <!-- Header - Apply background via CSS -->
+            <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0 bg-gray-200 dark:bg-gray-800">
+                 <!-- Back button container -->
+                 <div class="flex items-center space-x-2">
+                      <button id="drive-viewer-back" class="icon-button hidden" title="Go back">
+                          <!-- Back Arrow SVG - Inherits color -->
+                          <svg class="w-5 h-5 action-icon-img" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                     </button>
+                     <!-- Title - Inherits color -->
+                     <h2>Select Drive Files</h2>
+                </div>
+                <!-- Close Button - Needs specific styling or inherits -->
+                <button id="drive-viewer-close" class="icon-button" title="Close Viewer">
+                     <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+                </button>
+           </div>
+
+           <!-- Content Area - Background inherited -->
+           <div id="drive-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
+                <!-- Breadcrumbs Container - Apply color/border via CSS -->
+                <div id="drive-viewer-breadcrumbs" class="p-1 px-2 text-sm flex-shrink-0">Root</div>
+                
+                <!-- Search & Selected Area Container - Apply border via CSS -->
+                <div class="search-container p-2"> <!-- Keep padding -->
+                     <!-- Search Input - Apply styles via CSS -->
+                     <input type="text" id="drive-viewer-search" placeholder="Search current folder..." />
+                     <!-- Selected Files Pills Area - Apply border via CSS -->
+                     <div id="drive-viewer-selected-area" class="mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center">
+                         <!-- "Selected:" text - Apply color via CSS -->
+                         <span class="text-xs mr-1 self-start">Selected:</span>
+                         <!-- Pills added by JS, styled by CSS -->
+                     </div>
+                </div>
+                <!-- File List - Apply padding via CSS -->
+                <div id="drive-viewer-list" class="history-list flex-grow overflow-y-auto">
+                     <!-- Drive items will be dynamically added here -->
+                     <!-- Placeholder text styled via CSS -->
+                     <div class="text-center p-4">Loading...</div>
+                </div>
+           </div>
+           <!-- END: Content Area -->
+
+            <!-- Footer - Apply background/border via CSS -->
+            <div id="drive-viewer-footer" class="flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0">
+                 <!-- Buttons - Keep Tailwind for now -->
+                 <button id="drive-viewer-cancel" type="button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
+                 <button id="drive-viewer-insert" type="button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>
+                      Insert (0)
+                 </button>
+            </div>
+       </div>
+   </div>
+   <!-- End Drive Viewer Modal -->
+
     <!-- Bottom Navigation -->
     <div id="bottom-nav" class="flex justify-around items-center p-1 border-t border-gray-300 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-700">
         <button data-page="page-home" class="nav-button p-2 rounded">
@@ -316,67 +376,13 @@
          </button>
     </div>
 
+
+
     <!-- Notification Banner -->
     <div id="notification-banner" class="notification hidden"></div>
 
     
-    <!-- NEW Drive Viewer Modal (Based on History Popup) -->
-    <div id="drive-viewer-modal" class="popup hidden"> 
-         <!-- Main Content Box - Apply background via CSS -->
-         <div id="drive-modal-content" class="rounded-lg shadow-xl p-0 w-full max-h-[85vh] flex flex-col overflow-hidden">
-              <!-- Header - Apply background via CSS -->
-             <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0 bg-gray-200 dark:bg-gray-800">
-                  <!-- Back button container -->
-                  <div class="flex items-center space-x-2">
-                       <button id="drive-viewer-back" class="icon-button hidden" title="Go back">
-                           <!-- Back Arrow SVG - Inherits color -->
-                           <svg class="w-5 h-5 action-icon-img" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                      </button>
-                      <!-- Title - Inherits color -->
-                      <h2>Select Drive Files</h2>
-                 </div>
-                 <!-- Close Button - Needs specific styling or inherits -->
-                 <button id="drive-viewer-close" class="icon-button" title="Close Viewer">
-                      <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
-                 </button>
-            </div>
 
-            <!-- Content Area - Background inherited -->
-            <div id="drive-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
-                 <!-- Breadcrumbs Container - Apply color/border via CSS -->
-                 <div id="drive-viewer-breadcrumbs" class="p-1 px-2 text-sm flex-shrink-0">Root</div>
-                 
-                 <!-- Search & Selected Area Container - Apply border via CSS -->
-                 <div class="search-container p-2"> <!-- Keep padding -->
-                      <!-- Search Input - Apply styles via CSS -->
-                      <input type="text" id="drive-viewer-search" placeholder="Search current folder..." />
-                      <!-- Selected Files Pills Area - Apply border via CSS -->
-                      <div id="drive-viewer-selected-area" class="mt-1 pt-1 min-h-[2.5rem] flex flex-wrap gap-1 items-center">
-                          <!-- "Selected:" text - Apply color via CSS -->
-                          <span class="text-xs mr-1 self-start">Selected:</span>
-                          <!-- Pills added by JS, styled by CSS -->
-                      </div>
-                 </div>
-                 <!-- File List - Apply padding via CSS -->
-                 <div id="drive-viewer-list" class="history-list flex-grow overflow-y-auto">
-                      <!-- Drive items will be dynamically added here -->
-                      <!-- Placeholder text styled via CSS -->
-                      <div class="text-center p-4">Loading...</div>
-                 </div>
-            </div>
-            <!-- END: Content Area -->
-
-             <!-- Footer - Apply background/border via CSS -->
-             <div id="drive-viewer-footer" class="flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0">
-                  <!-- Buttons - Keep Tailwind for now -->
-                  <button id="drive-viewer-cancel" type="button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
-                  <button id="drive-viewer-insert" type="button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>
-                       Insert (0)
-                  </button>
-             </div>
-        </div>
-    </div>
-    <!-- End Drive Viewer Modal -->
 
 
 

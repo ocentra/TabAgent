@@ -277,12 +277,6 @@
   .mx-1 {
     margin-inline: calc(var(--spacing) * 1);
   }
-  .mx-auto {
-    margin-inline: auto;
-  }
-  .my-0 {
-    margin-block: calc(var(--spacing) * 0);
-  }
   .my-2 {
     margin-block: calc(var(--spacing) * 2);
   }
@@ -418,14 +412,17 @@
   .w-full {
     width: 100%;
   }
-  .max-w-2xl {
-    max-width: var(--container-2xl);
-  }
   .max-w-4xl {
     max-width: var(--container-4xl);
   }
+  .max-w-\[120px\] {
+    max-width: 120px;
+  }
   .min-w-0 {
     min-width: calc(var(--spacing) * 0);
+  }
+  .min-w-\[60px\] {
+    min-width: 60px;
   }
   .min-w-\[300px\] {
     min-width: 300px;

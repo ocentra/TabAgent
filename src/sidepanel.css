@@ -106,16 +106,14 @@ html.dark {
 
 /* History Popup Styles */
 #history-popup {
-    position: absolute; /* Position relative to the body/viewport */
-    bottom: 60px; /* Position above the input area */
-    left: 10px;
-    right: 10px;
+
+    top: 0; left: 10px; right: 10px; bottom: 10px;
+    z-index: 1000;    
     background-color: var(--popup-bg);
     color: var(--text-primary);
     border: 1px solid var(--popup-border);
     border-radius: 8px;
     box-shadow: var(--popup-shadow);
-    z-index: 50; /* Ensure it's above other content */
     max-height: 60vh; /* Limit height */
     display: flex;
     flex-direction: column;
@@ -255,7 +253,6 @@ html.dark {
 .history-item-rename-input {
     display: none;
     width: 100%;
-    /* Keep other input styles */
     font-size: 0.9rem;
     color: var(--text-primary);
     background-color: transparent; /* Keep transparent */
@@ -270,9 +267,7 @@ html.dark {
     /* Use a variable color for focus potentially */
     box-shadow: 0 0 0 1px #3b82f6; /* Keep blue focus shadow for now */
 }
-/* Removed dark mode specific input override */
 
-/* Visibility toggle based on new structure */
 .history-item.is-editing .card-body .history-item-preview {
     display: none;
 }
@@ -298,14 +293,13 @@ html.dark {
     color: var(--text-primary);
 }
 
-/* Single definition for actions menu */
+
 .history-item-actions-menu {
     /* Keep positioning relative to history-item */
     position: absolute;
     right: 10px;
     top: 5px; /* Adjusted slightly */
     z-index: 65;
-    /* Keep appearance styles */
     background-color: var(--popup-bg);
     border: 1px solid var(--popup-border);
     border-radius: 6px;
@@ -386,8 +380,6 @@ html.dark {
 }
 
 
-/* --- Removed duplicate rules sections --- */
-/* Duplicates for .history-item-actions-btn, .history-item-actions-menu, .history-item-date, .star-icon were removed */
 
 
 /* Bottom Navigation Bar */
@@ -419,9 +411,7 @@ html.dark {
 }
 
 
-/* --- Removed second duplicate rule block --- */
 
-/* --- Removed duplicate .history-item-date rule --- */
 
 /* Add styles for the notification banner */
 .notification {
@@ -627,19 +617,17 @@ html.dark {
 
 /* --- ADD Drive Viewer Modal Styles (Based on History) --- */
 #drive-viewer-modal {
-    /* Use styles from #history-popup */
-    position: absolute;
-    bottom: 60px;
-    left: 0; /* Set to 0 for full width */
-    right: 0; /* Set to 0 for full width */
+
+    top: 0; left: 10px; right: 10px; bottom: 10px;
+    z-index: 1000;   
     background-color: var(--popup-bg);
     color: var(--text-primary);
     border: 1px solid var(--popup-border);
     border-radius: 8px;
     box-shadow: var(--popup-shadow);
-    z-index: 60; /* Ensure it's above other popups if needed */
-    max-height: 70vh; /* Limit height */
-    width: 100%; /* Explicitly set width */
+    z-index: 60; 
+    max-height: 70vh; 
+    width: 100%; 
     display: flex;
     flex-direction: column;
 }
@@ -648,13 +636,9 @@ html.dark {
     display: none;
 }
 
-/* Use existing .popup-header styles */
 
-/* Use existing .popup-content styles */
-
-/* Use existing .search-container styles */
 #drive-viewer-search {
-    /* Use styles from #history-search */
+
     width: 100%;
     padding: 6px 10px;
     border: 1px solid var(--input-border);
@@ -668,15 +652,15 @@ html.dark {
 }
 
 #drive-viewer-list {
-     /* Use styles from #history-list */
+
     overflow-y: auto;
     flex-grow: 1;
     padding: 8px 12px;
 }
 
-/* Style for items inside the drive viewer list */
+
 .drive-viewer-item {
-    /* Similar to history-item or drive-item, adapt as needed */
+
     padding: 0.5rem;
     border-bottom: 1px solid var(--popup-border);
     cursor: pointer;

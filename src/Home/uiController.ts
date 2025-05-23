@@ -190,7 +190,11 @@ function handleStatusUpdate(notification: any) {
     }
 }
 
+document.addEventListener(UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e: Event) => {
+    handleLoadingProgress((e as CustomEvent).detail);
+});
 function handleLoadingProgress(payload: any) {
+    console.log('[DEBUG][handleLoadingProgress] payload:', payload);
     if (!payload) return;
     const statusDiv = document.getElementById('model-load-status');
     const statusText = document.getElementById('model-load-status-text');
@@ -205,6 +209,7 @@ function handleLoadingProgress(payload: any) {
     // Always show the status area while loading or on error
     statusDiv.style.display = 'block';
     progressBar.style.width = '100%';
+    console.log('[DEBUG][handleLoadingProgress] Showing progress bar.');
 
     // Handle error
     if (payload.status === 'error' || payload.error) {
@@ -217,12 +222,12 @@ function handleLoadingProgress(payload: any) {
     // Main progress bar (overall)
     let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
+    console.log('[DEBUG][handleLoadingProgress] percent:', percent);
     progressInner.style.width = percent + '%';
     progressInner.style.background = '#4caf50'; // green
 
     // Status text
     let text = '';
-    // Truncate file name for display
     function truncateFileName(name: string, maxLen = 32) {
         if (!name) return '';
         return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
@@ -246,6 +251,7 @@ function handleLoadingProgress(payload: any) {
 
     // Hide when done (but not on error)
     if ((percent >= 100 || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
+        console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
     }
 }

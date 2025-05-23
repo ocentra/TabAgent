@@ -23,7 +23,7 @@ import {
 } from './Home/uiController';
 import { getActiveTab, showError as utilShowError, debounce } from './Utilities/generalUtils';
 import { showNotification } from './notifications';
-import { DbGetSessionRequest, DbAddLogRequest } from './DB/dbEvents';
+import { DbGetSessionRequest, DbAddLogRequest ,DbWorkerCreatedNotification, DbGetManifestRequest, DbGetAllModelFileManifestsRequest } from './DB/dbEvents';
 import { autoEnsureDbInitialized, forwardDbRequest } from './DB/db';
 import { initializeHistoryPopup } from './Controllers/HistoryPopupController';
 import { initializeLibraryController } from './Controllers/LibraryController';
@@ -44,6 +44,10 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
+import { downloadModelAssets } from './modelAssetDownloader';
+import { initializeONNXSelectionPopup } from './Controllers/ONNXSelectionPopupController';
+import { fetchModelMetadataInternal, filterAndValidateFilesInternal } from './Utilities/modelMetadata';
+
 // --- Constants ---
 const LOG_QUEUE_MAX = 1000;
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
@@ -56,7 +60,9 @@ let currentTabId: number | null = null;
 let isDbReady: boolean = false;
 let historyPopupController: any = null;
 let logQueue: any[] = [];
-
+let currentModelId: string | null = null;
+let onnxSelectionPopupController: any = null;
+let allModelMetaFromDb: Record<string, any[]> = {};
 
 // --- Global Setup ---
 // Set EXTENSION_CONTEXT based on URL query string
@@ -508,30 +514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Sidepanel] Initializing in Standard Mode.');
   document.getElementById('page-log-viewer')?.classList.add('hidden');
 
-  // Initialize DB
-  try {
-    const result = await autoEnsureDbInitialized();
-    if (result?.success) {
-      console.log('[Sidepanel] DB initialized directly.');
-      isDbReady = true;
-      for (const logPayload of logQueue) {
-        const req = new DbAddLogRequest(logPayload);
-        sendDbRequestViaChannel(req);
-      }
-      logQueue = [];
-    } else {
-      throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
-    }
-  } catch (error) {
-    const err = error as Error;
-    console.error('[Sidepanel] DB Initialization failed:', err);
-    utilShowError(`Initialization failed: ${err.message}. Please try reloading.`);
-    const chatBody = document.getElementById('chat-body');
-    if (chatBody) {
-      chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
-    }
-    return;
-  }
+
 
   // Initialize UI and Core Components
   try {
@@ -626,15 +609,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn('[Sidepanel] Could not find #starred-list element for Library Controller.');
     }
 
-    document.addEventListener(UIEventNames.REQUEST_MODEL_LOAD, (e: Event) => {
+    document.addEventListener(UIEventNames.REQUEST_MODEL_LOAD, async (e: Event) => {
       const { modelId } = (e as CustomEvent).detail || {};
       if (!modelId) {
         sendWorkerError('No model ID specified for loading.');
         return;
       }
-      browser.runtime
-        .sendMessage({ type: RuntimeMessageTypes.LOAD_MODEL, payload: { modelId } })
-        .catch((err: Error) => sendWorkerError(`Failed to send load request: ${err.message}`));
+      try {
+        const result = await downloadModelAssets(modelId);
+        if (!result.success) {
+          sendWorkerError(result.error || 'Unknown error during model download.');
+        }
+      } catch (err) {
+        sendWorkerError(`Failed to download model: ${(err as Error).message}`);
+      }
     });
 
     initializeDiscoverController();
@@ -681,6 +669,134 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadAndDisplaySession(null);
     }
 
+    // Track model selection
+    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
+    if (modelSelector) {
+      modelSelector.addEventListener('change', (e) => {
+        currentModelId = (e.target as HTMLSelectElement).value;
+      });
+      // Set initial value
+      currentModelId = modelSelector.value;
+    }
+
+    // Ensure the model dropdown is populated before fetching metadata and initializing DB
+    // Log the dropdown options
+    const dropdownOptions = Array.from((document.getElementById('model-selector') as HTMLSelectElement).options).map(opt => opt.value);
+    console.log('[Sidepanel] Model dropdown options before fetch:', dropdownOptions);
+
+      // Initialize DB
+  try {
+    // Pre-fetch metadata for all dropdown repos
+    const preFetchedRepoMetadata = await fetchAllDropdownRepoMetadata();
+    console.log('[Sidepanel] preFetchedRepoMetadata to pass to autoEnsureDbInitialized:', preFetchedRepoMetadata);
+
+    // Enrich each repo's metadata with manifest info (sizes, etc.)
+    const enrichedRepoMetadata = [];
+    for (const { repo, metadata } of preFetchedRepoMetadata) {
+      const baseRepoUrl = `https://huggingface.co/${repo}/resolve/main/`;
+      const { neededFileEntries } = await filterAndValidateFilesInternal(metadata, repo, baseRepoUrl);
+      enrichedRepoMetadata.push({ repo, metadata: { ...metadata, manifests: neededFileEntries } });
+    }
+
+    const result = await autoEnsureDbInitialized({ preFetchedRepoMetadata: enrichedRepoMetadata });
+    if (result?.success) {
+      console.log('[Sidepanel] DB initialized directly.');
+      isDbReady = true;
+      for (const logPayload of logQueue) {
+        const req = new DbAddLogRequest(logPayload);
+        sendDbRequestViaChannel(req);
+      }
+      logQueue = [];
+    } else {
+      throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
+    }
+  } catch (error) {
+    const err = error as Error;
+    console.error('[Sidepanel] DB Initialization failed:', err);
+    utilShowError(`Initialization failed: ${err.message}. Please try reloading.`);
+    const chatBody = document.getElementById('chat-body');
+    if (chatBody) {
+      chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
+    }
+    return;
+  }
+
+    const onnxModalEl = document.getElementById('onnx-selection-modal');
+    const onnxFileListEl = document.getElementById('onnx-file-list');
+    const dummyModelTitle = document.createElement('div');
+    if (!onnxModalEl || !onnxFileListEl) {
+      throw new Error('ONNX Selection modal or file list element not found');
+    }
+    onnxSelectionPopupController = initializeONNXSelectionPopup({
+      modal: onnxModalEl as HTMLElement,
+      fileList: onnxFileListEl as HTMLElement,
+      modelTitle: dummyModelTitle as HTMLElement
+    });
+    const onnxCloseBtn = document.getElementById('onnx-selection-close');
+    if (onnxCloseBtn && onnxSelectionPopupController) {
+      onnxCloseBtn.addEventListener('click', () => onnxSelectionPopupController.hide());
+    }
+
+    // Expose to window for modelAssetDownloader.ts
+    window.showOnnxSelectionPopup = (onnxFiles, downloadPlan, initialFileStates, nonOnnxProgress, nonOnnxStatus, requestFileDownloadCb) => {
+      if (onnxSelectionPopupController) {
+        onnxSelectionPopupController.show(
+          onnxFiles,
+          downloadPlan,
+          initialFileStates,
+          nonOnnxProgress,
+          nonOnnxStatus,
+          requestFileDownloadCb
+        );
+      }
+    };
+
+
+    // Listen for per-file progress events and update the popup
+    document.addEventListener('MODEL_DOWNLOAD_PROGRESS', (e: any) => {
+      const detail = e.detail || (e as CustomEvent).detail;
+      if (detail && detail.currentFile) {
+        // Only update ONNX file progress bar if it's an ONNX file
+        if (detail.currentFile.endsWith('.onnx')) {
+          // Normalize to base file name for ONNXSelectionPopupController
+          const fileKey = detail.currentFile.split('/').pop();
+          const percent = detail.currentFileSize ? Math.floor((detail.currentFileDownloaded / detail.currentFileSize) * 100) : 0;
+          if (onnxSelectionPopupController) {
+            onnxSelectionPopupController.updateFileProgress(fileKey, percent);
+            if (percent >= 100 || detail.done) {
+              onnxSelectionPopupController.setFileStatus(fileKey, 'loaded');
+            }
+          }
+        }
+      }
+      // Also update main progress bar as before
+      if (typeof detail.progress === 'number') {
+        updateMainProgress(detail.progress, detail.message || '');
+        if (detail.done || detail.error) {
+          setTimeout(hideMainProgress, 1500);
+        }
+      }
+    });
+
+    // --- Main Model Load Progress Bar Wiring ---
+    const modelLoadStatus = document.getElementById('model-load-status');
+    const modelLoadStatusText = document.getElementById('model-load-status-text');
+    const modelLoadProgressBar = document.getElementById('model-load-progress-bar');
+    const modelLoadProgressInner = document.getElementById('model-load-progress-inner');
+
+    function updateMainProgress(percent: number, text: string) {
+      if (!modelLoadStatus || !modelLoadStatusText || !modelLoadProgressBar || !modelLoadProgressInner) return;
+      modelLoadStatus.style.display = '';
+      modelLoadStatusText.textContent = text;
+      modelLoadProgressInner.style.width = `${percent}%`;
+    }
+
+    function hideMainProgress() {
+      if (modelLoadStatus) modelLoadStatus.style.display = 'none';
+      if (modelLoadProgressInner) modelLoadProgressInner.style.width = '0%';
+      if (modelLoadStatusText) modelLoadStatusText.textContent = '';
+    }
+
     console.log('[Sidepanel] Initialization complete.');
   } catch (error) {
     const err = error as Error;
@@ -691,7 +807,109 @@ document.addEventListener('DOMContentLoaded', async () => {
       chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
     }
   }
+
+
 });
+
+// Listen for DbWorkerCreatedNotification
+
+document.addEventListener(DbWorkerCreatedNotification.type, (e: any) => {
+  console.log('[Sidepanel] DbWorkerCreatedNotification event triggered:', e);
+  const detail = e.detail || (e as CustomEvent).detail;
+  console.log('[Sidepanel] Event detail:', detail);
+  if (!detail || !detail.payload) {
+    console.log('[Sidepanel] No payload in DbWorkerCreatedNotification.');
+    return;
+  }
+  console.log('[Sidepanel] DbWorkerCreatedNotification payload:', detail.payload);
+  allModelMetaFromDb = detail.payload;
+
+  // Flatten all manifests from all repos
+  const allManifests: any[] = Object.values(allModelMetaFromDb).flat();
+  renderDropdownsFromManifests(allManifests);
+});
+
+const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
+if (modelSelector) {
+  modelSelector.addEventListener('change', async () => {
+    await populateQuantizationDropdownFromDb();
+  });
+}
+
+
+async function populateQuantizationDropdownFromDb() {
+  const req = new DbGetAllModelFileManifestsRequest();
+  const response = await sendDbRequestSmart(req);
+  if (!response.success) return;
+  const allManifests = response.data || [];
+  renderDropdownsFromManifests(allManifests);
+}
+// --- Helper: Render dropdowns from manifests ---
+function renderDropdownsFromManifests(allManifests: any[]) {
+  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
+  const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement;
+  if (!modelSelector || !quantSelector) return;
+
+  // Store previous selection
+  const prevSelectedRepo = modelSelector.value;
+
+  // Populate main repo dropdown (unique folders)
+  const uniqueRepos = Array.from(new Set(allManifests.map((m: any) => String(m.folder)))) as string[];
+  modelSelector.innerHTML = '';
+  uniqueRepos.forEach((repo) => {
+    const option = document.createElement('option');
+    option.value = repo;
+    option.textContent = repo;
+    modelSelector.appendChild(option);
+  });
+
+  // Try to restore previous selection if possible
+  let selectedRepo: string = prevSelectedRepo && uniqueRepos.includes(prevSelectedRepo)
+    ? prevSelectedRepo
+    : uniqueRepos[0] || '';
+  modelSelector.value = selectedRepo;
+
+  // Populate quantization dropdown for selected repo (ONNX files)
+  const repoManifests = allManifests.filter((m: any) => m.folder === selectedRepo && m.fileType === 'onnx');
+  quantSelector.innerHTML = '';
+  if (repoManifests.length > 1) {
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = 'All (show popup)';
+    quantSelector.appendChild(allOption);
+  }
+  repoManifests.forEach((manifest: any) => {
+    const option = document.createElement('option');
+    option.value = String(manifest.fileName);
+    let statusIcon = '🟡'; // default: missing
+    if (manifest.status === 'present' || manifest.status === 'complete') statusIcon = '🟢';
+    if (manifest.status === 'corrupt') statusIcon = '🔴';
+    option.textContent = `${manifest.fileName} ${statusIcon}`;
+    quantSelector.appendChild(option);
+  });
+}
+
+
+
+async function fetchAllDropdownRepoMetadata() {
+  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
+  if (!modelSelector) return [];
+  const repoIds = Array.from(modelSelector.options).map(opt => opt.value);
+  const results = [];
+  console.log('[Sidepanel] Starting fetchAllDropdownRepoMetadata for repos:', repoIds);
+  for (const repoId of repoIds) {
+    try {
+      console.log(`[Sidepanel] Fetching metadata for repo: ${repoId}`);
+      const metadata = await fetchModelMetadataInternal(repoId);
+      console.log(`[Sidepanel] Got metadata for repo: ${repoId}`, metadata);
+      results.push({ repo: repoId, metadata });
+    } catch (e) {
+      console.warn('[Sidepanel] Failed to fetch metadata for', repoId, e);
+    }
+  }
+  console.log('[Sidepanel] fetchAllDropdownRepoMetadata results:', results);
+  return results;
+}
 
 // --- Exports ---
 export { sendDbRequestSmart };

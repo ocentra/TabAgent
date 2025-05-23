@@ -70,8 +70,33 @@ export const DBEventNames = Object.freeze({
   DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
   DB_WORKER_ERROR: 'DbWorkerError', // Notification from worker for unhandled errors
   DB_WORKER_RESET: 'DbWorkerReset', // Potential command or notification for worker reset
-});
 
+  // New events
+  DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbCreateAllFileManifestsForRepoRequest',
+  DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbCreateAllFileManifestsForRepoResponse',
+  DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbUpdateAllFileManifestsForRepoRequest',
+  DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbUpdateAllFileManifestsForRepoResponse',
+  DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbDeleteAllFileManifestsForRepoRequest',
+  DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbDeleteAllFileManifestsForRepoResponse',
+  DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbCreateManifestByChunkGroupIdRequest',
+  DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbCreateManifestByChunkGroupIdResponse',
+  DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbUpdateManifestByChunkGroupIdRequest',
+  DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbUpdateManifestByChunkGroupIdResponse',
+  DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbDeleteManifestByChunkGroupIdRequest',
+  DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbDeleteManifestByChunkGroupIdResponse',
+  DB_READ_MANIFEST_REQUEST: 'DbReadManifestRequest',
+  DB_READ_MANIFEST_RESPONSE: 'DbReadManifestResponse',
+  DB_UPDATE_MANIFEST_REQUEST: 'DbUpdateManifestRequest',
+  DB_UPDATE_MANIFEST_RESPONSE: 'DbUpdateManifestResponse',
+  DB_DELETE_MANIFEST_REQUEST: 'DbDeleteManifestRequest',
+  DB_DELETE_MANIFEST_RESPONSE: 'DbDeleteManifestResponse',
+  DB_UPDATE_CHUNK_REQUEST: 'DbUpdateChunkRequest',
+  DB_UPDATE_CHUNK_RESPONSE: 'DbUpdateChunkResponse',
+  DB_DELETE_CHUNK_REQUEST: 'DbDeleteChunkRequest',
+  DB_DELETE_CHUNK_RESPONSE: 'DbDeleteChunkResponse',
+  DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST: 'DbGetAllModelFileManifestsRequest',
+  DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE: 'DbGetAllModelFileManifestsResponse',
+});
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -717,4 +742,201 @@ export class DbInitWorkerResponse extends DbResponseBase {
         super(originalRequestId, success, data, error);
         this.type = DbInitWorkerResponse.type;
     }
+}
+
+// --- Notification Publishing ---
+
+export class DbWorkerCreatedNotification {
+  static type = 'DbWorkerCreatedNotification';
+  type: string;
+  timestamp: number;
+  payload: any;
+  constructor(payload: any) {
+    this.type = DbWorkerCreatedNotification.type;
+    this.timestamp = Date.now();
+    this.payload = payload;
+  }
+}
+
+// Add new event classes for ModelAsset CRUD/static symmetry
+export class DbCreateAllFileManifestsForRepoRequest extends DbEventBase {
+  static type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
+  constructor(manifests: any[]) {
+    super();
+    this.type = DbCreateAllFileManifestsForRepoRequest.type;
+    this.payload = { manifests };
+  }
+}
+export class DbCreateAllFileManifestsForRepoResponse extends DbResponseBase {
+  static type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+  constructor(requestId: string, success: boolean, ids: string[], error: any = null) {
+    super(requestId, success, ids, error);
+    this.type = DbCreateAllFileManifestsForRepoResponse.type;
+  }
+}
+export class DbUpdateAllFileManifestsForRepoRequest extends DbEventBase {
+  static type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
+  constructor(manifests: any[]) {
+    super();
+    this.type = DbUpdateAllFileManifestsForRepoRequest.type;
+    this.payload = { manifests };
+  }
+}
+export class DbUpdateAllFileManifestsForRepoResponse extends DbResponseBase {
+  static type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbUpdateAllFileManifestsForRepoResponse.type;
+  }
+}
+export class DbDeleteAllFileManifestsForRepoRequest extends DbEventBase {
+  static type = DBEventNames.DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
+  constructor(folder: string) {
+    super();
+    this.type = DbDeleteAllFileManifestsForRepoRequest.type;
+    this.payload = { folder };
+  }
+}
+export class DbDeleteAllFileManifestsForRepoResponse extends DbResponseBase {
+  static type = DBEventNames.DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbDeleteAllFileManifestsForRepoResponse.type;
+  }
+}
+export class DbCreateManifestByChunkGroupIdRequest extends DbEventBase {
+  static type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
+  constructor(manifest: any) {
+    super();
+    this.type = DbCreateManifestByChunkGroupIdRequest.type;
+    this.payload = { manifest };
+  }
+}
+export class DbCreateManifestByChunkGroupIdResponse extends DbResponseBase {
+  static type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
+  constructor(requestId: string, success: boolean, id: string, error: any = null) {
+    super(requestId, success, { id }, error);
+    this.type = DbCreateManifestByChunkGroupIdResponse.type;
+  }
+}
+export class DbUpdateManifestByChunkGroupIdRequest extends DbEventBase {
+  static type = DBEventNames.DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
+  constructor(chunkGroupId: string, updates: any) {
+    super();
+    this.type = DbUpdateManifestByChunkGroupIdRequest.type;
+    this.payload = { chunkGroupId, updates };
+  }
+}
+export class DbUpdateManifestByChunkGroupIdResponse extends DbResponseBase {
+  static type = DBEventNames.DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbUpdateManifestByChunkGroupIdResponse.type;
+  }
+}
+export class DbDeleteManifestByChunkGroupIdRequest extends DbEventBase {
+  static type = DBEventNames.DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
+  constructor(chunkGroupId: string) {
+    super();
+    this.type = DbDeleteManifestByChunkGroupIdRequest.type;
+    this.payload = { chunkGroupId };
+  }
+}
+export class DbDeleteManifestByChunkGroupIdResponse extends DbResponseBase {
+  static type = DBEventNames.DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbDeleteManifestByChunkGroupIdResponse.type;
+  }
+}
+export class DbReadManifestRequest extends DbEventBase {
+  static type = DBEventNames.DB_READ_MANIFEST_REQUEST;
+  constructor(manifestId: string) {
+    super();
+    this.type = DbReadManifestRequest.type;
+    this.payload = { manifestId };
+  }
+}
+export class DbReadManifestResponse extends DbResponseBase {
+  static type = DBEventNames.DB_READ_MANIFEST_RESPONSE;
+  constructor(requestId: string, success: boolean, manifest: any, error: any = null) {
+    super(requestId, success, manifest, error);
+    this.type = DbReadManifestResponse.type;
+  }
+}
+export class DbUpdateManifestRequest extends DbEventBase {
+  static type = DBEventNames.DB_UPDATE_MANIFEST_REQUEST;
+  constructor(manifestId: string, updates: any) {
+    super();
+    this.type = DbUpdateManifestRequest.type;
+    this.payload = { manifestId, updates };
+  }
+}
+export class DbUpdateManifestResponse extends DbResponseBase {
+  static type = DBEventNames.DB_UPDATE_MANIFEST_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbUpdateManifestResponse.type;
+  }
+}
+export class DbDeleteManifestRequest extends DbEventBase {
+  static type = DBEventNames.DB_DELETE_MANIFEST_REQUEST;
+  constructor(manifestId: string) {
+    super();
+    this.type = DbDeleteManifestRequest.type;
+    this.payload = { manifestId };
+  }
+}
+export class DbDeleteManifestResponse extends DbResponseBase {
+  static type = DBEventNames.DB_DELETE_MANIFEST_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbDeleteManifestResponse.type;
+  }
+}
+export class DbUpdateChunkRequest extends DbEventBase {
+  static type = DBEventNames.DB_UPDATE_CHUNK_REQUEST;
+  constructor(chunkId: string, updates: any) {
+    super();
+    this.type = DbUpdateChunkRequest.type;
+    this.payload = { chunkId, updates };
+  }
+}
+export class DbUpdateChunkResponse extends DbResponseBase {
+  static type = DBEventNames.DB_UPDATE_CHUNK_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbUpdateChunkResponse.type;
+  }
+}
+export class DbDeleteChunkRequest extends DbEventBase {
+  static type = DBEventNames.DB_DELETE_CHUNK_REQUEST;
+  constructor(chunkId: string) {
+    super();
+    this.type = DbDeleteChunkRequest.type;
+    this.payload = { chunkId };
+  }
+}
+export class DbDeleteChunkResponse extends DbResponseBase {
+  static type = DBEventNames.DB_DELETE_CHUNK_RESPONSE;
+  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+    super(requestId, success, data, error);
+    this.type = DbDeleteChunkResponse.type;
+  }
+}
+
+export class DbGetAllModelFileManifestsRequest extends DbEventBase {
+  static type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST;
+  constructor() {
+    super();
+    this.type = DbGetAllModelFileManifestsRequest.type;
+  }
+}
+
+export class DbGetAllModelFileManifestsResponse extends DbResponseBase {
+  static type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE;
+  constructor(originalRequestId: string, success: boolean, manifests: any[], error: any = null) {
+    super(originalRequestId, success, manifests, error);
+    this.type = DbGetAllModelFileManifestsResponse.type;
+  }
 }

@@ -16,7 +16,7 @@
 <body class="h-screen flex flex-col font-sans">
 
     <!-- Header -->
-    <div id="header" class="flex items-center justify-between p-2 border-b border-gray-300 dark:border-gray-700 shadow-sm flex-shrink-0 bg-gray-100 dark:bg-gray-700">
+    <div id="header" class="flex items-center justify-between p-2 border-b border-gray-300 dark:border-gray-700 shadow-sm flex-shrink-0 bg-gray-300 dark:bg-gray-700">
         <div class="flex items-center space-x-2">
             <button id="new-chat-button" title="New Chat" class="p-1 rounded">
                 <!-- Plus Icon replaced with img --> <img src="icons/NewChat.png" alt="New Chat" class="w-6 h-6 action-icon-img">
@@ -64,6 +64,10 @@
                         <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500">
                            <!-- Model options will be populated by uiController.js -->
                         </select>
+                        <!-- ONNX Variant Dropdown -->
+                        <select id="onnx-variant-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 ml-1">
+                           <!-- ONNX variant options will be populated dynamically -->
+                        </select>
                         <button id="load-model-button" title="Load selected model" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
                             Load
                         </button>
@@ -94,7 +98,7 @@
              />
             <!-- Hidden History Popup Area (remains within Home page context for now) -->
             <div id="history-popup" class="popup hidden">
-                 <div class="popup-header">
+                 <div class="popup-header bg-gray-200 dark:bg-gray-800">
                     <h2>Chat History</h2>
                     <button id="close-history" class="icon-button" title="Close History">
                         <!-- Close Icon (<img>) --> <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
@@ -271,6 +275,28 @@
 
     </div>
 
+    <!-- ONNX File Selection Modal -->
+    <div id="onnx-selection-modal" class="popup hidden">
+      <div class="rounded-lg shadow-xl p-0 w-full max-w-2xl mx-auto my-0 mb-2 bg-white dark:bg-gray-800 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-2 px-3 flex-shrink-0 border-b border-gray-300 dark:border-gray-700 bg-gray-200 dark:bg-gray-800">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Select ONNX Files to Download</h2>
+          <button id="onnx-selection-close" class="icon-button ml-2" title="Close">
+            <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+          </button>
+        </div>
+        <!-- Content Area -->
+        <div id="onnx-modal-middle-section" class="flex-grow flex flex-col overflow-hidden p-2">
+          <!-- Scrollable File List -->
+          <div id="onnx-file-list" class="flex-1 w-full max-h-[50vh] min-h-[120px] overflow-y-auto p-2 space-y-2 bg-white dark:bg-gray-800">
+            <!-- Non-ONNX supporting files box will be injected here by JS -->
+            <!-- ONNX file items will be injected here by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End ONNX File Selection Modal -->
+       
     <!-- Bottom Navigation -->
     <div id="bottom-nav" class="flex justify-around items-center p-1 border-t border-gray-300 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-700">
         <button data-page="page-home" class="nav-button p-2 rounded">
@@ -299,7 +325,7 @@
          <!-- Main Content Box - Apply background via CSS -->
          <div id="drive-modal-content" class="rounded-lg shadow-xl p-0 w-full max-h-[85vh] flex flex-col overflow-hidden">
               <!-- Header - Apply background via CSS -->
-             <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0">
+             <div id="drive-viewer-header" class="flex justify-between items-center p-2 px-3 flex-shrink-0 bg-gray-200 dark:bg-gray-800">
                   <!-- Back button container -->
                   <div class="flex items-center space-x-2">
                        <button id="drive-viewer-back" class="icon-button hidden" title="Go back">
@@ -351,6 +377,8 @@
         </div>
     </div>
     <!-- End Drive Viewer Modal -->
+
+
 
     <script type="module" src="./sidepanel.js"></script>
 

@@ -2,6 +2,18 @@
 
 // NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
 
+/**
+ * DB_MODELS store conventions:
+ * - Every file in a model repo (ONNX and non-ONNX) gets a manifest record, even if not downloaded yet.
+ * - On first model load, fetch the repo's file list and create a manifest record for each file with status 'missing'.
+ * - When a file is downloaded, update its status to 'present'.
+ * - If a file is found to be corrupt/unloadable, update its status to 'corrupt'.
+ * - The 'status' field can be: 'missing' (not downloaded), 'present' (downloaded and valid), 'corrupt' (downloaded but unloadable), 'downloading', 'incomplete', 'complete', etc.
+ * - The 'fileType' field distinguishes ONNX, JSON, and other file types.
+ * - (Optional) The 'variant' field can be used to store quantization/variant info parsed from the filename (e.g., 'int4', 'fp16').
+ * - This enables efficient dropdown population and status display for all quantizations/variants.
+ */
+
 export const DBNames = Object.freeze({
   DB_USER_DATA: 'TabAgentUserData',
   DB_LOGS: 'TabAgentLogs',
@@ -84,12 +96,13 @@ export const schema = {
           { name: 'fileType', keyPath: 'fileType' }, // File type (e.g., onnx, json)
           { name: 'addedAt', keyPath: 'addedAt' }, // For recency/cleanup
           { name: 'lastAccessed', keyPath: 'lastAccessed' }, // For LRU/cleanup
-          { name: 'status', keyPath: 'status' }, // For manifest status (e.g., 'incomplete', 'complete')
+          { name: 'status', keyPath: 'status' }, // For manifest status (see above)
           { name: 'totalChunks', keyPath: 'totalChunks' }, // For manifest: total number of chunks
           { name: 'size', keyPath: 'size' }, // For manifest: total file size
           { name: 'chunkSize', keyPath: 'chunkSize' }, // For chunk: size of this chunk
           { name: 'checksum', keyPath: 'checksum' }, // For chunk or manifest integrity
           { name: 'version', keyPath: 'version' }, // For file versioning
+          { name: 'variant', keyPath: 'variant' }, // For quantization/variant info
           // Add more as needed
         ]
       }

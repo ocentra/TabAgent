@@ -1,15 +1,99 @@
 import browser from 'webextension-polyfill';
 import { UIEventNames } from './events/eventNames';
 import { sendDbRequestSmart } from './sidepanel';
-import { DbAddModelAssetRequest, DbCountModelAssetChunksRequest } from './DB/dbEvents';
+import { Contexts } from './events/eventNames';
+import { DbAddModelAssetRequest, DbCountModelAssetChunksRequest, DbGetManifestRequest, DbCreateAllFileManifestsForRepoRequest, DbGetModelAssetChunkRequest, DbListModelFilesRequest } from './DB/dbEvents';
+import { fetchModelMetadataInternal, filterAndValidateFilesInternal } from './Utilities/modelMetadata';
+// @ts-ignore: If using JS/TS without types for spark-md5
+import SparkMD5 from 'spark-md5';
+
+import { DbWorkerCreatedNotification } from './DB/dbEvents';
+// smartNotify is not exported; use document.dispatchEvent directly for notifications
+
+declare global {
+    interface Window {
+        showOnnxSelectionPopup?: (
+            onnxFiles: any[],
+            allFiles: any[],
+            initialFileStates: { [fileName: string]: { status: string, progress: number } },
+            nonOnnxInitialProgress: number,
+            nonOnnxInitialStatus: string,
+            requestFileDownloadCallback: (filePlan: any) => void
+        ) => void;
+        hideOnnxSelectionPopup?: () => void;
+    }
+}
 
 const prefix = '[Downloader]';
 const CHUNK_SIZE = 10 * 1024 * 1024;
 const MAX_RETRIES = 3;
-const PROGRESS_THROTTLE_MS = 2000;
-const PROGRESS_THROTTLE_CHUNKS = 200;
+const PROGRESS_THROTTLE_MS = 1000;
+const PROGRESS_THROTTLE_CHUNKS = 50;
+
+const CHUNK_PROCESSED_FOR_PAUSE = 10;
+const PAUSE_DURATION_MS = 250;
+
+const LOG_GENERAL = true;
+const LOG_CHUNK = LOG_GENERAL && true;
+const LOG_MEMORY = LOG_GENERAL && false;
+const LOG_ERROR = true;
+
+const USE_MD5_CHECKSUM = false;
+
+type DownloadProgress = {
+    totalFiles: number;
+    totalBytes: number;
+    currentFileIndex: number;
+    currentFile: string;
+    currentFileSize: number;
+    currentFileDownloaded: number;
+    totalDownloaded: number;
+    done: boolean;
+    error: string | null;
+    message?: string;
+    filesAlreadyPresent?: number;
+    filesToDownload?: number;
+    totalBytesAlreadyPresent?: number;
+    fileTotalBytes?: number;
+    fileTotalBytesHuman?: string;
+    progress?: number;
+    summary?: boolean;
+    filesSuccessfullyProcessedCount?: number;
+    totalFilesToAttempt?: number;
+    failedFiles?: string[];
+    success?: boolean;
+};
+
+interface BadChunkInfo {
+    fileName: string;
+    chunkIndex: number;
+    reason: string;
+    chunkLength?: number;
+    payload?: any;
+}
+
+let currentModelIdInternal: string | null = null;
+let allKnownFilePlansInternal: any[] = [];
+let fileStatesInternal: { [fileName: string]: { status: 'unknown' | 'present' | 'queued' | 'downloading' | 'downloaded' | 'failed', progress: number } } = {};
+let nonOnnxTotalSizeInternal: number = 0;
+let nonOnnxDownloadedSizeInternal: number = 0;
+let downloadQueueInternal: any[] = [];
+let activeDownloadFileNameInternal: string | null = null;
+let isDownloaderBusyInternal: boolean = false;
+let baseDownloadUrlInternal: string = '';
+let hfModelMetadataInternal: any = null;
+let successfullyProcessedCountOverall = 0;
+
+
+let onnxSelectionPopupCtrlCallback: ((update:
+    { type: 'file_update', fileName: string, status: string, progress: number } |
+    { type: 'non_onnx_update', status: string, progress: number } |
+    { type: 'all_non_onnx_complete' } |
+    { type: 'all_downloads_complete', success: boolean, finalMessage: string }
+) => void) | null = null;
 
 function logMemory(label: string) {
+    if (!LOG_MEMORY) return;
     if (typeof performance !== 'undefined' && (performance as any).memory) {
         const usedMB = ((performance as any).memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
         const totalMB = ((performance as any).memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
@@ -33,111 +117,78 @@ async function tryStoreChunkInternal(payload: any, maxRetries = MAX_RETRIES) {
         const addResult = await sendDbRequestSmart(req);
         if (addResult && addResult.success) return true;
         attempt++;
-        console.log(`${prefix} Retrying chunk store, attempt ${attempt} for ${payload.fileName} chunk ${payload.chunkIndex}`);
+        if (LOG_CHUNK) console.log(`${prefix} Retrying chunk store, attempt ${attempt} for ${payload.fileName} chunk ${payload.chunkIndex}`);
         await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
     }
-    console.error(`${prefix} Failed to store chunk after ${maxRetries} retries:`, payload.fileName, payload.chunkIndex);
+    if (LOG_ERROR) console.error(`${prefix} Failed to store chunk after ${maxRetries} retries:`, payload.fileName, payload.chunkIndex);
     return false;
 }
 
 async function countModelAssetChunksViaMessage(folder: string, fileName: string, expectedSize: number, expectedChunks: number) {
     const req = new DbCountModelAssetChunksRequest({ folder, fileName, expectedSize, expectedChunks });
     const result = await sendDbRequestSmart(req);
-    return result && result.success ? result.data : result;
-}
-
-async function fetchModelMetadataInternal(modelId: string) {
-    const apiUrl = `https://huggingface.co/api/models/${encodeURIComponent(modelId)}`;
-    console.log(prefix, `Fetching model metadata from: ${apiUrl}`);
-    try {
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(prefix, `Failed to fetch model file list for ${modelId}: ${response.status} ${response.statusText}`, errorText);
-            throw new Error(`Metadata fetch failed (${response.status}): ${response.statusText}`);
-        }
-        const metadata = await response.json();
-        console.log(prefix, `Model metadata fetched successfully for ${modelId}.`);
-        return metadata;
-    } catch (error) {
-        console.error(prefix, `Error fetching metadata for ${modelId}:`, error);
-        throw error;
+    if (result && result.success && typeof result.data !== 'undefined') {
+        return result.data;
     }
-}
-
-async function filterAndValidateFilesInternal(metadata: any, modelId: string, baseDownloadUrl: string) {
-    const hfFileEntries = metadata.siblings || [];
-    const neededFileEntries = hfFileEntries.filter((f: any) => f.rfilename.endsWith('.onnx') || f.rfilename.endsWith('on') || f.rfilename.endsWith('.txt'));
-    const neededFileNames = neededFileEntries.map((f: any) => f.rfilename);
-    console.log(prefix, `Identified ${neededFileNames.length} needed files for ${modelId}:`, neededFileNames);
-
-    if (neededFileEntries.length === 0) {
-        return { neededFileEntries: [], message: "No .onnx, on, or .txt files found in model metadata." };
-    }
-
-    async function getFileSizeWithHEAD(url: string) {
-        try {
-            const headResp = await fetch(url, { method: 'HEAD' });
-            if (headResp.ok) {
-                const len = headResp.headers.get('Content-Length');
-                return len ? parseInt(len, 10) : null;
-            }
-        } catch (e) {
-            console.warn(prefix, `HEAD request failed for ${url}:`, e);
-        }
-        return null;
-    }
-
-    const sizePromises = neededFileEntries.map(async (entry: any) => {
-        if (typeof entry.size !== 'number' || !isFinite(entry.size) || entry.size <= 0) {
-            const url = baseDownloadUrl + entry.rfilename;
-            const size = await getFileSizeWithHEAD(url);
-            if (size && isFinite(size) && size > 0) {
-                entry.size = size;
-                console.log(prefix, `Got file size via HEAD for ${entry.rfilename}: ${size}`);
-            } else {
-                console.error(prefix, `Skipping file ${entry.rfilename}: missing/invalid size (HEAD failed or Content-Length missing)`);
-                entry.skip = true;
-            }
-        }
-    });
-
-    await Promise.all(sizePromises);
-    return { neededFileEntries, message: null };
+    return result;
 }
 
 function buildDownloadPlanInternal(neededFileEntries: any[]): { downloadPlan: any[], totalBytesToDownload: number, totalChunksToDownload: number } {
-    const downloadPlan = neededFileEntries.filter((e: any) => !e.skip).map((entry: any, idx: number) => ({
+    const downloadPlan = neededFileEntries.map((entry: any, idx: number) => ({
         fileName: entry.rfilename,
         fileSize: entry.size,
         totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
         fileIdx: idx + 1,
         fileType: entry.rfilename.split('.').pop(),
+        isONNX: entry.rfilename.endsWith('.onnx'),
     }));
     const totalBytesToDownload = downloadPlan.reduce((sum: number, f: any) => sum + f.fileSize, 0);
     const totalChunksToDownload = downloadPlan.reduce((sum: number, f: any) => sum + f.totalChunks, 0);
-    console.log(prefix, "Built download plan:", { downloadPlan, totalBytesToDownload, totalChunksToDownload });
     return { downloadPlan, totalBytesToDownload, totalChunksToDownload };
 }
 
-async function getMissingFilesInternal(downloadPlan: any[], modelId: string) {
-    const missingFiles: any[] = [];
-    const presentFiles: { [key: string]: boolean } = {};
+async function getMissingFilesAndInitialStates(downloadPlan: any[], modelId: string): Promise<{ initialStates: typeof fileStatesInternal, missingNonOnnx: any[], nonOnnxTotal: number, nonOnnxPresent: number }> {
+    const initialStates: typeof fileStatesInternal = {};
+    const missingNonOnnxFiles: any[] = [];
+    let nonOnnxTotalBytes = 0;
+    let nonOnnxPresentBytes = 0;
+
     for (const plan of downloadPlan) {
-        const { fileName, fileSize, totalChunks } = plan;
-        console.log(prefix, '[DB ChunkCount Check] Checking chunk count for:', { modelId, fileName, expectedChunks: totalChunks });
-        const countResult = await countModelAssetChunksViaMessage(modelId, fileName, fileSize, totalChunks);
-        console.log(prefix, '[DB ChunkCount Check] Result:', { modelId, fileName, expectedChunks: totalChunks, countResult });
-        if (countResult && countResult.success && countResult.verified && countResult.count === totalChunks) {
-            presentFiles[fileName] = true;
+        initialStates[plan.fileName] = { status: 'unknown', progress: 0 };
+        const manifestReq = new DbGetManifestRequest({ folder: modelId, fileName: plan.fileName, type: 'manifest' });
+        let manifest = null;
+        try {
+            const manifestResult = await sendDbRequestSmart(manifestReq);
+            manifest = manifestResult && manifestResult.success ? manifestResult.data : null;
+        } catch (e) { console.warn(prefix, `Error checking manifest for ${plan.fileName}:`, e); }
+
+        let isPresent = false;
+        if (manifest && manifest.status === 'complete') {
+            isPresent = true;
         } else {
-            missingFiles.push(plan);
+            const countResult = await countModelAssetChunksViaMessage(modelId, plan.fileName, plan.fileSize, plan.totalChunks);
+            if (countResult && countResult.success && countResult.verified && countResult.count === plan.totalChunks) {
+                isPresent = true;
+            }
+        }
+
+        if (isPresent) {
+            initialStates[plan.fileName] = { status: 'present', progress: 100 };
+            if (!plan.isONNX) {
+                nonOnnxPresentBytes += plan.fileSize;
+            }
+        } else {
+            if (!plan.isONNX) {
+                missingNonOnnxFiles.push(plan);
+            }
+        }
+        if (!plan.isONNX) {
+            nonOnnxTotalBytes += plan.fileSize;
         }
     }
-    return { missingFiles, presentFiles };
+    return { initialStates, missingNonOnnx: missingNonOnnxFiles, nonOnnxTotal: nonOnnxTotalBytes, nonOnnxPresent: nonOnnxPresentBytes };
 }
 
-// Helper to format bytes as human-readable string
 function formatBytes(bytes: number) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -146,56 +197,39 @@ function formatBytes(bytes: number) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-async function streamAndStoreFileInternal(
+function checksumChunkMD5(arrayBuffer: ArrayBuffer): string {
+    return SparkMD5.ArrayBuffer.hash(arrayBuffer);
+}
+
+async function streamAndStoreFileWithProgress(
     plan: any,
     modelId: string,
-    baseDownloadUrl: string,
-    totalBytesToDownload: number,
-    totalChunksToDownload: number,
-    totalBytesDownloaded: { value: number },
-    totalChunksDownloaded: { value: number },
-    totalFilesToAttempt: number
-): Promise<{ fileFailed: boolean, fileName: string, fileBytesDownloaded: number, fileChunksDownloaded: number }> {
-    const { fileName, fileSize, totalChunks, fileIdx, fileType } = plan;
-    const downloadUrl = baseDownloadUrl + fileName;
+    baseDownloadUrlForFile: string,
+    onProgressCallback: (bytesDownloadedInChunk: number, currentFileTotalBytesDownloaded: number) => void,
+    badChunksList?: BadChunkInfo[]
+): Promise<{ fileFailed: boolean, fileName: string, fileBytesDownloaded: number, fileChunksDownloaded: number, badChunkFound: boolean }> {
+    const { fileName, fileSize, totalChunks, fileType } = plan;
+    const downloadUrl = baseDownloadUrlForFile;
     let fileBytesDownloaded = 0;
     let fileChunksDownloaded = 0;
     let fileFailed = false;
-    let lastProgressSent = Date.now();
+    let lastProgressLogTime = Date.now();
     let chunkIndex = 0;
     let allChunksSuccess = true;
     const chunkGroupId = `${modelId}/${fileName}`;
-    let currentFileSource = "Download_Attempt";
+    let badChunkFound = false;
 
     try {
-        if (fileSize > 10 * 1024 * 1024) {
-            logMemory(`Before file ${fileName}`);
-        }
-        console.log(prefix, `Downloading file from: ${downloadUrl}`);
+        if (fileSize > 10 * 1024 * 1024) logMemory(`Before file ${fileName}`);
+        
         const downloadResponse = await fetch(downloadUrl);
-
         if (!downloadResponse.ok) {
             const errorText = await downloadResponse.text();
-            console.error(prefix, `Failed to download ${modelId}/${fileName}: ${downloadResponse.status} ${downloadResponse.statusText}`, errorText);
-            await sendUiProgress({
-                modelId,
-                file: fileName,
-                error: `Download failed (${downloadResponse.status})`,
-                downloaded: 0,
-                total: totalFilesToAttempt,
-                currentFileSource,
-                fileIdx,
-                totalFiles: totalFilesToAttempt,
-                fileTotalBytes: fileSize,
-                fileTotalBytesHuman: formatBytes(fileSize)
-            }).catch((e: any) => console.warn(`${prefix} Error sending progress on download fail: ${e.message}`));
-            return { fileFailed: true, fileName, fileBytesDownloaded, fileChunksDownloaded };
+            if (LOG_ERROR) console.error(prefix, `Failed to download ${modelId}/${fileName}: ${downloadResponse.status} ${downloadResponse.statusText}`, errorText);
+            return { fileFailed: true, fileName, fileBytesDownloaded, fileChunksDownloaded, badChunkFound };
         }
-        currentFileSource = "Download_Success_Store_Attempt";
-
-        if (!downloadResponse.body) {
-            throw new Error('Download response body is null');
-        }
+        if (!downloadResponse.body) throw new Error('Download response body is null');
+        
         const reader = downloadResponse.body.getReader();
         let buffer = new Uint8Array(CHUNK_SIZE);
         let bufferOffset = 0;
@@ -203,348 +237,505 @@ async function streamAndStoreFileInternal(
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             if (!(value instanceof Uint8Array)) {
-                console.error(prefix, `Invalid chunk data for ${fileName}, chunk ${chunkIndex}:`, typeof value);
-                fileFailed = true;
-                await sendUiProgress({
-                    modelId,
-                    file: fileName,
-                    fileIdx,
-                    totalFiles: totalFilesToAttempt,
-                    chunkIndex,
-                    totalChunks,
-                    error: `Invalid chunk data type: ${typeof value}`,
-                    currentFileSource,
-                    failType: 'invalid_chunk',
-                    fileTotalBytes: fileSize,
-                    fileTotalBytesHuman: formatBytes(fileSize)
-                }).catch((e: any) => console.warn(`${prefix} Error sending progress on invalid chunk: ${e.message}`));
-                reader.cancel('Invalid chunk data');
-                break;
+                if (LOG_ERROR) console.error(prefix, `Invalid chunk data for ${fileName}, chunk ${chunkIndex}:`, typeof value);
+                fileFailed = true; badChunkFound = true;
+                if (badChunksList) badChunksList.push({ fileName, chunkIndex, reason: 'Invalid chunk data type', payload: value });
+                reader.cancel('Invalid chunk data'); break;
             }
-
             let valueOffset = 0;
             while (valueOffset < value.length) {
                 const remainingBuffer = CHUNK_SIZE - bufferOffset;
                 const copyLength = Math.min(remainingBuffer, value.length - valueOffset);
                 buffer.set(value.subarray(valueOffset, valueOffset + copyLength), bufferOffset);
-                bufferOffset += copyLength;
-                valueOffset += copyLength;
+                bufferOffset += copyLength; valueOffset += copyLength;
 
                 if (bufferOffset === CHUNK_SIZE) {
-                    let chunkToStore = buffer;
-                    buffer = new Uint8Array(CHUNK_SIZE);
-                    bufferOffset = 0;
-
-                    const now = Date.now();
-                    if (shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastProgressSent, now)) {
-                        console.log(prefix, '[Chunk] About to store chunk:', { fileName, chunkIndex, chunkLength: chunkToStore.length });
+                    let chunkToStore = buffer; buffer = new Uint8Array(CHUNK_SIZE); bufferOffset = 0;
+                    if (!fileName || typeof chunkIndex !== 'number' || !chunkToStore || chunkToStore.byteLength === 0) {
+                        const reason = !fileName ? 'Missing fileName' : typeof chunkIndex !== 'number' ? 'Invalid chunkIndex' : !chunkToStore ? 'Missing chunkToStore' : 'Empty chunk';
+                        if (LOG_ERROR) console.error(prefix, '[BAD CHUNK]', { fileName, chunkIndex, reason, chunkLength: chunkToStore?.byteLength });
+                        if (badChunksList) badChunksList.push({ fileName, chunkIndex, reason, chunkLength: chunkToStore?.byteLength, payload: {fileName,chunkIndex,chunkToStore} });
+                        badChunkFound = true; fileFailed = true; reader.cancel('Bad chunk detected'); break;
                     }
-
-                    const dbPayload = {
-                        modelId,
-                        fileName,
-                        fileType,
-                        data: chunkToStore,
-                        chunkIndex,
-                        totalChunks,
-                        chunkGroupId,
-                        binarySize: chunkToStore.byteLength,
-                        totalFileSize: fileSize
-                    };
+                    
+                    const chunkArrayBuffer = chunkToStore.buffer;
+                    const dbPayload = { folder: modelId, modelId, fileName, fileType, data: chunkArrayBuffer, chunkIndex, totalChunks, chunkGroupId, binarySize: chunkToStore.byteLength, totalFileSize: fileSize, checksum: USE_MD5_CHECKSUM ? checksumChunkMD5(chunkArrayBuffer) : 'na' };
                     const success = await tryStoreChunkInternal(dbPayload);
 
                     if (!success) {
-                        allChunksSuccess = false;
-                        fileFailed = true;
-                        await sendUiProgress({
-                            modelId,
-                            file: fileName,
-                            fileIdx,
-                            totalFiles: totalFilesToAttempt,
-                            chunkIndex,
-                            totalChunks,
-                            error: `Failed to store chunk ${chunkIndex + 1} after ${MAX_RETRIES} retries`,
-                            currentFileSource,
-                            failType: 'chunk_write',
-                            fileTotalBytes: fileSize,
-                            fileTotalBytesHuman: formatBytes(fileSize)
-                        }).catch((e: any) => console.warn(`${prefix} Error sending progress on chunk store fail: ${e.message}`));
-                        reader.cancel('Chunk storage failed');
-                        break;
+                        allChunksSuccess = false; fileFailed = true;
+                        if (badChunksList) badChunksList.push({ fileName, chunkIndex, reason: 'Failed to store chunk after retries', chunkLength: chunkToStore.byteLength, payload: dbPayload });
+                        badChunkFound = true; reader.cancel('Chunk storage failed'); break;
                     }
+                    
+                    const bytesInThisChunk = chunkToStore.byteLength;
+                    fileBytesDownloaded += bytesInThisChunk;
+                    onProgressCallback(bytesInThisChunk, fileBytesDownloaded);
+                    globalProgressManager.incrementTotalDownloaded(bytesInThisChunk);
 
-                    chunkIndex++;
-                    fileChunksDownloaded++;
-                    totalChunksDownloaded.value++;
-                    fileBytesDownloaded += chunkToStore.byteLength;
-                    totalBytesDownloaded.value += chunkToStore.byteLength;
-
-                    if (chunkIndex === totalChunks || shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastProgressSent, now)) {
-                        await sendUiProgress({
-                            modelId,
-                            file: fileName,
-                            fileIdx,
-                            totalFiles: totalFilesToAttempt,
-                            chunkIndex,
-                            totalChunks,
-                            fileBytesDownloaded,
-                            fileTotalBytes: fileSize,
-                            fileTotalBytesHuman: formatBytes(fileSize),
-                            totalBytesDownloaded: totalBytesDownloaded.value,
-                            totalBytesToDownload,
-                            totalChunksDownloaded: totalChunksDownloaded.value,
-                            totalChunksToDownload,
-                            percent: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
-                            filePercent: (fileBytesDownloaded / fileSize) * 100,
-                            progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
-                            status: 'progress',
-                            currentFileSource
-                        }).catch((e: any) => console.warn(`${prefix} Error sending progress update: ${e.message}`));
-                        lastProgressSent = now;
-                    }
+                    chunkIndex++; fileChunksDownloaded++;
+                    if (chunkIndex % CHUNK_PROCESSED_FOR_PAUSE === 0) await new Promise(res => setTimeout(res, PAUSE_DURATION_MS));
                 }
             }
-            if (fileFailed) break;
+            if (fileFailed || badChunkFound) break;
         }
 
         if (allChunksSuccess && !fileFailed && bufferOffset > 0) {
             let finalChunkToStore = buffer.subarray(0, bufferOffset);
-            await sendUiProgress({
-                modelId,
-                file: fileName,
-                fileIdx,
-                totalFiles: totalFilesToAttempt,
-                chunkIndex,
-                totalChunks,
-                fileBytesDownloaded,
-                fileTotalBytes: fileSize,
-                fileTotalBytesHuman: formatBytes(fileSize),
-                totalBytesDownloaded: totalBytesDownloaded.value,
-                totalBytesToDownload,
-                totalChunksDownloaded: totalChunksDownloaded.value,
-                totalChunksToDownload,
-                percent: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
-                filePercent: 100,
-                progress: (totalBytesDownloaded.value / totalBytesToDownload) * 100,
-                status: 'progress',
-                currentFileSource
-            }).catch((e: any) => console.warn(`${prefix} Error sending progress for final chunk: ${e.message}`));
-        }
-
-        if (allChunksSuccess && !fileFailed) {
-            const countResult = await countModelAssetChunksViaMessage(modelId, fileName, fileSize, totalChunks);
-            if (countResult.success && countResult.verified && countResult.count === totalChunks) {
-                currentFileSource = "DB_Stored_After_Download";
-                console.log(prefix, `Successfully downloaded, stored, and verified all chunks for ${modelId}/${fileName} in DB.`);
+            if (!fileName || typeof chunkIndex !== 'number' || !finalChunkToStore || finalChunkToStore.byteLength === 0) {
+                const reason = !fileName ? 'Missing fileName' : typeof chunkIndex !== 'number' ? 'Invalid chunkIndex' : !finalChunkToStore ? 'Missing finalChunkToStore' : 'Empty final chunk';
+                 if (LOG_ERROR) console.error(prefix, '[BAD CHUNK] final', { fileName, chunkIndex, reason, chunkLength: finalChunkToStore?.byteLength });
+                if (badChunksList) badChunksList.push({ fileName, chunkIndex, reason, chunkLength: finalChunkToStore?.byteLength, payload: { fileName, chunkIndex, finalChunkToStore } });
+                badChunkFound = true; fileFailed = true;
             } else {
-                fileFailed = true;
-                await sendUiProgress({
-                    modelId,
-                    file: fileName,
-                    fileIdx,
-                    totalFiles: totalFilesToAttempt,
-                    error: `Verification failed: ${countResult.error || 'Unknown error'}`,
-                    failType: 'verification',
-                    currentFileSource,
-                    fileTotalBytes: fileSize,
-                    fileTotalBytesHuman: formatBytes(fileSize)
-                }).catch((e: any) => console.warn(`${prefix} Error sending progress on verification fail: ${e.message}`));
+                const finalChunkArrayBuffer = finalChunkToStore.buffer.slice(finalChunkToStore.byteOffset, finalChunkToStore.byteOffset + finalChunkToStore.byteLength);
+                const dbPayload = { folder: modelId, modelId, fileName, fileType, data: finalChunkArrayBuffer, chunkIndex, totalChunks, chunkGroupId, binarySize: finalChunkToStore.byteLength, totalFileSize: fileSize, checksum: USE_MD5_CHECKSUM ? checksumChunkMD5(finalChunkArrayBuffer) : 'na'};
+                const success = await tryStoreChunkInternal(dbPayload);
+                if (!success) {
+                    allChunksSuccess = false; fileFailed = true;
+                    if (badChunksList) badChunksList.push({ fileName, chunkIndex, reason: 'Failed to store final chunk', chunkLength: finalChunkToStore.byteLength, payload: dbPayload });
+                    badChunkFound = true;
+                } else {
+                    const bytesInThisChunk = finalChunkToStore.byteLength;
+                    fileBytesDownloaded += bytesInThisChunk;
+                    onProgressCallback(bytesInThisChunk, fileBytesDownloaded);
+                    globalProgressManager.incrementTotalDownloaded(bytesInThisChunk);
+                    fileChunksDownloaded++;
+                }
             }
-        } else if (fileFailed || !allChunksSuccess) {
-            console.error(prefix, `Failed to store all chunks for ${modelId}/${fileName} in DB after download.`);
-             await sendUiProgress({
-                modelId,
-                file: fileName,
-                error: `DB store failed after download (chunked)`,
-                fileIdx,
-                totalFiles: totalFilesToAttempt,
-                currentFileSource,
-                failType: 'file_fail_internal',
-                fileTotalBytes: fileSize,
-                fileTotalBytesHuman: formatBytes(fileSize)
-            }).catch((e: any) => console.warn(`${prefix} Error sending progress on internal file fail: ${e.message}`));
         }
+        if (fileSize > 100 * 1024 * 1024) await new Promise(res => setTimeout(res, 1000));
+        if (fileSize > 10 * 1024 * 1024) logMemory(`After file ${fileName}`);
 
-        if (fileSize > 10 * 1024 * 1024) {
-            logMemory(`After file ${fileName}`);
-        }
     } catch (error: unknown) {
         fileFailed = true;
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error(prefix, `Error downloading ${modelId}/${fileName}:`, error);
-        await sendUiProgress({
-            modelId,
-            file: fileName,
-            fileIdx,
-            totalFiles: totalFilesToAttempt,
-            error: errMsg,
-            failType: 'exception',
-            currentFileSource,
-            fileTotalBytes: fileSize,
-            fileTotalBytesHuman: formatBytes(fileSize)
-        }).catch((e: any) => console.warn(`${prefix} Error sending progress on exception: ${e.message}`));
+        if (LOG_ERROR) console.error(prefix, `Error streaming/storing ${modelId}/${fileName}:`, error);
     }
-
-    return { fileFailed, fileName, fileBytesDownloaded, fileChunksDownloaded };
+    return { fileFailed: fileFailed || badChunkFound || !allChunksSuccess, fileName, fileBytesDownloaded, fileChunksDownloaded, badChunkFound };
 }
 
-async function downloadMissingFilesInternal(
-    missingFiles: any[],
-    modelId: string,
-    downloadPlan: any[],
-    totalBytesToDownload: number,
-    totalChunksToDownload: number,
-    presentFiles: { [key: string]: boolean },
-    baseDownloadUrl: string
-): Promise<{ successfullyProcessedFileMap: { [key: string]: boolean }, filesSuccessfullyProcessedCount: number, failedFiles: string[] }> {
-    let filesSuccessfullyProcessedCount = Object.keys(presentFiles).length;
-    const totalBytesDownloaded = { value: downloadPlan.filter((p: any) => presentFiles[p.fileName]).reduce((sum: number, p: any) => sum + p.fileSize, 0) };
-    const totalChunksDownloaded = { value: downloadPlan.filter((p: any) => presentFiles[p.fileName]).reduce((sum: number, p: any) => sum + p.totalChunks, 0) };
-    const totalFilesToAttempt = downloadPlan.length;
-    const successfullyProcessedFileMap: { [key: string]: boolean } = { ...presentFiles };
-    const failedFiles: string[] = [];
 
-    console.log(prefix, "Initial download progress state:", {
-        filesSuccessfullyProcessedCount,
-        totalBytesDownloaded: totalBytesDownloaded.value,
-        totalChunksDownloaded: totalChunksDownloaded.value,
-        totalFilesToAttempt,
-        presentFiles
-    });
+function sendUiGlobalProgress(payload: any) {
+    if (typeof window !== 'undefined' && (window as any).EXTENSION_CONTEXT === Contexts.MAIN_UI) {
+        document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: payload }));
+        return Promise.resolve();
+    } else {
+        return browser.runtime.sendMessage({
+            type: UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+            payload
+        }).catch((e: any) => console.warn(`${prefix} Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`));
+    }
+}
 
-    for (const plan of missingFiles) {
-        const result = await streamAndStoreFileInternal(
-            plan,
-            modelId,
-            baseDownloadUrl,
-            totalBytesToDownload,
-            totalChunksToDownload,
-            totalBytesDownloaded,
-            totalChunksDownloaded,
-            totalFilesToAttempt
-        );
+class ProgressManager {
+    private progress: DownloadProgress;
+    private lastSentPercent: number = 0;
+    private lastSentTime: number = 0;
 
-        if (!result.fileFailed) {
-            successfullyProcessedFileMap[result.fileName] = true;
-            filesSuccessfullyProcessedCount++;
+    constructor() {
+        this.progress = this.createInitialState();
+    }
+
+    private createInitialState(): DownloadProgress {
+        return {
+            totalFiles: 0, totalBytes: 0, currentFileIndex: 0, currentFile: '',
+            currentFileSize: 0, currentFileDownloaded: 0, totalDownloaded: 0,
+            done: false, error: null, progress: 0,
+            filesSuccessfullyProcessedCount: 0, totalFilesToAttempt: 0,
+        };
+    }
+
+    public reset() {
+        this.progress = this.createInitialState();
+        this.lastSentPercent = 0;
+        this.lastSentTime = 0;
+    }
+    
+    public incrementTotalDownloaded(bytes: number) {
+        if (this.progress.totalDownloaded === undefined) this.progress.totalDownloaded = 0;
+        this.progress.totalDownloaded += bytes;
+    }
+
+    public updateProgress(update: Partial<DownloadProgress>) {
+        this.progress = { ...this.progress, ...update };
+        const percent = this.progress.totalBytes > 0
+            ? Math.floor((this.progress.totalDownloaded / this.progress.totalBytes) * 100)
+            : 0;
+        this.progress.progress = percent;
+        const now = Date.now();
+        
+        let message = '';
+        if (this.progress.error) {
+            message = `Error: ${this.progress.error}`;
+        } else if (this.progress.done) {
+            message = `Download complete: ${this.progress.filesSuccessfullyProcessedCount} of ${this.progress.totalFilesToAttempt} files. Total: ${formatBytes(this.progress.totalDownloaded)}.`;
         } else {
-            failedFiles.push(result.fileName);
+            message = `Downloading ${this.progress.currentFile || 'N/A'} (${formatBytes(this.progress.currentFileDownloaded)} of ${formatBytes(this.progress.currentFileSize)}) — Overall: ${formatBytes(this.progress.totalDownloaded)} of ${formatBytes(this.progress.totalBytes)} (${percent}%)`;
+        }
+        this.progress.message = message;
+        
+        const shouldSend = this.progress.done || this.progress.error || percent > this.lastSentPercent || now - this.lastSentTime >= PROGRESS_THROTTLE_MS;
+
+        if (shouldSend) {
+            sendUiGlobalProgress(this.progress);
+            this.lastSentPercent = percent;
+            this.lastSentTime = now;
+        }
+    }
+    public getProgress(): Readonly<DownloadProgress> { return { ...this.progress }; }
+}
+
+const globalProgressManager = new ProgressManager();
+
+function sendUpdateToPopup(update: any) {
+    if (typeof onnxSelectionPopupCtrlCallback === 'function') {
+        onnxSelectionPopupCtrlCallback(update);
+    }
+}
+
+// Helper to build the full download URL for a file
+function buildFullDownloadUrl(modelId: string, fileName: string): string {
+    // If fileName is already a full URL, return as is
+    if (/^https?:\/\//.test(fileName)) return fileName;
+    // Remove any accidental double slashes
+    return `https://huggingface.co/${modelId}/resolve/main/${fileName}`.replace(/([^:])\/\/+/, '$1/');
+}
+
+async function processDownloadQueue() {
+    if (isDownloaderBusyInternal || downloadQueueInternal.length === 0) {
+        if (!isDownloaderBusyInternal && downloadQueueInternal.length === 0 && currentModelIdInternal) {
+             const allDone = allKnownFilePlansInternal.every(p => fileStatesInternal[p.fileName]?.status === 'downloaded' || fileStatesInternal[p.fileName]?.status === 'present');
+             const anyFailed = allKnownFilePlansInternal.some(p => fileStatesInternal[p.fileName]?.status === 'failed');
+             if(allKnownFilePlansInternal.length > 0 && (allDone || anyFailed)){ // Check if there were files to process
+                const finalMessage = allDone ? `All files for ${currentModelIdInternal} processed successfully.` : `Some files for ${currentModelIdInternal} failed to download.`;
+                if (LOG_GENERAL) console.log(prefix, "Download queue empty and downloader not busy.", finalMessage);
+                sendUpdateToPopup({ type: 'all_downloads_complete', success: allDone && !anyFailed, finalMessage });
+                globalProgressManager.updateProgress({
+                    done: true,
+                    success: allDone && !anyFailed,
+                    filesSuccessfullyProcessedCount: successfullyProcessedCountOverall,
+                    totalFilesToAttempt: allKnownFilePlansInternal.length,
+                    error: anyFailed ? "Some files failed" : null
+                });
+             }
+        }
+        return;
+    }
+    isDownloaderBusyInternal = true;
+    const filePlan = downloadQueueInternal.shift();
+    console.log('[Downloader][Download] Downloading from:', filePlan.fullDownloadUrl);
+    activeDownloadFileNameInternal = filePlan.fileName;
+
+    fileStatesInternal[filePlan.fileName] = { status: 'downloading', progress: 0 };
+    sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'downloading', progress: 0 });
+    if (!filePlan.isONNX) {
+        sendUpdateToPopup({ type: 'non_onnx_update', status: 'downloading', progress: Math.floor((nonOnnxDownloadedSizeInternal / nonOnnxTotalSizeInternal) * 100) });
+    }
+
+    globalProgressManager.updateProgress({
+        currentFile: filePlan.fileName,
+        currentFileSize: filePlan.fileSize,
+        currentFileDownloaded: 0,
+        totalFilesToAttempt: allKnownFilePlansInternal.length
+    });
+    
+    const badChunks: BadChunkInfo[] = [];
+    const result = await streamAndStoreFileWithProgress(filePlan, currentModelIdInternal!, filePlan.fullDownloadUrl,
+        (bytesDownloadedInChunk, currentFileTotalBytesDownloaded) => {
+            const fileProgressPercent = filePlan.fileSize > 0 ? Math.floor((currentFileTotalBytesDownloaded / filePlan.fileSize) * 100) : 100;
+            fileStatesInternal[filePlan.fileName].progress = fileProgressPercent;
+            sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'downloading', progress: fileProgressPercent });
+            globalProgressManager.updateProgress({ currentFileDownloaded: currentFileTotalBytesDownloaded });
+
+            if (!filePlan.isONNX) {
+                nonOnnxDownloadedSizeInternal += bytesDownloadedInChunk;
+                const nonOnnxProgressPercent = nonOnnxTotalSizeInternal > 0 ? Math.floor((nonOnnxDownloadedSizeInternal / nonOnnxTotalSizeInternal) * 100) : 100;
+                sendUpdateToPopup({ type: 'non_onnx_update', status: 'downloading', progress: nonOnnxProgressPercent });
+            }
+        },
+        badChunks
+    );
+
+    if (result.fileFailed || result.badChunkFound) {
+        fileStatesInternal[filePlan.fileName] = { status: 'failed', progress: fileStatesInternal[filePlan.fileName].progress };
+        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'failed', progress: fileStatesInternal[filePlan.fileName].progress });
+        if (LOG_ERROR) console.error(prefix, `Failed to download ${filePlan.fileName}. Bad chunks:`, badChunks);
+        globalProgressManager.updateProgress({ error: `Failed ${filePlan.fileName}` });
+
+    } else {
+        fileStatesInternal[filePlan.fileName] = { status: 'downloaded', progress: 100 };
+        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'downloaded', progress: 100 });
+        successfullyProcessedCountOverall++;
+        globalProgressManager.updateProgress({ filesSuccessfullyProcessedCount: successfullyProcessedCountOverall });
+
+
+        if (!filePlan.isONNX) {
+            const nonOnnxProgressPercent = nonOnnxTotalSizeInternal > 0 ? Math.floor((nonOnnxDownloadedSizeInternal / nonOnnxTotalSizeInternal) * 100) : 100;
+             sendUpdateToPopup({ type: 'non_onnx_update', status: nonOnnxProgressPercent === 100 ? 'downloaded' : 'downloading', progress: nonOnnxProgressPercent });
+            const allNonOnnxProcessed = allKnownFilePlansInternal
+                .filter(p => !p.isONNX)
+                .every(p => fileStatesInternal[p.fileName]?.status === 'downloaded' || fileStatesInternal[p.fileName]?.status === 'present');
+            if (allNonOnnxProcessed) {
+                sendUpdateToPopup({ type: 'all_non_onnx_complete' });
+                 if (LOG_GENERAL) console.log(prefix, "All non-ONNX files processed.");
+            }
         }
     }
 
-    console.log(prefix, "Final download progress state after processing missing files:", {
-        filesSuccessfullyProcessedCount,
-        totalBytesDownloaded: totalBytesDownloaded.value,
-        totalChunksDownloaded: totalChunksDownloaded.value,
-        failedFiles
+    activeDownloadFileNameInternal = null;
+    isDownloaderBusyInternal = false;
+    processDownloadQueue();
+}
+
+export function registerPopupCallbacks(
+    callback: ((update: any) => void)
+) {
+    onnxSelectionPopupCtrlCallback = callback;
+}
+
+// Helper to notify UI of updated model meta
+async function notifyModelMetaUpdate(modelId: string) {
+  const req = new DbListModelFilesRequest({ folder: modelId });
+  const result = await sendDbRequestSmart(req);
+  document.dispatchEvent(new CustomEvent(DbWorkerCreatedNotification.type, { detail: { payload: { [modelId]: result.data } } }));
+}
+
+export async function downloadModelAssets(modelId: string, selectedOnnxFile: string | null = null) {
+    if (LOG_GENERAL) console.log(prefix, `Request to downloadModelAssets for modelId: ${modelId}, selectedOnnxFile: ${selectedOnnxFile}`);
+
+    // Always clear queue and reset state when starting a new download
+    currentModelIdInternal = modelId;
+    baseDownloadUrlInternal = `https://huggingface.co/${modelId}/resolve/main/`;
+    allKnownFilePlansInternal = [];
+    fileStatesInternal = {};
+    downloadQueueInternal = [];
+    activeDownloadFileNameInternal = null;
+    isDownloaderBusyInternal = false;
+    nonOnnxTotalSizeInternal = 0;
+    nonOnnxDownloadedSizeInternal = 0;
+    successfullyProcessedCountOverall = 0;
+    hfModelMetadataInternal = null;
+    globalProgressManager.reset();
+
+    // 1. Try to read all manifests for this repo from DB
+
+    let req = new DbListModelFilesRequest({ folder: modelId, returnObjects: true });
+    let manifestResult = await sendDbRequestSmart(req);
+    let manifests: any[] = manifestResult && manifestResult.success ? manifestResult.data : [];
+    if (LOG_GENERAL) console.log(prefix, 'Fetched manifests from DB:', manifests);
+
+    // 3. Separate ONNX and non-ONNX files
+    const onnxFiles = manifests.filter((m: any) => m.fileType === 'onnx');
+    const nonOnnxFiles = manifests.filter((m: any) => m.fileType !== 'onnx');
+
+    // 4. Queue non-ONNX files that are not present/complete
+    const nonOnnxToDownload = nonOnnxFiles.filter((f: any) => f.status !== 'present' && f.status !== 'complete');
+    nonOnnxToDownload.forEach(file => {
+        const fullDownloadUrl = buildFullDownloadUrl(modelId, file.fileName);
+        console.log('[Downloader][Queue] Queuing file:', file.fileName, 'Full URL:', fullDownloadUrl);
+        downloadQueueInternal.push({ ...file, fullDownloadUrl });
+        fileStatesInternal[file.fileName] = { status: 'queued', progress: 0 };
     });
-    return { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles };
-}
 
-function sendUiProgress(payload: any) {
-    return browser.runtime.sendMessage({
-        type: UIEventNames.MODEL_DOWNLOAD_PROGRESS,
-        payload
-    }).catch((e: any) => console.warn(`${prefix} Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`));
-}
+    // Start non-ONNX downloads right away
+    processDownloadQueue();
 
-export async function downloadModelAssets(modelId: string): Promise<any> {
-    console.log(prefix, `Starting downloadModelAssets for modelId: ${modelId}`);
-    const baseDownloadUrl = `https://huggingface.co/${modelId}/resolve/main/`;
-    let totalBytesToDownload = 0;
+    // 5. ONNX logic
+    if (onnxFiles.length === 1) {
+        if (onnxFiles[0].status !== 'present' && onnxFiles[0].status !== 'complete') {
+            downloadQueueInternal.push(onnxFiles[0]);
+            fileStatesInternal[onnxFiles[0].fileName] = { status: 'queued', progress: 0 };
+            // No need to call processDownloadQueue() again, it's already running
+        }
+    } else if (onnxFiles.length > 1) {
+        if (!selectedOnnxFile || selectedOnnxFile === 'all') {
+            // Send initial progress event to show the bar
+            globalProgressManager.updateProgress({
+                progress: 0,
+                done: false,
+                message: "Waiting for user to select a file...",
+                totalFiles: allKnownFilePlansInternal.length,
+                totalBytes: 0,
+                currentFile: '',
+                currentFileDownloaded: 0,
+                totalDownloaded: 0,
+                filesSuccessfullyProcessedCount: 0,
+                totalFilesToAttempt: allKnownFilePlansInternal.length,
+            });
+            // Show popup for user to select ONNX file
+            const onnxFilesForPopup = onnxFiles.map((m: any) => ({ ...m, fileSize: m.size }));
+            if (window.showOnnxSelectionPopup) {
+                window.showOnnxSelectionPopup(
+                    onnxFilesForPopup,
+                    allKnownFilePlansInternal,
+                    fileStatesInternal,
+                    0, // nonOnnxProgress (could be improved)
+                    'unknown', // nonOnnxStatus (could be improved)
+                    handleUserFileRequestFromPopup
+                );
+            }
+            // Progress will be shown in both popup and sidebar as files are downloaded
+            return { success: true, message: "Multiple ONNX files, popup shown for user selection." };
+        } else {
+            // User selected a specific ONNX
+            const selectedOnnx = onnxFiles.find((f: any) => f.fileName === selectedOnnxFile);
+            if (selectedOnnx && selectedOnnx.status !== 'present' && selectedOnnx.status !== 'complete') {
+                downloadQueueInternal.push(selectedOnnx);
+                fileStatesInternal[selectedOnnx.fileName] = { status: 'queued', progress: 0 };
+                // No need to call processDownloadQueue() again, it's already running
+            }
+        }
+    }
+
+    if (manifests.length > 0) {
+        if (LOG_GENERAL) console.log(prefix, 'Notifying model meta update for:', modelId);
+        await notifyModelMetaUpdate(modelId);
+        return { success: true, message: "Model already indexed in DB. UI notified." };
+    }
+
+    // 2. Repo does not exist in DB, fetch from remote
     try {
-        const metadata = await fetchModelMetadataInternal(modelId);
-        const { neededFileEntries, message: filterMessage } = await filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrl);
+        const metadata = hfModelMetadataInternal || await fetchModelMetadataInternal(modelId);
+        if (!metadata) throw new Error("Failed to fetch metadata");
 
-        if (neededFileEntries.length === 0) {
-            console.warn(prefix, filterMessage || "No needed files after filtering.");
-            return { success: true, fileMap: {}, message: filterMessage || "No needed files to download." };
+        const { neededFileEntries, message: filterMessage } = await filterAndValidateFilesInternal(metadata, modelId, baseDownloadUrlInternal);
+        if (filterMessage || neededFileEntries.length === 0) {
+            const msg = filterMessage || `No usable files found for ${modelId}.`;
+            if (LOG_ERROR) console.warn(prefix, msg);
+            globalProgressManager.updateProgress({ error: msg, done: true, success: false });
+            return { success: false, message: msg };
         }
 
-        const { downloadPlan, totalBytesToDownload: tBytes, totalChunksToDownload } = buildDownloadPlanInternal(neededFileEntries);
-        totalBytesToDownload = tBytes;
-        if (downloadPlan.length === 0) {
-            const msg = `No valid files to download for ${modelId} after validation and plan building.`;
-            console.warn(prefix, msg);
-            return { success: true, fileMap: {}, message: msg };
+        // 3. Add manifests to DB
+        const createReq = new DbCreateAllFileManifestsForRepoRequest(neededFileEntries);
+        await sendDbRequestSmart(createReq);
+
+        // 4. Read back manifests for planning (all files for this repo)
+        req = new DbListModelFilesRequest({ folder: modelId, returnObjects: true });
+        manifestResult = await sendDbRequestSmart(req);
+        manifests = manifestResult && manifestResult.success ? manifestResult.data : [];
+        const onnxFiles = manifests.filter((m: any) => m.fileType === 'onnx');
+
+        const { downloadPlan, totalBytesToDownload } = buildDownloadPlanInternal(neededFileEntries);
+        allKnownFilePlansInternal = downloadPlan;
+        globalProgressManager.updateProgress({
+            totalFiles: allKnownFilePlansInternal.length,
+            totalBytes: totalBytesToDownload,
+            totalFilesToAttempt: allKnownFilePlansInternal.length,
+            filesSuccessfullyProcessedCount: 0,
+            totalDownloaded:0,
+        });
+
+        const { initialStates, missingNonOnnx, nonOnnxTotal, nonOnnxPresent } = await getMissingFilesAndInitialStates(allKnownFilePlansInternal, modelId);
+        fileStatesInternal = initialStates;
+        nonOnnxTotalSizeInternal = nonOnnxTotal;
+        nonOnnxDownloadedSizeInternal = nonOnnxPresent;
+
+        let initialOverallDownloadedBytes = 0;
+        allKnownFilePlansInternal.forEach(plan => {
+            if (fileStatesInternal[plan.fileName]?.status === 'present') {
+                initialOverallDownloadedBytes += plan.fileSize;
+                successfullyProcessedCountOverall++;
+            }
+        });
+        globalProgressManager.updateProgress({ totalDownloaded: initialOverallDownloadedBytes, filesSuccessfullyProcessedCount: successfullyProcessedCountOverall });
+
+        // --- Always queue non-ONNX files immediately ---
+        missingNonOnnx.forEach(filePlan => {
+            if (fileStatesInternal[filePlan.fileName]?.status !== 'present' && fileStatesInternal[filePlan.fileName]?.status !== 'queued') {
+                downloadQueueInternal.push(filePlan);
+                fileStatesInternal[filePlan.fileName] = { status: 'queued', progress: 0 };
+            }
+        });
+        processDownloadQueue(); // Start non-ONNX downloads right away
+
+        // --- Multi-ONNX logic ---
+        if (onnxFiles.length > 1) {
+            if (!selectedOnnxFile || selectedOnnxFile === 'all') {
+                // Send initial progress event to show the bar
+                globalProgressManager.updateProgress({
+                    progress: 0,
+                    done: false,
+                    message: "Waiting for user to select a file...",
+                    totalFiles: allKnownFilePlansInternal.length,
+                    totalBytes: 0,
+                    currentFile: '',
+                    currentFileDownloaded: 0,
+                    totalDownloaded: 0,
+                    filesSuccessfullyProcessedCount: 0,
+                    totalFilesToAttempt: allKnownFilePlansInternal.length,
+                });
+                // Show popup for user to select ONNX file
+                const onnxFilesForPopup = onnxFiles.map((m: any) => ({ ...m, fileSize: m.size }));
+                if (window.showOnnxSelectionPopup) {
+                    window.showOnnxSelectionPopup(
+                        onnxFilesForPopup,
+                        allKnownFilePlansInternal,
+                        fileStatesInternal,
+                        0, // nonOnnxProgress (could be improved)
+                        'unknown', // nonOnnxStatus (could be improved)
+                        handleUserFileRequestFromPopup
+                    );
+                }
+                // Progress will be shown in both popup and sidebar as files are downloaded
+                return { success: true, message: "Multiple ONNX files, popup shown for user selection." };
+            } else {
+                // Specific ONNX selected in dropdown, skip popup, queue that ONNX
+                const selectedOnnx = onnxFiles.find((f: any) => f.fileName === selectedOnnxFile);
+                if (selectedOnnx) {
+                    await handleUserFileRequestFromPopup(selectedOnnx);
+                    // Progress will be shown only in sidebar
+                    return { success: true, message: `Selected ONNX (${selectedOnnxFile}) queued for download.` };
+                } else {
+                    return { success: false, message: `Selected ONNX file (${selectedOnnxFile}) not found in manifests.` };
+                }
+            }
         }
-
-        const { missingFiles, presentFiles } = await getMissingFilesInternal(downloadPlan, modelId);
-        console.log(prefix, `Files already present in DB for ${modelId}:`, Object.keys(presentFiles));
-        console.log(prefix, `Files missing and will be downloaded for ${modelId}:`, missingFiles.map((f: any) => f.fileName));
-
-        await sendUiProgress({
-            modelId,
-            initialScanComplete: true,
-            totalFilesToAttempt: downloadPlan.length,
-            filesAlreadyPresent: Object.keys(presentFiles).length,
-            filesToDownload: missingFiles.length,
-            totalBytesToDownload,
-            totalBytesAlreadyPresent: downloadPlan.filter((p: any) => presentFiles[p.fileName]).reduce((sum: number, p: any) => sum + p.fileSize, 0),
-            fileTotalBytes: totalBytesToDownload,
-            fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-        }).catch((e: any) => console.warn(`${prefix} Error sending initial scan progress: ${e.message}`));
-
-        if (missingFiles.length === 0) {
-            const msg = `All ${downloadPlan.length} assets for ${modelId} are already available in DB.`;
-            console.log(prefix, msg);
-            await sendUiProgress({
-                modelId,
-                summary: true,
-                filesSuccessfullyProcessedCount: Object.keys(presentFiles).length,
-                totalFilesToAttempt: downloadPlan.length,
-                failedFiles: [],
-                success: true,
-                message: msg,
-                fileTotalBytes: totalBytesToDownload,
-                fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-            }).catch((e: any) => console.warn(`${prefix} Error sending progress for 'all files present': ${e.message}`));
-            return { success: true, fileMap: presentFiles, message: msg, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
+        // --- Single ONNX logic ---
+        if (onnxFiles.length === 1) {
+            await handleUserFileRequestFromPopup(onnxFiles[0]);
+            // Progress will be shown only in sidebar
+            return { success: true, message: "Only one ONNX file, started download automatically." };
         }
-
-        const { successfullyProcessedFileMap, filesSuccessfullyProcessedCount, failedFiles } = await downloadMissingFilesInternal(
-            missingFiles,
-            modelId,
-            downloadPlan,
-            totalBytesToDownload,
-            totalChunksToDownload,
-            presentFiles,
-            baseDownloadUrl
-        );
-
-        console.log(prefix, `Finished processing all ${downloadPlan.length} needed files for ${modelId}. Successfully processed ${filesSuccessfullyProcessedCount} files.`);
-        const overallSuccess = filesSuccessfullyProcessedCount === downloadPlan.length;
-        const finalMessage = overallSuccess
-            ? `All ${downloadPlan.length} assets for ${modelId} are now available in DB.`
-            : `Failed to process all assets for ${modelId}. Got ${filesSuccessfullyProcessedCount} of ${downloadPlan.length}. Failed files: ${failedFiles.join(', ')}. Check logs for details.`;
-
-        await sendUiProgress({
-            modelId,
-            summary: true,
-            filesSuccessfullyProcessedCount,
-            totalFilesToAttempt: downloadPlan.length,
-            failedFiles,
-            success: overallSuccess,
-            message: finalMessage,
-            fileTotalBytes: totalBytesToDownload,
-            fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-        }).catch((e: any) => console.warn(`${prefix} Error sending final summary progress: ${e.message}`));
-        console.log(prefix, finalMessage);
-        return { success: overallSuccess, fileMap: successfullyProcessedFileMap, message: finalMessage, failedFiles, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
-
+        // --- No ONNX files ---
+        // Otherwise, show the popup as usual (should not happen, but fallback)
+        const onnxFilesForPopup = onnxFiles.map((m: any) => ({ ...m, fileSize: m.size }));
+        if (window.showOnnxSelectionPopup) {
+            window.showOnnxSelectionPopup(
+                onnxFilesForPopup,
+                allKnownFilePlansInternal,
+                fileStatesInternal,
+                0, // nonOnnxProgress (could be improved)
+                'unknown', // nonOnnxStatus (could be improved)
+                handleUserFileRequestFromPopup
+            );
+        }
+        return { success: true, message: "Model manifests created and UI notified." };
     } catch (error: unknown) {
         const errMsg = error instanceof Error ? error.message : String(error);
-        console.error(prefix, `Critical error in downloadModelAssets for ${modelId}:`, error);
-        await sendUiProgress({
-            modelId,
-            summary: true,
-            error: `Download process failed: ${errMsg}`,
-            success: false,
-            fileTotalBytes: totalBytesToDownload,
-            fileTotalBytesHuman: formatBytes(totalBytesToDownload)
-        }).catch((e: any) => console.warn(`${prefix} Error sending progress on critical error: ${e.message}`));
-        return { success: false, error: `Download process failed for ${modelId}: ${errMsg}`, fileTotalBytes: totalBytesToDownload, fileTotalBytesHuman: formatBytes(totalBytesToDownload) };
+        if (LOG_ERROR) console.error(prefix, `Critical error in downloadModelAssets for ${modelId}:`, error);
+        globalProgressManager.updateProgress({ error: errMsg, done: true, success: false });
+        return { success: false, error: `Download process failed for ${modelId}: ${errMsg}` };
     }
+}
+
+export function handleUserFileRequestFromPopup(filePlan: any) {
+    if (!currentModelIdInternal || !allKnownFilePlansInternal.some(p => p.fileName === filePlan.fileName)) {
+        if (LOG_ERROR) console.error(prefix, "Attempt to download file for unknown or mismatched model:", filePlan.fileName);
+        return;
+    }
+
+    const existingState = fileStatesInternal[filePlan.fileName];
+    if (existingState?.status === 'present' || existingState?.status === 'downloaded' || existingState?.status === 'queued' || existingState?.status === 'downloading') {
+        if (LOG_GENERAL) console.log(prefix, `File ${filePlan.fileName} already handled (status: ${existingState?.status}). Ignoring request.`);
+        return;
+    }
+
+    const fullDownloadUrl = buildFullDownloadUrl(currentModelIdInternal, filePlan.fileName);
+    console.log('[Downloader][Queue] Queuing file from popup:', filePlan.fileName, 'Full URL:', fullDownloadUrl);
+    downloadQueueInternal.push({ ...filePlan, fullDownloadUrl });
+    fileStatesInternal[filePlan.fileName] = { status: 'queued', progress: 0 };
+    sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'queued', progress: 0 });
+    processDownloadQueue();
 }

@@ -4,6 +4,9 @@ console.log(`${prefix} indexedDBBackendWorker loaded and running`);
 // indexedDBBackendWorker.ts
 
 import { DBActions } from './dbActions'; // Correctly import from your file
+// Explicitly import IDBValidKey type for clarity (even though it's global in browser/worker context)
+// This is a no-op in browser, but helps TypeScript recognize the type:
+type IDBValidKey = globalThis.IDBValidKey;
 
 // Type Definitions (Replaced JSDoc)
 type FTSFieldConfig = string[];
@@ -109,9 +112,6 @@ const FTS_INDEX_STORE_PREFIX = '__fts_';
 
 // Add this type alias near the top, after importing DBActions:
 type DBActionValue = keyof typeof DBActions | string;
-
-type IDBValidKey = number | string | Date | ArrayBuffer | ArrayBufferView | IDBArrayKey;
-type IDBArrayKey = number | string | Date | ArrayBuffer | ArrayBufferView | IDBArrayKey[];
 
 class CustomIDBManager {
     openDBs: Map<string, IDBDatabase> = new Map();
@@ -361,7 +361,21 @@ class DataOperations {
             updatedAt: now,
             recordVersion: (record.recordVersion || 0) + 1,
         } as T;
-        console.log('[idbWorker][TRACE] DataOperations.add: fullRecord:', fullRecord);
+
+        // Model pipeline log suppression logic
+        const isModelAssetChunk = fullRecord && fullRecord.type === 'chunk' && storeName === 'models';
+        const isModelAssetManifest = fullRecord && fullRecord.type === 'manifest' && storeName === 'models';
+        let shouldLog = true;
+        if (isModelAssetChunk) {
+            const chunkIndex = (fullRecord as any).chunkIndex;
+            const totalChunks = (fullRecord as any).totalChunks;
+            shouldLog = (chunkIndex === 0 || (typeof totalChunks === 'number' && chunkIndex === totalChunks - 1));
+        } else if (isModelAssetManifest) {
+            shouldLog = true;
+        }
+        if (shouldLog) {
+            console.log('[idbWorker][TRACE] DataOperations.add: fullRecord:', fullRecord);
+        }
 
         return new Promise((resolve, reject) => {
             const txStoreNames = this.getTxStoreNamesForFTS(dbName, storeName);
@@ -397,7 +411,21 @@ class DataOperations {
             updatedAt: now,
             recordVersion: (record.recordVersion || 0) + 1,
         } as T;
-        console.log('[idbWorker][TRACE] DataOperations.put: fullRecord:', fullRecord);
+
+        // Model pipeline log suppression logic
+        const isModelAssetChunk = fullRecord && fullRecord.type === 'chunk' && storeName === 'models';
+        const isModelAssetManifest = fullRecord && fullRecord.type === 'manifest' && storeName === 'models';
+        let shouldLog = true;
+        if (isModelAssetChunk) {
+            const chunkIndex = (fullRecord as any).chunkIndex;
+            const totalChunks = (fullRecord as any).totalChunks;
+            shouldLog = (chunkIndex === 0 || (typeof totalChunks === 'number' && chunkIndex === totalChunks - 1));
+        } else if (isModelAssetManifest) {
+            shouldLog = true;
+        }
+        if (shouldLog) {
+            console.log('[idbWorker][TRACE] DataOperations.put: fullRecord:', fullRecord);
+        }
 
         return new Promise((resolve, reject) => {
             const txStoreNames = this.getTxStoreNamesForFTS(dbName, storeName);

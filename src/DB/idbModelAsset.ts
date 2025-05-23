@@ -3,7 +3,8 @@
 import { BaseCRUD } from "./idbBase";
 import { DBNames } from "./idbSchema";
 import { DBActions } from "./dbActions";
-
+// @ts-ignore: If using JS/TS without types for spark-md5
+import SparkMD5 from 'spark-md5';
 
 export const MODEL_ASSET_TYPE_MANIFEST = 'manifest' as const;
 export const MODEL_ASSET_TYPE_CHUNK = 'chunk' as const;
@@ -16,7 +17,7 @@ export interface ModelAssetManifest {
   fileName: string;
   folder: string;
   fileType: string;
-  size: number; // Total file size
+  size: number;
   totalChunks: number;
   chunkSizeUsed: number;
   status: string;
@@ -40,7 +41,7 @@ export interface ModelAssetChunk {
   addedAt: number;
   lastAccessed?: number;
   checksum?: string;
-  totalChunks?: number; // Now part of the interface (optional)
+  totalChunks?: number;
   version?: string | number;
 }
 
@@ -53,82 +54,247 @@ export function isModelAssetChunk(obj: any): obj is ModelAssetChunk {
 
 export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
   public data: ModelAssetManifest | ModelAssetChunk;
+  public dbWorker: Worker;
 
   constructor(data: ModelAssetManifest | ModelAssetChunk, dbWorker: Worker) {
-    super(data.id, data.fileName, dbWorker);
+    super(data.id, (data as any).fileName, dbWorker);
     this.data = data;
+    this.dbWorker = dbWorker;
+  }
+
+  async saveToDB(): Promise<string> {
+    if (isModelAssetManifest(this.data)) {
+      return await ModelAsset.createManifest(this.data, this.dbWorker);
+    } else if (isModelAssetChunk(this.data)) {
+      return await ModelAsset.createChunk(this.data, this.dbWorker);
+    }
+    throw new Error("Unknown ModelAsset type for saveToDB");
   }
 
   async update(updates: Partial<ModelAssetManifest | ModelAssetChunk>): Promise<void> {
-    const currentData = this.data;
-    if (isModelAssetManifest(currentData)) {
-      const { id, type, addedAt, ...restUpdates } = updates as Partial<ModelAssetManifest>;
-      await ModelAsset.updateManifest(currentData.id, restUpdates, this.dbWorker);
-      Object.assign(this.data, restUpdates);
-    } else if (isModelAssetChunk(currentData)) {
-      const { id, type, data, addedAt, ...restUpdates } = updates as Partial<ModelAssetChunk>;
-      await ModelAsset.updateChunk(currentData.id, restUpdates, this.dbWorker);
-      Object.assign(this.data, restUpdates);
+    if (isModelAssetManifest(this.data)) {
+      await ModelAsset.updateManifest(this.data.id, updates, this.dbWorker);
+      Object.assign(this.data, updates);
+    } else if (isModelAssetChunk(this.data)) {
+      await ModelAsset.updateChunk(this.data.id, updates, this.dbWorker);
+      Object.assign(this.data, updates);
     } else {
-      throw new Error('Unknown ModelAsset type for instance update');
+      throw new Error("Unknown ModelAsset type for update");
     }
   }
 
   async delete(): Promise<void> {
     if (isModelAssetManifest(this.data)) {
-      await ModelAsset.deleteManifest(this.id, this.dbWorker);
+      await ModelAsset.deleteManifest(this.data.id, this.dbWorker);
     } else if (isModelAssetChunk(this.data)) {
-      await ModelAsset.deleteChunk(this.id, this.dbWorker);
+      await ModelAsset.deleteChunk(this.data.id, this.dbWorker);
     } else {
-      throw new Error('Unknown ModelAsset type for instance delete');
+      throw new Error("Unknown ModelAsset type for delete");
     }
   }
 
-  async saveToDB(): Promise<string> {
-    const currentData = this.data;
-    if (isModelAssetManifest(currentData)) {
-      const payloadForCreate: Parameters<typeof ModelAsset.createManifest>[0] = {
-        chunkGroupId: currentData.chunkGroupId,
-        fileName: currentData.fileName,
-        folder: currentData.folder,
-        fileType: currentData.fileType,
-        totalFileSize: currentData.size,
-        totalChunks: currentData.totalChunks,
-        chunkSizeUsed: currentData.chunkSizeUsed,
-        status: currentData.status,
-        downloadTimestamp: currentData.downloadTimestamp || Date.now(),
-        checksum: currentData.checksum,
-        version: currentData.version,
-      };
-      if (currentData.id && currentData.id.startsWith('manifest:')) {
-        payloadForCreate.id = currentData.id;
-      }
-      return ModelAsset.createManifest(payloadForCreate, this.dbWorker);
+  /**
+   * Create this asset in the DB (preferred CRUD method; alias for saveToDB)
+   */
+  async create(): Promise<string> {
+    return this.saveToDB();
+  }
 
-    } else if (isModelAssetChunk(currentData)) {
-
-      if (typeof currentData.totalChunks !== 'number') {
-
-        console.warn(`[ModelAsset.saveToDB] Chunk instance ${currentData.id} is missing 'totalChunks' property. This is required by static ModelAsset.createChunk. Defaulting to 0, but this may be incorrect.`);
-
-      }
-
-      const payloadForCreate: Parameters<typeof ModelAsset.createChunk>[0] = {
-        folder: currentData.folder,
-        fileName: currentData.fileName,
-        fileType: currentData.fileType,
-        data: currentData.data, 
-        chunkIndex: currentData.chunkIndex,
-        totalChunks: currentData.totalChunks || 0, 
-        chunkGroupId: currentData.chunkGroupId,
-      };
-      if (currentData.id && currentData.id.includes(':')) {
-        payloadForCreate.id = currentData.id; 
-      }
-      return ModelAsset.createChunk(payloadForCreate, this.dbWorker);
+  /**
+   * Read the latest data for this asset from the DB and update this.data
+   */
+  async read(): Promise<void> {
+    if (isModelAssetManifest(this.data)) {
+      const latest = await ModelAsset.readManifest(this.data.id, this.dbWorker);
+      if (!latest) throw new Error(`Manifest with id ${this.data.id} not found in DB`);
+      this.data = latest;
+    } else if (isModelAssetChunk(this.data)) {
+      const latest = await ModelAsset.readChunk(this.data.id, this.dbWorker);
+      if (!latest) throw new Error(`Chunk with id ${this.data.id} not found in DB`);
+      this.data = latest;
     } else {
-      throw new Error('Unknown ModelAsset type for instance saveToDB');
+      throw new Error("Unknown ModelAsset type for read");
     }
+  }
+
+  // =====================
+  // Repo-level (All manifests for a model/folder)
+  // =====================
+
+  static async readAllFileManifestsForRepo(folder: string, dbWorker: Worker): Promise<ModelAssetManifest[]> {
+    const query = {
+      from: DBNames.DB_MODELS,
+      where: { folder: folder, type: MODEL_ASSET_TYPE_MANIFEST }
+    };
+    const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    return results ? results.filter(isModelAssetManifest) : [];
+  }
+
+  static async createAllFileManifestsForRepo(manifests: ModelAssetManifest[], dbWorker: Worker): Promise<string[]> {
+    const ids: string[] = [];
+    for (const manifest of manifests) {
+      const id = await ModelAsset.createManifest(manifest, dbWorker);
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  static async updateAllFileManifestsForRepo(manifests: ModelAssetManifest[], dbWorker: Worker): Promise<void> {
+    for (const manifest of manifests) {
+      await ModelAsset.updateManifest(manifest.id, manifest, dbWorker);
+    }
+  }
+
+  static async deleteAllFileManifestsForRepo(folder: string, dbWorker: Worker): Promise<void> {
+    const manifests = await ModelAsset.readAllFileManifestsForRepo(folder, dbWorker);
+    for (const manifest of manifests) {
+      await ModelAsset.deleteManifest(manifest.id, dbWorker);
+    }
+  }
+
+  // =====================
+  // File-level (Single manifest by chunkGroupId)
+  // =====================
+
+  static async readManifestByChunkGroupId(chunkGroupId: string, dbWorker: Worker): Promise<ModelAssetManifest | undefined> {
+    const query = {
+      from: DBNames.DB_MODELS,
+      where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_MANIFEST },
+      limit: 1
+    };
+    const results = await ModelAsset.sendWorkerRequest<ModelAssetManifest[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    return results && results.length > 0 && isModelAssetManifest(results[0]) ? results[0] : undefined;
+  }
+
+  static async createManifestByChunkGroupId(manifest: ModelAssetManifest, dbWorker: Worker): Promise<string> {
+    return ModelAsset.createManifest(manifest, dbWorker);
+  }
+
+  static async updateManifestByChunkGroupId(chunkGroupId: string, updates: Partial<Omit<ModelAssetManifest, 'id' | 'type' | 'addedAt'>>, dbWorker: Worker): Promise<void> {
+    const manifest = await ModelAsset.readManifestByChunkGroupId(chunkGroupId, dbWorker);
+    if (!manifest) throw new Error(`Manifest with chunkGroupId ${chunkGroupId} not found for update.`);
+    await ModelAsset.updateManifest(manifest.id, updates, dbWorker);
+  }
+
+  static async deleteManifestByChunkGroupId(chunkGroupId: string, dbWorker: Worker): Promise<void> {
+    const manifest = await ModelAsset.readManifestByChunkGroupId(chunkGroupId, dbWorker);
+    if (!manifest) throw new Error(`Manifest with chunkGroupId ${chunkGroupId} not found for delete.`);
+    await ModelAsset.deleteManifest(manifest.id, dbWorker);
+  }
+
+  // =====================
+  // Record-level (by id)
+  // =====================
+
+  static async readManifest(manifestId: string, dbWorker: Worker): Promise<ModelAssetManifest | undefined> {
+    const result = await ModelAsset.sendWorkerRequest<ModelAssetManifest | undefined>(dbWorker, DBActions.GET, [DBNames.DB_MODELS, DBNames.DB_MODELS, manifestId]);
+    return result && isModelAssetManifest(result) ? result : undefined;
+  }
+
+  static async createManifest(manifest: ModelAssetManifest, dbWorker: Worker): Promise<string> {
+    const record = {
+      ...manifest,
+      id: manifest.id || `${manifest.folder}/${manifest.fileName}:manifest`,
+      type: 'manifest',
+    };
+    return ModelAsset.sendWorkerRequest<string>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, record]);
+  }
+
+  static async updateManifest(manifestId: string, updates: Partial<Omit<ModelAssetManifest, 'id' | 'type' | 'addedAt'>>, dbWorker: Worker): Promise<void> {
+    const existing = await ModelAsset.readManifest(manifestId, dbWorker);
+    if (!existing) throw new Error(`Manifest with id ${manifestId} not found for update.`);
+    const updatedRecord: ModelAssetManifest = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      type: MODEL_ASSET_TYPE_MANIFEST,
+      addedAt: existing.addedAt
+    };
+    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, updatedRecord]);
+  }
+
+  static async deleteManifest(manifestId: string, dbWorker: Worker): Promise<void> {
+    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.DELETE, [DBNames.DB_MODELS, DBNames.DB_MODELS, manifestId]);
+  }
+
+  // =====================
+  // Chunk-level (file data)
+  // =====================
+
+  static async createChunk(chunk: ModelAssetChunk, dbWorker: Worker): Promise<string> {
+    const id = chunk.id || `${chunk.chunkGroupId}:${chunk.chunkIndex}`;
+    const record: ModelAssetChunk = {
+      ...chunk,
+      id,
+      type: MODEL_ASSET_TYPE_CHUNK,
+      addedAt: chunk.addedAt || Date.now(),
+    };
+    return ModelAsset.sendWorkerRequest<string>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, record]);
+  }
+
+  static async readChunk(chunkId: string, dbWorker: Worker): Promise<ModelAssetChunk | undefined> {
+    const result = await ModelAsset.sendWorkerRequest<ModelAssetChunk | undefined>(dbWorker, DBActions.GET, [DBNames.DB_MODELS, DBNames.DB_MODELS, chunkId]);
+    return result && isModelAssetChunk(result) ? result : undefined;
+  }
+
+  static async updateChunk(chunkId: string, updates: Partial<Omit<ModelAssetChunk, 'id' | 'type' | 'addedAt' | 'data'>>, dbWorker: Worker): Promise<void> {
+    const existing = await ModelAsset.readChunk(chunkId, dbWorker);
+    if (!existing) throw new Error(`Chunk with id ${chunkId} not found for update.`);
+    const updatedRecord: ModelAssetChunk = {
+      ...existing,
+      ...updates,
+      id: existing.id,
+      type: MODEL_ASSET_TYPE_CHUNK,
+      addedAt: existing.addedAt,
+      data: existing.data
+    };
+    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, updatedRecord]);
+  }
+
+  static async deleteChunk(chunkId: string, dbWorker: Worker): Promise<void> {
+    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.DELETE, [DBNames.DB_MODELS, DBNames.DB_MODELS, chunkId]);
+  }
+
+  static async readChunksByGroupId(chunkGroupId: string, metadataOnly: boolean, dbWorker: Worker): Promise<Partial<ModelAssetChunk>[]> {
+    const query: any = {
+      from: DBNames.DB_MODELS,
+      where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_CHUNK },
+      orderBy: [{ field: 'chunkIndex', direction: 'asc' }]
+    };
+    if (metadataOnly) {
+      query.select = ['id', 'type', 'chunkGroupId', 'chunkIndex', 'fileName', 'folder', 'fileType', 'chunkSize', 'addedAt', 'lastAccessed', 'checksum', 'version', 'totalChunks'];
+    }
+    const results = await ModelAsset.sendWorkerRequest<ModelAssetChunk[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    return results || [];
+  }
+
+  static async countStoredChunks(chunkGroupId: string, dbWorker: Worker): Promise<number> {
+    const query = {
+      from: DBNames.DB_MODELS,
+      select: ['id','fileName','fileType','chunkIndex','chunkSize','data'],
+      where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_CHUNK }
+    };
+    const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    return results ? results.length : 0;
+  }
+
+  static async readUniqueChunkGroupIds(folder: string, dbWorker: Worker): Promise<string[]> {
+    const query = {
+      from: DBNames.DB_MODELS,
+      select: ['chunkGroupId'],
+      where: { folder: folder }
+    };
+    const results = await ModelAsset.sendWorkerRequest<{chunkGroupId: string}[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    if (!results) return [];
+    return Array.from(new Set(results.map(r => r.chunkGroupId).filter(Boolean)));
+  }
+
+  // =====================
+  // Utility
+  // =====================
+
+  static checksumChunkMD5(arrayBuffer: ArrayBuffer): string {
+    return SparkMD5.ArrayBuffer.hash(arrayBuffer);
   }
 
   private static sendWorkerRequest<T>(dbWorker: Worker, action: string, payloadArray: any[]): Promise<T> {
@@ -154,175 +320,45 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
     });
   }
 
-  static async createChunk(
-    chunkPayload: {
-        folder: string;
-        fileName: string;
-        fileType: string;
-        data: ArrayBuffer;
-        chunkIndex: number;
-        totalChunks: number; 
-        chunkGroupId: string;
-        id?: string;
-    },
-    dbWorker: Worker
-  ): Promise<string> {
-    const id = chunkPayload.id || `${chunkPayload.chunkGroupId}:${chunkPayload.chunkIndex}`;
-    const record: ModelAssetChunk = {
-      id,
-      type: MODEL_ASSET_TYPE_CHUNK,
-      chunkGroupId: chunkPayload.chunkGroupId,
-      chunkIndex: chunkPayload.chunkIndex,
-      fileName: chunkPayload.fileName,
-      folder: chunkPayload.folder,
-      fileType: chunkPayload.fileType,
-      chunkSize: chunkPayload.data.byteLength,
-      data: chunkPayload.data,
-      addedAt: Date.now(),
-      totalChunks: chunkPayload.totalChunks, 
-    };
-    return ModelAsset.sendWorkerRequest<string>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, record]);
-  }
+  // =====================
+  // Static instance helpers (for symmetry with Chat)
+  // =====================
 
-  static async createManifest(
-    manifestPayload: {
-        chunkGroupId: string;
-        fileName: string;
-        folder: string;
-        fileType: string;
-        totalFileSize: number;
-        totalChunks: number;
-        chunkSizeUsed: number;
-        status: string;
-        downloadTimestamp: number;
-        id?: string;
-        checksum?: string;
-        version?: string | number;
-    },
-    dbWorker: Worker
-  ): Promise<string> {
-    const id = manifestPayload.id || `manifest:${manifestPayload.chunkGroupId}`;
-    const record: ModelAssetManifest = {
-      id,
-      type: MODEL_ASSET_TYPE_MANIFEST,
-      chunkGroupId: manifestPayload.chunkGroupId,
-      fileName: manifestPayload.fileName,
-      folder: manifestPayload.folder,
-      fileType: manifestPayload.fileType,
-      size: manifestPayload.totalFileSize,
-      totalChunks: manifestPayload.totalChunks,
-      chunkSizeUsed: manifestPayload.chunkSizeUsed,
-      status: manifestPayload.status,
-      downloadTimestamp: manifestPayload.downloadTimestamp,
-      addedAt: Date.now(),
-      checksum: manifestPayload.checksum,
-      version: manifestPayload.version,
-    };
-    return ModelAsset.sendWorkerRequest<string>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, record]);
-  }
-
-  static async readChunk(chunkId: string, dbWorker: Worker): Promise<ModelAssetChunk | undefined> {
-    const result = await ModelAsset.sendWorkerRequest<ModelAssetChunk | undefined>(dbWorker, DBActions.GET, [DBNames.DB_MODELS, DBNames.DB_MODELS, chunkId]);
-    return result && isModelAssetChunk(result) ? result : undefined;
-  }
-
-  static async readManifest(manifestId: string, dbWorker: Worker): Promise<ModelAssetManifest | undefined> {
-    const result = await ModelAsset.sendWorkerRequest<ModelAssetManifest | undefined>(dbWorker, DBActions.GET, [DBNames.DB_MODELS, DBNames.DB_MODELS, manifestId]);
-    return result && isModelAssetManifest(result) ? result : undefined;
-  }
-
-  static async readManifestByChunkGroupId(chunkGroupId: string, dbWorker: Worker): Promise<ModelAssetManifest | undefined> {
-    const query = {
-      from: DBNames.DB_MODELS,
-      where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_MANIFEST },
-      limit: 1
-    };
-    const results = await ModelAsset.sendWorkerRequest<ModelAssetManifest[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
-    return results && results.length > 0 && isModelAssetManifest(results[0]) ? results[0] : undefined;
-  }
-
-  static async countStoredChunks(chunkGroupId: string, dbWorker: Worker): Promise<number> {
-    const query = {
-      from: DBNames.DB_MODELS,
-      select: ['id'],
-      where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_CHUNK }
-    };
-    const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
-    return results ? results.length : 0;
-  }
-
-  static async queryManifests(
-    queryParams: { folder: string; type: typeof MODEL_ASSET_TYPE_MANIFEST; fileName?: string },
-    dbWorker: Worker
-  ): Promise<ModelAssetManifest[]> {
-    const whereClause: any = { folder: queryParams.folder, type: queryParams.type };
-    if (queryParams.fileName) {
-      whereClause.fileName = queryParams.fileName;
+  /**
+   * Create a new ModelAsset in the DB and return an instance
+   */
+  static async createAsset(data: ModelAssetManifest | ModelAssetChunk, dbWorker: Worker): Promise<ModelAsset> {
+    let id: string;
+    if (isModelAssetManifest(data)) {
+      id = await ModelAsset.createManifest(data, dbWorker);
+    } else if (isModelAssetChunk(data)) {
+      id = await ModelAsset.createChunk(data, dbWorker);
+    } else {
+      throw new Error("Unknown ModelAsset type for createAsset");
     }
+    // Fetch the latest from DB to ensure all fields are up to date
+    const asset = await ModelAsset.read(id, dbWorker);
+    if (!asset) throw new Error(`Failed to retrieve asset after creation (id: ${id})`);
+    return asset;
+  }
+
+  /**
+   * Read a ModelAsset (manifest or chunk) by id and return an instance
+   */
+  static async read(id: string, dbWorker: Worker): Promise<ModelAsset | undefined> {
+    const manifest = await ModelAsset.readManifest(id, dbWorker);
+    if (manifest) return new ModelAsset(manifest, dbWorker);
+    const chunk = await ModelAsset.readChunk(id, dbWorker);
+    if (chunk) return new ModelAsset(chunk, dbWorker);
+    return undefined;
+  }
+
+  static async readAllFileManifestsForAllRepos(dbWorker: Worker): Promise<ModelAssetManifest[]> {
     const query = {
       from: DBNames.DB_MODELS,
-      where: whereClause
+      where: { type: MODEL_ASSET_TYPE_MANIFEST }
     };
     const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
     return results ? results.filter(isModelAssetManifest) : [];
-  }
-
-  static async getUniqueChunkGroupIds(folder: string, dbWorker: Worker): Promise<string[]> {
-    const query = {
-        from: DBNames.DB_MODELS,
-        select: ['chunkGroupId'],
-        where: { folder: folder }
-    };
-    const results = await ModelAsset.sendWorkerRequest<{chunkGroupId: string}[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
-    if (!results) return [];
-    return Array.from(new Set(results.map(r => r.chunkGroupId).filter(Boolean)));
-  }
-
-  static async getChunksByGroupId(chunkGroupId: string, metadataOnly: boolean, dbWorker: Worker): Promise<Partial<ModelAssetChunk>[]> {
-    const query: any = {
-        from: DBNames.DB_MODELS,
-        where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_CHUNK },
-        orderBy: [{ field: 'chunkIndex', direction: 'asc' }]
-    };
-    if (metadataOnly) {
-        query.select = ['id', 'type', 'chunkGroupId', 'chunkIndex', 'fileName', 'folder', 'fileType', 'chunkSize', 'addedAt', 'lastAccessed', 'checksum', 'version', 'totalChunks'];
-    }
-    const results = await ModelAsset.sendWorkerRequest<ModelAssetChunk[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
-    return results || [];
-  }
-
-   static async updateManifest(id: string, updates: Partial<Omit<ModelAssetManifest, 'id' | 'type' | 'addedAt'>>, dbWorker: Worker): Promise<void> {
-    const existing = await ModelAsset.readManifest(id, dbWorker);
-    if (!existing) throw new Error(`Manifest with id ${id} not found for update.`);
-    const updatedRecord: ModelAssetManifest = {
-        ...existing,
-        ...updates,
-        id: existing.id,
-        type: MODEL_ASSET_TYPE_MANIFEST,
-        addedAt: existing.addedAt
-    };
-    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, updatedRecord]);
-  }
-
-  static async updateChunk(id: string, updates: Partial<Omit<ModelAssetChunk, 'id' | 'type' | 'addedAt' | 'data'>>, dbWorker: Worker): Promise<void> {
-    const existing = await ModelAsset.readChunk(id, dbWorker);
-    if (!existing) throw new Error(`Chunk with id ${id} not found for update.`);
-    const updatedRecord: ModelAssetChunk = {
-        ...existing,
-        ...updates,
-        id: existing.id,
-        type: MODEL_ASSET_TYPE_CHUNK,
-        addedAt: existing.addedAt,
-        data: existing.data
-    };
-    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.PUT, [DBNames.DB_MODELS, DBNames.DB_MODELS, updatedRecord]);
-  }
-
-  static async deleteManifest(manifestId: string, dbWorker: Worker): Promise<void> {
-    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.DELETE, [DBNames.DB_MODELS, DBNames.DB_MODELS, manifestId]);
-  }
-
-  static async deleteChunk(chunkId: string, dbWorker: Worker): Promise<void> {
-    await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.DELETE, [DBNames.DB_MODELS, DBNames.DB_MODELS, chunkId]);
   }
 }

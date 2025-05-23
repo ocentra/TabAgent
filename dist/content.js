@@ -1253,8 +1253,20 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
 /* harmony export */   DbCountModelAssetChunksRequest: () => (/* binding */ DbCountModelAssetChunksRequest),
 /* harmony export */   DbCountModelAssetChunksResponse: () => (/* binding */ DbCountModelAssetChunksResponse),
+/* harmony export */   DbCreateAllFileManifestsForRepoRequest: () => (/* binding */ DbCreateAllFileManifestsForRepoRequest),
+/* harmony export */   DbCreateAllFileManifestsForRepoResponse: () => (/* binding */ DbCreateAllFileManifestsForRepoResponse),
+/* harmony export */   DbCreateManifestByChunkGroupIdRequest: () => (/* binding */ DbCreateManifestByChunkGroupIdRequest),
+/* harmony export */   DbCreateManifestByChunkGroupIdResponse: () => (/* binding */ DbCreateManifestByChunkGroupIdResponse),
 /* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
 /* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
+/* harmony export */   DbDeleteAllFileManifestsForRepoRequest: () => (/* binding */ DbDeleteAllFileManifestsForRepoRequest),
+/* harmony export */   DbDeleteAllFileManifestsForRepoResponse: () => (/* binding */ DbDeleteAllFileManifestsForRepoResponse),
+/* harmony export */   DbDeleteChunkRequest: () => (/* binding */ DbDeleteChunkRequest),
+/* harmony export */   DbDeleteChunkResponse: () => (/* binding */ DbDeleteChunkResponse),
+/* harmony export */   DbDeleteManifestByChunkGroupIdRequest: () => (/* binding */ DbDeleteManifestByChunkGroupIdRequest),
+/* harmony export */   DbDeleteManifestByChunkGroupIdResponse: () => (/* binding */ DbDeleteManifestByChunkGroupIdResponse),
+/* harmony export */   DbDeleteManifestRequest: () => (/* binding */ DbDeleteManifestRequest),
+/* harmony export */   DbDeleteManifestResponse: () => (/* binding */ DbDeleteManifestResponse),
 /* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
 /* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
 /* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
@@ -1262,6 +1274,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbEnsureInitializedRequest: () => (/* binding */ DbEnsureInitializedRequest),
 /* harmony export */   DbEnsureInitializedResponse: () => (/* binding */ DbEnsureInitializedResponse),
 /* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
+/* harmony export */   DbGetAllModelFileManifestsRequest: () => (/* binding */ DbGetAllModelFileManifestsRequest),
+/* harmony export */   DbGetAllModelFileManifestsResponse: () => (/* binding */ DbGetAllModelFileManifestsResponse),
 /* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
 /* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
@@ -1291,6 +1305,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
 /* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
 /* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
+/* harmony export */   DbReadManifestRequest: () => (/* binding */ DbReadManifestRequest),
+/* harmony export */   DbReadManifestResponse: () => (/* binding */ DbReadManifestResponse),
 /* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
 /* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
 /* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
@@ -1300,10 +1316,19 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
 /* harmony export */   DbToggleStarRequest: () => (/* binding */ DbToggleStarRequest),
 /* harmony export */   DbToggleStarResponse: () => (/* binding */ DbToggleStarResponse),
+/* harmony export */   DbUpdateAllFileManifestsForRepoRequest: () => (/* binding */ DbUpdateAllFileManifestsForRepoRequest),
+/* harmony export */   DbUpdateAllFileManifestsForRepoResponse: () => (/* binding */ DbUpdateAllFileManifestsForRepoResponse),
+/* harmony export */   DbUpdateChunkRequest: () => (/* binding */ DbUpdateChunkRequest),
+/* harmony export */   DbUpdateChunkResponse: () => (/* binding */ DbUpdateChunkResponse),
+/* harmony export */   DbUpdateManifestByChunkGroupIdRequest: () => (/* binding */ DbUpdateManifestByChunkGroupIdRequest),
+/* harmony export */   DbUpdateManifestByChunkGroupIdResponse: () => (/* binding */ DbUpdateManifestByChunkGroupIdResponse),
+/* harmony export */   DbUpdateManifestRequest: () => (/* binding */ DbUpdateManifestRequest),
+/* harmony export */   DbUpdateManifestResponse: () => (/* binding */ DbUpdateManifestResponse),
 /* harmony export */   DbUpdateMessageRequest: () => (/* binding */ DbUpdateMessageRequest),
 /* harmony export */   DbUpdateMessageResponse: () => (/* binding */ DbUpdateMessageResponse),
 /* harmony export */   DbUpdateStatusRequest: () => (/* binding */ DbUpdateStatusRequest),
-/* harmony export */   DbUpdateStatusResponse: () => (/* binding */ DbUpdateStatusResponse)
+/* harmony export */   DbUpdateStatusResponse: () => (/* binding */ DbUpdateStatusResponse),
+/* harmony export */   DbWorkerCreatedNotification: () => (/* binding */ DbWorkerCreatedNotification)
 /* harmony export */ });
 // dbEvents.js
 const DBEventNames = Object.freeze({
@@ -1373,6 +1398,31 @@ const DBEventNames = Object.freeze({
     DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
     DB_WORKER_ERROR: 'DbWorkerError', // Notification from worker for unhandled errors
     DB_WORKER_RESET: 'DbWorkerReset', // Potential command or notification for worker reset
+    // New events
+    DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbCreateAllFileManifestsForRepoRequest',
+    DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbCreateAllFileManifestsForRepoResponse',
+    DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbUpdateAllFileManifestsForRepoRequest',
+    DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbUpdateAllFileManifestsForRepoResponse',
+    DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbDeleteAllFileManifestsForRepoRequest',
+    DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbDeleteAllFileManifestsForRepoResponse',
+    DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbCreateManifestByChunkGroupIdRequest',
+    DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbCreateManifestByChunkGroupIdResponse',
+    DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbUpdateManifestByChunkGroupIdRequest',
+    DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbUpdateManifestByChunkGroupIdResponse',
+    DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbDeleteManifestByChunkGroupIdRequest',
+    DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbDeleteManifestByChunkGroupIdResponse',
+    DB_READ_MANIFEST_REQUEST: 'DbReadManifestRequest',
+    DB_READ_MANIFEST_RESPONSE: 'DbReadManifestResponse',
+    DB_UPDATE_MANIFEST_REQUEST: 'DbUpdateManifestRequest',
+    DB_UPDATE_MANIFEST_RESPONSE: 'DbUpdateManifestResponse',
+    DB_DELETE_MANIFEST_REQUEST: 'DbDeleteManifestRequest',
+    DB_DELETE_MANIFEST_RESPONSE: 'DbDeleteManifestResponse',
+    DB_UPDATE_CHUNK_REQUEST: 'DbUpdateChunkRequest',
+    DB_UPDATE_CHUNK_RESPONSE: 'DbUpdateChunkResponse',
+    DB_DELETE_CHUNK_REQUEST: 'DbDeleteChunkRequest',
+    DB_DELETE_CHUNK_RESPONSE: 'DbDeleteChunkResponse',
+    DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST: 'DbGetAllModelFileManifestsRequest',
+    DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE: 'DbGetAllModelFileManifestsResponse',
 });
 function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -1940,6 +1990,195 @@ class DbInitWorkerResponse extends DbResponseBase {
     }
 }
 DbInitWorkerResponse.type = DBEventNames.DB_INIT_WORKER_RESPONSE;
+// --- Notification Publishing ---
+class DbWorkerCreatedNotification {
+    constructor(payload) {
+        this.type = DbWorkerCreatedNotification.type;
+        this.timestamp = Date.now();
+        this.payload = payload;
+    }
+}
+DbWorkerCreatedNotification.type = 'DbWorkerCreatedNotification';
+// Add new event classes for ModelAsset CRUD/static symmetry
+class DbCreateAllFileManifestsForRepoRequest extends DbEventBase {
+    constructor(manifests) {
+        super();
+        this.type = DbCreateAllFileManifestsForRepoRequest.type;
+        this.payload = { manifests };
+    }
+}
+DbCreateAllFileManifestsForRepoRequest.type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
+class DbCreateAllFileManifestsForRepoResponse extends DbResponseBase {
+    constructor(requestId, success, ids, error = null) {
+        super(requestId, success, ids, error);
+        this.type = DbCreateAllFileManifestsForRepoResponse.type;
+    }
+}
+DbCreateAllFileManifestsForRepoResponse.type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+class DbUpdateAllFileManifestsForRepoRequest extends DbEventBase {
+    constructor(manifests) {
+        super();
+        this.type = DbUpdateAllFileManifestsForRepoRequest.type;
+        this.payload = { manifests };
+    }
+}
+DbUpdateAllFileManifestsForRepoRequest.type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
+class DbUpdateAllFileManifestsForRepoResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbUpdateAllFileManifestsForRepoResponse.type;
+    }
+}
+DbUpdateAllFileManifestsForRepoResponse.type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+class DbDeleteAllFileManifestsForRepoRequest extends DbEventBase {
+    constructor(folder) {
+        super();
+        this.type = DbDeleteAllFileManifestsForRepoRequest.type;
+        this.payload = { folder };
+    }
+}
+DbDeleteAllFileManifestsForRepoRequest.type = DBEventNames.DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
+class DbDeleteAllFileManifestsForRepoResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbDeleteAllFileManifestsForRepoResponse.type;
+    }
+}
+DbDeleteAllFileManifestsForRepoResponse.type = DBEventNames.DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+class DbCreateManifestByChunkGroupIdRequest extends DbEventBase {
+    constructor(manifest) {
+        super();
+        this.type = DbCreateManifestByChunkGroupIdRequest.type;
+        this.payload = { manifest };
+    }
+}
+DbCreateManifestByChunkGroupIdRequest.type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
+class DbCreateManifestByChunkGroupIdResponse extends DbResponseBase {
+    constructor(requestId, success, id, error = null) {
+        super(requestId, success, { id }, error);
+        this.type = DbCreateManifestByChunkGroupIdResponse.type;
+    }
+}
+DbCreateManifestByChunkGroupIdResponse.type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
+class DbUpdateManifestByChunkGroupIdRequest extends DbEventBase {
+    constructor(chunkGroupId, updates) {
+        super();
+        this.type = DbUpdateManifestByChunkGroupIdRequest.type;
+        this.payload = { chunkGroupId, updates };
+    }
+}
+DbUpdateManifestByChunkGroupIdRequest.type = DBEventNames.DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
+class DbUpdateManifestByChunkGroupIdResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbUpdateManifestByChunkGroupIdResponse.type;
+    }
+}
+DbUpdateManifestByChunkGroupIdResponse.type = DBEventNames.DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
+class DbDeleteManifestByChunkGroupIdRequest extends DbEventBase {
+    constructor(chunkGroupId) {
+        super();
+        this.type = DbDeleteManifestByChunkGroupIdRequest.type;
+        this.payload = { chunkGroupId };
+    }
+}
+DbDeleteManifestByChunkGroupIdRequest.type = DBEventNames.DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
+class DbDeleteManifestByChunkGroupIdResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbDeleteManifestByChunkGroupIdResponse.type;
+    }
+}
+DbDeleteManifestByChunkGroupIdResponse.type = DBEventNames.DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
+class DbReadManifestRequest extends DbEventBase {
+    constructor(manifestId) {
+        super();
+        this.type = DbReadManifestRequest.type;
+        this.payload = { manifestId };
+    }
+}
+DbReadManifestRequest.type = DBEventNames.DB_READ_MANIFEST_REQUEST;
+class DbReadManifestResponse extends DbResponseBase {
+    constructor(requestId, success, manifest, error = null) {
+        super(requestId, success, manifest, error);
+        this.type = DbReadManifestResponse.type;
+    }
+}
+DbReadManifestResponse.type = DBEventNames.DB_READ_MANIFEST_RESPONSE;
+class DbUpdateManifestRequest extends DbEventBase {
+    constructor(manifestId, updates) {
+        super();
+        this.type = DbUpdateManifestRequest.type;
+        this.payload = { manifestId, updates };
+    }
+}
+DbUpdateManifestRequest.type = DBEventNames.DB_UPDATE_MANIFEST_REQUEST;
+class DbUpdateManifestResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbUpdateManifestResponse.type;
+    }
+}
+DbUpdateManifestResponse.type = DBEventNames.DB_UPDATE_MANIFEST_RESPONSE;
+class DbDeleteManifestRequest extends DbEventBase {
+    constructor(manifestId) {
+        super();
+        this.type = DbDeleteManifestRequest.type;
+        this.payload = { manifestId };
+    }
+}
+DbDeleteManifestRequest.type = DBEventNames.DB_DELETE_MANIFEST_REQUEST;
+class DbDeleteManifestResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbDeleteManifestResponse.type;
+    }
+}
+DbDeleteManifestResponse.type = DBEventNames.DB_DELETE_MANIFEST_RESPONSE;
+class DbUpdateChunkRequest extends DbEventBase {
+    constructor(chunkId, updates) {
+        super();
+        this.type = DbUpdateChunkRequest.type;
+        this.payload = { chunkId, updates };
+    }
+}
+DbUpdateChunkRequest.type = DBEventNames.DB_UPDATE_CHUNK_REQUEST;
+class DbUpdateChunkResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbUpdateChunkResponse.type;
+    }
+}
+DbUpdateChunkResponse.type = DBEventNames.DB_UPDATE_CHUNK_RESPONSE;
+class DbDeleteChunkRequest extends DbEventBase {
+    constructor(chunkId) {
+        super();
+        this.type = DbDeleteChunkRequest.type;
+        this.payload = { chunkId };
+    }
+}
+DbDeleteChunkRequest.type = DBEventNames.DB_DELETE_CHUNK_REQUEST;
+class DbDeleteChunkResponse extends DbResponseBase {
+    constructor(requestId, success, data = true, error = null) {
+        super(requestId, success, data, error);
+        this.type = DbDeleteChunkResponse.type;
+    }
+}
+DbDeleteChunkResponse.type = DBEventNames.DB_DELETE_CHUNK_RESPONSE;
+class DbGetAllModelFileManifestsRequest extends DbEventBase {
+    constructor() {
+        super();
+        this.type = DbGetAllModelFileManifestsRequest.type;
+    }
+}
+DbGetAllModelFileManifestsRequest.type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST;
+class DbGetAllModelFileManifestsResponse extends DbResponseBase {
+    constructor(originalRequestId, success, manifests, error = null) {
+        super(originalRequestId, success, manifests, error);
+        this.type = DbGetAllModelFileManifestsResponse.type;
+    }
+}
+DbGetAllModelFileManifestsResponse.type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE;
 
 
 /***/ }),

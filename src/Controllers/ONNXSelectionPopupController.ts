@@ -96,12 +96,12 @@ function renderFileList() {
         loadBtn.textContent = 'Failed - Retry';
         loadBtn.disabled = disableButton;
         loadBtn.className += ` ${disableButton ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-red-500 hover:bg-red-600 text-white focus:ring-red-400'}`;
-        if (requestFileDownloadCb) loadBtn.onclick = () => requestFileDownloadCb(file);
+        if (requestFileDownloadCb) loadBtn.onclick = () => { console.log('[ONNXSelectionPopupController] Load button clicked', file); requestFileDownloadCb(file); };
     } else {
         loadBtn.textContent = 'Load Model';
         loadBtn.disabled = disableButton;
         loadBtn.className += ` ${disableButton ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500'}`;
-        if (requestFileDownloadCb) loadBtn.onclick = () => requestFileDownloadCb(file);
+        if (requestFileDownloadCb) loadBtn.onclick = () => { console.log('[ONNXSelectionPopupController] Load button clicked', file); requestFileDownloadCb(file); };
     }
     infoDiv.appendChild(loadBtn);
     row.appendChild(infoDiv);
@@ -173,6 +173,7 @@ function handleDownloaderUpdate(update: any) {
 }
 
 function show(
+    modelId: string,
     onnxFilesArg: any[],
     allFilesArg: any[],
     initialFileStatesArg: { [fileName: string]: { status: string, progress: number } },
@@ -188,14 +189,13 @@ function show(
     activeOnnxDownloadName = null;
     requestFileDownloadCbRef = requestFileDownloadCb;
 
+    console.log('[ONNXSelectionPopupController] Callback set', typeof requestFileDownloadCbRef);
+
     const activeOnnx = currentOnnxFiles.find(f => currentFileStates[f.manifest.fileName]?.status === 'downloading');
     if (activeOnnx) {
         activeOnnxDownloadName = activeOnnx.manifest.fileName;
     }
-    
-    const modelId = allFilesArg.length > 0 ? allFilesArg[0].modelId || "Unknown Model" : "Unknown Model";
     if (modelTitleElement) modelTitleElement.textContent = `Select ONNX Model for: ${modelId.split('/').pop()}`;
-
 
     renderFileList();
     modalElement?.classList.remove('hidden');
@@ -230,12 +230,13 @@ export function initializeONNXSelectionPopup(elements: { modal: HTMLElement, fil
 declare global {
     interface Window {
         showOnnxSelectionPopup?: (
+            modelId: string,
             onnxFiles: FilePlan[],
-            allFiles: FilePlan[],
-            initialFileStates: { [fileName: string]: FileState },
-            nonOnnxInitialProgress: number,
-            nonOnnxInitialStatus: string,
-            requestFileDownloadCallback: (filePlan: FilePlan) => void
+            allFilePlans: FilePlan[],
+            fileStates: { [fileName: string]: FileState },
+            nonOnnxProgress: number,
+            nonOnnxStatus: string,
+            callback: (filePlan: FilePlan) => void
         ) => void;
         hideOnnxSelectionPopup?: () => void;
     }

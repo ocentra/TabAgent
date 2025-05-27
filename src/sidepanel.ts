@@ -44,7 +44,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { downloadModelAssets } from './modelAssetDownloader';
+import { downloadModelAssets, updateRepoPopupState } from './modelAssetDownloader';
 import { initializeONNXSelectionPopup } from './Controllers/ONNXSelectionPopupController';
 import { fetchModelMetadataInternal, filterAndValidateFilesInternal } from './Utilities/modelMetadata';
 import { ModelAssetManifest } from './DB/idbModelAsset';
@@ -711,9 +711,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Expose to window for modelAssetDownloader.ts
-    window.showOnnxSelectionPopup = (onnxFiles, downloadPlan, initialFileStates, nonOnnxProgress, nonOnnxStatus, requestFileDownloadCb) => {
+    window.showOnnxSelectionPopup = (modelId, onnxFiles, downloadPlan, initialFileStates, nonOnnxProgress, nonOnnxStatus, requestFileDownloadCb) => {
       if (onnxSelectionPopupController) {
         onnxSelectionPopupController.show(
+          modelId,
           onnxFiles,
           downloadPlan,
           initialFileStates,
@@ -933,9 +934,13 @@ async function renderDropdownsFromManifests() {
   });
 
   updateModelActionButtons();
+
+  // --- NEW: Update ONNX popup if open ---
+  const modal = document.getElementById('onnx-selection-modal');
+  if (modal && !modal.classList.contains('hidden')) {
+    updateRepoPopupState(selectedRepo);
+  }
 }
-
-
 
 // --- Helper: Database Initialization ---
 async function initializeDatabase(): Promise<boolean> {
@@ -967,8 +972,6 @@ async function initializeDatabase(): Promise<boolean> {
 
 // --- Exports ---
 export { sendDbRequestSmart };
-
-
 
 function isModelReadyToLoad(selectedRepo: string, selectedOnnx: string) {
   // 1. Check ONNX file

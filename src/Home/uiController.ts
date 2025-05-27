@@ -59,7 +59,7 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     }
     if (message.type === UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
        
-        handleLoadingProgress(message.payload);
+        handleDownLoadingProgress(message.payload);
     }
 });
 
@@ -173,9 +173,9 @@ function handleStatusUpdate(notification: any) {
 }
 
 document.addEventListener(UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e: Event) => {
-    handleLoadingProgress((e as CustomEvent).detail);
+    handleDownLoadingProgress((e as CustomEvent).detail);
 });
-function handleLoadingProgress(payload: any) {
+function handleDownLoadingProgress(payload: any) {
     console.log('[DEBUG][handleLoadingProgress] payload:', payload);
     if (!payload) return;
     const statusDiv = document.getElementById('model-load-status');

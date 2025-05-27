@@ -10940,15 +10940,30 @@ function buildFullDownloadUrl(modelId, fileName) {
         return fileName;
     return `https://huggingface.co/${modelId}/resolve/main/${fileName}`.replace(/([^:])\/\/+/, '$1/');
 }
+async function ensureManagerForModel(modelId) {
+    let manager = downloadManagers.get(modelId);
+    if (!manager) {
+        // Try to fetch manifests from DB
+        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbListModelFilesRequest({ folder: modelId, returnObjects: true });
+        const manifestResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+        const manifests = manifestResult && manifestResult.success ? manifestResult.data : [];
+        manager = new DownloadManager(modelId, manifests);
+        downloadManagers.set(modelId, manager);
+        // Optionally, initialize fileStates here
+        await manager.initAndProcessDownloads(null); // or a lighter version that doesn't start downloads
+    }
+    return manager;
+}
 // Exported function to update the ONNX selection popup for a given repo if open
-function updateRepoPopupState(modelId) {
+async function updateRepoPopupState(modelId) {
     if (typeof window === 'undefined' || !window.showOnnxSelectionPopup)
         return;
     console.log('[updateRepoPopupState] Updating popup state for modelId:', modelId);
-    const manager = downloadManagers.get(modelId);
+    let manager = downloadManagers.get(modelId);
     console.log('[updateRepoPopupState] Manager:', manager);
-    if (!manager)
-        return;
+    if (!manager) {
+        manager = await ensureManagerForModel(modelId);
+    }
     // Only update if popup is open
     const modal = document.getElementById && document.getElementById('onnx-selection-modal');
     if (!modal || modal.classList.contains('hidden'))

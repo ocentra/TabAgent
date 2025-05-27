@@ -1,6 +1,6 @@
 // idbModelAsset.ts
 
-import { BaseCRUD } from "./idbBase";
+import { BaseCRUD, Manifest } from "./idbBase";
 import { DBNames } from "./idbSchema";
 import { DBActions } from "./dbActions";
 // @ts-ignore: If using JS/TS without types for spark-md5
@@ -10,19 +10,14 @@ export const MODEL_ASSET_TYPE_MANIFEST = 'manifest' as const;
 export const MODEL_ASSET_TYPE_CHUNK = 'chunk' as const;
 export const CHUNK_SIZE = 10 * 1024 * 1024;
 
-export interface ModelAssetManifest {
-  id: string;
+export interface ModelAssetManifest extends Manifest {
   type: typeof MODEL_ASSET_TYPE_MANIFEST;
   chunkGroupId: string;
-  fileName: string;
   folder: string;
-  fileType: string;
   size: number;
   totalChunks: number;
   chunkSizeUsed: number;
-  status: string;
   downloadTimestamp?: number;
-  addedAt: number;
   lastAccessed?: number;
   checksum?: string;
   version?: string | number;
@@ -122,11 +117,11 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
   // =====================
 
   static async readAllFileManifestsForRepo(folder: string, dbWorker: Worker): Promise<ModelAssetManifest[]> {
-    const query = {
-      from: DBNames.DB_MODELS,
-      where: { folder: folder, type: MODEL_ASSET_TYPE_MANIFEST }
-    };
-    const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    const results = await ModelAsset.sendWorkerRequest<any[]>(
+      dbWorker,
+      DBActions.QUERY_MANIFESTS,
+      [DBNames.DB_MODELS, DBNames.DB_MODELS, folder]
+    );
     return results ? results.filter(isModelAssetManifest) : [];
   }
 
@@ -150,6 +145,17 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
     for (const manifest of manifests) {
       await ModelAsset.deleteManifest(manifest.id, dbWorker);
     }
+  }
+    // =====================
+  // All manifests for all repos
+  // =====================
+  static async readAllFileManifestsForAllRepos(dbWorker: Worker): Promise<ModelAssetManifest[]> {
+    const query = {
+      from: DBNames.DB_MODELS,
+      where: { type: MODEL_ASSET_TYPE_MANIFEST }
+    };
+    const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
+    return results ? results.filter(isModelAssetManifest) : [];
   }
 
   // =====================
@@ -181,6 +187,7 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
     if (!manifest) throw new Error(`Manifest with chunkGroupId ${chunkGroupId} not found for delete.`);
     await ModelAsset.deleteManifest(manifest.id, dbWorker);
   }
+
 
   // =====================
   // Record-level (by id)
@@ -216,6 +223,8 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
   static async deleteManifest(manifestId: string, dbWorker: Worker): Promise<void> {
     await ModelAsset.sendWorkerRequest<void>(dbWorker, DBActions.DELETE, [DBNames.DB_MODELS, DBNames.DB_MODELS, manifestId]);
   }
+
+
 
   // =====================
   // Chunk-level (file data)
@@ -353,12 +362,6 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
     return undefined;
   }
 
-  static async readAllFileManifestsForAllRepos(dbWorker: Worker): Promise<ModelAssetManifest[]> {
-    const query = {
-      from: DBNames.DB_MODELS,
-      where: { type: MODEL_ASSET_TYPE_MANIFEST }
-    };
-    const results = await ModelAsset.sendWorkerRequest<any[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
-    return results ? results.filter(isModelAssetManifest) : [];
-  }
+
+
 }

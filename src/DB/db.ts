@@ -31,7 +31,6 @@ import {
   DbGetUniqueLogValuesRequest, DbGetUniqueLogValuesResponse,
   DbClearLogsRequest, DbClearLogsResponse,
   DbGetCurrentAndLastLogSessionIdsRequest, DbGetCurrentAndLastLogSessionIdsResponse,
-  DbWorkerCreatedNotification,
   // New ModelAsset CRUD/static events
   DbCreateAllFileManifestsForRepoRequest, DbCreateAllFileManifestsForRepoResponse,
   DbUpdateAllFileManifestsForRepoRequest, DbUpdateAllFileManifestsForRepoResponse,
@@ -44,13 +43,16 @@ import {
   DbDeleteManifestRequest, DbDeleteManifestResponse,
   DbUpdateChunkRequest, DbUpdateChunkResponse,
   DbDeleteChunkRequest, DbDeleteChunkResponse,
-  DbGetAllModelFileManifestsRequest, DbGetAllModelFileManifestsResponse
+  DbGetAllModelFileManifestsRequest,
+  DbGetAllModelFileManifestsResponse,
+  DbManifestUpdatedNotification
 } from './dbEvents';
 import { schema, dbChannel } from './idbSchema';
 import { MODEL_ASSET_TYPE_MANIFEST, CHUNK_SIZE as CONFIG_CHUNK_SIZE_FROM_HELPER, ModelAsset, ModelAssetManifest } from './idbModelAsset'; 
-import { DBActions } from './dbActions'; 
+import { DBActions, DbInitOptions } from './dbActions'; 
 import { Chat } from './idbChat';
 import { LogEntry } from './idbLog';
+
 
 const DB_INIT_TIMEOUT = 15000;
 const APP_CHUNK_SIZE_CONFIG = CONFIG_CHUNK_SIZE_FROM_HELPER || (10 * 1024 * 1024); // Use helper's or default
@@ -69,6 +71,12 @@ let lastDbInitStatus: any = null;
 let currentChat: any = null;
 
 let dbReadyResolve: ((value: boolean) => void) | null = null;
+
+// Logging flags for manifest batch fetch and general DB operations
+const LOG_GENERAL = true;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
 
 function resetDbReadyPromise() {
   dbReadyResolve = () => {};
@@ -115,7 +123,8 @@ function createDbWorker() {
     if (workerCreated) {
       dbWorker.onmessage = (event) => {
         const { requestId, type, result, error, stack } = event.data;
-        console.log('[DB] Worker onmessage (full event.data):', event.data);
+        const { type: evtType, requestId: evtReqId, error: evtError } = event.data || {};
+        console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
         if (requestId && dbWorkerCallbacks[requestId]) {
           const callback = dbWorkerCallbacks[requestId];
           delete dbWorkerCallbacks[requestId];
@@ -150,7 +159,9 @@ function createDbWorker() {
         } else if (requestId) {
           // This is a normal response to a request, no warning needed.
         } else {
-          console.warn('[DB] Worker received unknown message type:', type, event.data);
+          // Instead of logging the full event.data object, log only key fields for clarity and memory safety
+          const { type: unknownType, requestId: unknownReqId, error: unknownError } = event.data || {};
+          console.warn('[DB] Worker received unknown message type:', unknownType, { requestId: unknownReqId, error: unknownError });
         }
       };
       dbWorker.onerror = (errEvent) => {
@@ -200,11 +211,7 @@ function checkDbAndStoreReadiness(result: any) {
   return { allSuccess, failures };
 }
 
-interface DbInitOptions {
-  preFetchedRepoMetadata?: Array<{ repo: string, metadata: any }>;
-}
-
-async function autoEnsureDbInitialized(options?: DbInitOptions) {
+async function autoEnsureDbInitialized() {
   resetDbReadyPromise(); // Ensure _dbReadyResolve is always a function
   if (isDbReadyFlag && (lastDbInitStatus as any)?.success) {
     const result = { success: true, dbStatus: lastDbInitStatus, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
@@ -275,64 +282,6 @@ async function autoEnsureDbInitialized(options?: DbInitOptions) {
         (responsePayload as any).error = new AppError('DB_INIT_FAILED', errorMsg, { failures, dbStatus: resultFromWorker });
       }
 
-      // If preFetchedRepoMetadata is provided, pre-populate manifest records for all files in those repos
-      const allManifests: ModelAssetManifest[] = [];
-      if (options && options.preFetchedRepoMetadata && options.preFetchedRepoMetadata.length > 0) {
-        for (const { repo, metadata } of options.preFetchedRepoMetadata) {
-          // Use manifests if present, else fallback to siblings
-          let manifestsToAdd = [];
-          if (metadata && Array.isArray(metadata.manifests)) {
-            manifestsToAdd = metadata.manifests;
-          } else if (metadata && Array.isArray(metadata.siblings)) {
-            // Fallback: build minimal manifests from siblings
-            manifestsToAdd = metadata.siblings.map((file: any) => {
-              const chunkGroupId = `${repo}/${file.rfilename}`;
-              return {
-                id: `${chunkGroupId}:manifest`,
-                type: MODEL_ASSET_TYPE_MANIFEST,
-                chunkGroupId,
-                fileName: file.rfilename,
-                folder: repo,
-                fileType: file.rfilename.split('.').pop(),
-                size: file.size || 0,
-                status: 'missing',
-                totalChunks: 0,
-                chunkSizeUsed: 10 * 1024 * 1024,
-                downloadTimestamp: Date.now(),
-                addedAt: Date.now(),
-              };
-            });
-          }
-          for (const manifestObj of manifestsToAdd) {
-            const manifest = await ModelAsset.readManifestByChunkGroupId(manifestObj.chunkGroupId, worker);
-            if (!manifest) {
-              await ModelAsset.createManifestByChunkGroupId(manifestObj, worker);
-            }
-          }
-          const repoManifest = await ModelAsset.readAllFileManifestsForRepo(repo, worker);
-          allManifests.push(...repoManifest);
-        }
-      }
-      const allModelMeta: Record<string, any[]> = {};
-      if (allManifests.length > 0) {
-    
-      for (const manifest of allManifests) {
-        if (!manifest.folder) continue;
-        if (!allModelMeta[manifest.folder]) allModelMeta[manifest.folder] = [];
-        allModelMeta[manifest.folder].push(manifest);
-      }
-      }
-
-
-      console.log('[DB] Gathered all model/file manifests:', allManifests);
-
-      console.log('[DB] allModelMeta to notify:', allModelMeta);
-      if (Object.keys(allModelMeta).length > 0) {
-        const notification = new DbWorkerCreatedNotification(allModelMeta);
-        console.log('[DB] Dispatching DbWorkerCreatedNotification:', notification);
-        document.dispatchEvent(new CustomEvent(DbWorkerCreatedNotification.type, { detail: notification }));
-        console.log('[DB] DbWorkerCreatedNotification dispatched.');
-      }
       smartNotify(new DbInitializationCompleteNotification(responsePayload));
       if (!allSuccess) throw (responsePayload as any).error; // Throw if not successful
       return responsePayload;
@@ -351,6 +300,7 @@ async function autoEnsureDbInitialized(options?: DbInitOptions) {
   })();
   return dbInitPromise;
 }
+
 
 // Unified handler for both DbInitializeRequest and DbEnsureInitializedRequest
 async function handleDbEnsureInitialized(event: any) {
@@ -650,8 +600,15 @@ async function handleDbCreateChunkRequest(event: any) {
   return handleRequest(event, async (payload: any) => {
     const worker = getDbWorker();
     if (payload.type === 'manifest') {
-      // Allow manifest records without data/chunkIndex
-      console.log('[DB][DEBUG] Storing manifest record:', payload);
+      // Only log summary for manifest record
+      console.log('[DB][DEBUG] Storing manifest record:', {
+        fileName: payload.fileName,
+        folder: payload.folder,
+        chunkGroupId: payload.chunkGroupId,
+        size: payload.size,
+        totalChunks: payload.totalChunks,
+        status: payload.status
+      });
       return await ModelAsset.createManifest(payload, worker);
     }
     if (!payload.folder || !payload.fileName || !payload.data || typeof payload.chunkIndex !== 'number') {
@@ -659,11 +616,19 @@ async function handleDbCreateChunkRequest(event: any) {
     }
     // Only log for first and last chunk
     if (payload.chunkIndex === 0 || (typeof payload.totalChunks === 'number' && payload.chunkIndex === payload.totalChunks - 1)) {
-      console.log('[DB] Storing model asset chunk:', { fileName: payload.fileName, chunkIndex: payload.chunkIndex, totalChunks: payload.totalChunks });
+      console.log('[DB] Storing model asset chunk:', {
+        fileName: payload.fileName,
+        chunkIndex: payload.chunkIndex,
+        totalChunks: payload.totalChunks
+      });
     }
     const chunkId = await ModelAsset.createChunk(payload, worker);
-    // DEBUG: Log after storing chunk
-    console.log('[DEBUG][DB] Stored chunk with id:', chunkId, 'payload:', payload);
+    // DEBUG: Log after storing chunk (summary only)
+    console.log('[DEBUG][DB] Stored chunk with id:', chunkId, {
+      fileName: payload.fileName,
+      chunkIndex: payload.chunkIndex,
+      totalChunks: payload.totalChunks
+    });
     return { success: true, data: { chunkId } };
   }, DbAddModelAssetResponse);
 }
@@ -845,6 +810,12 @@ async function handleDbUpdateManifestRequest(event: any) {
   console.log('[DB] handleDbUpdateManifestRequest', event?.payload);
   return handleRequest(event, async (payload: any) => {
     await ModelAsset.updateManifest(payload.manifestId, payload.updates, getDbWorker());
+    // Fetch the updated manifest
+    const updatedManifest = await ModelAsset.readManifest(payload.manifestId, getDbWorker());
+    // Send notification to UI if manifest exists
+    if (updatedManifest) {
+      smartNotify(new DbManifestUpdatedNotification(updatedManifest));
+    }
     return { success: true };
   }, DbUpdateManifestResponse);
 }
@@ -870,6 +841,14 @@ async function handleDbDeleteChunkRequest(event: any) {
     await ModelAsset.deleteChunk(payload.chunkId, getDbWorker());
     return { success: true };
   }, DbDeleteChunkResponse);
+}
+
+async function handleDbGetAllModelFileManifestsRequest(event: any) {
+  console.log('[DB] handleDbGetAllModelFileManifestsRequest');
+  return handleRequest(event, async () => {
+    const manifests = await ModelAsset.readAllFileManifestsForAllRepos(getDbWorker());
+    return { success: true, data: manifests };
+  }, DbGetAllModelFileManifestsResponse);
 }
 
 // --- DB Handler Map ---
@@ -1048,13 +1027,9 @@ export async function forwardDbRequest(request: any) {
 
 export { autoEnsureDbInitialized, lastDbInitStatus };
 
-async function handleDbGetAllModelFileManifestsRequest(event: any) {
-  console.log('[DB] handleDbGetAllModelFileManifestsRequest');
-  return handleRequest(event, async () => {
-    const manifests = await ModelAsset.readAllFileManifestsForAllRepos(getDbWorker());
-    return { success: true, data: manifests };
-  }, DbGetAllModelFileManifestsResponse);
-}
+
+
+
 
 
 

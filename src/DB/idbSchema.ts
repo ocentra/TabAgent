@@ -103,6 +103,7 @@ export const schema = {
           { name: 'checksum', keyPath: 'checksum' }, // For chunk or manifest integrity
           { name: 'version', keyPath: 'version' }, // For file versioning
           { name: 'variant', keyPath: 'variant' }, // For quantization/variant info
+          { name: 'folder_type', keyPath: ['folder', 'type'] }, // Compound index for efficient manifest queries
           // Add more as needed
         ]
       }

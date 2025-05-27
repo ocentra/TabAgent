@@ -5,6 +5,7 @@ import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification } from '../DB/dbEvents';
 import { showNotification } from '../notifications';
+import { downloadModelAssets } from '../modelAssetDownloader';
 
 let queryInput: HTMLTextAreaElement | null,
     sendButton: HTMLButtonElement | null,
@@ -13,7 +14,7 @@ let queryInput: HTMLTextAreaElement | null,
     fileInput: HTMLInputElement | null,
     loadingIndicatorElement: HTMLElement | null,
     newChatButton: HTMLButtonElement | null,
-    loadModelButton: HTMLButtonElement | null,
+    downloadModelButton: HTMLButtonElement | null,
     modelLoadProgress: HTMLElement | null;
 let isInitialized = false;
 let attachFileCallback: (() => void) | null | undefined = null;
@@ -162,26 +163,7 @@ function setInputStateInternal(status: string) {
     console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
 }
 
-function showLoadingIndicatorInternal(message = '', showSpinner = true) {
-    if (!isInitialized || !loadingIndicatorElement) return;
 
-    const textElement = loadingIndicatorElement.querySelector('span');
-    if (textElement) textElement.textContent = message;
-    
-    const spinner = loadingIndicatorElement.querySelector('svg');
-    if (spinner) spinner.classList.toggle('hidden', !showSpinner);
-
-    loadingIndicatorElement.classList.remove('hidden');
-
-    if (message.startsWith('Downloading') || message.startsWith('Loading')) {
-        setLoadButtonState('loading', message); 
-    } 
-}
-
-function hideLoadingIndicatorInternal() {
-    if (!isInitialized || !loadingIndicatorElement) return;
-    loadingIndicatorElement.classList.add('hidden');
-}
 
 function handleStatusUpdate(notification: any) {
     if (!isInitialized || !notification || !notification.sessionId || !notification.payload) return;
@@ -250,9 +232,10 @@ function handleLoadingProgress(payload: any) {
     statusText.textContent = text;
 
     // Hide when done (but not on error)
-    if ((percent >= 100 || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === 'popupclosed'|| payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
-        setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
+        setDownLoadButtonState('idle', 'Download Model');   
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
     }
 }
 
@@ -283,15 +266,17 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
 
     clearTemporaryMessages();
 
-    loadModelButton = document.getElementById('load-model-button') as HTMLButtonElement | null;
-    if (loadModelButton) {
-        loadModelButton.addEventListener('click', handleLoadModelClick);
+    downloadModelButton = document.getElementById('download-model-btn') as HTMLButtonElement | null;
+    if (downloadModelButton) {
+        downloadModelButton.addEventListener('click', handleLoadModelClick);
     } else {
         console.error("[UIController] Load Model button not found!");
     }
 
-    disableInput("Model not loaded. Click 'Load'.");
-    setLoadButtonState('idle');
+
+
+    disableInput("Download or load a model from dropdown to begin.");
+    setDownLoadButtonState('idle', 'Download Model');
 
     console.log("[UIController] Initializing UI elements...");
 
@@ -364,39 +349,39 @@ function handleLoadModelClick() {
     }
 
     console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
-    setLoadButtonState('loading'); 
+    setDownLoadButtonState('loading'); 
     disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId as keyof typeof AVAILABLE_MODELS] || selectedModelId}...`); 
     document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
 }
 
-function setLoadButtonState(state: string, text = 'Load') {
-    if (!isInitialized || !loadModelButton) return;
+function setDownLoadButtonState(state: string, text = 'Load') {
+    if (!isInitialized || !downloadModelButton) return;
 
     switch (state) {
         case 'idle':
-            loadModelButton.disabled = false;
-            loadModelButton.textContent = text;
-            loadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
-            loadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
+            downloadModelButton.disabled = false;
+            downloadModelButton.textContent = text;
+            downloadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
+            downloadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
             break;
         case 'loading':
-            loadModelButton.disabled = true;
-            loadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
-            loadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
-             loadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
+            downloadModelButton.disabled = true;
+            downloadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
+            downloadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
+             downloadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
             break;
         case 'loaded':
-            loadModelButton.disabled = true;
-            loadModelButton.textContent = 'Loaded';
-            loadModelButton.classList.replace('bg-green-500', 'bg-gray-500'); 
-            loadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
+            downloadModelButton.disabled = true;
+            downloadModelButton.textContent = 'Loaded';
+            downloadModelButton.classList.replace('bg-green-500', 'bg-gray-500'); 
+            downloadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
             break;
         case 'error':
-            loadModelButton.disabled = false;
-            loadModelButton.textContent = 'Load Failed';
-            loadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
-            loadModelButton.classList.replace('bg-green-500', 'bg-red-500');
-            loadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
+            downloadModelButton.disabled = false;
+            downloadModelButton.textContent = 'Load Failed';
+            downloadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
+            downloadModelButton.classList.replace('bg-green-500', 'bg-red-500');
+            downloadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
             break;
     }
 }
@@ -422,7 +407,7 @@ document.addEventListener(UIEventNames.WORKER_READY, (e: Event) => {
     // Hide progress bar area
     const statusDiv = document.getElementById('model-load-status');
     if (statusDiv) statusDiv.style.display = 'none';
-    setLoadButtonState('loaded');
+    setDownLoadButtonState('loaded');
 });
 
 document.addEventListener(UIEventNames.WORKER_ERROR, (e: Event) => {
@@ -439,6 +424,6 @@ document.addEventListener(UIEventNames.WORKER_ERROR, (e: Event) => {
         progressInner.style.background = '#f44336';
         progressInner.style.width = '100%';
     }
-    setLoadButtonState('error');
+    setDownLoadButtonState('error');
     disableInput("Model load failed. Check logs.");
 });

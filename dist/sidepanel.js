@@ -3253,7 +3253,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   initializeONNXSelectionPopup: () => (/* binding */ initializeONNXSelectionPopup)
 /* harmony export */ });
-/* harmony import */ var _modelAssetDownloader__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../modelAssetDownloader */ "./src/modelAssetDownloader.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../modelAssetDownloader */ "./src/modelAssetDownloader.ts");
+
 
 let modalElement = null;
 let fileListElement = null;
@@ -3264,6 +3266,7 @@ let currentFileStates = {};
 let currentNonOnnxProgress = 0;
 let currentNonOnnxStatus = 'unknown';
 let activeOnnxDownloadName = null;
+let requestFileDownloadCbRef = null;
 function formatFileSize(bytes) {
     if (!bytes || bytes === 0)
         return 'N/A';
@@ -3273,10 +3276,11 @@ function formatFileSize(bytes) {
     return mb.toFixed(1) + ' MB';
 }
 function renderFileList() {
+    const requestFileDownloadCb = requestFileDownloadCbRef;
     if (!fileListElement || !modalElement)
         return;
     fileListElement.innerHTML = '';
-    const nonOnnxFilesToDisplay = currentAllFiles.filter(f => !f.fileName.endsWith('.onnx'));
+    const nonOnnxFilesToDisplay = currentAllFiles.filter(f => !f.manifest.fileName.endsWith('.onnx'));
     if (nonOnnxFilesToDisplay.length) {
         const nonOnnxRow = document.createElement('div');
         nonOnnxRow.id = 'non-onnx-row';
@@ -3305,15 +3309,19 @@ function renderFileList() {
     currentOnnxFiles.forEach(file => {
         const row = document.createElement('div');
         row.className = 'mb-2 px-3 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow flex flex-col gap-1';
-        row.id = `file-row-${file.fileName.replace(/[/.]/g, '-')}`;
-        const fileState = currentFileStates[file.fileName] || { status: 'unknown', progress: 0 };
+        row.id = `file-row-${file.manifest.fileName.replace(/[/.]/g, '-')}`;
+        const fileState = currentFileStates[file.manifest.fileName] || { status: 'unknown', progress: 0 };
+        // Debug log for ONNX files
+        if (file.manifest.fileName.endsWith('.onnx')) {
+            console.log('[ONNXSelectionPopupController] renderFileList:', file.manifest.fileName, 'fileState:', fileState);
+        }
         const infoDiv = document.createElement('div');
         infoDiv.className = 'flex justify-between items-center text-xs';
-        infoDiv.innerHTML = `<span class="font-semibold text-xs text-gray-800 dark:text-gray-100">${file.fileName.split('/').pop()}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(file.fileSize)}</span>`;
+        infoDiv.innerHTML = `<span class="font-semibold text-xs text-gray-800 dark:text-gray-100">${file.manifest.fileName.split('/').pop()}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(file.manifest.size)}</span>`;
         const loadBtn = document.createElement('button');
         loadBtn.className = 'onnx-load-btn px-2 py-0.5 text-xs font-semibold rounded shadow focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-offset-gray-800';
         let disableButton = false;
-        if (activeOnnxDownloadName && activeOnnxDownloadName !== file.fileName)
+        if (activeOnnxDownloadName && activeOnnxDownloadName !== file.manifest.fileName)
             disableButton = true;
         if (currentNonOnnxStatus === 'downloading' || currentNonOnnxStatus === 'queued')
             disableButton = true;
@@ -3326,7 +3334,7 @@ function renderFileList() {
             loadBtn.textContent = `Loading... ${fileState.progress}%`;
             loadBtn.disabled = true;
             loadBtn.className += ' bg-yellow-500 text-white cursor-wait';
-            activeOnnxDownloadName = file.fileName;
+            activeOnnxDownloadName = file.manifest.fileName;
         }
         else if (fileState.status === 'queued') {
             loadBtn.textContent = 'Queued';
@@ -3337,13 +3345,15 @@ function renderFileList() {
             loadBtn.textContent = 'Failed - Retry';
             loadBtn.disabled = disableButton;
             loadBtn.className += ` ${disableButton ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-red-500 hover:bg-red-600 text-white focus:ring-red-400'}`;
-            loadBtn.onclick = () => (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_0__.handleUserFileRequestFromPopup)(file);
+            if (requestFileDownloadCb)
+                loadBtn.onclick = () => requestFileDownloadCb(file);
         }
         else {
             loadBtn.textContent = 'Load Model';
             loadBtn.disabled = disableButton;
             loadBtn.className += ` ${disableButton ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500'}`;
-            loadBtn.onclick = () => (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_0__.handleUserFileRequestFromPopup)(file);
+            if (requestFileDownloadCb)
+                loadBtn.onclick = () => requestFileDownloadCb(file);
         }
         infoDiv.appendChild(loadBtn);
         row.appendChild(infoDiv);
@@ -3353,11 +3363,11 @@ function renderFileList() {
             const progressBar = document.createElement('div');
             let barColor = 'bg-blue-500';
             if (fileState.status === 'downloading')
-                barColor = 'bg-yellow-500';
+                barColor = 'bg-green-500';
             else if (fileState.status === 'queued')
                 barColor = 'bg-gray-400';
             progressBar.className = `h-1 ${barColor} transition-all duration-300 rounded`;
-            progressBar.id = `progress-${file.fileName.replace(/[/.]/g, '-')}`;
+            progressBar.id = `progress-${file.manifest.fileName.replace(/[/.]/g, '-')}`;
             progressBar.style.width = `${fileState.progress}%`;
             progressBarContainer.appendChild(progressBar);
             row.appendChild(progressBarContainer);
@@ -3371,7 +3381,11 @@ function updateFileState(fileName, status, progress) {
         currentFileStates[fileName] = { status: 'unknown', progress: 0 };
     currentFileStates[fileName].status = status;
     currentFileStates[fileName].progress = progress;
-    if (status === 'downloading' && currentOnnxFiles.some(f => f.fileName === fileName)) {
+    // Debug log for ONNX files
+    if (fileName.endsWith('.onnx')) {
+        console.log('[ONNXSelectionPopupController] updateFileState:', fileName, 'status:', status, 'progress:', progress);
+    }
+    if (status === 'downloading' && currentOnnxFiles.some(f => f.manifest.fileName === fileName)) {
         activeOnnxDownloadName = fileName;
     }
     else if ((status === 'downloaded' || status === 'failed' || status === 'present') && activeOnnxDownloadName === fileName) {
@@ -3419,9 +3433,10 @@ function show(onnxFilesArg, allFilesArg, initialFileStatesArg, nonOnnxInitialPro
     currentNonOnnxProgress = nonOnnxInitialProgressArg;
     currentNonOnnxStatus = nonOnnxInitialStatusArg;
     activeOnnxDownloadName = null;
-    const activeOnnx = currentOnnxFiles.find(f => currentFileStates[f.fileName]?.status === 'downloading');
+    requestFileDownloadCbRef = requestFileDownloadCb;
+    const activeOnnx = currentOnnxFiles.find(f => currentFileStates[f.manifest.fileName]?.status === 'downloading');
     if (activeOnnx) {
-        activeOnnxDownloadName = activeOnnx.fileName;
+        activeOnnxDownloadName = activeOnnx.manifest.fileName;
     }
     const modelId = allFilesArg.length > 0 ? allFilesArg[0].modelId || "Unknown Model" : "Unknown Model";
     if (modelTitleElement)
@@ -3433,6 +3448,8 @@ function show(onnxFilesArg, allFilesArg, initialFileStatesArg, nonOnnxInitialPro
 function hide() {
     modalElement?.classList.add('hidden');
     modalElement?.classList.remove('flex');
+    // Notify main UI that popup was closed, so it can reset progress/button
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: { status: 'popupclosed', done: true } }));
 }
 function initializeONNXSelectionPopup(elements) {
     modalElement = elements.modal;
@@ -3442,7 +3459,7 @@ function initializeONNXSelectionPopup(elements) {
         console.error('[ONNXSelectionPopupController] Initialization failed: missing elements');
         return null;
     }
-    (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_0__.registerPopupCallbacks)(handleDownloaderUpdate);
+    (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.registerPopupCallbacks)(handleDownloaderUpdate);
     window.showOnnxSelectionPopup = show;
     window.hideOnnxSelectionPopup = hide;
     return { show, hide };
@@ -3669,6 +3686,11 @@ const dbWorkerCallbacks = {};
 let lastDbInitStatus = null;
 let currentChat = null;
 let dbReadyResolve = null;
+// Logging flags for manifest batch fetch and general DB operations
+const LOG_GENERAL = true;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
 function resetDbReadyPromise() {
     dbReadyResolve = () => { };
 }
@@ -3712,7 +3734,8 @@ function createDbWorker() {
         if (workerCreated) {
             dbWorker.onmessage = (event) => {
                 const { requestId, type, result, error, stack } = event.data;
-                console.log('[DB] Worker onmessage (full event.data):', event.data);
+                const { type: evtType, requestId: evtReqId, error: evtError } = event.data || {};
+                console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
                 if (requestId && dbWorkerCallbacks[requestId]) {
                     const callback = dbWorkerCallbacks[requestId];
                     delete dbWorkerCallbacks[requestId];
@@ -3753,7 +3776,9 @@ function createDbWorker() {
                     // This is a normal response to a request, no warning needed.
                 }
                 else {
-                    console.warn('[DB] Worker received unknown message type:', type, event.data);
+                    // Instead of logging the full event.data object, log only key fields for clarity and memory safety
+                    const { type: unknownType, requestId: unknownReqId, error: unknownError } = event.data || {};
+                    console.warn('[DB] Worker received unknown message type:', unknownType, { requestId: unknownReqId, error: unknownError });
                 }
             };
             dbWorker.onerror = (errEvent) => {
@@ -3800,7 +3825,7 @@ function checkDbAndStoreReadiness(result) {
     }
     return { allSuccess, failures };
 }
-async function autoEnsureDbInitialized(options) {
+async function autoEnsureDbInitialized() {
     resetDbReadyPromise(); // Ensure _dbReadyResolve is always a function
     if (isDbReadyFlag && lastDbInitStatus?.success) {
         const result = { success: true, dbStatus: lastDbInitStatus, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
@@ -3870,63 +3895,6 @@ async function autoEnsureDbInitialized(options) {
                 const errorMsg = `One or more databases/stores failed to initialize: ${failures.join(', ')}.`;
                 console.error('[DB]', errorMsg, 'Details:', resultFromWorker);
                 responsePayload.error = new AppError('DB_INIT_FAILED', errorMsg, { failures, dbStatus: resultFromWorker });
-            }
-            // If preFetchedRepoMetadata is provided, pre-populate manifest records for all files in those repos
-            const allManifests = [];
-            if (options && options.preFetchedRepoMetadata && options.preFetchedRepoMetadata.length > 0) {
-                for (const { repo, metadata } of options.preFetchedRepoMetadata) {
-                    // Use manifests if present, else fallback to siblings
-                    let manifestsToAdd = [];
-                    if (metadata && Array.isArray(metadata.manifests)) {
-                        manifestsToAdd = metadata.manifests;
-                    }
-                    else if (metadata && Array.isArray(metadata.siblings)) {
-                        // Fallback: build minimal manifests from siblings
-                        manifestsToAdd = metadata.siblings.map((file) => {
-                            const chunkGroupId = `${repo}/${file.rfilename}`;
-                            return {
-                                id: `${chunkGroupId}:manifest`,
-                                type: _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.MODEL_ASSET_TYPE_MANIFEST,
-                                chunkGroupId,
-                                fileName: file.rfilename,
-                                folder: repo,
-                                fileType: file.rfilename.split('.').pop(),
-                                size: file.size || 0,
-                                status: 'missing',
-                                totalChunks: 0,
-                                chunkSizeUsed: 10 * 1024 * 1024,
-                                downloadTimestamp: Date.now(),
-                                addedAt: Date.now(),
-                            };
-                        });
-                    }
-                    for (const manifestObj of manifestsToAdd) {
-                        const manifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readManifestByChunkGroupId(manifestObj.chunkGroupId, worker);
-                        if (!manifest) {
-                            await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.createManifestByChunkGroupId(manifestObj, worker);
-                        }
-                    }
-                    const repoManifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readAllFileManifestsForRepo(repo, worker);
-                    allManifests.push(...repoManifest);
-                }
-            }
-            const allModelMeta = {};
-            if (allManifests.length > 0) {
-                for (const manifest of allManifests) {
-                    if (!manifest.folder)
-                        continue;
-                    if (!allModelMeta[manifest.folder])
-                        allModelMeta[manifest.folder] = [];
-                    allModelMeta[manifest.folder].push(manifest);
-                }
-            }
-            console.log('[DB] Gathered all model/file manifests:', allManifests);
-            console.log('[DB] allModelMeta to notify:', allModelMeta);
-            if (Object.keys(allModelMeta).length > 0) {
-                const notification = new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbWorkerCreatedNotification(allModelMeta);
-                console.log('[DB] Dispatching DbWorkerCreatedNotification:', notification);
-                document.dispatchEvent(new CustomEvent(_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbWorkerCreatedNotification.type, { detail: notification }));
-                console.log('[DB] DbWorkerCreatedNotification dispatched.');
             }
             smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification(responsePayload));
             if (!allSuccess)
@@ -4241,8 +4209,15 @@ async function handleDbCreateChunkRequest(event) {
     return handleRequest(event, async (payload) => {
         const worker = getDbWorker();
         if (payload.type === 'manifest') {
-            // Allow manifest records without data/chunkIndex
-            console.log('[DB][DEBUG] Storing manifest record:', payload);
+            // Only log summary for manifest record
+            console.log('[DB][DEBUG] Storing manifest record:', {
+                fileName: payload.fileName,
+                folder: payload.folder,
+                chunkGroupId: payload.chunkGroupId,
+                size: payload.size,
+                totalChunks: payload.totalChunks,
+                status: payload.status
+            });
             return await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.createManifest(payload, worker);
         }
         if (!payload.folder || !payload.fileName || !payload.data || typeof payload.chunkIndex !== 'number') {
@@ -4250,11 +4225,19 @@ async function handleDbCreateChunkRequest(event) {
         }
         // Only log for first and last chunk
         if (payload.chunkIndex === 0 || (typeof payload.totalChunks === 'number' && payload.chunkIndex === payload.totalChunks - 1)) {
-            console.log('[DB] Storing model asset chunk:', { fileName: payload.fileName, chunkIndex: payload.chunkIndex, totalChunks: payload.totalChunks });
+            console.log('[DB] Storing model asset chunk:', {
+                fileName: payload.fileName,
+                chunkIndex: payload.chunkIndex,
+                totalChunks: payload.totalChunks
+            });
         }
         const chunkId = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.createChunk(payload, worker);
-        // DEBUG: Log after storing chunk
-        console.log('[DEBUG][DB] Stored chunk with id:', chunkId, 'payload:', payload);
+        // DEBUG: Log after storing chunk (summary only)
+        console.log('[DEBUG][DB] Stored chunk with id:', chunkId, {
+            fileName: payload.fileName,
+            chunkIndex: payload.chunkIndex,
+            totalChunks: payload.totalChunks
+        });
         return { success: true, data: { chunkId } };
     }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddModelAssetResponse);
 }
@@ -4431,6 +4414,12 @@ async function handleDbUpdateManifestRequest(event) {
     console.log('[DB] handleDbUpdateManifestRequest', event?.payload);
     return handleRequest(event, async (payload) => {
         await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.updateManifest(payload.manifestId, payload.updates, getDbWorker());
+        // Fetch the updated manifest
+        const updatedManifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readManifest(payload.manifestId, getDbWorker());
+        // Send notification to UI if manifest exists
+        if (updatedManifest) {
+            smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbManifestUpdatedNotification(updatedManifest));
+        }
         return { success: true };
     }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbUpdateManifestResponse);
 }
@@ -4455,6 +4444,13 @@ async function handleDbDeleteChunkRequest(event) {
         await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.deleteChunk(payload.chunkId, getDbWorker());
         return { success: true };
     }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbDeleteChunkResponse);
+}
+async function handleDbGetAllModelFileManifestsRequest(event) {
+    console.log('[DB] handleDbGetAllModelFileManifestsRequest');
+    return handleRequest(event, async () => {
+        const manifests = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readAllFileManifestsForAllRepos(getDbWorker());
+        return { success: true, data: manifests };
+    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetAllModelFileManifestsResponse);
 }
 // --- DB Handler Map ---
 const dbHandlerMap = {
@@ -4645,13 +4641,6 @@ async function forwardDbRequest(request) {
     }
 }
 
-async function handleDbGetAllModelFileManifestsRequest(event) {
-    console.log('[DB] handleDbGetAllModelFileManifestsRequest');
-    return handleRequest(event, async () => {
-        const manifests = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readAllFileManifestsForAllRepos(getDbWorker());
-        return { success: true, data: manifests };
-    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetAllModelFileManifestsResponse);
-}
 
 
 /***/ }),
@@ -4687,7 +4676,8 @@ const DBActions = Object.freeze({
     MARK_AS_DELETED: 'markAsDeleted',
     APPLY_SYNCED_RECORD: 'applySyncedRecord',
     SEARCH: 'search',
-    WORKER_READY: 'ready'
+    WORKER_READY: 'ready',
+    QUERY_MANIFESTS: 'queryManifests',
     // Add more actions as needed
 });
 
@@ -4767,6 +4757,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbListModelFilesResponse: () => (/* binding */ DbListModelFilesResponse),
 /* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
 /* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
+/* harmony export */   DbManifestUpdatedNotification: () => (/* binding */ DbManifestUpdatedNotification),
 /* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
 /* harmony export */   DbReadManifestRequest: () => (/* binding */ DbReadManifestRequest),
 /* harmony export */   DbReadManifestResponse: () => (/* binding */ DbReadManifestResponse),
@@ -4886,6 +4877,7 @@ const DBEventNames = Object.freeze({
     DB_DELETE_CHUNK_RESPONSE: 'DbDeleteChunkResponse',
     DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST: 'DbGetAllModelFileManifestsRequest',
     DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE: 'DbGetAllModelFileManifestsResponse',
+    DB_MANIFEST_UPDATED_NOTIFICATION: 'DbManifestUpdatedNotification',
 });
 function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -5347,6 +5339,9 @@ class DbGetModelAssetChunkResponse extends DbResponseBase {
 DbGetModelAssetChunkResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
 // --- Model Asset Manifest Operations (NEW - Definitions) ---
 /**
+ * @typedef {import('./idbModelAsset').ModelAssetManifest} ModelAssetManifest
+ */
+/**
  * @typedef {Object} ModelAssetManifestPayloadForRequest
  * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
  * @property {string} fileName - The original name of the model asset file.
@@ -5363,7 +5358,7 @@ DbGetModelAssetChunkResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPON
  */
 class DbAddManifestRequest extends DbEventBase {
     /**
-     * @param {ModelAssetManifestPayloadForRequest} payload
+     * @param {ModelAssetManifest} payload
      */
     constructor(payload) {
         super();
@@ -5382,6 +5377,7 @@ class DbAddManifestResponse extends DbResponseBase {
     constructor(originalRequestId, success, data, error = null) {
         super(originalRequestId, success, data, error);
         this.type = DbAddManifestResponse.type;
+        this.data = data;
     }
     get manifestId() { return this.data?.manifestId; }
 }
@@ -5393,7 +5389,7 @@ DbAddManifestResponse.type = DBEventNames.DB_ADD_MANIFEST_RESPONSE;
  */
 class DbGetManifestRequest extends DbEventBase {
     /**
-     * @param {GetManifestPayload} payload
+     * @param {{ folder: string, fileName: string }} payload
      */
     constructor(payload) {
         super();
@@ -5404,18 +5400,19 @@ class DbGetManifestRequest extends DbEventBase {
 DbGetManifestRequest.type = DBEventNames.DB_GET_MANIFEST_REQUEST;
 class DbGetManifestResponse extends DbResponseBase {
     /**
-     * The manifest object (from idbHelper.ts ModelAssetManifest interface) is expected
+     * The manifest object (from idbModelAsset.ts ModelAssetManifest interface) is expected
      * to be the direct value of the `data` property in this response.
      * @param {string} originalRequestId
      * @param {boolean} success
-     * @param {?import('./idbHelper.ts').ModelAssetManifest} data - The manifest object or null.
+     * @param {ModelAssetManifest | null} data - The manifest object or null.
      * @param {string | null} error
      */
     constructor(originalRequestId, success, data, error = null) {
         super(originalRequestId, success, data, error);
         this.type = DbGetManifestResponse.type;
+        this.data = data;
     }
-    /** @returns {import('./idbHelper.ts').ModelAssetManifest | null} */
+    /** @returns {ModelAssetManifest | null} */
     get manifest() { return this.data; }
 }
 DbGetManifestResponse.type = DBEventNames.DB_GET_MANIFEST_RESPONSE;
@@ -5475,6 +5472,7 @@ class DbCreateAllFileManifestsForRepoResponse extends DbResponseBase {
     constructor(requestId, success, ids, error = null) {
         super(requestId, success, ids, error);
         this.type = DbCreateAllFileManifestsForRepoResponse.type;
+        this.data = ids;
     }
 }
 DbCreateAllFileManifestsForRepoResponse.type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
@@ -5490,6 +5488,7 @@ class DbUpdateAllFileManifestsForRepoResponse extends DbResponseBase {
     constructor(requestId, success, data = true, error = null) {
         super(requestId, success, data, error);
         this.type = DbUpdateAllFileManifestsForRepoResponse.type;
+        this.data = data;
     }
 }
 DbUpdateAllFileManifestsForRepoResponse.type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
@@ -5565,6 +5564,7 @@ class DbReadManifestResponse extends DbResponseBase {
     constructor(requestId, success, manifest, error = null) {
         super(requestId, success, manifest, error);
         this.type = DbReadManifestResponse.type;
+        this.data = manifest;
     }
 }
 DbReadManifestResponse.type = DBEventNames.DB_READ_MANIFEST_RESPONSE;
@@ -5642,6 +5642,14 @@ class DbGetAllModelFileManifestsResponse extends DbResponseBase {
     }
 }
 DbGetAllModelFileManifestsResponse.type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE;
+class DbManifestUpdatedNotification extends DbNotificationBase {
+    constructor(manifest) {
+        super(manifest.folder);
+        this.type = DbManifestUpdatedNotification.type;
+        this.payload = { manifest };
+    }
+}
+DbManifestUpdatedNotification.type = DBEventNames.DB_MANIFEST_UPDATED_NOTIFICATION;
 
 
 /***/ }),
@@ -7525,11 +7533,7 @@ class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
     // Repo-level (All manifests for a model/folder)
     // =====================
     static async readAllFileManifestsForRepo(folder, dbWorker) {
-        const query = {
-            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
-            where: { folder: folder, type: MODEL_ASSET_TYPE_MANIFEST }
-        };
-        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY_MANIFESTS, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, folder]);
         return results ? results.filter(isModelAssetManifest) : [];
     }
     static async createAllFileManifestsForRepo(manifests, dbWorker) {
@@ -7550,6 +7554,17 @@ class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         for (const manifest of manifests) {
             await ModelAsset.deleteManifest(manifest.id, dbWorker);
         }
+    }
+    // =====================
+    // All manifests for all repos
+    // =====================
+    static async readAllFileManifestsForAllRepos(dbWorker) {
+        const query = {
+            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
+            where: { type: MODEL_ASSET_TYPE_MANIFEST }
+        };
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
+        return results ? results.filter(isModelAssetManifest) : [];
     }
     // =====================
     // File-level (Single manifest by chunkGroupId)
@@ -7739,14 +7754,6 @@ class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
             return new ModelAsset(chunk, dbWorker);
         return undefined;
     }
-    static async readAllFileManifestsForAllRepos(dbWorker) {
-        const query = {
-            from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS,
-            where: { type: MODEL_ASSET_TYPE_MANIFEST }
-        };
-        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
-        return results ? results.filter(isModelAssetManifest) : [];
-    }
 }
 
 
@@ -7867,6 +7874,7 @@ const schema = {
                     { name: 'checksum', keyPath: 'checksum' }, // For chunk or manifest integrity
                     { name: 'version', keyPath: 'version' }, // For file versioning
                     { name: 'variant', keyPath: 'variant' }, // For quantization/variant info
+                    { name: 'folder_type', keyPath: ['folder', 'type'] }, // Compound index for efficient manifest queries
                     // Add more as needed
                 ]
             }
@@ -9120,7 +9128,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-let queryInput, sendButton, chatBody, attachButton, fileInput, loadingIndicatorElement, newChatButton, loadModelButton, modelLoadProgress;
+let queryInput, sendButton, chatBody, attachButton, fileInput, loadingIndicatorElement, newChatButton, downloadModelButton, modelLoadProgress;
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
@@ -9255,25 +9263,6 @@ function setInputStateInternal(status) {
     }
     console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
 }
-function showLoadingIndicatorInternal(message = '', showSpinner = true) {
-    if (!isInitialized || !loadingIndicatorElement)
-        return;
-    const textElement = loadingIndicatorElement.querySelector('span');
-    if (textElement)
-        textElement.textContent = message;
-    const spinner = loadingIndicatorElement.querySelector('svg');
-    if (spinner)
-        spinner.classList.toggle('hidden', !showSpinner);
-    loadingIndicatorElement.classList.remove('hidden');
-    if (message.startsWith('Downloading') || message.startsWith('Loading')) {
-        setLoadButtonState('loading', message);
-    }
-}
-function hideLoadingIndicatorInternal() {
-    if (!isInitialized || !loadingIndicatorElement)
-        return;
-    loadingIndicatorElement.classList.add('hidden');
-}
 function handleStatusUpdate(notification) {
     if (!isInitialized || !notification || !notification.sessionId || !notification.payload)
         return;
@@ -9340,9 +9329,10 @@ function handleLoadingProgress(payload) {
     }
     statusText.textContent = text;
     // Hide when done (but not on error)
-    if ((percent >= 100 || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === 'popupclosed' || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
-        setTimeout(() => { statusDiv.style.display = 'none'; }, 1000);
+        setDownLoadButtonState('idle', 'Download Model');
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
     }
 }
 async function initializeUI(callbacks) {
@@ -9366,15 +9356,15 @@ async function initializeUI(callbacks) {
     console.log("[UIController] Initialized successfully.");
     console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
-    loadModelButton = document.getElementById('load-model-button');
-    if (loadModelButton) {
-        loadModelButton.addEventListener('click', handleLoadModelClick);
+    downloadModelButton = document.getElementById('download-model-btn');
+    if (downloadModelButton) {
+        downloadModelButton.addEventListener('click', handleLoadModelClick);
     }
     else {
         console.error("[UIController] Load Model button not found!");
     }
-    disableInput("Model not loaded. Click 'Load'.");
-    setLoadButtonState('idle');
+    disableInput("Download or load a model from dropdown to begin.");
+    setDownLoadButtonState('idle', 'Download Model');
     console.log("[UIController] Initializing UI elements...");
     // Populate model selector
     console.log("[UIController] Attempting to find model selector...");
@@ -9435,38 +9425,38 @@ function handleLoadModelClick() {
         return;
     }
     console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
-    setLoadButtonState('loading');
+    setDownLoadButtonState('loading');
     disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`);
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
 }
-function setLoadButtonState(state, text = 'Load') {
-    if (!isInitialized || !loadModelButton)
+function setDownLoadButtonState(state, text = 'Load') {
+    if (!isInitialized || !downloadModelButton)
         return;
     switch (state) {
         case 'idle':
-            loadModelButton.disabled = false;
-            loadModelButton.textContent = text;
-            loadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
-            loadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
+            downloadModelButton.disabled = false;
+            downloadModelButton.textContent = text;
+            downloadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
+            downloadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
             break;
         case 'loading':
-            loadModelButton.disabled = true;
-            loadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
-            loadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
-            loadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
+            downloadModelButton.disabled = true;
+            downloadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
+            downloadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
+            downloadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
             break;
         case 'loaded':
-            loadModelButton.disabled = true;
-            loadModelButton.textContent = 'Loaded';
-            loadModelButton.classList.replace('bg-green-500', 'bg-gray-500');
-            loadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
+            downloadModelButton.disabled = true;
+            downloadModelButton.textContent = 'Loaded';
+            downloadModelButton.classList.replace('bg-green-500', 'bg-gray-500');
+            downloadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
             break;
         case 'error':
-            loadModelButton.disabled = false;
-            loadModelButton.textContent = 'Load Failed';
-            loadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
-            loadModelButton.classList.replace('bg-green-500', 'bg-red-500');
-            loadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
+            downloadModelButton.disabled = false;
+            downloadModelButton.textContent = 'Load Failed';
+            downloadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
+            downloadModelButton.classList.replace('bg-green-500', 'bg-red-500');
+            downloadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
             break;
     }
 }
@@ -9492,7 +9482,7 @@ document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEven
     const statusDiv = document.getElementById('model-load-status');
     if (statusDiv)
         statusDiv.style.display = 'none';
-    setLoadButtonState('loaded');
+    setDownLoadButtonState('loaded');
 });
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_ERROR, (e) => {
     const customEvent = e;
@@ -9508,7 +9498,7 @@ document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEven
         progressInner.style.background = '#f44336';
         progressInner.style.width = '100%';
     }
-    setLoadButtonState('error');
+    setDownLoadButtonState('error');
     disableInput("Model load failed. Check logs.");
 });
 
@@ -10072,282 +10062,30 @@ __webpack_require__.r(__webpack_exports__);
 
 // @ts-ignore: If using JS/TS without types for spark-md5
 
-
+// Constants
 const prefix = '[Downloader]';
-const CHUNK_SIZE = 10 * 1024 * 1024;
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_RETRIES = 3;
 const PROGRESS_THROTTLE_MS = 1000;
-const PROGRESS_THROTTLE_CHUNKS = 50;
 const CHUNK_PROCESSED_FOR_PAUSE = 10;
-const PAUSE_DURATION_MS = 250;
+const PAUSE_BYTES_THRESHOLD = 100 * 1024 * 1024; // 100MB
+const LARGE_FILE_THRESHOLD = 500 * 1024 * 1024; // 500MB
+const PAUSE_DURATION_MS = 200; // 200ms for normal files
+const LARGE_FILE_PAUSE_DURATION_MS = 1000; // 1000ms for files >500MB
 const LOG_GENERAL = true;
 const LOG_CHUNK = LOG_GENERAL && true;
 const LOG_MEMORY = LOG_GENERAL && false;
 const LOG_ERROR = true;
 const USE_MD5_CHECKSUM = false;
-let currentModelIdInternal = null;
-let allKnownFilePlansInternal = [];
-let fileStatesInternal = {};
-let nonOnnxTotalSizeInternal = 0;
-let nonOnnxDownloadedSizeInternal = 0;
-let downloadQueueInternal = [];
-let activeDownloadFileNameInternal = null;
-let isDownloaderBusyInternal = false;
-let baseDownloadUrlInternal = '';
-let hfModelMetadataInternal = null;
-let successfullyProcessedCountOverall = 0;
-let onnxSelectionPopupCtrlCallback = null;
-function logMemory(label) {
-    if (!LOG_MEMORY)
-        return;
-    if (typeof performance !== 'undefined' && performance.memory) {
-        const usedMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
-        const totalMB = (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
-        console.log(`${prefix} [Memory][${label}] Used: ${usedMB} MB / Total: ${totalMB} MB`);
-    }
-    else {
-        console.log(`${prefix} [Memory][${label}] performance.memory not available`);
+// Custom error class
+class DownloadError extends Error {
+    constructor(message, context) {
+        super(message);
+        this.context = context;
+        this.name = 'DownloadError';
     }
 }
-function shouldLogOrSendChunkProgress(chunkIndex, totalChunks, lastSent, now) {
-    return chunkIndex === 0 ||
-        (totalChunks && chunkIndex === totalChunks - 1) ||
-        chunkIndex % PROGRESS_THROTTLE_CHUNKS === 0 ||
-        (now - lastSent >= PROGRESS_THROTTLE_MS);
-}
-async function tryStoreChunkInternal(payload, maxRetries = MAX_RETRIES) {
-    let attempt = 0;
-    while (attempt < maxRetries) {
-        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddModelAssetRequest(payload);
-        const addResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
-        if (addResult && addResult.success)
-            return true;
-        attempt++;
-        if (LOG_CHUNK)
-            console.log(`${prefix} Retrying chunk store, attempt ${attempt} for ${payload.fileName} chunk ${payload.chunkIndex}`);
-        await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
-    }
-    if (LOG_ERROR)
-        console.error(`${prefix} Failed to store chunk after ${maxRetries} retries:`, payload.fileName, payload.chunkIndex);
-    return false;
-}
-async function countModelAssetChunksViaMessage(folder, fileName, expectedSize, expectedChunks) {
-    const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCountModelAssetChunksRequest({ folder, fileName, expectedSize, expectedChunks });
-    const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
-    if (result && result.success && typeof result.data !== 'undefined') {
-        return result.data;
-    }
-    return result;
-}
-function buildDownloadPlanInternal(neededFileEntries) {
-    const downloadPlan = neededFileEntries.map((entry, idx) => ({
-        fileName: entry.rfilename,
-        fileSize: entry.size,
-        totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
-        fileIdx: idx + 1,
-        fileType: entry.rfilename.split('.').pop(),
-        isONNX: entry.rfilename.endsWith('.onnx'),
-    }));
-    const totalBytesToDownload = downloadPlan.reduce((sum, f) => sum + f.fileSize, 0);
-    const totalChunksToDownload = downloadPlan.reduce((sum, f) => sum + f.totalChunks, 0);
-    return { downloadPlan, totalBytesToDownload, totalChunksToDownload };
-}
-async function getMissingFilesAndInitialStates(downloadPlan, modelId) {
-    const initialStates = {};
-    const missingNonOnnxFiles = [];
-    let nonOnnxTotalBytes = 0;
-    let nonOnnxPresentBytes = 0;
-    for (const plan of downloadPlan) {
-        initialStates[plan.fileName] = { status: 'unknown', progress: 0 };
-        const manifestReq = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbGetManifestRequest({ folder: modelId, fileName: plan.fileName, type: 'manifest' });
-        let manifest = null;
-        try {
-            const manifestResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(manifestReq);
-            manifest = manifestResult && manifestResult.success ? manifestResult.data : null;
-        }
-        catch (e) {
-            console.warn(prefix, `Error checking manifest for ${plan.fileName}:`, e);
-        }
-        let isPresent = false;
-        if (manifest && manifest.status === 'complete') {
-            isPresent = true;
-        }
-        else {
-            const countResult = await countModelAssetChunksViaMessage(modelId, plan.fileName, plan.fileSize, plan.totalChunks);
-            if (countResult && countResult.success && countResult.verified && countResult.count === plan.totalChunks) {
-                isPresent = true;
-            }
-        }
-        if (isPresent) {
-            initialStates[plan.fileName] = { status: 'present', progress: 100 };
-            if (!plan.isONNX) {
-                nonOnnxPresentBytes += plan.fileSize;
-            }
-        }
-        else {
-            if (!plan.isONNX) {
-                missingNonOnnxFiles.push(plan);
-            }
-        }
-        if (!plan.isONNX) {
-            nonOnnxTotalBytes += plan.fileSize;
-        }
-    }
-    return { initialStates, missingNonOnnx: missingNonOnnxFiles, nonOnnxTotal: nonOnnxTotalBytes, nonOnnxPresent: nonOnnxPresentBytes };
-}
-function formatBytes(bytes) {
-    if (bytes === 0)
-        return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-function checksumChunkMD5(arrayBuffer) {
-    return spark_md5__WEBPACK_IMPORTED_MODULE_5___default().ArrayBuffer.hash(arrayBuffer);
-}
-async function streamAndStoreFileWithProgress(plan, modelId, baseDownloadUrlForFile, onProgressCallback, badChunksList) {
-    const { fileName, fileSize, totalChunks, fileType } = plan;
-    const downloadUrl = baseDownloadUrlForFile;
-    let fileBytesDownloaded = 0;
-    let fileChunksDownloaded = 0;
-    let fileFailed = false;
-    let lastProgressLogTime = Date.now();
-    let chunkIndex = 0;
-    let allChunksSuccess = true;
-    const chunkGroupId = `${modelId}/${fileName}`;
-    let badChunkFound = false;
-    try {
-        if (fileSize > 10 * 1024 * 1024)
-            logMemory(`Before file ${fileName}`);
-        const downloadResponse = await fetch(downloadUrl);
-        if (!downloadResponse.ok) {
-            const errorText = await downloadResponse.text();
-            if (LOG_ERROR)
-                console.error(prefix, `Failed to download ${modelId}/${fileName}: ${downloadResponse.status} ${downloadResponse.statusText}`, errorText);
-            return { fileFailed: true, fileName, fileBytesDownloaded, fileChunksDownloaded, badChunkFound };
-        }
-        if (!downloadResponse.body)
-            throw new Error('Download response body is null');
-        const reader = downloadResponse.body.getReader();
-        let buffer = new Uint8Array(CHUNK_SIZE);
-        let bufferOffset = 0;
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done)
-                break;
-            if (!(value instanceof Uint8Array)) {
-                if (LOG_ERROR)
-                    console.error(prefix, `Invalid chunk data for ${fileName}, chunk ${chunkIndex}:`, typeof value);
-                fileFailed = true;
-                badChunkFound = true;
-                if (badChunksList)
-                    badChunksList.push({ fileName, chunkIndex, reason: 'Invalid chunk data type', payload: value });
-                reader.cancel('Invalid chunk data');
-                break;
-            }
-            let valueOffset = 0;
-            while (valueOffset < value.length) {
-                const remainingBuffer = CHUNK_SIZE - bufferOffset;
-                const copyLength = Math.min(remainingBuffer, value.length - valueOffset);
-                buffer.set(value.subarray(valueOffset, valueOffset + copyLength), bufferOffset);
-                bufferOffset += copyLength;
-                valueOffset += copyLength;
-                if (bufferOffset === CHUNK_SIZE) {
-                    let chunkToStore = buffer;
-                    buffer = new Uint8Array(CHUNK_SIZE);
-                    bufferOffset = 0;
-                    if (!fileName || typeof chunkIndex !== 'number' || !chunkToStore || chunkToStore.byteLength === 0) {
-                        const reason = !fileName ? 'Missing fileName' : typeof chunkIndex !== 'number' ? 'Invalid chunkIndex' : !chunkToStore ? 'Missing chunkToStore' : 'Empty chunk';
-                        if (LOG_ERROR)
-                            console.error(prefix, '[BAD CHUNK]', { fileName, chunkIndex, reason, chunkLength: chunkToStore?.byteLength });
-                        if (badChunksList)
-                            badChunksList.push({ fileName, chunkIndex, reason, chunkLength: chunkToStore?.byteLength, payload: { fileName, chunkIndex, chunkToStore } });
-                        badChunkFound = true;
-                        fileFailed = true;
-                        reader.cancel('Bad chunk detected');
-                        break;
-                    }
-                    const chunkArrayBuffer = chunkToStore.buffer;
-                    const dbPayload = { folder: modelId, modelId, fileName, fileType, data: chunkArrayBuffer, chunkIndex, totalChunks, chunkGroupId, binarySize: chunkToStore.byteLength, totalFileSize: fileSize, checksum: USE_MD5_CHECKSUM ? checksumChunkMD5(chunkArrayBuffer) : 'na' };
-                    const success = await tryStoreChunkInternal(dbPayload);
-                    if (!success) {
-                        allChunksSuccess = false;
-                        fileFailed = true;
-                        if (badChunksList)
-                            badChunksList.push({ fileName, chunkIndex, reason: 'Failed to store chunk after retries', chunkLength: chunkToStore.byteLength, payload: dbPayload });
-                        badChunkFound = true;
-                        reader.cancel('Chunk storage failed');
-                        break;
-                    }
-                    const bytesInThisChunk = chunkToStore.byteLength;
-                    fileBytesDownloaded += bytesInThisChunk;
-                    onProgressCallback(bytesInThisChunk, fileBytesDownloaded);
-                    globalProgressManager.incrementTotalDownloaded(bytesInThisChunk);
-                    chunkIndex++;
-                    fileChunksDownloaded++;
-                    if (chunkIndex % CHUNK_PROCESSED_FOR_PAUSE === 0)
-                        await new Promise(res => setTimeout(res, PAUSE_DURATION_MS));
-                }
-            }
-            if (fileFailed || badChunkFound)
-                break;
-        }
-        if (allChunksSuccess && !fileFailed && bufferOffset > 0) {
-            let finalChunkToStore = buffer.subarray(0, bufferOffset);
-            if (!fileName || typeof chunkIndex !== 'number' || !finalChunkToStore || finalChunkToStore.byteLength === 0) {
-                const reason = !fileName ? 'Missing fileName' : typeof chunkIndex !== 'number' ? 'Invalid chunkIndex' : !finalChunkToStore ? 'Missing finalChunkToStore' : 'Empty final chunk';
-                if (LOG_ERROR)
-                    console.error(prefix, '[BAD CHUNK] final', { fileName, chunkIndex, reason, chunkLength: finalChunkToStore?.byteLength });
-                if (badChunksList)
-                    badChunksList.push({ fileName, chunkIndex, reason, chunkLength: finalChunkToStore?.byteLength, payload: { fileName, chunkIndex, finalChunkToStore } });
-                badChunkFound = true;
-                fileFailed = true;
-            }
-            else {
-                const finalChunkArrayBuffer = finalChunkToStore.buffer.slice(finalChunkToStore.byteOffset, finalChunkToStore.byteOffset + finalChunkToStore.byteLength);
-                const dbPayload = { folder: modelId, modelId, fileName, fileType, data: finalChunkArrayBuffer, chunkIndex, totalChunks, chunkGroupId, binarySize: finalChunkToStore.byteLength, totalFileSize: fileSize, checksum: USE_MD5_CHECKSUM ? checksumChunkMD5(finalChunkArrayBuffer) : 'na' };
-                const success = await tryStoreChunkInternal(dbPayload);
-                if (!success) {
-                    allChunksSuccess = false;
-                    fileFailed = true;
-                    if (badChunksList)
-                        badChunksList.push({ fileName, chunkIndex, reason: 'Failed to store final chunk', chunkLength: finalChunkToStore.byteLength, payload: dbPayload });
-                    badChunkFound = true;
-                }
-                else {
-                    const bytesInThisChunk = finalChunkToStore.byteLength;
-                    fileBytesDownloaded += bytesInThisChunk;
-                    onProgressCallback(bytesInThisChunk, fileBytesDownloaded);
-                    globalProgressManager.incrementTotalDownloaded(bytesInThisChunk);
-                    fileChunksDownloaded++;
-                }
-            }
-        }
-        if (fileSize > 100 * 1024 * 1024)
-            await new Promise(res => setTimeout(res, 1000));
-        if (fileSize > 10 * 1024 * 1024)
-            logMemory(`After file ${fileName}`);
-    }
-    catch (error) {
-        fileFailed = true;
-        if (LOG_ERROR)
-            console.error(prefix, `Error streaming/storing ${modelId}/${fileName}:`, error);
-    }
-    return { fileFailed: fileFailed || badChunkFound || !allChunksSuccess, fileName, fileBytesDownloaded, fileChunksDownloaded, badChunkFound };
-}
-function sendUiGlobalProgress(payload) {
-    if (typeof window !== 'undefined' && window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.Contexts.MAIN_UI) {
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: payload }));
-        return Promise.resolve();
-    }
-    else {
-        return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
-            payload
-        }).catch((e) => console.warn(`${prefix} Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`));
-    }
-}
+// ProgressManager class
 class ProgressManager {
     constructor() {
         this.lastSentPercent = 0;
@@ -10356,20 +10094,27 @@ class ProgressManager {
     }
     createInitialState() {
         return {
-            totalFiles: 0, totalBytes: 0, currentFileIndex: 0, currentFile: '',
-            currentFileSize: 0, currentFileDownloaded: 0, totalDownloaded: 0,
-            done: false, error: null, progress: 0,
-            filesSuccessfullyProcessedCount: 0, totalFilesToAttempt: 0,
+            totalFiles: 0,
+            totalBytes: 0,
+            currentFileIndex: 0,
+            currentFile: '',
+            currentFileSize: 0,
+            currentFileDownloaded: 0,
+            totalDownloaded: 0,
+            done: false,
+            error: null,
+            filesSuccessfullyProcessedCount: 0,
+            totalFilesToAttempt: 0,
         };
     }
     reset() {
         this.progress = this.createInitialState();
         this.lastSentPercent = 0;
         this.lastSentTime = 0;
+        if (LOG_GENERAL)
+            console.log(prefix, 'ProgressManager reset');
     }
     incrementTotalDownloaded(bytes) {
-        if (this.progress.totalDownloaded === undefined)
-            this.progress.totalDownloaded = 0;
         this.progress.totalDownloaded += bytes;
     }
     updateProgress(update) {
@@ -10395,325 +10140,691 @@ class ProgressManager {
             sendUiGlobalProgress(this.progress);
             this.lastSentPercent = percent;
             this.lastSentTime = now;
+            if (LOG_GENERAL)
+                console.log(prefix, `Progress update sent: ${message}`);
         }
     }
-    getProgress() { return { ...this.progress }; }
-}
-const globalProgressManager = new ProgressManager();
-function sendUpdateToPopup(update) {
-    if (typeof onnxSelectionPopupCtrlCallback === 'function') {
-        onnxSelectionPopupCtrlCallback(update);
+    getProgress() {
+        return { ...this.progress };
     }
 }
-// Helper to build the full download URL for a file
-function buildFullDownloadUrl(modelId, fileName) {
-    // If fileName is already a full URL, return as is
-    if (/^https?:\/\//.test(fileName))
-        return fileName;
-    // Remove any accidental double slashes
-    return `https://huggingface.co/${modelId}/resolve/main/${fileName}`.replace(/([^:])\/\/+/, '$1/');
-}
-async function processDownloadQueue() {
-    if (isDownloaderBusyInternal || downloadQueueInternal.length === 0) {
-        if (!isDownloaderBusyInternal && downloadQueueInternal.length === 0 && currentModelIdInternal) {
-            const allDone = allKnownFilePlansInternal.every(p => fileStatesInternal[p.fileName]?.status === 'downloaded' || fileStatesInternal[p.fileName]?.status === 'present');
-            const anyFailed = allKnownFilePlansInternal.some(p => fileStatesInternal[p.fileName]?.status === 'failed');
-            if (allKnownFilePlansInternal.length > 0 && (allDone || anyFailed)) { // Check if there were files to process
-                const finalMessage = allDone ? `All files for ${currentModelIdInternal} processed successfully.` : `Some files for ${currentModelIdInternal} failed to download.`;
-                if (LOG_GENERAL)
-                    console.log(prefix, "Download queue empty and downloader not busy.", finalMessage);
-                sendUpdateToPopup({ type: 'all_downloads_complete', success: allDone && !anyFailed, finalMessage });
-                globalProgressManager.updateProgress({
-                    done: true,
-                    success: allDone && !anyFailed,
-                    filesSuccessfullyProcessedCount: successfullyProcessedCountOverall,
-                    totalFilesToAttempt: allKnownFilePlansInternal.length,
-                    error: anyFailed ? "Some files failed" : null
-                });
-            }
-        }
-        return;
+// DownloadManager class
+class DownloadManager {
+    constructor(modelId, manifestsFromUI = null) {
+        this.filePlans = [];
+        this.fileStates = {};
+        this.downloadQueue = [];
+        this.activeDownloadFileName = null;
+        this.isDownloaderBusy = false;
+        this.nonOnnxTotalSize = 0;
+        this.nonOnnxDownloadedSize = 0;
+        this.successfullyProcessedCount = 0;
+        this.metadata = null;
+        this.manifests = [];
+        this.modelId = modelId;
+        this.baseDownloadUrl = `https://huggingface.co/${modelId}/resolve/main/`;
+        this.progressManager = new ProgressManager();
+        this.manifests = manifestsFromUI || [];
+        if (LOG_GENERAL)
+            console.log(prefix, `DownloadManager initialized for modelId: ${modelId}`);
     }
-    isDownloaderBusyInternal = true;
-    const filePlan = downloadQueueInternal.shift();
-    console.log('[Downloader][Download] Downloading from:', filePlan.fullDownloadUrl);
-    activeDownloadFileNameInternal = filePlan.fileName;
-    fileStatesInternal[filePlan.fileName] = { status: 'downloading', progress: 0 };
-    sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'downloading', progress: 0 });
-    if (!filePlan.isONNX) {
-        sendUpdateToPopup({ type: 'non_onnx_update', status: 'downloading', progress: Math.floor((nonOnnxDownloadedSizeInternal / nonOnnxTotalSizeInternal) * 100) });
+    async downloadModelAssets(selectedOnnxFile = null) {
+        if (LOG_GENERAL)
+            console.log(prefix, `Starting download for modelId: ${this.modelId}, selectedOnnxFile: ${selectedOnnxFile}`);
+        this.reset();
+        return this.fetchAndProcessManifests(selectedOnnxFile);
     }
-    globalProgressManager.updateProgress({
-        currentFile: filePlan.fileName,
-        currentFileSize: filePlan.fileSize,
-        currentFileDownloaded: 0,
-        totalFilesToAttempt: allKnownFilePlansInternal.length
-    });
-    const badChunks = [];
-    const result = await streamAndStoreFileWithProgress(filePlan, currentModelIdInternal, filePlan.fullDownloadUrl, (bytesDownloadedInChunk, currentFileTotalBytesDownloaded) => {
-        const fileProgressPercent = filePlan.fileSize > 0 ? Math.floor((currentFileTotalBytesDownloaded / filePlan.fileSize) * 100) : 100;
-        fileStatesInternal[filePlan.fileName].progress = fileProgressPercent;
-        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'downloading', progress: fileProgressPercent });
-        globalProgressManager.updateProgress({ currentFileDownloaded: currentFileTotalBytesDownloaded });
-        if (!filePlan.isONNX) {
-            nonOnnxDownloadedSizeInternal += bytesDownloadedInChunk;
-            const nonOnnxProgressPercent = nonOnnxTotalSizeInternal > 0 ? Math.floor((nonOnnxDownloadedSizeInternal / nonOnnxTotalSizeInternal) * 100) : 100;
-            sendUpdateToPopup({ type: 'non_onnx_update', status: 'downloading', progress: nonOnnxProgressPercent });
-        }
-    }, badChunks);
-    if (result.fileFailed || result.badChunkFound) {
-        fileStatesInternal[filePlan.fileName] = { status: 'failed', progress: fileStatesInternal[filePlan.fileName].progress };
-        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'failed', progress: fileStatesInternal[filePlan.fileName].progress });
-        if (LOG_ERROR)
-            console.error(prefix, `Failed to download ${filePlan.fileName}. Bad chunks:`, badChunks);
-        globalProgressManager.updateProgress({ error: `Failed ${filePlan.fileName}` });
+    reset() {
+        this.filePlans = [];
+        this.fileStates = {};
+        this.downloadQueue = [];
+        this.activeDownloadFileName = null;
+        this.isDownloaderBusy = false;
+        this.nonOnnxTotalSize = 0;
+        this.nonOnnxDownloadedSize = 0;
+        this.successfullyProcessedCount = 0;
+        this.metadata = null;
+        this.progressManager.reset();
+        this.manifests = [];
+        if (LOG_GENERAL)
+            console.log(prefix, `Reset state for modelId: ${this.modelId}`);
     }
-    else {
-        fileStatesInternal[filePlan.fileName] = { status: 'downloaded', progress: 100 };
-        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'downloaded', progress: 100 });
-        successfullyProcessedCountOverall++;
-        globalProgressManager.updateProgress({ filesSuccessfullyProcessedCount: successfullyProcessedCountOverall });
-        if (!filePlan.isONNX) {
-            const nonOnnxProgressPercent = nonOnnxTotalSizeInternal > 0 ? Math.floor((nonOnnxDownloadedSizeInternal / nonOnnxTotalSizeInternal) * 100) : 100;
-            sendUpdateToPopup({ type: 'non_onnx_update', status: nonOnnxProgressPercent === 100 ? 'downloaded' : 'downloading', progress: nonOnnxProgressPercent });
-            const allNonOnnxProcessed = allKnownFilePlansInternal
-                .filter(p => !p.isONNX)
-                .every(p => fileStatesInternal[p.fileName]?.status === 'downloaded' || fileStatesInternal[p.fileName]?.status === 'present');
-            if (allNonOnnxProcessed) {
-                sendUpdateToPopup({ type: 'all_non_onnx_complete' });
-                if (LOG_GENERAL)
-                    console.log(prefix, "All non-ONNX files processed.");
-            }
-        }
-    }
-    activeDownloadFileNameInternal = null;
-    isDownloaderBusyInternal = false;
-    processDownloadQueue();
-}
-function registerPopupCallbacks(callback) {
-    onnxSelectionPopupCtrlCallback = callback;
-}
-// Helper to notify UI of updated model meta
-async function notifyModelMetaUpdate(modelId) {
-    const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbListModelFilesRequest({ folder: modelId });
-    const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
-    document.dispatchEvent(new CustomEvent(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbWorkerCreatedNotification.type, { detail: { payload: { [modelId]: result.data } } }));
-}
-async function downloadModelAssets(modelId, selectedOnnxFile = null) {
-    if (LOG_GENERAL)
-        console.log(prefix, `Request to downloadModelAssets for modelId: ${modelId}, selectedOnnxFile: ${selectedOnnxFile}`);
-    // Always clear queue and reset state when starting a new download
-    currentModelIdInternal = modelId;
-    baseDownloadUrlInternal = `https://huggingface.co/${modelId}/resolve/main/`;
-    allKnownFilePlansInternal = [];
-    fileStatesInternal = {};
-    downloadQueueInternal = [];
-    activeDownloadFileNameInternal = null;
-    isDownloaderBusyInternal = false;
-    nonOnnxTotalSizeInternal = 0;
-    nonOnnxDownloadedSizeInternal = 0;
-    successfullyProcessedCountOverall = 0;
-    hfModelMetadataInternal = null;
-    globalProgressManager.reset();
-    // 1. Try to read all manifests for this repo from DB
-    let req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbListModelFilesRequest({ folder: modelId, returnObjects: true });
-    let manifestResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
-    let manifests = manifestResult && manifestResult.success ? manifestResult.data : [];
-    if (LOG_GENERAL)
-        console.log(prefix, 'Fetched manifests from DB:', manifests);
-    // 3. Separate ONNX and non-ONNX files
-    const onnxFiles = manifests.filter((m) => m.fileType === 'onnx');
-    const nonOnnxFiles = manifests.filter((m) => m.fileType !== 'onnx');
-    // 4. Queue non-ONNX files that are not present/complete
-    const nonOnnxToDownload = nonOnnxFiles.filter((f) => f.status !== 'present' && f.status !== 'complete');
-    nonOnnxToDownload.forEach(file => {
-        const fullDownloadUrl = buildFullDownloadUrl(modelId, file.fileName);
-        console.log('[Downloader][Queue] Queuing file:', file.fileName, 'Full URL:', fullDownloadUrl);
-        downloadQueueInternal.push({ ...file, fullDownloadUrl });
-        fileStatesInternal[file.fileName] = { status: 'queued', progress: 0 };
-    });
-    // Start non-ONNX downloads right away
-    processDownloadQueue();
-    // 5. ONNX logic
-    if (onnxFiles.length === 1) {
-        if (onnxFiles[0].status !== 'present' && onnxFiles[0].status !== 'complete') {
-            downloadQueueInternal.push(onnxFiles[0]);
-            fileStatesInternal[onnxFiles[0].fileName] = { status: 'queued', progress: 0 };
-            // No need to call processDownloadQueue() again, it's already running
-        }
-    }
-    else if (onnxFiles.length > 1) {
-        if (!selectedOnnxFile || selectedOnnxFile === 'all') {
-            // Send initial progress event to show the bar
-            globalProgressManager.updateProgress({
-                progress: 0,
-                done: false,
-                message: "Waiting for user to select a file...",
-                totalFiles: allKnownFilePlansInternal.length,
-                totalBytes: 0,
-                currentFile: '',
-                currentFileDownloaded: 0,
-                totalDownloaded: 0,
-                filesSuccessfullyProcessedCount: 0,
-                totalFilesToAttempt: allKnownFilePlansInternal.length,
-            });
-            // Show popup for user to select ONNX file
-            const onnxFilesForPopup = onnxFiles.map((m) => ({ ...m, fileSize: m.size }));
-            if (window.showOnnxSelectionPopup) {
-                window.showOnnxSelectionPopup(onnxFilesForPopup, allKnownFilePlansInternal, fileStatesInternal, 0, // nonOnnxProgress (could be improved)
-                'unknown', // nonOnnxStatus (could be improved)
-                handleUserFileRequestFromPopup);
-            }
-            // Progress will be shown in both popup and sidebar as files are downloaded
-            return { success: true, message: "Multiple ONNX files, popup shown for user selection." };
+    async fetchAndProcessManifests(selectedOnnxFile) {
+        if (LOG_GENERAL)
+            console.log(prefix, `Fetching manifests for modelId: ${this.modelId}`);
+        let req;
+        let manifestResult;
+        if (this.manifests.length > 0) {
+            if (LOG_GENERAL)
+                console.log(prefix, 'Using manifests provided from UI:', this.manifests);
         }
         else {
-            // User selected a specific ONNX
-            const selectedOnnx = onnxFiles.find((f) => f.fileName === selectedOnnxFile);
-            if (selectedOnnx && selectedOnnx.status !== 'present' && selectedOnnx.status !== 'complete') {
-                downloadQueueInternal.push(selectedOnnx);
-                fileStatesInternal[selectedOnnx.fileName] = { status: 'queued', progress: 0 };
-                // No need to call processDownloadQueue() again, it's already running
+            req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbListModelFilesRequest({ folder: this.modelId, returnObjects: true });
+            manifestResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+            this.manifests = manifestResult && manifestResult.success ? manifestResult.data : [];
+            if (LOG_GENERAL)
+                console.log(prefix, 'Read back manifests from DB:', this.manifests);
+        }
+        if (this.manifests.length === 0) {
+            if (LOG_GENERAL)
+                console.log(prefix, `No manifests found in DB, fetching metadata from remote for modelId: ${this.modelId}`);
+            try {
+                this.metadata = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_4__.fetchModelMetadataInternal)(this.modelId);
+                if (!this.metadata) {
+                    if (LOG_ERROR)
+                        console.log(prefix, `Failed to fetch metadata for modelId: ${this.modelId}`);
+                    throw new DownloadError("Failed to fetch metadata");
+                }
+                if (LOG_GENERAL)
+                    console.log(prefix, `Fetched metadata for modelId: ${this.modelId}`, this.metadata);
+                const { neededFileEntries, message: filterMessage } = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_4__.filterAndValidateFilesInternal)(this.metadata, this.modelId, this.baseDownloadUrl);
+                if (filterMessage || neededFileEntries.length === 0) {
+                    const msg = filterMessage || `No usable files found for ${this.modelId}.`;
+                    if (LOG_ERROR)
+                        console.log(prefix, msg);
+                    this.progressManager.updateProgress({ error: msg, done: true });
+                    return { success: false, message: msg };
+                }
+                if (LOG_GENERAL)
+                    console.log(prefix, `Filtered and validated files for modelId: ${this.modelId}`, neededFileEntries);
+                const createReq = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCreateAllFileManifestsForRepoRequest(neededFileEntries);
+                await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(createReq);
+                if (LOG_GENERAL)
+                    console.log(prefix, `Stored manifests in DB for modelId: ${this.modelId}`);
+                req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbListModelFilesRequest({ folder: this.modelId, returnObjects: true });
+                manifestResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+                this.manifests = manifestResult && manifestResult.success ? manifestResult.data : [];
+                if (LOG_GENERAL)
+                    console.log(prefix, 'Read back manifests from DB:', this.manifests);
+            }
+            catch (error) {
+                const errMsg = error instanceof Error ? error.message : String(error);
+                if (LOG_ERROR)
+                    console.log(prefix, `Critical error fetching metadata for ${this.modelId}:`, error);
+                this.progressManager.updateProgress({ error: errMsg, done: true });
+                return { success: false, error: `Download process failed for ${this.modelId}: ${errMsg}` };
             }
         }
-    }
-    if (manifests.length > 0) {
-        if (LOG_GENERAL)
-            console.log(prefix, 'Notifying model meta update for:', modelId);
-        await notifyModelMetaUpdate(modelId);
-        return { success: true, message: "Model already indexed in DB. UI notified." };
-    }
-    // 2. Repo does not exist in DB, fetch from remote
-    try {
-        const metadata = hfModelMetadataInternal || await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_4__.fetchModelMetadataInternal)(modelId);
-        if (!metadata)
-            throw new Error("Failed to fetch metadata");
-        const { neededFileEntries, message: filterMessage } = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_4__.filterAndValidateFilesInternal)(metadata, modelId, baseDownloadUrlInternal);
-        if (filterMessage || neededFileEntries.length === 0) {
-            const msg = filterMessage || `No usable files found for ${modelId}.`;
+        if (this.manifests.length === 0) {
+            const msg = `No manifests available for ${this.modelId} after DB and remote fetch.`;
             if (LOG_ERROR)
-                console.warn(prefix, msg);
-            globalProgressManager.updateProgress({ error: msg, done: true, success: false });
+                console.log(prefix, msg);
+            this.progressManager.updateProgress({ error: msg, done: true });
             return { success: false, message: msg };
         }
-        // 3. Add manifests to DB
-        const createReq = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCreateAllFileManifestsForRepoRequest(neededFileEntries);
-        await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(createReq);
-        // 4. Read back manifests for planning (all files for this repo)
-        req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbListModelFilesRequest({ folder: modelId, returnObjects: true });
-        manifestResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
-        manifests = manifestResult && manifestResult.success ? manifestResult.data : [];
-        const onnxFiles = manifests.filter((m) => m.fileType === 'onnx');
-        const { downloadPlan, totalBytesToDownload } = buildDownloadPlanInternal(neededFileEntries);
-        allKnownFilePlansInternal = downloadPlan;
-        globalProgressManager.updateProgress({
-            totalFiles: allKnownFilePlansInternal.length,
+        return this.processManifests(selectedOnnxFile);
+    }
+    async processManifests(selectedOnnxFile) {
+        if (LOG_GENERAL)
+            console.log(prefix, `Separating ONNX and non-ONNX files for modelId: ${this.modelId}`);
+        const onnxFiles = this.manifests.filter(m => m.fileType === 'onnx');
+        const nonOnnxFiles = this.manifests.filter(m => m.fileType !== 'onnx');
+        if (LOG_GENERAL)
+            console.log(prefix, `Found ${onnxFiles.length} ONNX files and ${nonOnnxFiles.length} non-ONNX files`);
+        let manifestsToPlan;
+        if (selectedOnnxFile && selectedOnnxFile !== 'all') {
+            manifestsToPlan = [
+                ...nonOnnxFiles,
+                ...onnxFiles.filter(m => m.fileName === selectedOnnxFile)
+            ];
+        }
+        else {
+            manifestsToPlan = this.manifests;
+        }
+        if (LOG_GENERAL)
+            console.log(prefix, `Building download plan for modelId: ${this.modelId} with ${manifestsToPlan.length} files (filtered by selectedOnnxFile:`, selectedOnnxFile, ")");
+        const { downloadPlan, totalBytesToDownload } = buildDownloadPlanInternal(manifestsToPlan);
+        this.filePlans = downloadPlan;
+        this.progressManager.updateProgress({
+            totalFiles: this.filePlans.length,
             totalBytes: totalBytesToDownload,
-            totalFilesToAttempt: allKnownFilePlansInternal.length,
+            totalFilesToAttempt: this.filePlans.length,
             filesSuccessfullyProcessedCount: 0,
             totalDownloaded: 0,
         });
-        const { initialStates, missingNonOnnx, nonOnnxTotal, nonOnnxPresent } = await getMissingFilesAndInitialStates(allKnownFilePlansInternal, modelId);
-        fileStatesInternal = initialStates;
-        nonOnnxTotalSizeInternal = nonOnnxTotal;
-        nonOnnxDownloadedSizeInternal = nonOnnxPresent;
+        if (LOG_GENERAL)
+            console.log(prefix, `Download plan built: ${this.filePlans.length} files, ${totalBytesToDownload} bytes`);
+        const { initialStates, missingNonOnnx, nonOnnxTotal, nonOnnxPresent } = await getMissingFilesAndInitialStates(this.filePlans, this.modelId);
+        this.fileStates = initialStates;
+        this.nonOnnxTotalSize = nonOnnxTotal;
+        this.nonOnnxDownloadedSize = nonOnnxPresent;
+        if (LOG_GENERAL)
+            console.log(prefix, `Initial file states: ${Object.keys(initialStates).length} files, ${missingNonOnnx.length} missing non-ONNX files`);
         let initialOverallDownloadedBytes = 0;
-        allKnownFilePlansInternal.forEach(plan => {
-            if (fileStatesInternal[plan.fileName]?.status === 'present') {
-                initialOverallDownloadedBytes += plan.fileSize;
-                successfullyProcessedCountOverall++;
+        this.filePlans.forEach(plan => {
+            if (this.fileStates[plan.manifest.fileName]?.status === 'present') {
+                initialOverallDownloadedBytes += plan.manifest.size;
+                this.successfullyProcessedCount++;
             }
         });
-        globalProgressManager.updateProgress({ totalDownloaded: initialOverallDownloadedBytes, filesSuccessfullyProcessedCount: successfullyProcessedCountOverall });
-        // --- Always queue non-ONNX files immediately ---
-        missingNonOnnx.forEach(filePlan => {
-            if (fileStatesInternal[filePlan.fileName]?.status !== 'present' && fileStatesInternal[filePlan.fileName]?.status !== 'queued') {
-                downloadQueueInternal.push(filePlan);
-                fileStatesInternal[filePlan.fileName] = { status: 'queued', progress: 0 };
+        this.progressManager.updateProgress({ totalDownloaded: initialOverallDownloadedBytes, filesSuccessfullyProcessedCount: this.successfullyProcessedCount });
+        if (LOG_GENERAL)
+            console.log(prefix, `Initial progress: ${initialOverallDownloadedBytes} bytes downloaded, ${this.successfullyProcessedCount} files processed`);
+        if (LOG_GENERAL)
+            console.log(prefix, `Queueing non-ONNX files for download for modelId: ${this.modelId}`);
+        missingNonOnnx.forEach(file => {
+            if (this.fileStates[file.manifest.fileName]?.status !== 'present' && this.fileStates[file.manifest.fileName]?.status !== 'queued') {
+                this.queueFileForDownload(file);
+                if (LOG_GENERAL)
+                    console.log(prefix, `Queued non-ONNX file: ${file.manifest.fileName}`);
             }
         });
-        processDownloadQueue(); // Start non-ONNX downloads right away
-        // --- Multi-ONNX logic ---
-        if (onnxFiles.length > 1) {
+        this.processDownloadQueue();
+        if (LOG_GENERAL)
+            console.log(prefix, 'Started non-ONNX download queue processing');
+        if (onnxFiles.length === 1) {
+            if (LOG_GENERAL)
+                console.log(prefix, `Single ONNX file detected for modelId: ${this.modelId}`);
+            if (onnxFiles[0].status !== 'present' && onnxFiles[0].status !== 'complete') {
+                const plan = this.filePlans.find(p => p.manifest.fileName === onnxFiles[0].fileName);
+                if (plan) {
+                    this.queueFileForDownload(plan);
+                    this.processDownloadQueue();
+                    if (LOG_GENERAL)
+                        console.log(prefix, `Queued single ONNX file: ${onnxFiles[0].fileName}`);
+                    return { success: true, message: "Only one ONNX file, started download automatically." };
+                }
+            }
+        }
+        else if (onnxFiles.length > 1) {
+            if (LOG_GENERAL)
+                console.log(prefix, `Multiple ONNX files detected for modelId: ${this.modelId}`);
             if (!selectedOnnxFile || selectedOnnxFile === 'all') {
-                // Send initial progress event to show the bar
-                globalProgressManager.updateProgress({
-                    progress: 0,
+                this.progressManager.updateProgress({
                     done: false,
                     message: "Waiting for user to select a file...",
-                    totalFiles: allKnownFilePlansInternal.length,
-                    totalBytes: 0,
+                    totalFiles: this.filePlans.length,
+                    totalBytes: totalBytesToDownload,
                     currentFile: '',
                     currentFileDownloaded: 0,
-                    totalDownloaded: 0,
-                    filesSuccessfullyProcessedCount: 0,
-                    totalFilesToAttempt: allKnownFilePlansInternal.length,
+                    totalDownloaded: initialOverallDownloadedBytes,
+                    filesSuccessfullyProcessedCount: this.successfullyProcessedCount,
+                    totalFilesToAttempt: this.filePlans.length,
                 });
-                // Show popup for user to select ONNX file
-                const onnxFilesForPopup = onnxFiles.map((m) => ({ ...m, fileSize: m.size }));
-                if (window.showOnnxSelectionPopup) {
-                    window.showOnnxSelectionPopup(onnxFilesForPopup, allKnownFilePlansInternal, fileStatesInternal, 0, // nonOnnxProgress (could be improved)
-                    'unknown', // nonOnnxStatus (could be improved)
-                    handleUserFileRequestFromPopup);
+                if (LOG_GENERAL)
+                    console.log(prefix, 'Showing ONNX selection popup due to multiple ONNX files');
+                const onnxFilesForPopup = this.filePlans.filter(p => p.isONNX);
+                // Compute non-ONNX status and progress for popup
+                const nonOnnxPlans = this.filePlans.filter(p => !p.isONNX);
+                let nonOnnxStatus = 'unknown';
+                if (nonOnnxPlans.length > 0) {
+                    const allPresent = nonOnnxPlans.every(p => {
+                        const s = this.fileStates[p.manifest.fileName]?.status;
+                        return s === 'present' || s === 'downloaded';
+                    });
+                    const anyDownloading = nonOnnxPlans.some(p => this.fileStates[p.manifest.fileName]?.status === 'downloading');
+                    const anyQueued = nonOnnxPlans.some(p => this.fileStates[p.manifest.fileName]?.status === 'queued');
+                    const anyFailed = nonOnnxPlans.some(p => this.fileStates[p.manifest.fileName]?.status === 'failed');
+                    if (allPresent)
+                        nonOnnxStatus = 'present';
+                    else if (anyDownloading)
+                        nonOnnxStatus = 'downloading';
+                    else if (anyQueued)
+                        nonOnnxStatus = 'queued';
+                    else if (anyFailed)
+                        nonOnnxStatus = 'failed';
                 }
-                // Progress will be shown in both popup and sidebar as files are downloaded
+                let nonOnnxProgress = 0;
+                if (this.nonOnnxTotalSize > 0) {
+                    nonOnnxProgress = Math.floor((this.nonOnnxDownloadedSize / this.nonOnnxTotalSize) * 100);
+                }
+                if (window.showOnnxSelectionPopup) {
+                    window.showOnnxSelectionPopup(onnxFilesForPopup, this.filePlans, this.fileStates, nonOnnxProgress, nonOnnxStatus, (filePlan) => this.handleUserFileRequestFromPopup(filePlan));
+                }
                 return { success: true, message: "Multiple ONNX files, popup shown for user selection." };
             }
             else {
-                // Specific ONNX selected in dropdown, skip popup, queue that ONNX
-                const selectedOnnx = onnxFiles.find((f) => f.fileName === selectedOnnxFile);
-                if (selectedOnnx) {
-                    await handleUserFileRequestFromPopup(selectedOnnx);
-                    // Progress will be shown only in sidebar
-                    return { success: true, message: `Selected ONNX (${selectedOnnxFile}) queued for download.` };
+                const selectedOnnx = onnxFiles.find(f => f.fileName === selectedOnnxFile);
+                if (selectedOnnx && selectedOnnx.status !== 'present' && selectedOnnx.status !== 'complete') {
+                    const plan = this.filePlans.find(p => p.manifest.fileName === selectedOnnx.fileName);
+                    if (plan) {
+                        this.queueFileForDownload(plan);
+                        this.processDownloadQueue();
+                        if (LOG_GENERAL)
+                            console.log(prefix, `Queued selected ONNX file: ${selectedOnnxFile}`);
+                        return { success: true, message: `Selected ONNX (${selectedOnnxFile}) queued for download.` };
+                    }
                 }
-                else {
+                else if (!selectedOnnx) {
+                    if (LOG_ERROR)
+                        console.log(prefix, `Selected ONNX file (${selectedOnnxFile}) not found in manifests`);
                     return { success: false, message: `Selected ONNX file (${selectedOnnxFile}) not found in manifests.` };
                 }
             }
         }
-        // --- Single ONNX logic ---
-        if (onnxFiles.length === 1) {
-            await handleUserFileRequestFromPopup(onnxFiles[0]);
-            // Progress will be shown only in sidebar
-            return { success: true, message: "Only one ONNX file, started download automatically." };
-        }
-        // --- No ONNX files ---
-        // Otherwise, show the popup as usual (should not happen, but fallback)
-        const onnxFilesForPopup = onnxFiles.map((m) => ({ ...m, fileSize: m.size }));
-        if (window.showOnnxSelectionPopup) {
-            window.showOnnxSelectionPopup(onnxFilesForPopup, allKnownFilePlansInternal, fileStatesInternal, 0, // nonOnnxProgress (could be improved)
-            'unknown', // nonOnnxStatus (could be improved)
-            handleUserFileRequestFromPopup);
-        }
-        return { success: true, message: "Model manifests created and UI notified." };
+        return { success: true, message: "Model manifests processed and UI notified." };
     }
-    catch (error) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        if (LOG_ERROR)
-            console.error(prefix, `Critical error in downloadModelAssets for ${modelId}:`, error);
-        globalProgressManager.updateProgress({ error: errMsg, done: true, success: false });
-        return { success: false, error: `Download process failed for ${modelId}: ${errMsg}` };
+    queueFileForDownload(filePlan) {
+        const fullDownloadUrl = buildFullDownloadUrl(this.modelId, filePlan.manifest.fileName);
+        if (LOG_GENERAL)
+            console.log(prefix, `Queuing file: ${filePlan.manifest.fileName}, Full URL: ${fullDownloadUrl}`);
+        this.downloadQueue.push({ ...filePlan, fullDownloadUrl });
+        this.fileStates[filePlan.manifest.fileName] = { status: 'queued', progress: 0 };
+        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.manifest.fileName, status: 'queued', progress: 0 });
+    }
+    async processDownloadQueue() {
+        if (this.isDownloaderBusy || this.downloadQueue.length === 0) {
+            if (!this.isDownloaderBusy && this.downloadQueue.length === 0 && this.modelId) {
+                const allDone = this.filePlans.every(p => this.fileStates[p.manifest.fileName]?.status === 'downloaded' || this.fileStates[p.manifest.fileName]?.status === 'present');
+                const anyFailed = this.filePlans.some(p => this.fileStates[p.manifest.fileName]?.status === 'failed');
+                if (this.filePlans.length > 0 && (allDone || anyFailed)) {
+                    const finalMessage = allDone ? `All files for ${this.modelId} processed successfully.` : `Some files for ${this.modelId} failed to download.`;
+                    if (LOG_GENERAL)
+                        console.log(prefix, `Download queue empty and downloader not busy. ${finalMessage}`);
+                    sendUpdateToPopup({ type: 'all_downloads_complete', success: allDone && !anyFailed, finalMessage });
+                    this.progressManager.updateProgress({
+                        done: true,
+                        filesSuccessfullyProcessedCount: this.successfullyProcessedCount,
+                        totalFilesToAttempt: this.filePlans.length,
+                        error: anyFailed ? "Some files failed" : null,
+                    });
+                }
+            }
+            return;
+        }
+        this.isDownloaderBusy = true;
+        const filePlan = this.downloadQueue.shift();
+        if (LOG_GENERAL)
+            console.log(prefix, `Dequeued file for download: ${filePlan.manifest.fileName}`);
+        this.activeDownloadFileName = filePlan.manifest.fileName;
+        this.fileStates[filePlan.manifest.fileName] = { status: 'downloading', progress: 0 };
+        sendUpdateToPopup({ type: 'file_update', fileName: filePlan.manifest.fileName, status: 'downloading', progress: 0 });
+        if (!filePlan.isONNX) {
+            const nonOnnxProgressPercent = this.nonOnnxTotalSize > 0 ? Math.floor((this.nonOnnxDownloadedSize / this.nonOnnxTotalSize) * 100) : 100;
+            sendUpdateToPopup({ type: 'non_onnx_update', status: 'downloading', progress: nonOnnxProgressPercent });
+        }
+        this.progressManager.updateProgress({
+            currentFile: filePlan.manifest.fileName,
+            currentFileSize: filePlan.manifest.size,
+            currentFileDownloaded: 0,
+            totalFilesToAttempt: this.filePlans.length,
+        });
+        const badChunks = [];
+        const result = await this.streamAndStoreFileWithProgress(filePlan, badChunks);
+        if (result.fileFailed || result.badChunkFound) {
+            this.fileStates[filePlan.manifest.fileName] = { status: 'failed', progress: this.fileStates[filePlan.manifest.fileName].progress };
+            sendUpdateToPopup({ type: 'file_update', fileName: filePlan.manifest.fileName, status: 'failed', progress: this.fileStates[filePlan.manifest.fileName].progress });
+            if (LOG_ERROR)
+                console.log(prefix, `Download failed for ${filePlan.manifest.fileName}. Bad chunks:`, badChunks, 'Error details:', result.fileFailed ? 'General failure' : 'Bad chunk detected');
+            this.progressManager.updateProgress({ error: `Failed ${filePlan.manifest.fileName}` });
+        }
+        else {
+            this.fileStates[filePlan.manifest.fileName] = { status: 'downloaded', progress: 100 };
+            sendUpdateToPopup({ type: 'file_update', fileName: filePlan.manifest.fileName, status: 'downloaded', progress: 100 });
+            this.successfullyProcessedCount++;
+            this.progressManager.updateProgress({ filesSuccessfullyProcessedCount: this.successfullyProcessedCount });
+            if (LOG_GENERAL)
+                console.log(prefix, `Successfully downloaded ${filePlan.manifest.fileName}`);
+            // Update manifest status in DB
+            await this.updateManifestStatusInDb(filePlan, 'complete');
+            if (!filePlan.isONNX) {
+                const nonOnnxProgressPercent = this.nonOnnxTotalSize > 0 ? Math.floor((this.nonOnnxDownloadedSize / this.nonOnnxTotalSize) * 100) : 100;
+                sendUpdateToPopup({ type: 'non_onnx_update', status: nonOnnxProgressPercent === 100 ? 'downloaded' : 'downloading', progress: nonOnnxProgressPercent });
+                const allNonOnnxProcessed = this.filePlans
+                    .filter(p => !p.isONNX)
+                    .every(p => this.fileStates[p.manifest.fileName]?.status === 'downloaded' || this.fileStates[p.manifest.fileName]?.status === 'present');
+                if (allNonOnnxProcessed) {
+                    sendUpdateToPopup({ type: 'all_non_onnx_complete' });
+                    if (LOG_GENERAL)
+                        console.log(prefix, 'All non-ONNX files processed.');
+                }
+            }
+        }
+        this.activeDownloadFileName = null;
+        this.isDownloaderBusy = false;
+        this.processDownloadQueue();
+    }
+    async streamAndStoreFileWithProgress(filePlan, badChunks) {
+        const { manifest, isONNX } = filePlan;
+        let fileBytesDownloaded = 0;
+        let fileChunksDownloaded = 0;
+        let fileFailed = false;
+        let badChunkFound = false;
+        let chunkIndex = 0;
+        let allChunksSuccess = true;
+        let bytesSinceLastPause = 0;
+        const chunkGroupId = `${this.modelId}/${manifest.fileName}`;
+        const isLargeFile = manifest.size > LARGE_FILE_THRESHOLD;
+        const pauseDuration = isLargeFile ? LARGE_FILE_PAUSE_DURATION_MS : PAUSE_DURATION_MS;
+        if (LOG_MEMORY)
+            logMemory(`Before file ${manifest.fileName}`);
+        try {
+            let attempt = 0;
+            let response = null;
+            while (attempt < MAX_RETRIES) {
+                try {
+                    response = await fetch(filePlan.fullDownloadUrl);
+                    if (response.ok)
+                        break;
+                    if (LOG_ERROR)
+                        console.log(prefix, `Fetch attempt ${attempt + 1} failed for ${manifest.fileName}: ${response.status} ${response.statusText}`);
+                    attempt++;
+                    await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
+                }
+                catch (error) {
+                    if (LOG_ERROR)
+                        console.log(prefix, `Fetch error for ${manifest.fileName} on attempt ${attempt + 1}:`, error);
+                    attempt++;
+                    await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
+                }
+            }
+            if (!response || !response.ok) {
+                const errorText = response ? await response.text() : 'No response';
+                throw new DownloadError(`Failed to download ${manifest.fileName}: ${response?.status} ${response?.statusText}`, { errorText });
+            }
+            if (!response.body)
+                throw new DownloadError(`Download response body is null for ${manifest.fileName}`);
+            const reader = response.body.getReader();
+            let buffer = new Uint8Array(CHUNK_SIZE);
+            let bufferOffset = 0;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done)
+                    break;
+                if (!(value instanceof Uint8Array)) {
+                    if (LOG_ERROR)
+                        console.log(prefix, `Invalid chunk data for ${manifest.fileName}, chunk ${chunkIndex}: Type ${typeof value}`);
+                    badChunks.push({ fileName: manifest.fileName, chunkIndex, reason: 'Invalid chunk data type', payload: value });
+                    fileFailed = true;
+                    badChunkFound = true;
+                    reader.cancel('Invalid chunk data');
+                    break;
+                }
+                let valueOffset = 0;
+                while (valueOffset < value.length) {
+                    const remainingBuffer = CHUNK_SIZE - bufferOffset;
+                    const copyLength = Math.min(remainingBuffer, value.length - valueOffset);
+                    buffer.set(value.subarray(valueOffset, valueOffset + copyLength), bufferOffset);
+                    bufferOffset += copyLength;
+                    valueOffset += copyLength;
+                    if (bufferOffset === CHUNK_SIZE) {
+                        const chunkToStore = buffer;
+                        buffer = new Uint8Array(CHUNK_SIZE);
+                        bufferOffset = 0;
+                        if (!manifest.fileName || typeof chunkIndex !== 'number' || !chunkToStore || chunkToStore.byteLength === 0) {
+                            const reason = !manifest.fileName ? 'Missing fileName' : typeof chunkIndex !== 'number' ? 'Invalid chunkIndex' : !chunkToStore ? 'Missing chunkToStore' : 'Empty chunk';
+                            if (LOG_ERROR)
+                                console.log(prefix, `Bad chunk for ${manifest.fileName}, chunk ${chunkIndex}: ${reason}, Length: ${chunkToStore?.byteLength || 0}`);
+                            badChunks.push({ fileName: manifest.fileName, chunkIndex, reason, chunkLength: chunkToStore?.byteLength, payload: { fileName: manifest.fileName, chunkIndex, chunkToStore } });
+                            badChunkFound = true;
+                            fileFailed = true;
+                            reader.cancel('Bad chunk detected');
+                            break;
+                        }
+                        const chunkArrayBuffer = chunkToStore.buffer;
+                        const dbPayload = {
+                            folder: this.modelId,
+                            modelId: this.modelId,
+                            fileName: manifest.fileName,
+                            fileType: manifest.fileType,
+                            data: chunkArrayBuffer,
+                            chunkIndex,
+                            totalChunks: manifest.totalChunks,
+                            chunkGroupId,
+                            binarySize: chunkToStore.byteLength,
+                            totalFileSize: manifest.size,
+                            checksum: USE_MD5_CHECKSUM ? checksumChunkMD5(chunkArrayBuffer) : 'na',
+                        };
+                        const success = await tryStoreChunkInternal(dbPayload);
+                        if (!success) {
+                            if (LOG_ERROR)
+                                console.log(prefix, `Failed to store chunk ${chunkIndex} for ${manifest.fileName} after ${MAX_RETRIES} retries`);
+                            badChunks.push({ fileName: manifest.fileName, chunkIndex, reason: 'Failed to store chunk after retries', chunkLength: chunkToStore.byteLength, payload: dbPayload });
+                            badChunkFound = true;
+                            fileFailed = true;
+                            reader.cancel('Chunk storage failed');
+                            break;
+                        }
+                        const bytesInThisChunk = chunkToStore.byteLength;
+                        fileBytesDownloaded += bytesInThisChunk;
+                        bytesSinceLastPause += bytesInThisChunk;
+                        fileChunksDownloaded++;
+                        this.progressManager.incrementTotalDownloaded(bytesInThisChunk);
+                        this.fileStates[manifest.fileName].progress = manifest.size > 0 ? Math.floor((fileBytesDownloaded / manifest.size) * 100) : 100;
+                        // Debug log for ONNX progress
+                        if (isONNX) {
+                            console.log('[modelAssetDownloader] ONNX progress:', manifest.fileName, 'fileBytesDownloaded:', fileBytesDownloaded, 'fileSize:', manifest.size, 'progress:', this.fileStates[manifest.fileName].progress);
+                            // Send live progress update to popup
+                            sendUpdateToPopup({ type: 'file_update', fileName: manifest.fileName, status: 'downloading', progress: this.fileStates[manifest.fileName].progress });
+                        }
+                        this.progressManager.updateProgress({ currentFileDownloaded: fileBytesDownloaded });
+                        if (!isONNX) {
+                            this.nonOnnxDownloadedSize += bytesInThisChunk;
+                        }
+                        if (LOG_CHUNK && (chunkIndex === 0 || chunkIndex === manifest.totalChunks - 1)) {
+                            console.log(prefix, `Stored chunk ${chunkIndex} for ${manifest.fileName}, bytes: ${bytesInThisChunk}, total downloaded: ${fileBytesDownloaded}`);
+                        }
+                        chunkIndex++;
+                        if (chunkIndex % CHUNK_PROCESSED_FOR_PAUSE === 0 || bytesSinceLastPause >= PAUSE_BYTES_THRESHOLD) {
+                            if (LOG_MEMORY)
+                                logMemory(`Pausing after chunk ${chunkIndex} for ${manifest.fileName}`);
+                            await new Promise(res => setTimeout(res, pauseDuration));
+                            bytesSinceLastPause = 0;
+                        }
+                    }
+                }
+                if (fileFailed || badChunkFound)
+                    break;
+            }
+            if (allChunksSuccess && !fileFailed && bufferOffset > 0) {
+                const finalChunkToStore = buffer.subarray(0, bufferOffset);
+                buffer = new Uint8Array(0); // Release buffer
+                if (!manifest.fileName || typeof chunkIndex !== 'number' || !finalChunkToStore || finalChunkToStore.byteLength === 0) {
+                    const reason = !manifest.fileName ? 'Missing fileName' : typeof chunkIndex !== 'number' ? 'Invalid chunkIndex' : !finalChunkToStore ? 'Missing finalChunkToStore' : 'Empty final chunk';
+                    if (LOG_ERROR)
+                        console.log(prefix, `Bad final chunk for ${manifest.fileName}, chunk ${chunkIndex}: ${reason}, Length: ${finalChunkToStore?.byteLength || 0}`);
+                    badChunks.push({ fileName: manifest.fileName, chunkIndex, reason, chunkLength: finalChunkToStore?.byteLength, payload: { fileName: manifest.fileName, chunkIndex, finalChunkToStore } });
+                    badChunkFound = true;
+                    fileFailed = true;
+                }
+                else {
+                    const finalChunkArrayBuffer = finalChunkToStore.buffer.slice(finalChunkToStore.byteOffset, finalChunkToStore.byteOffset + finalChunkToStore.byteLength);
+                    const dbPayload = {
+                        folder: this.modelId,
+                        modelId: this.modelId,
+                        fileName: manifest.fileName,
+                        fileType: manifest.fileType,
+                        data: finalChunkArrayBuffer,
+                        chunkIndex,
+                        totalChunks: manifest.totalChunks,
+                        chunkGroupId,
+                        binarySize: finalChunkToStore.byteLength,
+                        totalFileSize: manifest.size,
+                        checksum: USE_MD5_CHECKSUM ? checksumChunkMD5(finalChunkArrayBuffer) : 'na',
+                    };
+                    const success = await tryStoreChunkInternal(dbPayload);
+                    if (!success) {
+                        if (LOG_ERROR)
+                            console.log(prefix, `Failed to store final chunk ${chunkIndex} for ${manifest.fileName} after ${MAX_RETRIES} retries`);
+                        badChunks.push({ fileName: manifest.fileName, chunkIndex, reason: 'Failed to store final chunk', chunkLength: finalChunkToStore.byteLength, payload: dbPayload });
+                        badChunkFound = true;
+                        fileFailed = true;
+                    }
+                    else {
+                        const bytesInThisChunk = finalChunkToStore.byteLength;
+                        fileBytesDownloaded += bytesInThisChunk;
+                        bytesSinceLastPause += bytesInThisChunk;
+                        fileChunksDownloaded++;
+                        this.progressManager.incrementTotalDownloaded(bytesInThisChunk);
+                        this.fileStates[manifest.fileName].progress = 100;
+                        this.progressManager.updateProgress({ currentFileDownloaded: fileBytesDownloaded });
+                        if (!isONNX) {
+                            this.nonOnnxDownloadedSize += bytesInThisChunk;
+                        }
+                        if (LOG_CHUNK)
+                            console.log(prefix, `Stored final chunk ${chunkIndex} for ${manifest.fileName}, bytes: ${bytesInThisChunk}, total downloaded: ${fileBytesDownloaded}`);
+                    }
+                }
+            }
+            if (manifest.size > 100 * 1024 * 1024)
+                await new Promise(res => setTimeout(res, pauseDuration));
+            if (LOG_MEMORY)
+                logMemory(`After file ${manifest.fileName}`);
+        }
+        catch (error) {
+            fileFailed = true;
+            const errMsg = error instanceof Error ? error.message : String(error);
+            const context = error instanceof DownloadError ? error.context : null;
+            if (LOG_ERROR)
+                console.log(prefix, `Download error for ${this.modelId}/${manifest.fileName}: ${errMsg}`, context ? `Context: ${JSON.stringify(context)}` : '');
+        }
+        return { fileFailed: fileFailed || badChunkFound || !allChunksSuccess, fileName: manifest.fileName, fileBytesDownloaded, fileChunksDownloaded, badChunkFound };
+    }
+    handleUserFileRequestFromPopup(filePlan) {
+        if (!this.modelId || !this.filePlans.some(p => p.manifest.fileName === filePlan.manifest.fileName)) {
+            if (LOG_ERROR)
+                console.log(prefix, `Attempt to download file for unknown or mismatched model: ${filePlan.manifest.fileName}`);
+            return;
+        }
+        const existingState = this.fileStates[filePlan.manifest.fileName];
+        if (existingState?.status === 'present' || existingState?.status === 'downloaded' || existingState?.status === 'queued' || existingState?.status === 'downloading') {
+            if (LOG_GENERAL)
+                console.log(prefix, `File ${filePlan.manifest.fileName} already handled (status: ${existingState?.status}). Ignoring request.`);
+            return;
+        }
+        this.queueFileForDownload(filePlan);
+        this.processDownloadQueue();
+        if (LOG_GENERAL)
+            console.log(prefix, `Processed user file request for ${filePlan.manifest.fileName}`);
+    }
+    async updateManifestStatusInDb(filePlan, status) {
+        try {
+            await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateManifestRequest(filePlan.manifest.id, { status, updatedAt: Date.now() }));
+            if (LOG_GENERAL)
+                console.log(prefix, `Updated manifest status in DB for ${filePlan.manifest.fileName} to ${status}`);
+        }
+        catch (e) {
+            if (LOG_ERROR)
+                console.log(prefix, `Failed to update manifest status in DB for ${filePlan.manifest.fileName}:`, e);
+        }
     }
 }
-function handleUserFileRequestFromPopup(filePlan) {
-    if (!currentModelIdInternal || !allKnownFilePlansInternal.some(p => p.fileName === filePlan.fileName)) {
-        if (LOG_ERROR)
-            console.error(prefix, "Attempt to download file for unknown or mismatched model:", filePlan.fileName);
+// Global functions (unchanged)
+function logMemory(label) {
+    if (!LOG_MEMORY)
         return;
+    if (typeof performance !== 'undefined' && performance.memory) {
+        const usedMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
+        const totalMB = (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
+        console.log(`${prefix} [Memory][${label}] Used: ${usedMB} MB / Total: ${totalMB} MB`);
     }
-    const existingState = fileStatesInternal[filePlan.fileName];
-    if (existingState?.status === 'present' || existingState?.status === 'downloaded' || existingState?.status === 'queued' || existingState?.status === 'downloading') {
+    else {
+        console.log(`${prefix} [Memory][${label}] performance.memory not available`);
+    }
+}
+async function tryStoreChunkInternal(payload, maxRetries = MAX_RETRIES) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddModelAssetRequest(payload);
+        const addResult = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(req);
+        if (addResult && addResult.success)
+            return true;
+        attempt++;
+        if (LOG_CHUNK)
+            console.log(prefix, `Retrying chunk store, attempt ${attempt} for ${payload.fileName} chunk ${payload.chunkIndex}`);
+        await new Promise(res => setTimeout(res, 200 * Math.pow(2, attempt)));
+    }
+    return false;
+}
+function buildDownloadPlanInternal(manifests) {
+    const downloadPlan = manifests.map((entry, idx) => ({
+        manifest: entry,
+        isONNX: entry.fileType === 'onnx',
+        fullDownloadUrl: buildFullDownloadUrl(entry.folder, entry.fileName),
+        fileIdx: idx + 1,
+    }));
+    const totalBytesToDownload = downloadPlan.reduce((sum, f) => sum + f.manifest.size, 0);
+    const totalChunksToDownload = downloadPlan.reduce((sum, f) => sum + f.manifest.totalChunks, 0);
+    if (LOG_GENERAL)
+        console.log(prefix, `Built download plan with ${downloadPlan.length} files, ${totalBytesToDownload} bytes, ${totalChunksToDownload} chunks`);
+    return { downloadPlan, totalBytesToDownload, totalChunksToDownload };
+}
+async function getMissingFilesAndInitialStates(downloadPlan, modelId) {
+    const initialStates = {};
+    const missingNonOnnxFiles = [];
+    let nonOnnxTotalBytes = 0;
+    let nonOnnxPresentBytes = 0;
+    for (const plan of downloadPlan) {
+        initialStates[plan.manifest.fileName] = { status: 'unknown', progress: 0 };
+        // Use manifest status directly
+        let isPresent = false;
+        if (plan.manifest.status === 'complete' || plan.manifest.status === 'present') {
+            isPresent = true;
+        }
+        // Add debug log for each file
+        console.log(`[DEBUG][PresenceCheck] ${plan.manifest.fileName}: manifest status=`, plan.manifest.status, 'isPresent=', isPresent);
+        if (isPresent) {
+            initialStates[plan.manifest.fileName] = { status: 'present', progress: 100 };
+            if (!plan.isONNX) {
+                nonOnnxPresentBytes += plan.manifest.size;
+            }
+        }
+        else if (!plan.isONNX) {
+            missingNonOnnxFiles.push(plan);
+        }
+        if (!plan.isONNX) {
+            nonOnnxTotalBytes += plan.manifest.size;
+        }
+    }
+    if (LOG_GENERAL)
+        console.log(prefix, `Initial states computed: ${missingNonOnnxFiles.length} missing non-ONNX files, ${nonOnnxPresentBytes} bytes present`);
+    return { initialStates, missingNonOnnx: missingNonOnnxFiles, nonOnnxTotal: nonOnnxTotalBytes, nonOnnxPresent: nonOnnxPresentBytes };
+}
+function formatBytes(bytes) {
+    if (bytes === 0)
+        return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+function checksumChunkMD5(arrayBuffer) {
+    return spark_md5__WEBPACK_IMPORTED_MODULE_5___default().ArrayBuffer.hash(arrayBuffer);
+}
+function sendUiGlobalProgress(payload) {
+    if (typeof window !== 'undefined' && window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.Contexts.MAIN_UI) {
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: payload }));
         if (LOG_GENERAL)
-            console.log(prefix, `File ${filePlan.fileName} already handled (status: ${existingState?.status}). Ignoring request.`);
-        return;
+            console.log(prefix, 'Sent UI progress event:', payload.message);
+        return Promise.resolve();
     }
-    const fullDownloadUrl = buildFullDownloadUrl(currentModelIdInternal, filePlan.fileName);
-    console.log('[Downloader][Queue] Queuing file from popup:', filePlan.fileName, 'Full URL:', fullDownloadUrl);
-    downloadQueueInternal.push({ ...filePlan, fullDownloadUrl });
-    fileStatesInternal[filePlan.fileName] = { status: 'queued', progress: 0 };
-    sendUpdateToPopup({ type: 'file_update', fileName: filePlan.fileName, status: 'queued', progress: 0 });
-    processDownloadQueue();
+    else {
+        return webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_DOWNLOAD_PROGRESS,
+            payload
+        }).catch((e) => {
+            if (LOG_ERROR)
+                console.log(prefix, `Error sending MODEL_DOWNLOAD_PROGRESS: ${e.message}`);
+        });
+    }
+}
+function sendUpdateToPopup(update) {
+    if (typeof onnxSelectionPopupCtrlCallback === 'function') {
+        onnxSelectionPopupCtrlCallback(update);
+        if (LOG_GENERAL)
+            console.log(prefix, `Sent popup update: ${JSON.stringify(update)}`);
+    }
+}
+function buildFullDownloadUrl(modelId, fileName) {
+    if (/^https?:\/\//.test(fileName))
+        return fileName;
+    return `https://huggingface.co/${modelId}/resolve/main/${fileName}`.replace(/([^:])\/\/+/, '$1/');
+}
+// Global entry point
+async function downloadModelAssets(modelId, selectedOnnxFile = null, manifestsFromUI = null) {
+    const manager = new DownloadManager(modelId, manifestsFromUI);
+    return manager.downloadModelAssets(selectedOnnxFile);
+}
+function registerPopupCallbacks(callback) {
+    onnxSelectionPopupCtrlCallback = callback;
+    if (LOG_GENERAL)
+        console.log(prefix, 'Registered global popup callback');
+}
+// Global popup callback (for backward compatibility)
+let onnxSelectionPopupCtrlCallback = null;
+function handleUserFileRequestFromPopup(filePlan) {
+    const manager = new DownloadManager(filePlan.manifest.folder || '', null);
+    manager.handleUserFileRequestFromPopup(filePlan);
 }
 
 
@@ -10925,6 +11036,8 @@ let logQueue = [];
 let currentModelId = null;
 let onnxSelectionPopupController = null;
 let allModelMetaFromDb = {};
+let allManifests = [];
+const prefix = '[Sidepanel]';
 // --- Global Setup ---
 // Set EXTENSION_CONTEXT based on URL query string
 (function () {
@@ -11003,7 +11116,7 @@ function requestDbAndWait(requestEvent) {
         (async () => {
             try {
                 const result = await sendDbRequestSmart(requestEvent);
-                console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
+                console.log(`${prefix} requestDbAndWait: Raw result`, result);
                 const response = Array.isArray(result) ? result[0] : result;
                 if (response && (response.success || response.error === undefined)) {
                     resolve(response.data || response.payload);
@@ -11048,7 +11161,7 @@ function getActiveChatSessionId() {
     return activeSessionId;
 }
 async function setActiveChatSessionId(newSessionId) {
-    console.log(`[Sidepanel] Setting active session ID to: ${newSessionId}`);
+    console.log(`${prefix} Setting active session ID to: ${newSessionId}`);
     activeSessionId = newSessionId;
     if (newSessionId) {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ lastSessionId: newSessionId });
@@ -11193,8 +11306,8 @@ function handleMessage(message, sender, sendResponse) {
     }
 }
 async function handleSessionCreated(newSessionId) {
-    console.log(`[Sidepanel] Orchestrator reported new session created: ${newSessionId}`);
-    console.log('[Sidepanel] handleSessionCreated callback received sessionId:', newSessionId);
+    console.log(`${prefix} Orchestrator reported new session created: ${newSessionId}`);
+    console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
     await setActiveChatSessionId(newSessionId);
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(newSessionId);
@@ -11210,30 +11323,30 @@ async function handleSessionCreated(newSessionId) {
     }
 }
 async function handleNewChat() {
-    console.log('[Sidepanel] New Chat button clicked.');
+    console.log(`${prefix} New Chat button clicked.`);
     await setActiveChatSessionId(null);
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.clearInput)();
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.focusInput)();
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
-        console.log('[Sidepanel] No session ID to load, setting renderer to null.');
+        console.log(`${prefix} No session ID to load, setting renderer to null.`);
         await setActiveChatSessionId(null);
         return;
     }
-    console.log(`[Sidepanel] Loading session data for: ${sessionId}`);
+    console.log(`${prefix} Loading session data for: ${sessionId}`);
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWait(request);
-        console.log(`[Sidepanel] Session data successfully loaded for ${sessionId}.`);
+        console.log(`${prefix} Session data successfully loaded for ${sessionId}.`);
         await setActiveChatSessionId(sessionId);
         if (!sessionData?.messages) {
-            console.warn(`[Sidepanel] No messages found in loaded session data for ${sessionId}.`);
+            console.warn(`${prefix} No messages found in loaded session data for ${sessionId}.`);
         }
     }
     catch (error) {
         const err = error;
-        console.error(`[Sidepanel] Failed to load session ${sessionId}:`, err);
+        console.error(`${prefix} Failed to load session ${sessionId}:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to load chat: ${err.message}`);
         await setActiveChatSessionId(null);
     }
@@ -11256,7 +11369,7 @@ async function handleDetach() {
         }
         const storageKey = `detachedSessionId_${currentTabId}`;
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.set({ [storageKey]: currentSessionId });
-        console.log(`Sidepanel: Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+        console.log(`${prefix} Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
         const popup = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().windows.create({
             url: webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
             type: 'popup',
@@ -11283,28 +11396,28 @@ async function handleDetach() {
 async function handlePageChange(event) {
     if (!event?.pageId)
         return;
-    console.log(`[Sidepanel] Navigation changed to: ${event.pageId}`);
+    console.log(`${prefix} Navigation changed to: ${event.pageId}`);
     if (!isDbReady) {
-        console.log('[Sidepanel] DB not ready yet, skipping session load on initial navigation event.');
+        console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
         return;
     }
     if (event.pageId === 'page-home') {
-        console.log('[Sidepanel] Navigated to home page, checking for specific session load signal...');
+        console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
         try {
             const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(['lastSessionId']);
             if (lastSessionId) {
-                console.log(`[Sidepanel] Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+                console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
                 await loadAndDisplaySession(lastSessionId);
                 await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
             }
             else {
-                console.log('[Sidepanel] No load signal found. Resetting to welcome state.');
+                console.log(`${prefix} No load signal found. Resetting to welcome state.`);
                 await loadAndDisplaySession(null);
             }
         }
         catch (error) {
             const err = error;
-            console.error('[Sidepanel] Error checking/loading session based on signal:', err);
+            console.error(`${prefix} Error checking/loading session based on signal:`, err);
             (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)('Failed to load session state.');
             await loadAndDisplaySession(null);
         }
@@ -11330,12 +11443,12 @@ if (window.modelWorker) {
 }
 // --- Main Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('[Sidepanel] DOM Content Loaded.');
+    console.log(`${prefix} DOM Content Loaded.`);
     const urlParams = new URLSearchParams(window.location.search);
     const requestedView = urlParams.get('view');
     // Log Viewer Mode
     if (requestedView === 'logs') {
-        console.log('[Sidepanel] Initializing in Log Viewer Mode.');
+        console.log(`${prefix} Initializing in Log Viewer Mode.`);
         document.body.classList.add('log-viewer-mode');
         document.getElementById('header')?.classList.add('hidden');
         document.getElementById('bottom-nav')?.classList.add('hidden');
@@ -11355,7 +11468,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const logViewerModule = await __webpack_require__.e(/*! import() */ "src_Controllers_LogViewerController_ts").then(__webpack_require__.bind(__webpack_require__, /*! ./Controllers/LogViewerController */ "./src/Controllers/LogViewerController.ts"));
             await logViewerModule.initializeLogViewerController();
-            console.log('[Sidepanel] Log Viewer Controller initialized.');
+            console.log(`${prefix} Log Viewer Controller initialized.`);
         }
         catch (err) {
             const error = err;
@@ -11367,7 +11480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     // Standard Mode
-    console.log('[Sidepanel] Initializing in Standard Mode.');
+    console.log(`${prefix} Initializing in Standard Mode.`);
     document.getElementById('page-log-viewer')?.classList.add('hidden');
     // Initialize UI and Core Components
     try {
@@ -11378,38 +11491,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!uiInitResult)
             throw new Error('UI initialization failed');
         const { chatBody, fileInput } = uiInitResult;
-        console.log('[Sidepanel] UI Controller Initialized.');
+        console.log(`${prefix} UI Controller Initialized.`);
         if (!chatBody) {
             console.error('[Sidepanel] CRITICAL: chatBody is null before initializeRenderer!');
             throw new Error('chatBody is null');
         }
         (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__.initializeRenderer)(chatBody, requestDbAndWait);
-        console.log('[Sidepanel] Chat Renderer Initialized.');
+        console.log(`${prefix} Chat Renderer Initialized.`);
         (0,_navigation__WEBPACK_IMPORTED_MODULE_3__.initializeNavigation)();
-        console.log('[Sidepanel] Navigation Initialized.');
+        console.log(`${prefix} Navigation Initialized.`);
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
         (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.initializeFileHandling)({
             uiController: _Home_uiController__WEBPACK_IMPORTED_MODULE_4__,
             getActiveSessionIdFunc: getActiveChatSessionId,
         });
-        console.log('[Sidepanel] File Handler Initialized.');
+        console.log(`${prefix} File Handler Initialized.`);
         if (fileInput) {
             fileInput.addEventListener('change', _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.handleFileSelected);
         }
         else {
-            console.warn('[Sidepanel] File input element not found before adding listener.');
+            console.warn(`${prefix} File input element not found before adding listener.`);
         }
         const activeTab = await (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.getActiveTab)();
         currentTabId = activeTab?.id;
-        console.log(`[Sidepanel] Current Tab ID: ${currentTabId}`);
+        console.log(`${prefix} Current Tab ID: ${currentTabId}`);
         (0,_Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_6__.initializeOrchestrator)({
             getActiveSessionIdFunc: getActiveChatSessionId,
             onSessionCreatedCallback: handleSessionCreated,
             getCurrentTabIdFunc: () => currentTabId,
         });
-        console.log('[Sidepanel] Message Orchestrator Initialized.');
+        console.log(`${prefix} Message Orchestrator Initialized.`);
         webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.onMessage.addListener(handleMessage);
-        console.log('[Sidepanel] Background message listener added.');
+        console.log(`${prefix} Background message listener added.`);
         // Initialize Controllers
         const historyPopupElement = document.getElementById('history-popup');
         const historyListElement = document.getElementById('history-list');
@@ -11425,31 +11538,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 closeButton: closeHistoryButtonElement,
             }, requestDbAndWait);
             if (!historyPopupController) {
-                console.error('[Sidepanel] History Popup Controller initialization failed.');
+                console.error(`${prefix} History Popup Controller initialization failed.`);
             }
         }
         else {
-            console.warn('[Sidepanel] Could not find all required elements for History Popup Controller.');
+            console.warn(`${prefix} Could not find all required elements for History Popup Controller.`);
         }
         if (historyButton && historyPopupController) {
             historyButton.addEventListener('click', () => historyPopupController.show());
         }
         else {
-            console.warn('[Sidepanel] History button or controller not available for listener.');
+            console.warn(`${prefix} History button or controller not available for listener.`);
         }
         if (detachButton) {
             detachButton.addEventListener('click', handleDetach);
         }
         else {
-            console.warn('[Sidepanel] Detach button not found.');
+            console.warn(`${prefix} Detach button not found.`);
         }
         const libraryListElement = document.getElementById('starred-list');
         if (libraryListElement) {
             (0,_Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_12__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
-            console.log('[Sidepanel] Library Controller Initialized.');
+            console.log(`${prefix} Library Controller Initialized.`);
         }
         else {
-            console.warn('[Sidepanel] Could not find #starred-list element for Library Controller.');
+            console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_LOAD, async (e) => {
             const { modelId } = e.detail || {};
@@ -11458,7 +11571,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             try {
-                const result = await (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.downloadModelAssets)(modelId);
+                // Get selected ONNX file from dropdown
+                const quantSelector = document.getElementById('onnx-variant-selector');
+                let selectedOnnxFile = quantSelector?.value || null;
+                // Do NOT convert 'all' to null; pass 'all' as a string
+                console.log(`${prefix} selectedOnnxFile:`, selectedOnnxFile);
+                // Pass manifests for this modelId to the downloader
+                const manifestsForModel = allManifests.filter(m => m.folder === modelId);
+                const result = await (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.downloadModelAssets)(modelId, selectedOnnxFile, manifestsForModel);
                 if (!result.success) {
                     sendWorkerError(result.error || 'Unknown error during model download.');
                 }
@@ -11468,11 +11588,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_13__.initializeDiscoverController)();
-        console.log('[Sidepanel] Discover Controller Initialized.');
+        console.log(`${prefix} Discover Controller Initialized.`);
         (0,_Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_14__.initializeSettingsController)();
-        console.log('[Sidepanel] Settings Controller Initialized.');
+        console.log(`${prefix} Settings Controller Initialized.`);
         (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_15__.initializeSpacesController)();
-        console.log('[Sidepanel] Spaces Controller Initialized.');
+        console.log(`${prefix} Spaces Controller Initialized.`);
         (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_16__.initializeDriveController)({
             requestDbAndWaitFunc: requestDbAndWait,
             getActiveChatSessionId,
@@ -11480,27 +11600,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotification: _notifications__WEBPACK_IMPORTED_MODULE_9__.showNotification,
             debounce: _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.debounce,
         });
-        console.log('[Sidepanel] Drive Controller Initialized.');
+        console.log(`${prefix} Drive Controller Initialized.`);
         // Handle Popup Context
         const popupContext = urlParams.get('context');
         originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
         isPopup = popupContext === 'popup';
-        console.log(`[Sidepanel] Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
+        console.log(`${prefix} Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
         if (isPopup && originalTabIdFromPopup) {
             const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
             const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.get(storageKey);
             const detachedSessionId = result[storageKey];
             if (detachedSessionId) {
-                console.log(`[Sidepanel-Popup] Found detached session ID: ${detachedSessionId}. Loading...`);
+                console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
                 await loadAndDisplaySession(detachedSessionId);
             }
             else {
-                console.log(`[Sidepanel-Popup] No detached session ID found for key ${storageKey}. Starting fresh.`);
+                console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
                 await setActiveChatSessionId(null);
             }
         }
         else {
-            console.log('[Sidepanel] Starting fresh. Loading empty/welcome state.');
+            console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
             await loadAndDisplaySession(null);
         }
         // Track model selection
@@ -11515,43 +11635,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Ensure the model dropdown is populated before fetching metadata and initializing DB
         // Log the dropdown options
         const dropdownOptions = Array.from(document.getElementById('model-selector').options).map(opt => opt.value);
-        console.log('[Sidepanel] Model dropdown options before fetch:', dropdownOptions);
+        console.log(`${prefix} Model dropdown options before fetch:`, dropdownOptions);
         // Initialize DB
-        try {
-            // Pre-fetch metadata for all dropdown repos
-            const preFetchedRepoMetadata = await fetchAllDropdownRepoMetadata();
-            console.log('[Sidepanel] preFetchedRepoMetadata to pass to autoEnsureDbInitialized:', preFetchedRepoMetadata);
-            // Enrich each repo's metadata with manifest info (sizes, etc.)
-            const enrichedRepoMetadata = [];
-            for (const { repo, metadata } of preFetchedRepoMetadata) {
-                const baseRepoUrl = `https://huggingface.co/${repo}/resolve/main/`;
-                const { neededFileEntries } = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_21__.filterAndValidateFilesInternal)(metadata, repo, baseRepoUrl);
-                enrichedRepoMetadata.push({ repo, metadata: { ...metadata, manifests: neededFileEntries } });
-            }
-            const result = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)({ preFetchedRepoMetadata: enrichedRepoMetadata });
-            if (result?.success) {
-                console.log('[Sidepanel] DB initialized directly.');
-                isDbReady = true;
-                for (const logPayload of logQueue) {
-                    const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
-                    sendDbRequestViaChannel(req);
-                }
-                logQueue = [];
-            }
-            else {
-                throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
-            }
-        }
-        catch (error) {
-            const err = error;
-            console.error('[Sidepanel] DB Initialization failed:', err);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
-            const chatBody = document.getElementById('chat-body');
-            if (chatBody) {
-                chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
-            }
+        const dbInitSuccess = await initializeDatabase();
+        if (!dbInitSuccess)
             return;
-        }
         const onnxModalEl = document.getElementById('onnx-selection-modal');
         const onnxFileListEl = document.getElementById('onnx-file-list');
         const dummyModelTitle = document.createElement('div');
@@ -11618,49 +11706,123 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (modelLoadStatusText)
                 modelLoadStatusText.textContent = '';
         }
-        console.log('[Sidepanel] Initialization complete.');
+        console.log(`${prefix} Initialization complete.`);
     }
     catch (error) {
         const err = error;
-        console.error('[Sidepanel] Initialization failed:', err);
+        console.error(`${prefix} Initialization failed:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
         const chatBody = document.getElementById('chat-body');
         if (chatBody) {
             chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
         }
     }
-});
-// Listen for DbWorkerCreatedNotification
-document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbWorkerCreatedNotification.type, (e) => {
-    console.log('[Sidepanel] DbWorkerCreatedNotification event triggered:', e);
-    const detail = e.detail || e.detail;
-    console.log('[Sidepanel] Event detail:', detail);
-    if (!detail || !detail.payload) {
-        console.log('[Sidepanel] No payload in DbWorkerCreatedNotification.');
-        return;
+    // On page load, hide both buttons
+    const downloadBtn = document.getElementById('download-model-btn');
+    const loadBtn = document.getElementById('load-model-button');
+    if (downloadBtn)
+        downloadBtn.style.display = 'none';
+    if (loadBtn)
+        loadBtn.style.display = 'none';
+    // Add dropdown change listeners
+    const modelSelector = document.getElementById('model-selector');
+    if (modelSelector) {
+        modelSelector.addEventListener('change', async () => {
+            await handleModelSelectorChange();
+            updateModelActionButtons();
+        });
     }
-    console.log('[Sidepanel] DbWorkerCreatedNotification payload:', detail.payload);
-    allModelMetaFromDb = detail.payload;
-    // Flatten all manifests from all repos
-    const allManifests = Object.values(allModelMetaFromDb).flat();
-    renderDropdownsFromManifests(allManifests);
+    const quantSelector = document.getElementById('onnx-variant-selector');
+    if (quantSelector) {
+        quantSelector.addEventListener('change', () => {
+            updateModelActionButtons();
+        });
+    }
 });
-const modelSelector = document.getElementById('model-selector');
-if (modelSelector) {
-    modelSelector.addEventListener('change', async () => {
-        await populateQuantizationDropdownFromDb();
-    });
-}
-async function populateQuantizationDropdownFromDb() {
-    const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetAllModelFileManifestsRequest();
-    const response = await sendDbRequestSmart(req);
-    if (!response.success)
+document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbInitializationCompleteNotification.type, async (e) => {
+    console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
+    await handleModelSelectorChange();
+    updateModelActionButtons();
+});
+// Listen for manifest update notifications and refresh dropdowns
+document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbManifestUpdatedNotification.type, async (e) => {
+    const updatedManifest = e.detail?.payload?.manifest;
+    if (!updatedManifest)
         return;
-    const allManifests = response.data || [];
-    renderDropdownsFromManifests(allManifests);
+    // Update or insert the manifest in allManifests
+    const idx = allManifests.findIndex(m => m.id === updatedManifest.id);
+    if (idx !== -1) {
+        allManifests[idx] = updatedManifest;
+    }
+    else {
+        allManifests.push(updatedManifest);
+    }
+    await renderDropdownsFromManifests();
+    updateModelActionButtons();
+});
+async function handleModelSelectorChange() {
+    const modelSelector = document.getElementById('model-selector');
+    if (!modelSelector)
+        return;
+    const repoIds = Array.from(modelSelector.options).map(opt => opt.value);
+    const reposNeedingFetch = [];
+    allManifests = [];
+    console.log(`${prefix} repoIds:`, repoIds);
+    for (const repo of repoIds) {
+        const dbListReq = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbListModelFilesRequest({ folder: repo, returnObjects: true });
+        const dbListResp = await sendDbRequestSmart(dbListReq);
+        console.log(`${prefix} dbListResp for repo '${repo}':`, dbListResp);
+        const dbFiles = dbListResp.data || [];
+        console.log(`${prefix} dbFiles for repo '${repo}':`, dbFiles, 'Type:', Array.isArray(dbFiles) ? 'array' : typeof dbFiles, 'Length:', dbFiles.length);
+        if (!dbFiles.length) {
+            console.log(`${prefix} Repo '${repo}' not found in DB or has no files. Will fetch and create manifests.`);
+            reposNeedingFetch.push(repo);
+        }
+        else {
+            const manifests = dbFiles.filter((m) => typeof m === 'object' && m.fileName);
+            console.log(`${prefix} manifests after filter for repo '${repo}':`, manifests, 'Length:', manifests.length);
+            allManifests.push(...manifests);
+            console.log(`${prefix} allManifests after push for repo '${repo}':`, allManifests, 'Length:', allManifests.length);
+            console.log(`${prefix} Repo '${repo}' already exists in DB with files. Skipping manifest creation.`);
+        }
+    }
+    // Now fetch metadata and create manifests only for repos that need it
+    for (const repo of reposNeedingFetch) {
+        try {
+            const baseRepoUrl = `https://huggingface.co/${repo}/resolve/main/`;
+            console.log(`${prefix} Fetching metadata for repo: ${repo}`);
+            const metadata = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_21__.fetchModelMetadataInternal)(repo);
+            console.log(`${prefix} Got metadata for repo: ${repo}`, metadata);
+            const { neededFileEntries } = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_21__.filterAndValidateFilesInternal)(metadata, repo, baseRepoUrl);
+            const enriched = { repo, metadata: { ...metadata, manifests: neededFileEntries } };
+            await sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbCreateAllFileManifestsForRepoRequest(enriched.metadata.manifests));
+            allManifests.push(...enriched.metadata.manifests);
+            console.log(`${prefix} Repo '${repo}' manifests created in DB.`);
+        }
+        catch (e) {
+            console.warn(`${prefix} Failed to fetch or create manifests for repo: ${repo}`, e);
+        }
+    }
+    console.log(`${prefix} Before renderDropdownsFromManifests, allManifests:`, allManifests);
+    await renderDropdownsFromManifests();
 }
 // --- Helper: Render dropdowns from manifests ---
-function renderDropdownsFromManifests(allManifests) {
+async function renderDropdownsFromManifests() {
+    if (!allManifests.length) {
+        // fallback: fetch from DB if not already loaded
+        console.log(`${prefix} allManifests is empty. Fetching from DB.`);
+        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetAllModelFileManifestsRequest();
+        const response = await sendDbRequestSmart(req);
+        if (!response.success)
+            return;
+        allManifests = response.data || [];
+    }
+    // Check again after fetch
+    if (!allManifests.length) {
+        console.warn(`${prefix} allManifests is still empty after DB fetch. Nothing to render.`);
+        return;
+    }
+    console.log(`${prefix} allManifests fetched from DB:`, allManifests);
     const modelSelector = document.getElementById('model-selector');
     const quantSelector = document.getElementById('onnx-variant-selector');
     if (!modelSelector || !quantSelector)
@@ -11701,30 +11863,72 @@ function renderDropdownsFromManifests(allManifests) {
         option.textContent = `${manifest.fileName} ${statusIcon}`;
         quantSelector.appendChild(option);
     });
+    updateModelActionButtons();
 }
-async function fetchAllDropdownRepoMetadata() {
-    const modelSelector = document.getElementById('model-selector');
-    if (!modelSelector)
-        return [];
-    const repoIds = Array.from(modelSelector.options).map(opt => opt.value);
-    const results = [];
-    console.log('[Sidepanel] Starting fetchAllDropdownRepoMetadata for repos:', repoIds);
-    for (const repoId of repoIds) {
-        try {
-            console.log(`[Sidepanel] Fetching metadata for repo: ${repoId}`);
-            const metadata = await (0,_Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_21__.fetchModelMetadataInternal)(repoId);
-            console.log(`[Sidepanel] Got metadata for repo: ${repoId}`, metadata);
-            results.push({ repo: repoId, metadata });
+// --- Helper: Database Initialization ---
+async function initializeDatabase() {
+    try {
+        const result = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)();
+        if (result?.success) {
+            console.log(`${prefix} DB initialized directly.`);
+            isDbReady = true;
+            for (const logPayload of logQueue) {
+                const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbAddLogRequest(logPayload);
+                sendDbRequestViaChannel(req);
+            }
+            logQueue = [];
+            return true;
         }
-        catch (e) {
-            console.warn('[Sidepanel] Failed to fetch metadata for', repoId, e);
+        else {
+            throw new Error(`Database initialization failed: ${result?.error || 'Unknown error'}`);
         }
     }
-    console.log('[Sidepanel] fetchAllDropdownRepoMetadata results:', results);
-    return results;
+    catch (error) {
+        const err = error;
+        console.error(`${prefix} DB Initialization failed:`, err);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
+        const chatBody = document.getElementById('chat-body');
+        if (chatBody) {
+            chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
+        }
+        return false;
+    }
 }
 // --- Exports ---
 
+function isModelReadyToLoad(selectedRepo, selectedOnnx) {
+    // 1. Check ONNX file
+    const onnxManifest = allManifests.find(m => m.folder === selectedRepo && m.fileName === selectedOnnx);
+    const onnxReady = onnxManifest && (onnxManifest.status === 'present' || onnxManifest.status === 'complete');
+    // 2. Check all supporting files
+    const supportingFiles = allManifests.filter(m => m.folder === selectedRepo && m.fileType !== 'onnx');
+    const allSupportingReady = supportingFiles.length > 0 && supportingFiles.every(m => m.status === 'present' || m.status === 'complete');
+    // 3. Both must be true
+    return onnxReady && allSupportingReady;
+}
+function updateModelActionButtons() {
+    const modelSelector = document.getElementById('model-selector');
+    const quantSelector = document.getElementById('onnx-variant-selector');
+    const downloadBtn = document.getElementById('download-model-btn');
+    const loadBtn = document.getElementById('load-model-button');
+    if (!modelSelector || !quantSelector || !downloadBtn || !loadBtn)
+        return;
+    const selectedRepo = modelSelector.value;
+    const selectedOnnx = quantSelector.value;
+    // Hide both by default
+    downloadBtn.style.display = 'none';
+    loadBtn.style.display = 'none';
+    if (!selectedRepo || !selectedOnnx)
+        return;
+    if (isModelReadyToLoad(selectedRepo, selectedOnnx)) {
+        loadBtn.style.display = '';
+        downloadBtn.style.display = 'none';
+    }
+    else {
+        loadBtn.style.display = 'none';
+        downloadBtn.style.display = '';
+    }
+}
 
 
 /***/ })
@@ -11801,7 +12005,7 @@ async function fetchAllDropdownRepoMetadata() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "a31e7e298d38e415ca54" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "f0f432f4a3fd7585e809" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

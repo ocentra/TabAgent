@@ -1,5 +1,7 @@
 // dbEvents.js
 
+import { ModelAssetManifest } from './idbModelAsset';
+
 export const DBEventNames = Object.freeze({
   DB_GET_SESSION_REQUEST: 'DbGetSessionRequest',
   DB_GET_SESSION_RESPONSE: 'DbGetSessionResponse',
@@ -96,6 +98,7 @@ export const DBEventNames = Object.freeze({
   DB_DELETE_CHUNK_RESPONSE: 'DbDeleteChunkResponse',
   DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST: 'DbGetAllModelFileManifestsRequest',
   DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE: 'DbGetAllModelFileManifestsResponse',
+  DB_MANIFEST_UPDATED_NOTIFICATION: 'DbManifestUpdatedNotification',
 });
 
 function generateUUID() {
@@ -630,6 +633,10 @@ export class DbGetModelAssetChunkResponse extends DbResponseBase {
 // --- Model Asset Manifest Operations (NEW - Definitions) ---
 
 /**
+ * @typedef {import('./idbModelAsset').ModelAssetManifest} ModelAssetManifest
+ */
+
+/**
  * @typedef {Object} ModelAssetManifestPayloadForRequest
  * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
  * @property {string} fileName - The original name of the model asset file.
@@ -646,10 +653,11 @@ export class DbGetModelAssetChunkResponse extends DbResponseBase {
  */
 export class DbAddManifestRequest extends DbEventBase {
   static type = DBEventNames.DB_ADD_MANIFEST_REQUEST;
+  payload: ModelAssetManifest;
   /**
-   * @param {ModelAssetManifestPayloadForRequest} payload
+   * @param {ModelAssetManifest} payload
    */
-  constructor(payload: any) {
+  constructor(payload: ModelAssetManifest) {
     super();
     this.type = DbAddManifestRequest.type;
     this.payload = payload;
@@ -658,15 +666,17 @@ export class DbAddManifestRequest extends DbEventBase {
 
 export class DbAddManifestResponse extends DbResponseBase {
   static type = DBEventNames.DB_ADD_MANIFEST_RESPONSE;
+  data: { manifestId: string } | null;
   /**
    * @param {string} originalRequestId
    * @param {boolean} success
    * @param {{ manifestId: string } | null} data - On success, object containing the ID of the stored/updated manifest.
    * @param {string | null} error
    */
-  constructor(originalRequestId: string, success: boolean, data: any, error: any = null) {
+  constructor(originalRequestId: string, success: boolean, data: { manifestId: string } | null, error: any = null) {
     super(originalRequestId, success, data, error);
     this.type = DbAddManifestResponse.type;
+    this.data = data;
   }
   get manifestId() { return this.data?.manifestId; }
 }
@@ -678,10 +688,11 @@ export class DbAddManifestResponse extends DbResponseBase {
  */
 export class DbGetManifestRequest extends DbEventBase {
   static type = DBEventNames.DB_GET_MANIFEST_REQUEST;
+  payload: { folder: string; fileName: string };
   /**
-   * @param {GetManifestPayload} payload
+   * @param {{ folder: string, fileName: string }} payload
    */
-  constructor(payload: any) {
+  constructor(payload: { folder: string; fileName: string }) {
     super();
     this.type = DbGetManifestRequest.type;
     this.payload = payload;
@@ -690,19 +701,21 @@ export class DbGetManifestRequest extends DbEventBase {
 
 export class DbGetManifestResponse extends DbResponseBase {
   static type = DBEventNames.DB_GET_MANIFEST_RESPONSE;
+  data: ModelAssetManifest | null;
   /**
-   * The manifest object (from idbHelper.ts ModelAssetManifest interface) is expected
+   * The manifest object (from idbModelAsset.ts ModelAssetManifest interface) is expected
    * to be the direct value of the `data` property in this response.
    * @param {string} originalRequestId
    * @param {boolean} success
-   * @param {?import('./idbHelper.ts').ModelAssetManifest} data - The manifest object or null.
+   * @param {ModelAssetManifest | null} data - The manifest object or null.
    * @param {string | null} error
    */
-  constructor(originalRequestId: string, success: boolean, data: any, error: any = null) {
+  constructor(originalRequestId: string, success: boolean, data: ModelAssetManifest | null, error: any = null) {
     super(originalRequestId, success, data, error);
     this.type = DbGetManifestResponse.type;
+    this.data = data;
   }
-  /** @returns {import('./idbHelper.ts').ModelAssetManifest | null} */
+  /** @returns {ModelAssetManifest | null} */
   get manifest() { return this.data; }
 }
 
@@ -761,7 +774,8 @@ export class DbWorkerCreatedNotification {
 // Add new event classes for ModelAsset CRUD/static symmetry
 export class DbCreateAllFileManifestsForRepoRequest extends DbEventBase {
   static type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
-  constructor(manifests: any[]) {
+  payload: { manifests: ModelAssetManifest[] };
+  constructor(manifests: ModelAssetManifest[]) {
     super();
     this.type = DbCreateAllFileManifestsForRepoRequest.type;
     this.payload = { manifests };
@@ -769,14 +783,17 @@ export class DbCreateAllFileManifestsForRepoRequest extends DbEventBase {
 }
 export class DbCreateAllFileManifestsForRepoResponse extends DbResponseBase {
   static type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
+  data: string[];
   constructor(requestId: string, success: boolean, ids: string[], error: any = null) {
     super(requestId, success, ids, error);
     this.type = DbCreateAllFileManifestsForRepoResponse.type;
+    this.data = ids;
   }
 }
 export class DbUpdateAllFileManifestsForRepoRequest extends DbEventBase {
   static type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
-  constructor(manifests: any[]) {
+  payload: { manifests: ModelAssetManifest[] };
+  constructor(manifests: ModelAssetManifest[]) {
     super();
     this.type = DbUpdateAllFileManifestsForRepoRequest.type;
     this.payload = { manifests };
@@ -784,9 +801,11 @@ export class DbUpdateAllFileManifestsForRepoRequest extends DbEventBase {
 }
 export class DbUpdateAllFileManifestsForRepoResponse extends DbResponseBase {
   static type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
-  constructor(requestId: string, success: boolean, data: any = true, error: any = null) {
+  data: boolean;
+  constructor(requestId: string, success: boolean, data: boolean = true, error: any = null) {
     super(requestId, success, data, error);
     this.type = DbUpdateAllFileManifestsForRepoResponse.type;
+    this.data = data;
   }
 }
 export class DbDeleteAllFileManifestsForRepoRequest extends DbEventBase {
@@ -806,7 +825,8 @@ export class DbDeleteAllFileManifestsForRepoResponse extends DbResponseBase {
 }
 export class DbCreateManifestByChunkGroupIdRequest extends DbEventBase {
   static type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
-  constructor(manifest: any) {
+  payload: { manifest: ModelAssetManifest };
+  constructor(manifest: ModelAssetManifest) {
     super();
     this.type = DbCreateManifestByChunkGroupIdRequest.type;
     this.payload = { manifest };
@@ -859,9 +879,11 @@ export class DbReadManifestRequest extends DbEventBase {
 }
 export class DbReadManifestResponse extends DbResponseBase {
   static type = DBEventNames.DB_READ_MANIFEST_RESPONSE;
-  constructor(requestId: string, success: boolean, manifest: any, error: any = null) {
+  data: ModelAssetManifest | null;
+  constructor(requestId: string, success: boolean, manifest: ModelAssetManifest | null, error: any = null) {
     super(requestId, success, manifest, error);
     this.type = DbReadManifestResponse.type;
+    this.data = manifest;
   }
 }
 export class DbUpdateManifestRequest extends DbEventBase {
@@ -939,4 +961,13 @@ export class DbGetAllModelFileManifestsResponse extends DbResponseBase {
     super(originalRequestId, success, manifests, error);
     this.type = DbGetAllModelFileManifestsResponse.type;
   }
+}
+
+export class DbManifestUpdatedNotification extends DbNotificationBase {
+    static type = DBEventNames.DB_MANIFEST_UPDATED_NOTIFICATION;
+    constructor(manifest: ModelAssetManifest) {
+        super(manifest.folder);
+        this.type = DbManifestUpdatedNotification.type;
+        this.payload = { manifest };
+    }
 }

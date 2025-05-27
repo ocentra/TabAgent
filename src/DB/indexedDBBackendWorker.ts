@@ -3,7 +3,8 @@ console.log(`${prefix} indexedDBBackendWorker loaded and running`);
 /// <reference lib="dom" />
 // indexedDBBackendWorker.ts
 
-import { DBActions } from './dbActions'; // Correctly import from your file
+import { DBActions, DbInitOptions } from './dbActions'; // Correctly import from your file
+import { DBNames } from './idbSchema';
 // Explicitly import IDBValidKey type for clarity (even though it's global in browser/worker context)
 // This is a no-op in browser, but helps TypeScript recognize the type:
 type IDBValidKey = globalThis.IDBValidKey;
@@ -108,7 +109,18 @@ const SCHEMA_METADATA_KEY = 'schemaDefinition';
 const VERSION_METADATA_KEY = 'dbVersion';
 const FTS_INDEX_STORE_PREFIX = '__fts_';
 
-// WORKER_READY is now accessed via DBActions.WORKER_READY
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const LOG_PUT = false;
+const LOG_GET = false;
+const LOG_GET_ALL = false;
+const LOG_QUERY = false;
+const LOG_DELETE = false;
+const LOG_CLEAR = false;
+const LOG_ADD_FILE_CHUNK = false;
 
 // Add this type alias near the top, after importing DBActions:
 type DBActionValue = keyof typeof DBActions | string;
@@ -295,15 +307,15 @@ class CustomIDBManager {
             }
             const req = indexedDB.deleteDatabase(dbName);
             req.onsuccess = () => {
-                console.log(`${prefix} Database '${dbName}' deleted successfully.`);
+                if (LOG_DELETE) console.log(`${prefix} Database '${dbName}' deleted successfully.`);
                 resolve();
             };
             req.onerror = (event) => {
-                console.error(`${prefix} Error deleting database '${dbName}':`, (event.target as IDBOpenDBRequest).error);
+                if (LOG_ERROR) console.error(`${prefix} Error deleting database '${dbName}':`, (event.target as IDBOpenDBRequest).error);
                 reject((event.target as IDBOpenDBRequest).error);
             };
             req.onblocked = (event) => { // event is IDBVersionChangeEvent for onblocked from deleteDatabase
-                console.warn(`${prefix} Deletion of database '${dbName}' is blocked. Close other connections.`, event);
+                if (LOG_WARN) console.warn(`${prefix} Deletion of database '${dbName}' is blocked. Close other connections.`, event);
                 reject(new Error(`DB '${dbName}' delete request blocked.`));
             };
         });
@@ -400,7 +412,7 @@ class DataOperations {
             transaction.onabort = (event) => reject((event.target as IDBRequest).error || new Error('Transaction aborted'));
         });
     }
-
+   
     async put<T extends BaseRecord>(dbName: string, storeName: string, record: Partial<T> & { [key:string]: any}, key?: IDBValidKey): Promise<IDBValidKey> {
         const db = await this.getDB(dbName);
 
@@ -424,7 +436,7 @@ class DataOperations {
             shouldLog = true;
         }
         if (shouldLog) {
-            console.log('[idbWorker][TRACE] DataOperations.put: fullRecord:', fullRecord);
+           if (LOG_PUT) console.log('[idbWorker] DataOperations.put: fullRecord:', fullRecord);
         }
 
         return new Promise((resolve, reject) => {
@@ -648,7 +660,7 @@ class DataOperations {
 
                             if (limit && results.length >= limit) { // Check results.length for early exit
                                 Promise.all(joinPromises).then(() => {
-                                    console.log(`[CustomIDB Query] Matched records count:`, count);
+                                   // console.log(`[CustomIDB Query] Matched records count:`, count);
                                     resolve(results.slice(0, limit)); 
                                     try { transaction.abort(); } catch(e) {console.error("[CustomIDB Query] Error aborting transaction:", e);}
                                 }).catch(reject);
@@ -677,7 +689,7 @@ class DataOperations {
                                 });
                             }
                         }
-                        console.log(`${prefix} Matched records count:`, count);
+                        console.log(`${prefix} Matched records count for store '${from}'${where ? ` with where: ${JSON.stringify(where)}` : ''}:`, count);
                         resolve(results.slice(0, limit || results.length));
                     }).catch(reject);
                 }
@@ -702,6 +714,8 @@ class DataOperations {
             }
         });
     }
+
+    
 
     private promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
         return new Promise<T>((resolve, reject) => {
@@ -1246,6 +1260,39 @@ class DataOperations {
             request.onerror = (event) => reject((event.target as IDBRequest).error);
         });
     }
+
+    // --- Specialized manifest query ---
+    /**
+     * Efficiently fetch all manifest records for a given folder using the compound index.
+     * @param dbName The database name (e.g., 'TabAgentModels')
+     * @param storeName The store name (e.g., 'TabAgentModels')
+     * @param folder The folder/model ID
+     * @returns Promise resolving to an array of manifest records
+     */
+    async queryManifestsForFolder(dbName: string, storeName: string, folder: string): Promise<any[]> {
+        const db = await this.dbManager.openDBs.get(dbName);
+        if (!db) throw new Error(`Database ${dbName} not open or not managed by this instance.`);
+        return new Promise<any[]>((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            if (!store.indexNames.contains('folder_type')) {
+                reject(new Error('Compound index folder_type not found'));
+                return;
+            }
+            const cursorReq = store.index('folder_type').openCursor(IDBKeyRange.only([folder, 'manifest']));
+            const results: any[] = [];
+            cursorReq.onsuccess = (event: Event) => {
+                const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+                if (cursor) {
+                    results.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
+            cursorReq.onerror = (event: Event) => reject((event.target as IDBRequest).error);
+        });
+    }
 }
 
 
@@ -1364,8 +1411,10 @@ interface WorkerReadyMessage {
     type: typeof DBActions.WORKER_READY;
 }
 
+
+
 self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
-    console.log(`${prefix} Received message:`, event.data);
+    //console.log(`${prefix} Received message:`, event.data);
     const action: string = event.data.action;
     const payload = event.data.payload;
     const requestId = event.data.requestId;
@@ -1384,20 +1433,20 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
             console.log(`${prefix} INIT_CUSTOM_IDBS handler start`, { schemaConfig, ftsConfig });
             if (ftsConfig) {
                 idbManager.setFTSConfig(ftsConfig);
-                console.log(`${prefix} SET_FTS_CONFIG handler start`, { ftsConfig: idbManager.ftsConfig });
+               // console.log(`${prefix} SET_FTS_CONFIG handler start`, { ftsConfig: idbManager.ftsConfig });
             }
             if (schemaConfig) {
                 idbManager.setLastSchemaConfig(schemaConfig);
-                console.log(`${prefix} SET_LAST_SCHEMA_CONFIG handler start`, { lastSchemaConfig: idbManager.lastSchemaConfig });
+               // console.log(`${prefix} SET_LAST_SCHEMA_CONFIG handler start`, { lastSchemaConfig: idbManager.lastSchemaConfig });
             }
             const initResults: Record<string, {success: boolean, error?: ErrorResult}> = {};
             if (schemaConfig) {
                 for (const [dbName, dbDef] of Object.entries(schemaConfig)) {
                     try {
-                        console.log(`${prefix} Opening DB:`, dbName, dbDef);
+                        if (LOG_INFO) console.log(`${prefix} Opening DB:`, dbName, dbDef);
                         await idbManager.openDB(dbName, dbDef);
                         initResults[dbName] = { success: true };
-                        console.log(`${prefix} Opened DB:`, dbName);
+                        if (LOG_INFO) console.log(`${prefix} Opened DB:`, dbName);
                     } catch (e: any) {
                         console.error(`${prefix} Error opening DB:`, dbName, e);
                         initResults[dbName] = { success: false, error: { message: e.message, name: e.name, stack: e.stack, code: e.code } };
@@ -1407,76 +1456,81 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
             }
             result = initResults;
             if (!success) errorResult = { message: "One or more databases failed to initialize.", name: "DBInitializationError" };
-            console.log(`${prefix} INIT_CUSTOM_IDBS handler end`, { result, errorResult });
+           // console.log(`${prefix} INIT_CUSTOM_IDBS handler end`, { result, errorResult });
         } else if (action === DBActions.RESET) {
             console.log(`${prefix} RESET handler start`);
             result = await resetAllIDBData();
             success = result.success; 
             if (!success) errorResult = { message: "Reset operation failed for one or more databases.", name: "DBResetError", details: result.details };
         } else if (action === DBActions.PUT) {
-            console.log(`${prefix} PUT handler start`);
+            //console.log(`${prefix} PUT handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.put(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.GET) {
-            console.log(`${prefix} GET handler start`);
+            //console.log(`${prefix} GET handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.get(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.GET_ALL) {
-            console.log(`${prefix} GET_ALL handler start`);
+            //console.log(`${prefix} GET_ALL handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.getAll(operationPayload[0], operationPayload[1]);
+        } else if (action === DBActions.QUERY_MANIFESTS) {
+            //console.log(`${prefix} QUERY_MANIFESTS_FOR_FOLDER handler start`);
+            const operationPayload = Array.isArray(payload) ? payload : [payload];
+            result = await idbDataOps.queryManifestsForFolder(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.QUERY) {
-            console.log(`${prefix} QUERY handler start`);
+            //console.log(`${prefix} QUERY handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.query(operationPayload[0], operationPayload[1]);
         } else if (action === DBActions.DELETE) {
-            console.log(`${prefix} DELETE handler start`);
+            //console.log(`${prefix} DELETE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.delete(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.CLEAR) {
-            console.log(`${prefix} CLEAR handler start`);
+            //console.log(`${prefix} CLEAR handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.clear(operationPayload[0], operationPayload[1]);
         } else if (action === DBActions.ADD_FILE_CHUNK) {
-            console.log(`${prefix} ADD_FILE_CHUNK handler start`);
+            //console.log(`${prefix} ADD_FILE_CHUNK handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.addFileChunk(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.GET_FILE_CHUNK) {
-            console.log(`${prefix} GET_FILE_CHUNK handler start`);
+            //console.log(`${prefix} GET_FILE_CHUNK handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.getFileChunk(operationPayload[0], operationPayload[1], operationPayload[2], operationPayload[3]);
         } else if (action === DBActions.ASSEMBLE_FILE) {
-            console.log(`${prefix} ASSEMBLE_FILE handler start`);
+            //console.log(`${prefix} ASSEMBLE_FILE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.assembleFile(operationPayload[0], operationPayload[1], operationPayload[2], operationPayload[3]);
         } else if (action === DBActions.SEARCH) {
-            console.log(`${prefix} SEARCH handler start`);
+            //console.log(`${prefix} SEARCH handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.search(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.EXPORT_DATABASE) {
-            console.log(`${prefix} EXPORT_DATABASE handler start`);
+            //console.log(`${prefix} EXPORT_DATABASE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.exportDatabase(operationPayload[0]);
         } else if (action === DBActions.IMPORT_DATABASE) {
-            console.log(`${prefix} IMPORT_DATABASE handler start`);
+            //console.log(`${prefix} IMPORT_DATABASE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.importDatabase(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.CLEANUP_OLD_DATA) {
-            console.log(`${prefix} CLEANUP_OLD_DATA handler start`);
+            //console.log(`${prefix} CLEANUP_OLD_DATA handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.cleanupOldData(operationPayload[0], operationPayload[1], operationPayload[2], operationPayload[3]);
         } else if (action === DBActions.GET_CHANGES_SINCE) {
-            console.log(`${prefix} GET_CHANGES_SINCE handler start`);
+            //console.log(`${prefix} GET_CHANGES_SINCE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.getChangesSince(operationPayload[0], operationPayload[1], operationPayload[2], operationPayload[3]);
         } else if (action === DBActions.MARK_AS_DELETED) {
-            console.log(`${prefix} MARK_AS_DELETED handler start`);
+            //console.log(`${prefix} MARK_AS_DELETED handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.markAsDeleted(operationPayload[0], operationPayload[1], operationPayload[2]);
         } else if (action === DBActions.APPLY_SYNCED_RECORD) {
-            console.log(`${prefix} APPLY_SYNCED_RECORD handler start`);
+            //console.log(`${prefix} APPLY_SYNCED_RECORD handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.applySyncedRecord(operationPayload[0], operationPayload[1], operationPayload[2]);
+
         } else {
             console.log(`${prefix} Unknown action:`, action);
             success = false;
@@ -1499,7 +1553,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
     } else {
         response.error = errorResult!;
     }
-    console.log(`${prefix} Posting response:`, response);
+    // console.log(`${prefix} Posting response:`, response);
     self.postMessage(response);
 };
 

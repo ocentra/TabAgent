@@ -37,3 +37,12 @@ export abstract class BaseCRUD<T> {
   abstract delete(): Promise<void>;
   abstract saveToDB(): Promise<string>;
 }
+
+// Generic Manifest interface for any asset type
+export interface Manifest {
+  id: string;
+  fileName: string;
+  fileType: string;
+  status: string;
+  addedAt?: number;
+}

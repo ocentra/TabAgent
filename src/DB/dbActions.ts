@@ -19,8 +19,11 @@ export const DBActions = Object.freeze({
     MARK_AS_DELETED: 'markAsDeleted',
     APPLY_SYNCED_RECORD: 'applySyncedRecord',
     SEARCH: 'search',
-    WORKER_READY: 'ready'
+    WORKER_READY: 'ready',
+    QUERY_MANIFESTS: 'queryManifests',
     // Add more actions as needed
 } as const);
-
+export interface DbInitOptions {
+    preFetchedRepoMetadata?: Array<{ repo: string, metadata: any }>;
+  }
 export type DBActionsType = typeof DBActions; 

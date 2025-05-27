@@ -1,5 +1,6 @@
 import { UIEventNames } from "../events/eventNames";
-import { downloadModelAssets, handleUserFileRequestFromPopup, registerPopupCallbacks } from "../modelAssetDownloader";
+import { registerPopupCallbacks } from "../modelAssetDownloader";
+import type { FilePlan, FileState } from "../modelAssetDownloader";
 
 let modalElement: HTMLElement | null = null;
 let fileListElement: HTMLElement | null = null;
@@ -12,6 +13,7 @@ let currentNonOnnxProgress: number = 0;
 let currentNonOnnxStatus: string = 'unknown';
 
 let activeOnnxDownloadName: string | null = null;
+let requestFileDownloadCbRef: ((filePlan: any) => void) | null = null;
 
 function formatFileSize(bytes: number): string {
   if (!bytes || bytes === 0) return 'N/A';
@@ -21,10 +23,11 @@ function formatFileSize(bytes: number): string {
 }
 
 function renderFileList() {
+  const requestFileDownloadCb = requestFileDownloadCbRef;
   if (!fileListElement || !modalElement) return;
   fileListElement.innerHTML = '';
 
-  const nonOnnxFilesToDisplay = currentAllFiles.filter(f => !f.fileName.endsWith('.onnx'));
+  const nonOnnxFilesToDisplay = currentAllFiles.filter(f => !f.manifest.fileName.endsWith('.onnx'));
 
   if (nonOnnxFilesToDisplay.length) {
     const nonOnnxRow = document.createElement('div');
@@ -56,19 +59,24 @@ function renderFileList() {
   currentOnnxFiles.forEach(file => {
     const row = document.createElement('div');
     row.className = 'mb-2 px-3 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow flex flex-col gap-1';
-    row.id = `file-row-${file.fileName.replace(/[/.]/g, '-')}`;
+    row.id = `file-row-${file.manifest.fileName.replace(/[/.]/g, '-')}`;
     
-    const fileState = currentFileStates[file.fileName] || { status: 'unknown', progress: 0 };
+    const fileState = currentFileStates[file.manifest.fileName] || { status: 'unknown', progress: 0 };
     
+    // Debug log for ONNX files
+    if (file.manifest.fileName.endsWith('.onnx')) {
+        console.log('[ONNXSelectionPopupController] renderFileList:', file.manifest.fileName, 'fileState:', fileState);
+    }
+
     const infoDiv = document.createElement('div');
     infoDiv.className = 'flex justify-between items-center text-xs';
-    infoDiv.innerHTML = `<span class="font-semibold text-xs text-gray-800 dark:text-gray-100">${file.fileName.split('/').pop()}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(file.fileSize)}</span>`;
+    infoDiv.innerHTML = `<span class="font-semibold text-xs text-gray-800 dark:text-gray-100">${file.manifest.fileName.split('/').pop()}</span> <span class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(file.manifest.size)}</span>`;
     
     const loadBtn = document.createElement('button');
     loadBtn.className = 'onnx-load-btn px-2 py-0.5 text-xs font-semibold rounded shadow focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-offset-gray-800';
 
     let disableButton = false;
-    if (activeOnnxDownloadName && activeOnnxDownloadName !== file.fileName) disableButton = true;
+    if (activeOnnxDownloadName && activeOnnxDownloadName !== file.manifest.fileName) disableButton = true;
     if (currentNonOnnxStatus === 'downloading' || currentNonOnnxStatus === 'queued') disableButton = true;
 
     if (fileState.status === 'present' || fileState.status === 'downloaded') {
@@ -79,7 +87,7 @@ function renderFileList() {
         loadBtn.textContent = `Loading... ${fileState.progress}%`;
         loadBtn.disabled = true;
         loadBtn.className += ' bg-yellow-500 text-white cursor-wait';
-        activeOnnxDownloadName = file.fileName; 
+        activeOnnxDownloadName = file.manifest.fileName; 
     } else if (fileState.status === 'queued') {
         loadBtn.textContent = 'Queued';
         loadBtn.disabled = true;
@@ -88,12 +96,12 @@ function renderFileList() {
         loadBtn.textContent = 'Failed - Retry';
         loadBtn.disabled = disableButton;
         loadBtn.className += ` ${disableButton ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-red-500 hover:bg-red-600 text-white focus:ring-red-400'}`;
-        loadBtn.onclick = () => handleUserFileRequestFromPopup(file);
+        if (requestFileDownloadCb) loadBtn.onclick = () => requestFileDownloadCb(file);
     } else {
         loadBtn.textContent = 'Load Model';
         loadBtn.disabled = disableButton;
         loadBtn.className += ` ${disableButton ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500'}`;
-        loadBtn.onclick = () => handleUserFileRequestFromPopup(file);
+        if (requestFileDownloadCb) loadBtn.onclick = () => requestFileDownloadCb(file);
     }
     infoDiv.appendChild(loadBtn);
     row.appendChild(infoDiv);
@@ -103,10 +111,10 @@ function renderFileList() {
       progressBarContainer.className = 'w-full h-1 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden mt-1';
       const progressBar = document.createElement('div');
       let barColor = 'bg-blue-500';
-      if (fileState.status === 'downloading') barColor = 'bg-yellow-500';
+      if (fileState.status === 'downloading') barColor = 'bg-green-500';
       else if (fileState.status === 'queued') barColor = 'bg-gray-400';
       progressBar.className = `h-1 ${barColor} transition-all duration-300 rounded`;
-      progressBar.id = `progress-${file.fileName.replace(/[/.]/g, '-')}`;
+      progressBar.id = `progress-${file.manifest.fileName.replace(/[/.]/g, '-')}`;
       progressBar.style.width = `${fileState.progress}%`;
       progressBarContainer.appendChild(progressBar);
       row.appendChild(progressBarContainer);
@@ -120,7 +128,12 @@ function updateFileState(fileName: string, status: string, progress: number) {
     currentFileStates[fileName].status = status;
     currentFileStates[fileName].progress = progress;
 
-    if (status === 'downloading' && currentOnnxFiles.some(f => f.fileName === fileName)) {
+    // Debug log for ONNX files
+    if (fileName.endsWith('.onnx')) {
+        console.log('[ONNXSelectionPopupController] updateFileState:', fileName, 'status:', status, 'progress:', progress);
+    }
+
+    if (status === 'downloading' && currentOnnxFiles.some(f => f.manifest.fileName === fileName)) {
         activeOnnxDownloadName = fileName;
     } else if ((status === 'downloaded' || status === 'failed' || status === 'present') && activeOnnxDownloadName === fileName) {
         activeOnnxDownloadName = null;
@@ -173,10 +186,11 @@ function show(
     currentNonOnnxProgress = nonOnnxInitialProgressArg;
     currentNonOnnxStatus = nonOnnxInitialStatusArg;
     activeOnnxDownloadName = null;
+    requestFileDownloadCbRef = requestFileDownloadCb;
 
-    const activeOnnx = currentOnnxFiles.find(f => currentFileStates[f.fileName]?.status === 'downloading');
+    const activeOnnx = currentOnnxFiles.find(f => currentFileStates[f.manifest.fileName]?.status === 'downloading');
     if (activeOnnx) {
-        activeOnnxDownloadName = activeOnnx.fileName;
+        activeOnnxDownloadName = activeOnnx.manifest.fileName;
     }
     
     const modelId = allFilesArg.length > 0 ? allFilesArg[0].modelId || "Unknown Model" : "Unknown Model";
@@ -191,6 +205,8 @@ function show(
 function hide() {
     modalElement?.classList.add('hidden');
     modalElement?.classList.remove('flex');
+    // Notify main UI that popup was closed, so it can reset progress/button
+    document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: { status: 'popupclosed', done: true } }));
 }
 
 export function initializeONNXSelectionPopup(elements: { modal: HTMLElement, fileList: HTMLElement, modelTitle: HTMLElement }): any {
@@ -209,4 +225,18 @@ export function initializeONNXSelectionPopup(elements: { modal: HTMLElement, fil
     (window as any).hideOnnxSelectionPopup = hide;
     
     return { show, hide };
+}
+
+declare global {
+    interface Window {
+        showOnnxSelectionPopup?: (
+            onnxFiles: FilePlan[],
+            allFiles: FilePlan[],
+            initialFileStates: { [fileName: string]: FileState },
+            nonOnnxInitialProgress: number,
+            nonOnnxInitialStatus: string,
+            requestFileDownloadCallback: (filePlan: FilePlan) => void
+        ) => void;
+        hideOnnxSelectionPopup?: () => void;
+    }
 }

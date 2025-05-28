@@ -1390,6 +1390,7 @@ interface WorkerMessagePayload<T = any> {
     action: DBActionValue;
     payload?: T;
     requestId: number | string;
+    originType?: string;
 }
 
 interface ErrorResult {
@@ -1405,6 +1406,7 @@ interface WorkerResponse {
     result?: any;
     error?: ErrorResult;
     success: boolean;
+    type?: string;
 }
 
 interface WorkerReadyMessage {
@@ -1482,6 +1484,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
             //console.log(`${prefix} QUERY handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.query(operationPayload[0], operationPayload[1]);
+            console.log('[idbWorker][TEST] QUERY result for requestId:', requestId, 'result:', result);
         } else if (action === DBActions.DELETE) {
             //console.log(`${prefix} DELETE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
@@ -1553,7 +1556,8 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
     } else {
         response.error = errorResult!;
     }
-    // console.log(`${prefix} Posting response:`, response);
+    // Patch: set response.type for typed requests
+    response.type = event.data.originType ? event.data.originType + '_RESPONSE' : action + '_RESPONSE';
     self.postMessage(response);
 };
 

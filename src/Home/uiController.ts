@@ -4,8 +4,7 @@ import {  clearTemporaryMessages } from './chatRenderer';
 import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification } from '../DB/dbEvents';
-import { showNotification } from '../notifications';
-import { downloadModelAssets } from '../modelAssetDownloader';
+
 
 let queryInput: HTMLTextAreaElement | null,
     sendButton: HTMLButtonElement | null,
@@ -16,10 +15,14 @@ let queryInput: HTMLTextAreaElement | null,
     newChatButton: HTMLButtonElement | null,
     downloadModelButton: HTMLButtonElement | null,
     modelLoadProgress: HTMLElement | null;
+
 let isInitialized = false;
 let attachFileCallback: (() => void) | null | undefined = null;
 let currentSessionId: string | null = null;
+let modelSelectorDropdown: HTMLSelectElement | null = null;
+let onnxVariantSelectorDropdown: HTMLSelectElement | null = null;
 
+let loadModelButton: HTMLButtonElement | null = null;    
 
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -81,6 +84,11 @@ function selectElements() {
     fileInput = document.getElementById('file-input') as HTMLInputElement | null;
     loadingIndicatorElement = document.getElementById('loading-indicator');
     modelLoadProgress = document.getElementById('model-load-progress') as HTMLElement | null;
+    modelSelectorDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
+    onnxVariantSelectorDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    downloadModelButton = document.getElementById('download-model-btn') as HTMLButtonElement | null; 
+    loadModelButton = document.getElementById('load-model-button') as HTMLButtonElement | null;    
+
     if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
         console.error("UIController: One or more essential elements not found (excluding session list)!");
         return false;
@@ -93,6 +101,11 @@ function attachListeners() {
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
+
+    modelSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    onnxVariantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    downloadModelButton?.addEventListener('click', _handleDownloadModelButtonClick);
+    loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
 }
 
 function removeListeners() {
@@ -100,6 +113,11 @@ function removeListeners() {
     queryInput?.removeEventListener('keydown', handleEnterKey);
     sendButton?.removeEventListener('click', handleSendButtonClick);
     attachButton?.removeEventListener('click', handleAttachClick);
+
+    modelSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    onnxVariantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    downloadModelButton?.removeEventListener('click', _handleDownloadModelButtonClick);
+    loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
 }
 
 function handleEnterKey(event: KeyboardEvent) {
@@ -133,6 +151,11 @@ function handleAttachClick() {
     }
 }
 
+// In uiController.ts, add this new exported function:
+export function getModelSelectorOptions(): string[] {
+    if (!modelSelectorDropdown) return [];
+    return Array.from(modelSelectorDropdown.options).map(opt => opt.value).filter(Boolean); 
+}
 export function adjustTextareaHeight() {
     if (!queryInput) return;
     queryInput.style.height = 'auto';
@@ -234,8 +257,122 @@ function handleDownLoadingProgress(payload: any) {
     // Hide when done (but not on error)
     if ((percent >= 100 || payload.status === 'popupclosed'|| payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
-        setDownLoadButtonState('idle', 'Download Model');   
+       
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
+    }
+}
+
+
+
+const AVAILABLE_MODELS_STATIC_FALLBACK: Record<string, string> = {
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
+    "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
+    // Add more models here as needed from your original AVAILABLE_MODELS
+};
+
+export function populateModelDropdown(repoIds: string[], selectedRepoId: string | null) {
+    if (!modelSelectorDropdown) return;
+    const currentVal = modelSelectorDropdown.value;
+    modelSelectorDropdown.innerHTML = ''; // Clear existing options
+
+    if (!repoIds || repoIds.length === 0) {
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "No Models"; // Or "No Models Found"
+        modelSelectorDropdown.appendChild(option);
+        modelSelectorDropdown.disabled = true;
+        populateOnnxVariantDropdown([], null, false); // Clear ONNX variants too
+        return;
+    }
+
+    modelSelectorDropdown.disabled = false;
+    repoIds.forEach(repoId => {
+        if (!modelSelectorDropdown) return;
+        const option = document.createElement('option');
+        option.value = repoId;
+        const friendlyName = AVAILABLE_MODELS_STATIC_FALLBACK[repoId] || repoId;
+        option.textContent = friendlyName;
+        modelSelectorDropdown.appendChild(option);
+    });
+
+    if (selectedRepoId && repoIds.includes(selectedRepoId)) {
+        modelSelectorDropdown.value = selectedRepoId;
+    } else if (currentVal && repoIds.includes(currentVal)) { // Try to preserve selection
+        modelSelectorDropdown.value = currentVal;
+    } else if (repoIds.length > 0) {
+        modelSelectorDropdown.value = repoIds[0]; // Default to first
+    }
+}
+
+export function populateOnnxVariantDropdown(
+    onnxFiles: { fileName: string; status?: string }[],
+    selectedFileName: string | null,
+    multipleOnnxFilesExistForModel: boolean
+) {
+    if (!onnxVariantSelectorDropdown) return;
+    const currentVal = onnxVariantSelectorDropdown.value;
+    onnxVariantSelectorDropdown.innerHTML = '';
+
+    if (!onnxFiles || onnxFiles.length === 0) {
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "N/A";
+        onnxVariantSelectorDropdown.appendChild(option);
+        onnxVariantSelectorDropdown.disabled = true;
+        return;
+    }
+
+    onnxVariantSelectorDropdown.disabled = false;
+    if (multipleOnnxFilesExistForModel) {
+        const allOption = document.createElement('option');
+        allOption.value = 'all';
+        allOption.textContent = 'All (for download)';
+        onnxVariantSelectorDropdown.appendChild(allOption);
+    }
+
+    onnxFiles.forEach(file => {
+        if (!onnxVariantSelectorDropdown) return;
+        const option = document.createElement('option');
+        option.value = file.fileName;
+        let statusIcon = '';
+        if (file.status === 'present' || file.status === 'complete') statusIcon = '🟢';
+        else if (file.status === 'corrupt') statusIcon = '🔴';
+        option.textContent = `${file.fileName.split('/').pop()} ${statusIcon}`.trim();
+        onnxVariantSelectorDropdown.appendChild(option);
+    });
+
+    if (selectedFileName && onnxFiles.some(f => f.fileName === selectedFileName)) {
+        onnxVariantSelectorDropdown.value = selectedFileName;
+    } else if (currentVal && onnxFiles.some(f => f.fileName === currentVal)) { // Try to preserve
+        onnxVariantSelectorDropdown.value = currentVal;
+    } else if (multipleOnnxFilesExistForModel) {
+        onnxVariantSelectorDropdown.value = 'all';
+    } else if (onnxFiles.length > 0) {
+        onnxVariantSelectorDropdown.value = onnxFiles[0].fileName;
+    }
+}
+
+export function getCurrentlySelectedModel(): { modelId: string | null; onnxFile: string | null } {
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return { modelId: null, onnxFile: null };
+    return {
+        modelId: modelSelectorDropdown.value || null,
+        onnxFile: onnxVariantSelectorDropdown.value || null,
+    };
+}
+
+export function setDownloadModelButtonState(options: { visible: boolean; text?: string; disabled?: boolean }) {
+    if (downloadModelButton) {
+        downloadModelButton.style.display = options.visible ? '' : 'none';
+        if (options.text) downloadModelButton.textContent = options.text;
+        if (typeof options.disabled === 'boolean') downloadModelButton.disabled = options.disabled;
+    }
+}
+
+export function setLoadModelButtonState(options: { visible: boolean; text?: string; disabled?: boolean }) {
+    if (loadModelButton) {
+        loadModelButton.style.display = options.visible ? '' : 'none';
+        if (options.text) loadModelButton.textContent = options.text;
+        if (typeof options.disabled === 'boolean') loadModelButton.disabled = options.disabled;
     }
 }
 
@@ -266,17 +403,11 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
 
     clearTemporaryMessages();
 
-    downloadModelButton = document.getElementById('download-model-btn') as HTMLButtonElement | null;
-    if (downloadModelButton) {
-        downloadModelButton.addEventListener('click', handleLoadModelClick);
-    } else {
-        console.error("[UIController] Load Model button not found!");
-    }
+
 
 
 
     disableInput("Download or load a model from dropdown to begin.");
-    setDownLoadButtonState('idle', 'Download Model');
 
     console.log("[UIController] Initializing UI elements...");
 
@@ -298,6 +429,9 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     } else {
         console.warn("[UIController] Model selector dropdown not found.");
     }
+
+    if (downloadModelButton) downloadModelButton.style.display = 'none'; 
+    if (loadModelButton) loadModelButton.style.display = 'none';       
 
     console.log("[UIController] UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
@@ -335,56 +469,9 @@ export function triggerFileInputClick() {
     fileInput?.click();
 }
 
-function handleLoadModelClick() {
-    if (!isInitialized) return;
-    console.log("[UIController] Load Model button clicked.");
 
-    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
-    const selectedModelId = modelSelector?.value;
 
-    if (!selectedModelId) {
-        console.error("[UIController] Cannot load: No model selected or selector not found.");
-        showNotification("Error: Please select a model.", "error");
-        return;
-    }
 
-    console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
-    setDownLoadButtonState('loading'); 
-    disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId as keyof typeof AVAILABLE_MODELS] || selectedModelId}...`); 
-    document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
-}
-
-function setDownLoadButtonState(state: string, text = 'Load') {
-    if (!isInitialized || !downloadModelButton) return;
-
-    switch (state) {
-        case 'idle':
-            downloadModelButton.disabled = false;
-            downloadModelButton.textContent = text;
-            downloadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
-            downloadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
-            break;
-        case 'loading':
-            downloadModelButton.disabled = true;
-            downloadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
-            downloadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
-             downloadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
-            break;
-        case 'loaded':
-            downloadModelButton.disabled = true;
-            downloadModelButton.textContent = 'Loaded';
-            downloadModelButton.classList.replace('bg-green-500', 'bg-gray-500'); 
-            downloadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
-            break;
-        case 'error':
-            downloadModelButton.disabled = false;
-            downloadModelButton.textContent = 'Load Failed';
-            downloadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
-            downloadModelButton.classList.replace('bg-green-500', 'bg-red-500');
-            downloadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
-            break;
-    }
-}
 
 function disableInput(reason = "Processing...") {
     if (!isInitialized || !queryInput || !sendButton) return;
@@ -400,30 +487,48 @@ function enableInput() {
     sendButton.disabled = queryInput.value.trim() === '';
 }
 
-document.addEventListener(UIEventNames.WORKER_READY, (e: Event) => {
-    const customEvent = e as CustomEvent;
-    const payload = customEvent.detail;
-    console.log("[UIController] Received worker:ready signal", payload);
-    // Hide progress bar area
-    const statusDiv = document.getElementById('model-load-status');
-    if (statusDiv) statusDiv.style.display = 'none';
-    setDownLoadButtonState('loaded');
-});
+// Add these new functions inside uiController.ts
 
-document.addEventListener(UIEventNames.WORKER_ERROR, (e: Event) => {
-    const customEvent = e as CustomEvent;
-    const payload = customEvent.detail;
-    console.error("[UIController] Received worker:error signal", payload);
-    // Show error in progress bar area and keep it visible
-    const statusDiv = document.getElementById('model-load-status');
-    const statusText = document.getElementById('model-load-status-text');
-    const progressInner = document.getElementById('model-load-progress-inner');
-    if (statusDiv && statusText && progressInner) {
-        statusDiv.style.display = 'block';
-        statusText.textContent = payload?.error || 'Model load failed.';
-        progressInner.style.background = '#f44336';
-        progressInner.style.width = '100%';
+function _handleModelOrVariantChange() { // Underscore to indicate it's an internal handler for a listener
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return;
+    const modelId = modelSelectorDropdown.value;
+    const onnxFile = onnxVariantSelectorDropdown.value;
+    console.log(`[UIController] Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, onnxFile });
+    document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
+        detail: { modelId, onnxFile } // Pass the selected values
+    }));
+    // DO NOT call sidepanel's updateModelActionButtons directly here.
+    // sidepanel will listen to MODEL_SELECTION_CHANGED and then decide to update buttons.
+}
+
+function _handleDownloadModelButtonClick() { // Underscore for internal handler
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return;
+    const modelId = modelSelectorDropdown.value;
+    const onnxFile = onnxVariantSelectorDropdown.value; // This can be 'all'
+    if (!modelId) {
+        console.warn("[UIController] Download Model button clicked, but no model selected.");
+        // Sidepanel can show a notification if it listens for an error/warning event, or uiController can have its own simple notification
+        return;
     }
-    setDownLoadButtonState('error');
-    disableInput("Model load failed. Check logs.");
-});
+    console.log(`[UIController] Download Model button clicked. Dispatching ${UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION}`, { modelId, onnxFile });
+    document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION, {
+        detail: { modelId, onnxFile }
+    }));
+}
+
+function _handleLoadModelButtonClick() { // Underscore for internal handler
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return;
+    const modelId = modelSelectorDropdown.value;
+    const onnxFile = onnxVariantSelectorDropdown.value;
+    if (!modelId || !onnxFile || onnxFile === 'all') { // Must be a specific ONNX file to load
+        console.warn("[UIController] Load Model button clicked, but no model or specific ONNX file selected.");
+        return;
+    }
+    console.log(`[UIController] Load Model button clicked. Dispatching ${UIEventNames.REQUEST_MODEL_EXECUTION}`, { modelId, onnxFile });
+    document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
+        detail: { modelId, onnxFile }
+    }));
+}
+
+
+

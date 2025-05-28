@@ -125,6 +125,9 @@ function createDbWorker() {
         const { requestId, type, result, error, stack } = event.data;
         const { type: evtType, requestId: evtReqId, error: evtError } = event.data || {};
         console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
+        if (evtType === 'query' && evtReqId && result) {
+          console.log('[DB][TEST] Worker onmessage for requestId:', evtReqId, 'result:', result);
+        }
         if (requestId && dbWorkerCallbacks[requestId]) {
           const callback = dbWorkerCallbacks[requestId];
           delete dbWorkerCallbacks[requestId];
@@ -646,15 +649,23 @@ async function handleDbCreateManifestRequest(event: any) {
 }
 
 async function handleDbReadManifestByChunkGroupIdRequest(event: any) {
-  console.log('[DB] handleDbReadManifestByChunkGroupIdRequest', { fileName: event?.payload?.fileName, folder: event?.payload?.folder });
-  return handleRequest(event, async (payload: any) => {
-    if (!payload.folder || !payload.fileName) {
-        throw new AppError('INVALID_INPUT', 'Folder and fileName are required to get a manifest.');
+  console.log('[DB] handleDbReadManifestByChunkGroupIdRequest (no handleRequest)', { fileName: event?.payload?.fileName, folder: event?.payload?.folder });
+  try {
+    if (!event.payload?.folder || !event.payload?.fileName) {
+      throw new AppError('INVALID_INPUT', 'Folder and fileName are required to get a manifest.');
     }
-    const chunkGroupId = `${payload.folder}/${payload.fileName}`;
-    const manifest = await ModelAsset.readManifestByChunkGroupId(chunkGroupId, getDbWorker());
-    return { success: true, data: manifest }; // manifest can be null
-  }, DbGetManifestResponse, 5000, (res: any) => res.data);
+    const worker = getDbWorker();
+    const chunkGroupId = `${event.payload.folder}/${event.payload.fileName}`;
+    const manifest = await ModelAsset.readManifestByChunkGroupId(chunkGroupId, worker);
+    console.log('[DB][DEBUG] Manifest fetched for chunkGroupId:', chunkGroupId, manifest);
+    // If not found, readManifestByChunkGroupId will throw
+    return new DbGetManifestResponse(event.requestId, true, manifest);
+  } catch (error) {
+    const errObj = error as Error;
+    console.error(`[DB] Error in handleDbReadManifestByChunkGroupIdRequest (no handleRequest):`, errObj.message, errObj);
+    const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack });
+    return new DbGetManifestResponse(event.requestId, false, null, appError);
+  }
 }
 
 async function handleDbCountStoredChunksRequest(event: any) {
@@ -725,19 +736,28 @@ async function handleDbReadChunksByGroupIdRequest(event: any) {
 
 async function handleDbReadChunkRequest(event: any) {
   console.log('[DB] handleDbReadChunkRequest', { fileName: event?.payload?.fileName, folder: event?.payload?.folder, chunkIndex: event?.payload?.chunkIndex });
-  return handleRequest(event, async (payload: any) => {
+  try {
     let chunkId;
-    if (payload.chunkId) {
-        chunkId = payload.chunkId;
-    } else if (payload.folder && payload.fileName && typeof payload.chunkIndex === 'number') {
-        chunkId = `${payload.folder}/${payload.fileName}:${payload.chunkIndex}`;
+    if (event.payload?.chunkId) {
+      chunkId = event.payload.chunkId;
+    } else if (event.payload?.folder && event.payload?.fileName && typeof event.payload?.chunkIndex === 'number') {
+      chunkId = `${event.payload.folder}/${event.payload.fileName}:${event.payload.chunkIndex}`;
     } else {
-        throw new AppError('INVALID_INPUT', 'Requires chunkId or (folder, fileName, chunkIndex).');
+      throw new AppError('INVALID_INPUT', 'Requires chunkId or (folder, fileName, chunkIndex).');
     }
     const chunk = await ModelAsset.readChunk(chunkId, getDbWorker());
-    if (!chunk) return { success: false, error: `Chunk ${chunkId} not found` }; 
-    return { success: true, data: chunk };
-  }, DbGetModelAssetChunkResponse, 5000, (res: any) => res.data);
+    if (!chunk) {
+      return new DbGetModelAssetChunkResponse(event.requestId, false, null, new AppError('NOT_FOUND', `Chunk ${chunkId} not found`));
+    }
+    // Log the type of chunk.data
+    console.log('[DB][DEBUG] handleDbReadChunkRequest chunk.data type:', chunk && chunk.data && chunk.data.constructor && chunk.data.constructor.name, 'instanceof ArrayBuffer:', chunk && chunk.data instanceof ArrayBuffer);
+    return new DbGetModelAssetChunkResponse(event.requestId, true, chunk);
+  } catch (error) {
+    const errObj = error as Error;
+    console.error(`[DB] Error in handleDbReadChunkRequest:`, errObj.message, errObj);
+    const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack });
+    return new DbGetModelAssetChunkResponse(event.requestId, false, null, appError);
+  }
 }
 
 async function handleDbReadUniqueChunkGroupIdsRequest(event: any) {

@@ -3451,6 +3451,11 @@ function hide() {
     // Notify main UI that popup was closed, so it can reset progress/button
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: { status: 'popupclosed', done: true } }));
 }
+function setFileStatus(fileName, status) {
+    // If status is 'loaded', set progress to 100, else 0
+    const progress = status === 'loaded' ? 100 : 0;
+    updateFileState(fileName, status, progress);
+}
 function initializeONNXSelectionPopup(elements) {
     modalElement = elements.modal;
     fileListElement = elements.fileList;
@@ -3460,9 +3465,28 @@ function initializeONNXSelectionPopup(elements) {
         return null;
     }
     (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.registerPopupCallbacks)(handleDownloaderUpdate);
-    window.showOnnxSelectionPopup = show;
-    window.hideOnnxSelectionPopup = hide;
-    return { show, hide };
+    const controllerApi = {
+        show: show,
+        hide: hide,
+        updateFileProgress: (fileName, progressPercentage) => {
+            // Defensive: Only update status if not already failed/present/downloaded
+            let currentStatus = currentFileStates[fileName]?.status || 'unknown';
+            let statusToSet = currentStatus;
+            if (currentStatus !== 'failed' && currentStatus !== 'present' && currentStatus !== 'downloaded') {
+                statusToSet = progressPercentage < 100 ? 'downloading' : 'downloaded';
+            }
+            else if (progressPercentage < 100 && (currentStatus === 'downloaded' || currentStatus === 'present')) {
+                statusToSet = 'downloading';
+            }
+            updateFileState(fileName, statusToSet, progressPercentage);
+        },
+        setFileStatus: (fileName, newStatus) => {
+            setFileStatus(fileName, newStatus);
+        }
+    };
+    window.showOnnxSelectionPopup = controllerApi.show;
+    window.hideOnnxSelectionPopup = controllerApi.hide;
+    return controllerApi;
 }
 
 
@@ -3736,6 +3760,9 @@ function createDbWorker() {
                 const { requestId, type, result, error, stack } = event.data;
                 const { type: evtType, requestId: evtReqId, error: evtError } = event.data || {};
                 console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
+                if (evtType === 'query' && evtReqId && result) {
+                    console.log('[DB][TEST] Worker onmessage for requestId:', evtReqId, 'result:', result);
+                }
                 if (requestId && dbWorkerCallbacks[requestId]) {
                     const callback = dbWorkerCallbacks[requestId];
                     delete dbWorkerCallbacks[requestId];
@@ -4253,15 +4280,24 @@ async function handleDbCreateManifestRequest(event) {
     }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddManifestResponse);
 }
 async function handleDbReadManifestByChunkGroupIdRequest(event) {
-    console.log('[DB] handleDbReadManifestByChunkGroupIdRequest', { fileName: event?.payload?.fileName, folder: event?.payload?.folder });
-    return handleRequest(event, async (payload) => {
-        if (!payload.folder || !payload.fileName) {
+    console.log('[DB] handleDbReadManifestByChunkGroupIdRequest (no handleRequest)', { fileName: event?.payload?.fileName, folder: event?.payload?.folder });
+    try {
+        if (!event.payload?.folder || !event.payload?.fileName) {
             throw new AppError('INVALID_INPUT', 'Folder and fileName are required to get a manifest.');
         }
-        const chunkGroupId = `${payload.folder}/${payload.fileName}`;
-        const manifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readManifestByChunkGroupId(chunkGroupId, getDbWorker());
-        return { success: true, data: manifest }; // manifest can be null
-    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetManifestResponse, 5000, (res) => res.data);
+        const worker = getDbWorker();
+        const chunkGroupId = `${event.payload.folder}/${event.payload.fileName}`;
+        const manifest = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readManifestByChunkGroupId(chunkGroupId, worker);
+        console.log('[DB][DEBUG] Manifest fetched for chunkGroupId:', chunkGroupId, manifest);
+        // If not found, readManifestByChunkGroupId will throw
+        return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetManifestResponse(event.requestId, true, manifest);
+    }
+    catch (error) {
+        const errObj = error;
+        console.error(`[DB] Error in handleDbReadManifestByChunkGroupIdRequest (no handleRequest):`, errObj.message, errObj);
+        const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack });
+        return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetManifestResponse(event.requestId, false, null, appError);
+    }
 }
 async function handleDbCountStoredChunksRequest(event) {
     console.log('[DB] handleDbCountStoredChunksRequest', { fileName: event?.payload?.fileName, folder: event?.payload?.folder, expectedChunks: event?.payload?.expectedChunks });
@@ -4331,22 +4367,31 @@ async function handleDbReadChunksByGroupIdRequest(event) {
 }
 async function handleDbReadChunkRequest(event) {
     console.log('[DB] handleDbReadChunkRequest', { fileName: event?.payload?.fileName, folder: event?.payload?.folder, chunkIndex: event?.payload?.chunkIndex });
-    return handleRequest(event, async (payload) => {
+    try {
         let chunkId;
-        if (payload.chunkId) {
-            chunkId = payload.chunkId;
+        if (event.payload?.chunkId) {
+            chunkId = event.payload.chunkId;
         }
-        else if (payload.folder && payload.fileName && typeof payload.chunkIndex === 'number') {
-            chunkId = `${payload.folder}/${payload.fileName}:${payload.chunkIndex}`;
+        else if (event.payload?.folder && event.payload?.fileName && typeof event.payload?.chunkIndex === 'number') {
+            chunkId = `${event.payload.folder}/${event.payload.fileName}:${event.payload.chunkIndex}`;
         }
         else {
             throw new AppError('INVALID_INPUT', 'Requires chunkId or (folder, fileName, chunkIndex).');
         }
         const chunk = await _idbModelAsset__WEBPACK_IMPORTED_MODULE_3__.ModelAsset.readChunk(chunkId, getDbWorker());
-        if (!chunk)
-            return { success: false, error: `Chunk ${chunkId} not found` };
-        return { success: true, data: chunk };
-    }, _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse, 5000, (res) => res.data);
+        if (!chunk) {
+            return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse(event.requestId, false, null, new AppError('NOT_FOUND', `Chunk ${chunkId} not found`));
+        }
+        // Log the type of chunk.data
+        console.log('[DB][DEBUG] handleDbReadChunkRequest chunk.data type:', chunk && chunk.data && chunk.data.constructor && chunk.data.constructor.name, 'instanceof ArrayBuffer:', chunk && chunk.data instanceof ArrayBuffer);
+        return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse(event.requestId, true, chunk);
+    }
+    catch (error) {
+        const errObj = error;
+        console.error(`[DB] Error in handleDbReadChunkRequest:`, errObj.message, errObj);
+        const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack });
+        return new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetModelAssetChunkResponse(event.requestId, false, null, appError);
+    }
 }
 async function handleDbReadUniqueChunkGroupIdsRequest(event) {
     console.log('[DB] handleDbReadUniqueChunkGroupIdsRequest', { folder: event?.payload?.folder });
@@ -7449,11 +7494,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
 /* harmony import */ var spark_md5__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! spark-md5 */ "./node_modules/spark-md5/spark-md5.js");
 /* harmony import */ var spark_md5__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(spark_md5__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _dbEvents__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dbEvents */ "./src/DB/dbEvents.ts");
 // idbModelAsset.ts
 
 
 
 // @ts-ignore: If using JS/TS without types for spark-md5
+
 
 const MODEL_ASSET_TYPE_MANIFEST = 'manifest';
 const MODEL_ASSET_TYPE_CHUNK = 'chunk';
@@ -7575,8 +7622,11 @@ class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
             where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_MANIFEST },
             limit: 1
         };
-        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query]);
-        return results && results.length > 0 && isModelAssetManifest(results[0]) ? results[0] : undefined;
+        const results = await ModelAsset.sendWorkerRequest(dbWorker, _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS, query], _dbEvents__WEBPACK_IMPORTED_MODULE_4__.DbGetManifestRequest.type);
+        if (!results || results.length === 0 || !isModelAssetManifest(results[0])) {
+            throw new Error(`Manifest not found for chunkGroupId: ${chunkGroupId}`);
+        }
+        return results[0];
     }
     static async createManifestByChunkGroupId(manifest, dbWorker) {
         return ModelAsset.createManifest(manifest, dbWorker);
@@ -7696,12 +7746,13 @@ class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
     static checksumChunkMD5(arrayBuffer) {
         return spark_md5__WEBPACK_IMPORTED_MODULE_3___default().ArrayBuffer.hash(arrayBuffer);
     }
-    static sendWorkerRequest(dbWorker, action, payloadArray) {
+    static sendWorkerRequest(dbWorker, action, payloadArray, originType) {
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
                     dbWorker.removeEventListener('message', handleMessage);
+                    console.log('[idbModelAsset][TEST] sendWorkerRequest action:', action, 'requestId:', requestId, 'result:', event.data.result, 'error:', event.data.error);
                     if (event.data.success) {
                         resolve(event.data.result);
                     }
@@ -7712,7 +7763,7 @@ class ModelAsset extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                 }
             };
             dbWorker.addEventListener('message', handleMessage);
-            dbWorker.postMessage({ action, payload: payloadArray, requestId });
+            dbWorker.postMessage({ action, payload: payloadArray, requestId, originType });
             setTimeout(() => {
                 dbWorker.removeEventListener('message', handleMessage);
                 reject(new Error(`Timeout for worker request action ${action}`));
@@ -8666,15 +8717,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _uiController__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./uiController */ "./src/Home/uiController.ts");
+
 
 
 let getActiveSessionIdFunc = null;
-let ui = null;
 function initializeFileHandling(dependencies) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    ui = dependencies.uiController;
-    if (!getActiveSessionIdFunc || !ui) {
-        console.error("FileHandler: Missing getActiveSessionIdFunc or uiController dependency!");
+    if (!getActiveSessionIdFunc) {
+        console.error("FileHandler: Missing getActiveSessionIdFunc dependency!");
     }
     else {
         console.log("[FileHandler] Initialized (Note: DB/Renderer interaction via events assumed).");
@@ -8719,12 +8770,8 @@ async function handleFileSelected(event) {
     }
 }
 function handleAttachClick() {
-    if (!ui) {
-        console.error("FileHandler: UI Controller not available to trigger file input.");
-        return;
-    }
     console.log("FileHandler: Triggering file input click.");
-    ui.triggerFileInputClick();
+    (0,_uiController__WEBPACK_IMPORTED_MODULE_2__.triggerFileInputClick)();
 }
 
 
@@ -9109,9 +9156,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   checkInitialized: () => (/* binding */ checkInitialized),
 /* harmony export */   clearInput: () => (/* binding */ clearInput),
 /* harmony export */   focusInput: () => (/* binding */ focusInput),
+/* harmony export */   getCurrentlySelectedModel: () => (/* binding */ getCurrentlySelectedModel),
 /* harmony export */   getInputValue: () => (/* binding */ getInputValue),
+/* harmony export */   getModelSelectorOptions: () => (/* binding */ getModelSelectorOptions),
 /* harmony export */   initializeUI: () => (/* binding */ initializeUI),
+/* harmony export */   populateModelDropdown: () => (/* binding */ populateModelDropdown),
+/* harmony export */   populateOnnxVariantDropdown: () => (/* binding */ populateOnnxVariantDropdown),
 /* harmony export */   setActiveSession: () => (/* binding */ setActiveSession),
+/* harmony export */   setDownloadModelButtonState: () => (/* binding */ setDownloadModelButtonState),
+/* harmony export */   setLoadModelButtonState: () => (/* binding */ setLoadModelButtonState),
 /* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick)
 /* harmony export */ });
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
@@ -9120,8 +9173,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__);
 /* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DB/idbSchema */ "./src/DB/idbSchema.ts");
-/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../notifications */ "./src/notifications.ts");
-
 
 
 
@@ -9132,6 +9183,9 @@ let queryInput, sendButton, chatBody, attachButton, fileInput, loadingIndicatorE
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
+let modelSelectorDropdown = null;
+let onnxVariantSelectorDropdown = null;
+let loadModelButton = null;
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     // Model ID (value) : Display Name
@@ -9185,6 +9239,10 @@ function selectElements() {
     fileInput = document.getElementById('file-input');
     loadingIndicatorElement = document.getElementById('loading-indicator');
     modelLoadProgress = document.getElementById('model-load-progress');
+    modelSelectorDropdown = document.getElementById('model-selector');
+    onnxVariantSelectorDropdown = document.getElementById('onnx-variant-selector');
+    downloadModelButton = document.getElementById('download-model-btn');
+    loadModelButton = document.getElementById('load-model-button');
     if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
         console.error("UIController: One or more essential elements not found (excluding session list)!");
         return false;
@@ -9196,12 +9254,20 @@ function attachListeners() {
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
+    modelSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    onnxVariantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    downloadModelButton?.addEventListener('click', _handleDownloadModelButtonClick);
+    loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
 }
 function removeListeners() {
     queryInput?.removeEventListener('input', adjustTextareaHeight);
     queryInput?.removeEventListener('keydown', handleEnterKey);
     sendButton?.removeEventListener('click', handleSendButtonClick);
     attachButton?.removeEventListener('click', handleAttachClick);
+    modelSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    onnxVariantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    downloadModelButton?.removeEventListener('click', _handleDownloadModelButtonClick);
+    loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
 }
 function handleEnterKey(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -9232,6 +9298,12 @@ function handleAttachClick() {
     if (attachFileCallback) {
         attachFileCallback();
     }
+}
+// In uiController.ts, add this new exported function:
+function getModelSelectorOptions() {
+    if (!modelSelectorDropdown)
+        return [];
+    return Array.from(modelSelectorDropdown.options).map(opt => opt.value).filter(Boolean);
 }
 function adjustTextareaHeight() {
     if (!queryInput)
@@ -9331,8 +9403,118 @@ function handleDownLoadingProgress(payload) {
     // Hide when done (but not on error)
     if ((percent >= 100 || payload.status === 'popupclosed' || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
         console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
-        setDownLoadButtonState('idle', 'Download Model');
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
+    }
+}
+const AVAILABLE_MODELS_STATIC_FALLBACK = {
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
+    "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
+    // Add more models here as needed from your original AVAILABLE_MODELS
+};
+function populateModelDropdown(repoIds, selectedRepoId) {
+    if (!modelSelectorDropdown)
+        return;
+    const currentVal = modelSelectorDropdown.value;
+    modelSelectorDropdown.innerHTML = ''; // Clear existing options
+    if (!repoIds || repoIds.length === 0) {
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "No Models"; // Or "No Models Found"
+        modelSelectorDropdown.appendChild(option);
+        modelSelectorDropdown.disabled = true;
+        populateOnnxVariantDropdown([], null, false); // Clear ONNX variants too
+        return;
+    }
+    modelSelectorDropdown.disabled = false;
+    repoIds.forEach(repoId => {
+        if (!modelSelectorDropdown)
+            return;
+        const option = document.createElement('option');
+        option.value = repoId;
+        const friendlyName = AVAILABLE_MODELS_STATIC_FALLBACK[repoId] || repoId;
+        option.textContent = friendlyName;
+        modelSelectorDropdown.appendChild(option);
+    });
+    if (selectedRepoId && repoIds.includes(selectedRepoId)) {
+        modelSelectorDropdown.value = selectedRepoId;
+    }
+    else if (currentVal && repoIds.includes(currentVal)) { // Try to preserve selection
+        modelSelectorDropdown.value = currentVal;
+    }
+    else if (repoIds.length > 0) {
+        modelSelectorDropdown.value = repoIds[0]; // Default to first
+    }
+}
+function populateOnnxVariantDropdown(onnxFiles, selectedFileName, multipleOnnxFilesExistForModel) {
+    if (!onnxVariantSelectorDropdown)
+        return;
+    const currentVal = onnxVariantSelectorDropdown.value;
+    onnxVariantSelectorDropdown.innerHTML = '';
+    if (!onnxFiles || onnxFiles.length === 0) {
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "N/A";
+        onnxVariantSelectorDropdown.appendChild(option);
+        onnxVariantSelectorDropdown.disabled = true;
+        return;
+    }
+    onnxVariantSelectorDropdown.disabled = false;
+    if (multipleOnnxFilesExistForModel) {
+        const allOption = document.createElement('option');
+        allOption.value = 'all';
+        allOption.textContent = 'All (for download)';
+        onnxVariantSelectorDropdown.appendChild(allOption);
+    }
+    onnxFiles.forEach(file => {
+        if (!onnxVariantSelectorDropdown)
+            return;
+        const option = document.createElement('option');
+        option.value = file.fileName;
+        let statusIcon = '';
+        if (file.status === 'present' || file.status === 'complete')
+            statusIcon = '🟢';
+        else if (file.status === 'corrupt')
+            statusIcon = '🔴';
+        option.textContent = `${file.fileName.split('/').pop()} ${statusIcon}`.trim();
+        onnxVariantSelectorDropdown.appendChild(option);
+    });
+    if (selectedFileName && onnxFiles.some(f => f.fileName === selectedFileName)) {
+        onnxVariantSelectorDropdown.value = selectedFileName;
+    }
+    else if (currentVal && onnxFiles.some(f => f.fileName === currentVal)) { // Try to preserve
+        onnxVariantSelectorDropdown.value = currentVal;
+    }
+    else if (multipleOnnxFilesExistForModel) {
+        onnxVariantSelectorDropdown.value = 'all';
+    }
+    else if (onnxFiles.length > 0) {
+        onnxVariantSelectorDropdown.value = onnxFiles[0].fileName;
+    }
+}
+function getCurrentlySelectedModel() {
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown)
+        return { modelId: null, onnxFile: null };
+    return {
+        modelId: modelSelectorDropdown.value || null,
+        onnxFile: onnxVariantSelectorDropdown.value || null,
+    };
+}
+function setDownloadModelButtonState(options) {
+    if (downloadModelButton) {
+        downloadModelButton.style.display = options.visible ? '' : 'none';
+        if (options.text)
+            downloadModelButton.textContent = options.text;
+        if (typeof options.disabled === 'boolean')
+            downloadModelButton.disabled = options.disabled;
+    }
+}
+function setLoadModelButtonState(options) {
+    if (loadModelButton) {
+        loadModelButton.style.display = options.visible ? '' : 'none';
+        if (options.text)
+            loadModelButton.textContent = options.text;
+        if (typeof options.disabled === 'boolean')
+            loadModelButton.disabled = options.disabled;
     }
 }
 async function initializeUI(callbacks) {
@@ -9356,15 +9538,7 @@ async function initializeUI(callbacks) {
     console.log("[UIController] Initialized successfully.");
     console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
-    downloadModelButton = document.getElementById('download-model-btn');
-    if (downloadModelButton) {
-        downloadModelButton.addEventListener('click', handleLoadModelClick);
-    }
-    else {
-        console.error("[UIController] Load Model button not found!");
-    }
     disableInput("Download or load a model from dropdown to begin.");
-    setDownLoadButtonState('idle', 'Download Model');
     console.log("[UIController] Initializing UI elements...");
     // Populate model selector
     console.log("[UIController] Attempting to find model selector...");
@@ -9384,6 +9558,10 @@ async function initializeUI(callbacks) {
     else {
         console.warn("[UIController] Model selector dropdown not found.");
     }
+    if (downloadModelButton)
+        downloadModelButton.style.display = 'none';
+    if (loadModelButton)
+        loadModelButton.style.display = 'none';
     console.log("[UIController] UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
 }
@@ -9413,53 +9591,6 @@ function focusInput() {
 function triggerFileInputClick() {
     fileInput?.click();
 }
-function handleLoadModelClick() {
-    if (!isInitialized)
-        return;
-    console.log("[UIController] Load Model button clicked.");
-    const modelSelector = document.getElementById('model-selector');
-    const selectedModelId = modelSelector?.value;
-    if (!selectedModelId) {
-        console.error("[UIController] Cannot load: No model selected or selector not found.");
-        (0,_notifications__WEBPACK_IMPORTED_MODULE_5__.showNotification)("Error: Please select a model.", "error");
-        return;
-    }
-    console.log(`[UIController] Requesting load for model: ${selectedModelId}`);
-    setDownLoadButtonState('loading');
-    disableInput(`Loading ${AVAILABLE_MODELS[selectedModelId] || selectedModelId}...`);
-    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_LOAD, { detail: { modelId: selectedModelId } }));
-}
-function setDownLoadButtonState(state, text = 'Load') {
-    if (!isInitialized || !downloadModelButton)
-        return;
-    switch (state) {
-        case 'idle':
-            downloadModelButton.disabled = false;
-            downloadModelButton.textContent = text;
-            downloadModelButton.classList.replace('bg-yellow-500', 'bg-green-500');
-            downloadModelButton.classList.replace('bg-gray-500', 'bg-green-500');
-            break;
-        case 'loading':
-            downloadModelButton.disabled = true;
-            downloadModelButton.textContent = text === 'Load' ? 'Loading...' : text;
-            downloadModelButton.classList.replace('bg-green-500', 'bg-yellow-500');
-            downloadModelButton.classList.replace('bg-gray-500', 'bg-yellow-500');
-            break;
-        case 'loaded':
-            downloadModelButton.disabled = true;
-            downloadModelButton.textContent = 'Loaded';
-            downloadModelButton.classList.replace('bg-green-500', 'bg-gray-500');
-            downloadModelButton.classList.replace('bg-yellow-500', 'bg-gray-500');
-            break;
-        case 'error':
-            downloadModelButton.disabled = false;
-            downloadModelButton.textContent = 'Load Failed';
-            downloadModelButton.classList.replace('bg-yellow-500', 'bg-red-500');
-            downloadModelButton.classList.replace('bg-green-500', 'bg-red-500');
-            downloadModelButton.classList.replace('bg-gray-500', 'bg-red-500');
-            break;
-    }
-}
 function disableInput(reason = "Processing...") {
     if (!isInitialized || !queryInput || !sendButton)
         return;
@@ -9474,33 +9605,48 @@ function enableInput() {
     queryInput.placeholder = "Ask Tab Agent...";
     sendButton.disabled = queryInput.value.trim() === '';
 }
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_READY, (e) => {
-    const customEvent = e;
-    const payload = customEvent.detail;
-    console.log("[UIController] Received worker:ready signal", payload);
-    // Hide progress bar area
-    const statusDiv = document.getElementById('model-load-status');
-    if (statusDiv)
-        statusDiv.style.display = 'none';
-    setDownLoadButtonState('loaded');
-});
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.WORKER_ERROR, (e) => {
-    const customEvent = e;
-    const payload = customEvent.detail;
-    console.error("[UIController] Received worker:error signal", payload);
-    // Show error in progress bar area and keep it visible
-    const statusDiv = document.getElementById('model-load-status');
-    const statusText = document.getElementById('model-load-status-text');
-    const progressInner = document.getElementById('model-load-progress-inner');
-    if (statusDiv && statusText && progressInner) {
-        statusDiv.style.display = 'block';
-        statusText.textContent = payload?.error || 'Model load failed.';
-        progressInner.style.background = '#f44336';
-        progressInner.style.width = '100%';
+// Add these new functions inside uiController.ts
+function _handleModelOrVariantChange() {
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown)
+        return;
+    const modelId = modelSelectorDropdown.value;
+    const onnxFile = onnxVariantSelectorDropdown.value;
+    console.log(`[UIController] Model or variant changed by user. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, onnxFile });
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED, {
+        detail: { modelId, onnxFile } // Pass the selected values
+    }));
+    // DO NOT call sidepanel's updateModelActionButtons directly here.
+    // sidepanel will listen to MODEL_SELECTION_CHANGED and then decide to update buttons.
+}
+function _handleDownloadModelButtonClick() {
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown)
+        return;
+    const modelId = modelSelectorDropdown.value;
+    const onnxFile = onnxVariantSelectorDropdown.value; // This can be 'all'
+    if (!modelId) {
+        console.warn("[UIController] Download Model button clicked, but no model selected.");
+        // Sidepanel can show a notification if it listens for an error/warning event, or uiController can have its own simple notification
+        return;
     }
-    setDownLoadButtonState('error');
-    disableInput("Model load failed. Check logs.");
-});
+    console.log(`[UIController] Download Model button clicked. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION}`, { modelId, onnxFile });
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION, {
+        detail: { modelId, onnxFile }
+    }));
+}
+function _handleLoadModelButtonClick() {
+    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown)
+        return;
+    const modelId = modelSelectorDropdown.value;
+    const onnxFile = onnxVariantSelectorDropdown.value;
+    if (!modelId || !onnxFile || onnxFile === 'all') { // Must be a specific ONNX file to load
+        console.warn("[UIController] Load Model button clicked, but no model or specific ONNX file selected.");
+        return;
+    }
+    console.log(`[UIController] Load Model button clicked. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_EXECUTION}`, { modelId, onnxFile });
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+        detail: { modelId, onnxFile }
+    }));
+}
 
 
 /***/ }),
@@ -9936,7 +10082,11 @@ const UIEventNames = Object.freeze({
     SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
     DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
     MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
-    // Add more as needed
+    MODEL_WORKER_LOADING_PROGRESS: 'modelWorkerLoadingProgress', // For when the worker itself is loading the model (pipeline init)
+    MODEL_SELECTION_CHANGED: 'ui:modelSelectionChanged', // When model or ONNX variant dropdown changes
+    REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
+    REQUEST_MODEL_EXECUTION: 'ui:requestModelExecution', // When user clicks "Load Model" button (to load into worker)
+    WORKER_STATE_CHANGED: 'worker:stateChanged', // Generic event for worker state updates (ready, error, etc.)
 });
 const WorkerEventNames = Object.freeze({
     WORKER_SCRIPT_READY: 'workerScriptReady',
@@ -9948,6 +10098,13 @@ const WorkerEventNames = Object.freeze({
     GENERATION_ERROR: 'generationError',
     RESET_COMPLETE: 'resetComplete',
     ERROR: 'error',
+    UNINITIALIZED: 'uninitialized',
+    CREATING_WORKER: 'creating_worker',
+    LOADING_MODEL: 'loading_model',
+    MODEL_READY: 'model_ready',
+    GENERATING: 'generating',
+    IDLE: 'idle',
+    WORKER_ENV_READY: 'workerEnvReady',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -10950,7 +11107,7 @@ async function ensureManagerForModel(modelId) {
         manager = new DownloadManager(modelId, manifests);
         downloadManagers.set(modelId, manager);
         // Optionally, initialize fileStates here
-        await manager.initAndProcessDownloads(null); // or a lighter version that doesn't start downloads
+        await manager.initAndProcessDownloads(null);
     }
     return manager;
 }
@@ -10959,11 +11116,8 @@ async function updateRepoPopupState(modelId) {
     if (typeof window === 'undefined' || !window.showOnnxSelectionPopup)
         return;
     console.log('[updateRepoPopupState] Updating popup state for modelId:', modelId);
-    let manager = downloadManagers.get(modelId);
+    let manager = await ensureManagerForModel(modelId);
     console.log('[updateRepoPopupState] Manager:', manager);
-    if (!manager) {
-        manager = await ensureManagerForModel(modelId);
-    }
     // Only update if popup is open
     const modal = document.getElementById && document.getElementById('onnx-selection-modal');
     if (!modal || modal.classList.contains('hidden'))
@@ -11164,10 +11318,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_2__);
 /* harmony import */ var _navigation__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./navigation */ "./src/navigation.ts");
-/* harmony import */ var _Home_uiController__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/uiController */ "./src/Home/uiController.ts");
-/* harmony import */ var _Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/chatRenderer */ "./src/Home/chatRenderer.ts");
-/* harmony import */ var _Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Home/messageOrchestrator */ "./src/Home/messageOrchestrator.ts");
-/* harmony import */ var _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Home/fileHandler */ "./src/Home/fileHandler.ts");
+/* harmony import */ var _Home_chatRenderer__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/chatRenderer */ "./src/Home/chatRenderer.ts");
+/* harmony import */ var _Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/messageOrchestrator */ "./src/Home/messageOrchestrator.ts");
+/* harmony import */ var _Home_fileHandler__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Home/fileHandler */ "./src/Home/fileHandler.ts");
+/* harmony import */ var _Home_uiController__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Home/uiController */ "./src/Home/uiController.ts");
 /* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
 /* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./notifications */ "./src/notifications.ts");
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./DB/dbEvents */ "./src/DB/dbEvents.ts");
@@ -11183,7 +11337,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Controllers_ONNXSelectionPopupController__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./Controllers/ONNXSelectionPopupController */ "./src/Controllers/ONNXSelectionPopupController.ts");
 /* harmony import */ var _Utilities_modelMetadata__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./Utilities/modelMetadata */ "./src/Utilities/modelMetadata.ts");
 // --- Imports ---
-
 
 
 
@@ -11225,6 +11378,10 @@ let onnxSelectionPopupController = null;
 let allModelMetaFromDb = {};
 let allManifests = [];
 const prefix = '[Sidepanel]';
+let modelWorker = null;
+let currentModelIdInWorker = null;
+let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+let isModelWorkerEnvReady = false;
 // --- Global Setup ---
 // Set EXTENSION_CONTEXT based on URL query string
 (function () {
@@ -11289,10 +11446,17 @@ function isDbLocalContext() {
     return typeof _DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest === 'function';
 }
 async function sendDbRequestSmart(request) {
+    console.log('[Sidepanel][DB][LOG] sendDbRequestSmart called', { request });
+    let response;
     if (isDbLocalContext()) {
-        return await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest)(request);
+        response = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest)(request);
+        console.log('[Sidepanel][DB][LOG] sendDbRequestSmart got local response', { response });
     }
-    return await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage(request);
+    else {
+        response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage(request);
+        console.log('[Sidepanel][DB][LOG] sendDbRequestSmart got remote response', { response });
+    }
+    return response;
 }
 // Re-add: fire-and-forget DB request via channel (for logs)
 function sendDbRequestViaChannel(request) {
@@ -11338,6 +11502,135 @@ _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.logChannel.onmessage = (even
     }
 };
 // --- UI and Worker Utilities ---
+function handleModelWorkerMessage(event) {
+    const { type, payload } = event.data;
+    console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
+    // Update state based on worker messages
+    switch (type) {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY;
+            console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_ENV_READY:
+            isModelWorkerEnvReady = true;
+            console.log(`${prefix} Model worker environment is ready.`);
+            updateModelActionButtons();
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
+            console.log(`${prefix} Worker loading status:`, payload);
+            // In a LATER STEP, we'll call uiController.updateMainProgressBar here
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+            currentModelIdInWorker = payload.model; // Worker confirms which model is ready
+            console.log(`${prefix} Model worker is ready with model: ${payload.model}`);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Model ${payload.model} loaded successfully!`); // Temporary feedback
+            // In a LATER STEP, we'll call uiController.setQueryInputState(true) and uiController.hideMainProgressBar()
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+            isModelWorkerEnvReady = false;
+            console.error(`${prefix} Model worker reported an error:`, payload);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Worker Error: ${payload}`);
+            currentModelIdInWorker = null; // Clear model ID on error
+            // In a LATER STEP, we'll update UI progress bar and input state
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+            isModelWorkerEnvReady = false;
+            currentModelIdInWorker = null;
+            console.log(`${prefix} Model worker reset complete.`);
+            break;
+        // GENERATION messages will be handled later when we integrate chat
+        default:
+            console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
+    }
+    updateModelActionButtons(); // Update button states based on worker's new state
+}
+function handleModelWorkerError(error) {
+    let errorMessage;
+    if (error instanceof ErrorEvent) {
+        errorMessage = error.message;
+        console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
+    }
+    else if (error instanceof Event && 'message' in error) {
+        errorMessage = error.message;
+        console.error(`${prefix} Uncaught error in model worker:`, error);
+    }
+    else {
+        errorMessage = String(error);
+        console.error(`${prefix} Uncaught error in model worker:`, error);
+    }
+    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+    currentModelIdInWorker = null;
+    (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Critical Worker Failure: ${errorMessage}`);
+    updateModelActionButtons();
+    if (modelWorker) {
+        modelWorker.terminate();
+        modelWorker = null;
+    }
+}
+function initializeModelWorker() {
+    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED) {
+        // If worker exists and is in a seemingly okay state, don't re-initialize unless forced
+        // This check might need refinement based on desired behavior (e.g., if switching models)
+        console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
+        return; // Or terminate and re-create if that's the desired logic for every init call
+    }
+    if (modelWorker) { // If it exists but is in error/uninitialized, or we want to force re-init
+        console.log(`${prefix} Terminating existing model worker before creating a new one.`);
+        modelWorker.terminate();
+        modelWorker = null;
+    }
+    isModelWorkerEnvReady = false;
+    console.log(`${prefix} Initializing model worker...`);
+    try {
+        const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL('modelworker.js');
+        modelWorker = new Worker(workerUrl, { type: 'module' });
+        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CREATING_WORKER;
+        modelWorker.onmessage = handleModelWorkerMessage;
+        modelWorker.onerror = handleModelWorkerError;
+        console.log(`${prefix} Model worker instance created and listeners attached.`);
+    }
+    catch (error) {
+        console.error(`${prefix} Failed to create model worker:`, error);
+        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Failed to initialize model worker: ${error.message}`);
+        updateModelActionButtons();
+    }
+}
+function terminateModelWorker() {
+    if (modelWorker) {
+        console.log(`${prefix} Terminating model worker.`);
+        modelWorker.terminate();
+        modelWorker = null;
+    }
+    currentModelIdInWorker = null;
+    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+    isModelWorkerEnvReady = false;
+    updateModelActionButtons();
+    // In a LATER STEP: uiController.setQueryInputState(false, "Model unloaded.");
+    // In a LATER STEP: uiController.hideMainProgressBar();
+    console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
+}
+function sendToModelWorker(message) {
+    if (!modelWorker || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CREATING_WORKER && message.type !== 'init') {
+        // If worker is still being created, only allow 'init' message.
+        // Or, queue other messages if worker script isn't ready yet.
+        // For now, if not ready for general messages, show error.
+        console.warn(`${prefix} Model worker not ready to receive message type '${message.type}'. State: ${modelWorkerState}`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)("Model worker is not ready. Please wait or try reloading.");
+        return;
+    }
+    try {
+        modelWorker.postMessage(message);
+    }
+    catch (error) {
+        console.error(`${prefix} Error posting message to model worker:`, error, message);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Error communicating with model worker: ${error.message}`);
+    }
+}
 function sendUiEvent(type, payload) {
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.sendMessage({ type, payload });
 }
@@ -11356,8 +11649,8 @@ async function setActiveChatSessionId(newSessionId) {
     else {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().storage.local.remove('lastSessionId');
     }
-    (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__.setActiveSessionId)(newSessionId);
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.setActiveSession)(newSessionId);
+    (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.setActiveSessionId)(newSessionId);
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.setActiveSession)(newSessionId);
 }
 // --- Channel Handlers ---
 if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI) {
@@ -11387,69 +11680,176 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
     };
     _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: msgSenderId } = event.data;
-        if (msgSenderId && msgSenderId !== senderId)
-            return; // Only process messages for this context
-        if ([
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
-        ].includes(type)) {
+        console.log('[Sidepanel][Channel][STORY] onmessage START', { type, requestId, payload, msgSenderId, timestamp: Date.now() });
+        // --- Part 1: Handle asset requests FROM model-worker.js ---
+        if (msgSenderId && msgSenderId.startsWith('worker-')) {
+            console.log('[Sidepanel][Channel][STORY] From worker, checking type...', { type });
+            if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbListModelFilesRequest.type) {
+                console.log('[Sidepanel][Channel][STORY] Matched DbListModelFilesRequest');
+                try {
+                    if (payload && payload.fileName) {
+                        // Manifest request for a specific file
+                        console.log(`${prefix} llmChannel: Worker requests manifest:`, payload);
+                        const manifestRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbListModelFilesRequest({ folder: payload.modelId, fileName: payload.fileName, returnObjects: true });
+                        const dbResponse = await requestDbAndWait(manifestRequest);
+                        const foundManifest = (dbResponse && Array.isArray(dbResponse) && dbResponse.length > 0) ? dbResponse[0] : null;
+                        if (foundManifest) {
+                            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: true, manifest: foundManifest }, requestId, senderId });
+                            console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: true, manifest: foundManifest }, timestamp: Date.now() });
+                        }
+                        else {
+                            throw new Error(`Manifest not found for ${payload.modelId}/${payload.fileName}`);
+                        }
+                    }
+                    else {
+                        // List files request
+                        console.log(`${prefix} llmChannel: Worker requests list model files:`, payload);
+                        const dbListReq = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbListModelFilesRequest({ folder: payload.modelId, returnObjects: true });
+                        const dbListResp = await sendDbRequestSmart(dbListReq); // Or requestDbAndWait
+                        const files = dbListResp.data || [];
+                        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: true, files: files }, requestId, senderId });
+                    }
+                }
+                catch (error) {
+                    console.error(`${prefix} Error handling DbListModelFilesRequest for worker:`, error);
+                    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: false, error: error.message }, requestId, senderId });
+                    console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: false, error: error.message }, timestamp: Date.now() });
+                }
+                console.log('[Sidepanel][Channel][STORY] End DbListModelFilesRequest block');
+                return;
+            }
+            else if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetModelAssetChunkRequest.type) {
+                console.log('[Sidepanel][Channel][STORY] Matched DbGetModelAssetChunkRequest');
+                try {
+                    console.log(`${prefix} llmChannel: Worker requests chunk:`, payload);
+                    // Use DbGetModelAssetChunkRequest to fetch a chunk
+                    const chunkRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetModelAssetChunkRequest({ folder: payload.folder, fileName: payload.fileName, chunkIndex: payload.chunkIndex });
+                    const chunkResponse = await requestDbAndWait(chunkRequest); // Response may be { data: ModelAssetChunk }
+                    const chunkObj = (chunkResponse && typeof chunkResponse === 'object' && 'data' in chunkResponse) ? chunkResponse.data : chunkResponse;
+                    let arrayBuffer = null;
+                    if (chunkObj instanceof ArrayBuffer) {
+                        arrayBuffer = chunkObj;
+                    }
+                    else if (chunkObj && typeof chunkObj === 'object' && 'data' in chunkObj && chunkObj.data instanceof ArrayBuffer) {
+                        arrayBuffer = chunkObj.data;
+                    }
+                    if (arrayBuffer) {
+                        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: true, arrayBuffer }, requestId, senderId });
+                        console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: true, arrayBuffer }, timestamp: Date.now() });
+                    }
+                    else {
+                        const folder = (chunkObj && typeof chunkObj === 'object' && 'folder' in chunkObj) ? chunkObj.folder : payload.folder;
+                        const fileName = (chunkObj && typeof chunkObj === 'object' && 'fileName' in chunkObj) ? chunkObj.fileName : payload.fileName;
+                        throw new Error(`Chunk ${payload.chunkIndex} not found for ${folder}/${fileName}`);
+                    }
+                }
+                catch (error) {
+                    console.error(`${prefix} Error fetching chunk for worker:`, error);
+                    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: false, error: error.message }, requestId, senderId });
+                    console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: false, error: error.message }, timestamp: Date.now() });
+                }
+                console.log('[Sidepanel][Channel][STORY] End DbGetModelAssetChunkRequest block');
+                return;
+            }
+            else if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetManifestRequest.type) {
+                console.log('[Sidepanel][Channel][STORY] Matched DbGetManifestRequest');
+                try {
+                    console.log('[Sidepanel][Channel] Handling DbGetManifestRequest', { requestId, payload });
+                    const manifestRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetManifestRequest(payload);
+                    const dbResponse = await requestDbAndWait(manifestRequest);
+                    console.log('[Sidepanel][Channel] DbGetManifestRequest DB response', { requestId, dbResponse });
+                    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                        type: `${type}_RESPONSE`,
+                        payload: { success: true, manifest: dbResponse ?? null },
+                        requestId,
+                        senderId
+                    });
+                    console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: true, manifest: dbResponse ?? null }, timestamp: Date.now() });
+                }
+                catch (err) {
+                    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                        type: `${type}_RESPONSE`,
+                        payload: { success: false, error: err instanceof Error ? err.message : String(err), manifest: null },
+                        requestId,
+                        senderId
+                    });
+                    console.error('[Sidepanel][Channel] Error in DbGetManifestRequest handler', { requestId, error: err });
+                }
+                console.log('[Sidepanel][Channel][STORY] End DbGetManifestRequest block');
+                return;
+            }
+            console.log('[Sidepanel][Channel][STORY] Unhandled worker message type', { type });
             return;
         }
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE && typeof window.sendChatMessage === 'function') {
-            const result = await window.sendChatMessage(payload);
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE + '_RESPONSE',
-                payload: result,
-                requestId,
-                senderId: 'sidepanel',
-                timestamp: Date.now(),
-            });
+        // --- Part 2: Handle messages for this sidepanel instance (e.g., from background, or legacy calls) ---
+        if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
+            console.log('[Sidepanel][Channel][STORY] Message from another sidepanel context, ignoring', { msgSenderId, senderId });
+            return;
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION &&
-            typeof window.interruptGeneration === 'function') {
-            const result = await window.interruptGeneration(payload);
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION + '_RESPONSE',
-                payload: result,
-                requestId,
-                senderId: 'sidepanel',
-                timestamp: Date.now(),
-            });
+        // Filter out worker status messages that are now handled by modelWorker.onmessage
+        if ([
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE
+        ].includes(type)) {
+            // These are now directly handled by modelWorker.onmessage, no need to process here via llmChannel
+            // unless this sidepanel instance itself posted them to llmChannel for broadcast.
+            return;
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER && typeof window.resetWorker === 'function') {
-            const result = await window.resetWorker(payload);
+        // Re-route legacy commands or commands from other parts of UI to the new worker mechanism
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+            console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
+            sendToModelWorker({ type: 'generate', payload });
+            // No direct response needed here for the llmChannel; worker will postMessage updates.
+        }
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
+            console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
+            sendToModelWorker({ type: 'interrupt', payload });
+        }
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER) {
+            console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
+            terminateModelWorker();
+            // Worker is reset. If a new model needs to be loaded, REQUEST_MODEL_EXECUTION will handle it.
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
-                payload: result,
+                payload: { success: true, message: "Worker reset." },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
             });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL && typeof window.loadModel === 'function') {
-            const result = await window.loadModel(payload);
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
-                payload: result,
-                requestId,
-                senderId: 'sidepanel',
-                timestamp: Date.now(),
-            });
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL) {
+            console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
+            const modelToLoad = payload.modelId || payload.model;
+            const onnxToLoad = payload.onnxFile; // Assuming payload might have this
+            if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
+                // Dispatch the event as if it came from the UI
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+                    detail: { modelId: modelToLoad, onnxFile: onnxToLoad }
+                }));
+            }
+            else {
+                const errorMsg = `LOAD_MODEL received with invalid/missing modelId or onnxFile. Model: ${modelToLoad}, ONNX: ${onnxToLoad}`;
+                console.error(`${prefix} ${errorMsg}`);
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                    payload: { success: false, error: errorMsg },
+                    requestId, senderId: 'sidepanel', timestamp: Date.now(),
+                });
+            }
         }
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-            const state = window.currentModelWorkerState || 'UNINITIALIZED';
-            const modelId = window.currentModelIdForWorker || null;
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
-                payload: { state, modelId },
+                payload: { state: modelWorkerState, modelId: currentModelIdInWorker },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
             });
         }
+        else {
+            console.log(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
+        }
+        console.log('[Sidepanel][Channel][STORY] onmessage END', { type, requestId, payload, msgSenderId, timestamp: Date.now() });
     };
 }
 // --- Event Handlers ---
@@ -11512,8 +11912,8 @@ async function handleSessionCreated(newSessionId) {
 async function handleNewChat() {
     console.log(`${prefix} New Chat button clicked.`);
     await setActiveChatSessionId(null);
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.clearInput)();
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.focusInput)();
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.clearInput)();
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.focusInput)();
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
@@ -11610,24 +12010,6 @@ async function handlePageChange(event) {
         }
     }
 }
-// --- Worker Status Broadcasting ---
-function handleWorkerStatusEvent(event) {
-    const { type, payload } = event.data;
-    if ([
-        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY,
-        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
-        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS,
-        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR,
-        _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE,
-    ].includes(type)) {
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({ type, payload, senderId: 'sidepanel', timestamp: Date.now() });
-    }
-}
-if (window.modelWorker) {
-    window.modelWorker.onmessage = (event) => {
-        handleWorkerStatusEvent(event);
-    };
-}
 // --- Main Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
     console.log(`${prefix} DOM Content Loaded.`);
@@ -11671,9 +12053,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('page-log-viewer')?.classList.add('hidden');
     // Initialize UI and Core Components
     try {
-        const uiInitResult = await (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_4__.initializeUI)({
+        const uiInitResult = await (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.initializeUI)({
             onNewChat: handleNewChat,
-            onAttachFile: _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.handleAttachClick,
+            onAttachFile: _Home_fileHandler__WEBPACK_IMPORTED_MODULE_6__.handleAttachClick,
         });
         if (!uiInitResult)
             throw new Error('UI initialization failed');
@@ -11683,18 +12065,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('[Sidepanel] CRITICAL: chatBody is null before initializeRenderer!');
             throw new Error('chatBody is null');
         }
-        (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_5__.initializeRenderer)(chatBody, requestDbAndWait);
+        (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.initializeRenderer)(chatBody, requestDbAndWait);
         console.log(`${prefix} Chat Renderer Initialized.`);
         (0,_navigation__WEBPACK_IMPORTED_MODULE_3__.initializeNavigation)();
         console.log(`${prefix} Navigation Initialized.`);
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
-        (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.initializeFileHandling)({
-            uiController: _Home_uiController__WEBPACK_IMPORTED_MODULE_4__,
+        (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_6__.initializeFileHandling)({
             getActiveSessionIdFunc: getActiveChatSessionId,
         });
         console.log(`${prefix} File Handler Initialized.`);
         if (fileInput) {
-            fileInput.addEventListener('change', _Home_fileHandler__WEBPACK_IMPORTED_MODULE_7__.handleFileSelected);
+            fileInput.addEventListener('change', _Home_fileHandler__WEBPACK_IMPORTED_MODULE_6__.handleFileSelected);
         }
         else {
             console.warn(`${prefix} File input element not found before adding listener.`);
@@ -11702,7 +12083,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const activeTab = await (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.getActiveTab)();
         currentTabId = activeTab?.id;
         console.log(`${prefix} Current Tab ID: ${currentTabId}`);
-        (0,_Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_6__.initializeOrchestrator)({
+        (0,_Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_5__.initializeOrchestrator)({
             getActiveSessionIdFunc: getActiveChatSessionId,
             onSessionCreatedCallback: handleSessionCreated,
             getCurrentTabIdFunc: () => currentTabId,
@@ -11751,28 +12132,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         else {
             console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_LOAD, async (e) => {
-            const { modelId } = e.detail || {};
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
+            const { modelId, onnxFile } = e.detail;
+            console.log(`${prefix} UIEvent: MODEL_SELECTION_CHANGED - Model: ${modelId}, ONNX: ${onnxFile}`);
+            // This replaces the logic from the old modelSelector and quantSelector 'change' listeners
+            currentModelId = modelId; // Update sidepanel's currentModelId if you still use it directly
+            await handleModelSelectorChange(); // This fetches manifests for the new model if needed
+            // and then calls renderDropdownsFromManifests
+            updateModelActionButtons(); // Ensure buttons update based on new selection
+        });
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION, async (e) => {
+            const { modelId, onnxFile } = e.detail;
+            console.log(`${prefix} UIEvent: REQUEST_MODEL_DOWNLOAD_ACTION - Model: ${modelId}, ONNX: ${onnxFile}`);
             if (!modelId) {
-                sendWorkerError('No model ID specified for loading.');
+                sendWorkerError('No model ID specified for downloading assets.'); // Or use utilShowError
                 return;
             }
             try {
-                // Get selected ONNX file from dropdown
-                const quantSelector = document.getElementById('onnx-variant-selector');
-                let selectedOnnxFile = quantSelector?.value || null;
-                // Do NOT convert 'all' to null; pass 'all' as a string
-                console.log(`${prefix} selectedOnnxFile:`, selectedOnnxFile);
-                // Pass manifests for this modelId to the downloader
+                // onnxFile can be 'all' or a specific file name
                 const manifestsForModel = allManifests.filter(m => m.folder === modelId);
-                const result = await (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.downloadModelAssets)(modelId, selectedOnnxFile, manifestsForModel);
+                const result = await (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.downloadModelAssets)(modelId, onnxFile, manifestsForModel); // downloadModelAssets needs to handle 'all'
                 if (!result.success) {
-                    sendWorkerError(result.error || 'Unknown error during model download.');
+                    sendWorkerError(result.error || 'Unknown error during model asset download.');
                 }
+                // Progress is handled by MODEL_DOWNLOAD_PROGRESS event which updates uiController's progress bar
+                // Button states will be updated via DbManifestUpdatedNotification -> renderDropdowns -> updateModelActionButtons
             }
             catch (err) {
-                sendWorkerError(`Failed to download model: ${err.message}`);
+                sendWorkerError(`Failed to download model assets: ${err.message}`);
             }
+        });
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+            const { modelId, onnxFile } = e.detail; // onnxFile is passed but model-worker.js init currently only uses modelId
+            console.log(`${prefix} UIEvent: REQUEST_MODEL_EXECUTION - Model: ${modelId}, Specific ONNX for context (if needed by worker): ${onnxFile}`);
+            if (!modelId || !onnxFile || onnxFile === 'all') { // Ensure a specific ONNX file is selected for loading
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)('A specific model and ONNX file must be selected to load.');
+                return;
+            }
+            // Terminate existing worker if loading a different model OR if the current worker is in an error state.
+            if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR)) {
+                console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
+                terminateModelWorker();
+            }
+            // Initialize worker if it's not there (e.g., first load or after termination)
+            if (!modelWorker) {
+                initializeModelWorker();
+            }
+            // Check if worker was successfully created/retained
+            if (!modelWorker) {
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)("Failed to create/initialize model worker. Cannot load model.");
+                modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+                updateModelActionButtons(); // Reflect error state on buttons
+                return;
+            }
+            console.log(`${prefix} Requesting model load in worker: ${modelId}`);
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
+            currentModelIdInWorker = modelId; // Tentatively set this. Worker will confirm with WORKER_READY.
+            updateModelActionButtons(); // Update button states to "Loading..."
+            // In a LATER STEP: uiController.updateMainProgressBar({ progress: 0, message: `Initializing worker for ${modelId}...` }, 'worker_load');
+            console.log(`${prefix} UI would show: Initializing worker for ${modelId}...`);
+            // Gather all manifests for this modelId (repo/folder)
+            const repoManifests = allManifests.filter(m => m.folder === modelId);
+            // Build a map: { [fileName]: manifest }
+            const manifestMap = {};
+            for (const m of repoManifests) {
+                manifestMap[m.fileName] = m;
+            }
+            if (!manifestMap[onnxFile]) {
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_8__.showError)(`Manifest not found for model ${modelId} and ONNX file ${onnxFile}`);
+                return;
+            }
+            // Build allowedOnnxFiles: selected ONNX file + any other ONNX files in the manifest for this model
+            const allowedOnnxFiles = repoManifests
+                .filter(m => m.fileType === 'onnx')
+                .map(m => m.fileName);
+            modelWorker.postMessage({
+                type: 'init',
+                payload: {
+                    modelId: modelId,
+                    manifest: manifestMap,
+                    onnxFile: onnxFile,
+                    allowedOnnxFiles: allowedOnnxFiles,
+                }
+            });
         });
         (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_13__.initializeDiscoverController)();
         console.log(`${prefix} Discover Controller Initialized.`);
@@ -11810,20 +12252,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
             await loadAndDisplaySession(null);
         }
-        // Track model selection
         const modelSelector = document.getElementById('model-selector');
         if (modelSelector) {
             modelSelector.addEventListener('change', (e) => {
                 currentModelId = e.target.value;
             });
-            // Set initial value
             currentModelId = modelSelector.value;
         }
-        // Ensure the model dropdown is populated before fetching metadata and initializing DB
-        // Log the dropdown options
         const dropdownOptions = Array.from(document.getElementById('model-selector').options).map(opt => opt.value);
         console.log(`${prefix} Model dropdown options before fetch:`, dropdownOptions);
-        // Initialize DB
         const dbInitSuccess = await initializeDatabase();
         if (!dbInitSuccess)
             return;
@@ -11842,19 +12279,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (onnxCloseBtn && onnxSelectionPopupController) {
             onnxCloseBtn.addEventListener('click', () => onnxSelectionPopupController.hide());
         }
-        // Expose to window for modelAssetDownloader.ts
         window.showOnnxSelectionPopup = (modelId, onnxFiles, downloadPlan, initialFileStates, nonOnnxProgress, nonOnnxStatus, requestFileDownloadCb) => {
             if (onnxSelectionPopupController) {
                 onnxSelectionPopupController.show(modelId, onnxFiles, downloadPlan, initialFileStates, nonOnnxProgress, nonOnnxStatus, requestFileDownloadCb);
             }
         };
-        // Listen for per-file progress events and update the popup
-        document.addEventListener('MODEL_DOWNLOAD_PROGRESS', (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e) => {
             const detail = e.detail || e.detail;
             if (detail && detail.currentFile) {
-                // Only update ONNX file progress bar if it's an ONNX file
                 if (detail.currentFile.endsWith('.onnx')) {
-                    // Normalize to base file name for ONNXSelectionPopupController
                     const fileKey = detail.currentFile.split('/').pop();
                     const percent = detail.currentFileSize ? Math.floor((detail.currentFileDownloaded / detail.currentFileSize) * 100) : 0;
                     if (onnxSelectionPopupController) {
@@ -11865,7 +12298,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             }
-            // Also update main progress bar as before
             if (typeof detail.progress === 'number') {
                 updateMainProgress(detail.progress, detail.message || '');
                 if (detail.done || detail.error) {
@@ -11873,7 +12305,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
-        // --- Main Model Load Progress Bar Wiring ---
         const modelLoadStatus = document.getElementById('model-load-status');
         const modelLoadStatusText = document.getElementById('model-load-status-text');
         const modelLoadProgressBar = document.getElementById('model-load-progress-bar');
@@ -11904,32 +12335,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
         }
     }
-    // On page load, hide both buttons
-    const downloadBtn = document.getElementById('download-model-btn');
-    const loadBtn = document.getElementById('load-model-button');
-    if (downloadBtn)
-        downloadBtn.style.display = 'none';
-    if (loadBtn)
-        loadBtn.style.display = 'none';
-    // Add dropdown change listeners
-    const modelSelector = document.getElementById('model-selector');
-    if (modelSelector) {
-        modelSelector.addEventListener('change', async () => {
-            await handleModelSelectorChange();
-            updateModelActionButtons();
-        });
-    }
-    const quantSelector = document.getElementById('onnx-variant-selector');
-    if (quantSelector) {
-        quantSelector.addEventListener('change', () => {
-            updateModelActionButtons();
-        });
-    }
 });
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbInitializationCompleteNotification.type, async (e) => {
     console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
     await handleModelSelectorChange();
     updateModelActionButtons();
+    initializeModelWorker();
+    // Send environment setup to model worker (do not load model yet)
+    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR) {
+        const transformersWasmPath = webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL('transformers.js/');
+        const llamaWasmPath = webextension_polyfill__WEBPACK_IMPORTED_MODULE_2___default().runtime.getURL('wasm/llama_bitnet_inference.wasm');
+        modelWorker.postMessage({ type: 'initWorker', payload: { transformersWasmPath, llamaWasmPath } });
+    }
 });
 // Listen for manifest update notifications and refresh dropdowns
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbManifestUpdatedNotification.type, async (e) => {
@@ -11951,7 +12368,7 @@ async function handleModelSelectorChange() {
     const modelSelector = document.getElementById('model-selector');
     if (!modelSelector)
         return;
-    const repoIds = Array.from(modelSelector.options).map(opt => opt.value);
+    const repoIds = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.getModelSelectorOptions)();
     const reposNeedingFetch = [];
     allManifests = [];
     console.log(`${prefix} repoIds:`, repoIds);
@@ -11996,65 +12413,42 @@ async function handleModelSelectorChange() {
 // --- Helper: Render dropdowns from manifests ---
 async function renderDropdownsFromManifests() {
     if (!allManifests.length) {
-        // fallback: fetch from DB if not already loaded
         console.log(`${prefix} allManifests is empty. Fetching from DB.`);
         const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetAllModelFileManifestsRequest();
         const response = await sendDbRequestSmart(req);
-        if (!response.success)
+        if (!response.success) {
+            (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateModelDropdown)([], null); // Use the new function
+            (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateOnnxVariantDropdown)([], null, false); // Use the new function
             return;
+        }
         allManifests = response.data || [];
     }
-    // Check again after fetch
     if (!allManifests.length) {
         console.warn(`${prefix} allManifests is still empty after DB fetch. Nothing to render.`);
+        (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateModelDropdown)([], null);
+        (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateOnnxVariantDropdown)([], null, false);
         return;
     }
-    console.log(`${prefix} allManifests fetched from DB:`, allManifests);
-    const modelSelector = document.getElementById('model-selector');
-    const quantSelector = document.getElementById('onnx-variant-selector');
-    if (!modelSelector || !quantSelector)
-        return;
-    // Store previous selection
-    const prevSelectedRepo = modelSelector.value;
-    // Populate main repo dropdown (unique folders)
+    console.log(`${prefix} allManifests for dropdown rendering:`, allManifests);
+    const { modelId: prevSelectedRepoInUI, onnxFile: prevSelectedOnnxInUI } = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.getCurrentlySelectedModel)();
     const uniqueRepos = Array.from(new Set(allManifests.map((m) => String(m.folder))));
-    modelSelector.innerHTML = '';
-    uniqueRepos.forEach((repo) => {
-        const option = document.createElement('option');
-        option.value = repo;
-        option.textContent = repo;
-        modelSelector.appendChild(option);
-    });
-    // Try to restore previous selection if possible
-    let selectedRepo = prevSelectedRepo && uniqueRepos.includes(prevSelectedRepo)
-        ? prevSelectedRepo
-        : uniqueRepos[0] || '';
-    modelSelector.value = selectedRepo;
-    // Populate quantization dropdown for selected repo (ONNX files)
-    const repoManifests = allManifests.filter((m) => m.folder === selectedRepo && m.fileType === 'onnx');
-    quantSelector.innerHTML = '';
-    if (repoManifests.length > 1) {
-        const allOption = document.createElement('option');
-        allOption.value = 'all';
-        allOption.textContent = 'All (show popup)';
-        quantSelector.appendChild(allOption);
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateModelDropdown)(uniqueRepos, prevSelectedRepoInUI);
+    // Get the *actual* current selection from UI after population, as it might have defaulted
+    const { modelId: currentSelectedRepoInUI } = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.getCurrentlySelectedModel)();
+    if (currentSelectedRepoInUI) {
+        const repoManifests = allManifests.filter((m) => m.folder === currentSelectedRepoInUI && m.fileType === 'onnx');
+        const onnxFilesForDropdown = repoManifests.map(m => ({ fileName: String(m.fileName), status: m.status }));
+        const multipleOnnx = repoManifests.length > 1;
+        (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateOnnxVariantDropdown)(onnxFilesForDropdown, prevSelectedOnnxInUI, multipleOnnx);
     }
-    repoManifests.forEach((manifest) => {
-        const option = document.createElement('option');
-        option.value = String(manifest.fileName);
-        let statusIcon = '🟡'; // default: missing
-        if (manifest.status === 'present' || manifest.status === 'complete')
-            statusIcon = '🟢';
-        if (manifest.status === 'corrupt')
-            statusIcon = '🔴';
-        option.textContent = `${manifest.fileName} ${statusIcon}`;
-        quantSelector.appendChild(option);
-    });
-    updateModelActionButtons();
-    // --- NEW: Update ONNX popup if open ---
+    else {
+        (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.populateOnnxVariantDropdown)([], null, false); // No repo selected, clear ONNX
+    }
+    updateModelActionButtons(); // This function will be updated next
+    // --- Update ONNX popup if open --- (This part remains the same for now)
     const modal = document.getElementById('onnx-selection-modal');
-    if (modal && !modal.classList.contains('hidden')) {
-        (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.updateRepoPopupState)(selectedRepo);
+    if (modal && !modal.classList.contains('hidden') && currentSelectedRepoInUI) {
+        (0,_modelAssetDownloader__WEBPACK_IMPORTED_MODULE_1__.updateRepoPopupState)(currentSelectedRepoInUI);
     }
 }
 // --- Helper: Database Initialization ---
@@ -12099,28 +12493,112 @@ function isModelReadyToLoad(selectedRepo, selectedOnnx) {
     return onnxReady && allSupportingReady;
 }
 function updateModelActionButtons() {
-    const modelSelector = document.getElementById('model-selector');
-    const quantSelector = document.getElementById('onnx-variant-selector');
-    const downloadBtn = document.getElementById('download-model-btn');
-    const loadBtn = document.getElementById('load-model-button');
-    if (!modelSelector || !quantSelector || !downloadBtn || !loadBtn)
+    const { modelId: selectedRepoInUI, onnxFile: selectedOnnxInUI } = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.getCurrentlySelectedModel)();
+    let dlBtnVisible = false;
+    let dlBtnText = "Download Model";
+    let dlBtnDisabled = true; // Default to disabled
+    let loadBtnVisible = false;
+    let loadBtnText = "Load Model";
+    let loadBtnDisabled = true; // Default to disabled
+    if (!selectedRepoInUI || !selectedOnnxInUI) {
+        // No model or ONNX variant selected in UI - keep buttons hidden/disabled
+        (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.setDownloadModelButtonState)({ visible: false, text: dlBtnText, disabled: true });
+        (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.setLoadModelButtonState)({ visible: false, text: loadBtnText, disabled: true });
         return;
-    const selectedRepo = modelSelector.value;
-    const selectedOnnx = quantSelector.value;
-    // Hide both by default
-    downloadBtn.style.display = 'none';
-    loadBtn.style.display = 'none';
-    if (!selectedRepo || !selectedOnnx)
-        return;
-    if (isModelReadyToLoad(selectedRepo, selectedOnnx)) {
-        loadBtn.style.display = '';
-        downloadBtn.style.display = 'none';
+    }
+    const assetsReady = isModelReadyToLoad(selectedRepoInUI, selectedOnnxInUI);
+    // Fallback for isDownloadingAssets if not defined
+    let isDownloadingAssets = false;
+    if (typeof window !== 'undefined' && typeof window.isDownloadingAssets === 'boolean') {
+        isDownloadingAssets = window.isDownloadingAssets;
+    }
+    else if (typeof isDownloadingAssets !== 'undefined') {
+        // If defined elsewhere in the module
     }
     else {
-        loadBtn.style.display = 'none';
-        downloadBtn.style.display = '';
+        isDownloadingAssets = false;
     }
+    if (!assetsReady) {
+        dlBtnVisible = true;
+        dlBtnDisabled = isDownloadingAssets; // Disable if any asset download is in progress
+        dlBtnText = isDownloadingAssets ? "Downloading..." : "Download Model";
+    }
+    else {
+        // Assets are ready for the selected model/ONNX
+        loadBtnVisible = true; // "Load Model" button is relevant
+        dlBtnVisible = false; // "Download Model" button is not needed
+        if (!isModelWorkerEnvReady) {
+            loadBtnText = "Initializing...";
+            loadBtnDisabled = true;
+        }
+        else if (selectedOnnxInUI === 'all') { // Cannot load 'all' variants
+            loadBtnText = "Select ONNX";
+            loadBtnDisabled = true;
+        }
+        else if (currentModelIdInWorker === selectedRepoInUI && modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY) {
+            loadBtnText = "Loaded";
+            loadBtnDisabled = true;
+        }
+        else if (currentModelIdInWorker === selectedRepoInUI && modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL) {
+            loadBtnText = "Loading...";
+            loadBtnDisabled = true;
+        }
+        else if (modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR && currentModelIdInWorker === selectedRepoInUI) {
+            loadBtnText = "Load Failed"; // Or "Retry Load"
+            loadBtnDisabled = false; // Allow retry
+        }
+        else {
+            // Ready to load this model, or a different model is loaded, or worker is uninitialized/error for other model
+            loadBtnText = "Load Model";
+            loadBtnDisabled = false;
+        }
+    }
+    // If any model is currently being loaded into the worker, disable asset downloads
+    if (modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL) {
+        dlBtnDisabled = true;
+    }
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.setDownloadModelButtonState)({ visible: dlBtnVisible, text: dlBtnText, disabled: dlBtnDisabled });
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_7__.setLoadModelButtonState)({ visible: loadBtnVisible, text: loadBtnText, disabled: loadBtnDisabled });
 }
+// --- Debug: Expose manifest fetch test in sidepanel context ---
+window.testManifestFetchFromSidepanel = async function () {
+    const testModel = "onnx-models/all-MiniLM-L6-v2-onnx";
+    const testFile = "tokenizer.json";
+    const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_10__.DbGetManifestRequest({ folder: testModel, fileName: testFile });
+    console.log("[Sidepanel][TEST] Requesting manifest for", testModel, testFile, req);
+    const t0 = performance.now();
+    try {
+        const manifest = await requestDbAndWait(req);
+        const t1 = performance.now();
+        console.log(`[Sidepanel][TEST] Got manifest in ${(t1 - t0).toFixed(2)} ms:`, manifest);
+        // Print preview of manifest (first 10 keys/lines)
+        if (manifest && typeof manifest === "object") {
+            const manifestObj = manifest;
+            const keys = Object.keys(manifestObj);
+            console.log(`[Sidepanel][TEST] Manifest keys:`, keys.slice(0, 10));
+            if (manifestObj.data && typeof manifestObj.data === "object") {
+                const dataObj = manifestObj.data;
+                const dataKeys = Object.keys(dataObj);
+                console.log(`[Sidepanel][TEST] Manifest.data keys:`, dataKeys.slice(0, 10));
+                if (Array.isArray(dataObj)) {
+                    console.log(`[Sidepanel][TEST] Manifest.data (first 10 items):`, dataObj.slice(0, 10));
+                }
+                else {
+                    const preview = {};
+                    for (const k of dataKeys.slice(0, 10))
+                        preview[k] = dataObj[k];
+                    console.log(`[Sidepanel][TEST] Manifest.data preview:`, preview);
+                }
+            }
+        }
+        return manifest;
+    }
+    catch (e) {
+        const t1 = performance.now();
+        console.error(`[Sidepanel][TEST] Manifest fetch error after ${(t1 - t0).toFixed(2)} ms:`, e);
+        throw e;
+    }
+};
 
 
 /***/ })
@@ -12197,7 +12675,7 @@ function updateModelActionButtons() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "f0f432f4a3fd7585e809" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "f837316c1acae6fe2b44" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

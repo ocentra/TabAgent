@@ -209,7 +209,26 @@ function hide() {
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_DOWNLOAD_PROGRESS, { detail: { status: 'popupclosed', done: true } }));
 }
 
-export function initializeONNXSelectionPopup(elements: { modal: HTMLElement, fileList: HTMLElement, modelTitle: HTMLElement }): any {
+function setFileStatus(fileName: string, status: string) {
+    // If status is 'loaded', set progress to 100, else 0
+    const progress = status === 'loaded' ? 100 : 0;
+    updateFileState(fileName, status, progress);
+}
+
+export function initializeONNXSelectionPopup(elements: { modal: HTMLElement, fileList: HTMLElement, modelTitle: HTMLElement }): {
+    show: (
+        modelId: string,
+        onnxFilesArg: any[],
+        allFilesArg: any[],
+        initialFileStatesArg: { [fileName: string]: { status: string, progress: number } },
+        nonOnnxInitialProgressArg: number,
+        nonOnnxInitialStatusArg: string,
+        requestFileDownloadCb: (filePlan: any) => void
+    ) => void;
+    hide: () => void;
+    updateFileProgress: (fileName: string, progressPercentage: number) => void;
+    setFileStatus: (fileName: string, newStatus: string) => void;
+} | null {
     modalElement = elements.modal;
     fileListElement = elements.fileList;
     modelTitleElement = elements.modelTitle;
@@ -221,10 +240,29 @@ export function initializeONNXSelectionPopup(elements: { modal: HTMLElement, fil
 
     registerPopupCallbacks(handleDownloaderUpdate);
 
-    (window as any).showOnnxSelectionPopup = show;
-    (window as any).hideOnnxSelectionPopup = hide;
-    
-    return { show, hide };
+    const controllerApi = {
+        show: show,
+        hide: hide,
+        updateFileProgress: (fileName: string, progressPercentage: number) => {
+            // Defensive: Only update status if not already failed/present/downloaded
+            let currentStatus = currentFileStates[fileName]?.status || 'unknown';
+            let statusToSet = currentStatus;
+            if (currentStatus !== 'failed' && currentStatus !== 'present' && currentStatus !== 'downloaded') {
+                statusToSet = progressPercentage < 100 ? 'downloading' : 'downloaded';
+            } else if (progressPercentage < 100 && (currentStatus === 'downloaded' || currentStatus === 'present')) {
+                statusToSet = 'downloading';
+            }
+            updateFileState(fileName, statusToSet, progressPercentage);
+        },
+        setFileStatus: (fileName: string, newStatus: string) => {
+            setFileStatus(fileName, newStatus);
+        }
+    };
+
+    (window as any).showOnnxSelectionPopup = controllerApi.show;
+    (window as any).hideOnnxSelectionPopup = controllerApi.hide;
+
+    return controllerApi;
 }
 
 declare global {

@@ -2238,7 +2238,11 @@ const UIEventNames = Object.freeze({
     SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
     DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
     MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
-    // Add more as needed
+    MODEL_WORKER_LOADING_PROGRESS: 'modelWorkerLoadingProgress', // For when the worker itself is loading the model (pipeline init)
+    MODEL_SELECTION_CHANGED: 'ui:modelSelectionChanged', // When model or ONNX variant dropdown changes
+    REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
+    REQUEST_MODEL_EXECUTION: 'ui:requestModelExecution', // When user clicks "Load Model" button (to load into worker)
+    WORKER_STATE_CHANGED: 'worker:stateChanged', // Generic event for worker state updates (ready, error, etc.)
 });
 const WorkerEventNames = Object.freeze({
     WORKER_SCRIPT_READY: 'workerScriptReady',
@@ -2250,6 +2254,13 @@ const WorkerEventNames = Object.freeze({
     GENERATION_ERROR: 'generationError',
     RESET_COMPLETE: 'resetComplete',
     ERROR: 'error',
+    UNINITIALIZED: 'uninitialized',
+    CREATING_WORKER: 'creating_worker',
+    LOADING_MODEL: 'loading_model',
+    MODEL_READY: 'model_ready',
+    GENERATING: 'generating',
+    IDLE: 'idle',
+    WORKER_ENV_READY: 'workerEnvReady',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

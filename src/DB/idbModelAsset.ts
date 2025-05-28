@@ -5,6 +5,7 @@ import { DBNames } from "./idbSchema";
 import { DBActions } from "./dbActions";
 // @ts-ignore: If using JS/TS without types for spark-md5
 import SparkMD5 from 'spark-md5';
+import { DbGetManifestRequest } from "./dbEvents";
 
 export const MODEL_ASSET_TYPE_MANIFEST = 'manifest' as const;
 export const MODEL_ASSET_TYPE_CHUNK = 'chunk' as const;
@@ -162,14 +163,22 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
   // File-level (Single manifest by chunkGroupId)
   // =====================
 
-  static async readManifestByChunkGroupId(chunkGroupId: string, dbWorker: Worker): Promise<ModelAssetManifest | undefined> {
+  static async readManifestByChunkGroupId(chunkGroupId: string, dbWorker: Worker): Promise<ModelAssetManifest> {
     const query = {
       from: DBNames.DB_MODELS,
       where: { chunkGroupId: chunkGroupId, type: MODEL_ASSET_TYPE_MANIFEST },
       limit: 1
     };
-    const results = await ModelAsset.sendWorkerRequest<ModelAssetManifest[]>(dbWorker, DBActions.QUERY, [DBNames.DB_MODELS, query]);
-    return results && results.length > 0 && isModelAssetManifest(results[0]) ? results[0] : undefined;
+    const results = await ModelAsset.sendWorkerRequest<ModelAssetManifest[]>(
+      dbWorker,
+      DBActions.QUERY,
+      [DBNames.DB_MODELS, query],
+      DbGetManifestRequest.type
+    );
+    if (!results || results.length === 0 || !isModelAssetManifest(results[0])) {
+      throw new Error(`Manifest not found for chunkGroupId: ${chunkGroupId}`);
+    }
+    return results[0];
   }
 
   static async createManifestByChunkGroupId(manifest: ModelAssetManifest, dbWorker: Worker): Promise<string> {
@@ -306,12 +315,13 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
     return SparkMD5.ArrayBuffer.hash(arrayBuffer);
   }
 
-  private static sendWorkerRequest<T>(dbWorker: Worker, action: string, payloadArray: any[]): Promise<T> {
+  private static sendWorkerRequest<T>(dbWorker: Worker, action: string, payloadArray: any[], originType?: string): Promise<T> {
     const requestId = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
           dbWorker.removeEventListener('message', handleMessage);
+          console.log('[idbModelAsset][TEST] sendWorkerRequest action:', action, 'requestId:', requestId, 'result:', event.data.result, 'error:', event.data.error);
           if (event.data.success) {
             resolve(event.data.result as T);
           } else {
@@ -321,7 +331,7 @@ export class ModelAsset extends BaseCRUD<ModelAssetManifest | ModelAssetChunk> {
         }
       };
       dbWorker.addEventListener('message', handleMessage);
-      dbWorker.postMessage({ action, payload: payloadArray, requestId });
+      dbWorker.postMessage({ action, payload: payloadArray, requestId, originType });
       setTimeout(() => {
         dbWorker.removeEventListener('message', handleMessage);
         reject(new Error(`Timeout for worker request action ${action}`));

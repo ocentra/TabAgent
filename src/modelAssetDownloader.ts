@@ -923,7 +923,7 @@ async function ensureManagerForModel(modelId: string): Promise<DownloadManager> 
         manager = new DownloadManager(modelId, manifests);
         downloadManagers.set(modelId, manager);
         // Optionally, initialize fileStates here
-        await manager.initAndProcessDownloads(null); // or a lighter version that doesn't start downloads
+        await manager.initAndProcessDownloads(null); 
     }
     return manager;
 }
@@ -933,11 +933,9 @@ export async function updateRepoPopupState(modelId: string) {
     if (typeof window === 'undefined' || !window.showOnnxSelectionPopup) return;
     console.log('[updateRepoPopupState] Updating popup state for modelId:', modelId);
 
-    let manager = downloadManagers.get(modelId);
+    let manager = await ensureManagerForModel(modelId);
     console.log('[updateRepoPopupState] Manager:', manager);
-    if (!manager) {
-        manager = await ensureManagerForModel(modelId);
-    }
+
     // Only update if popup is open
     const modal = document.getElementById && document.getElementById('onnx-selection-modal');
     if (!modal || modal.classList.contains('hidden')) return;

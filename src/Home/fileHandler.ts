@@ -1,15 +1,14 @@
 import { showError } from '../Utilities/generalUtils';
 import { DbAddMessageRequest } from '../DB/dbEvents';
+import { triggerFileInputClick } from './uiController';
 declare const eventBus: any;
 let getActiveSessionIdFunc: (() => string | null) | null = null;
-let ui: { triggerFileInputClick: () => void } | null = null;
 
-export function initializeFileHandling(dependencies: { getActiveSessionIdFunc: () => string | null; uiController: { triggerFileInputClick: () => void } }) {
+export function initializeFileHandling(dependencies: { getActiveSessionIdFunc: () => string | null; }) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    ui = dependencies.uiController;
 
-    if (!getActiveSessionIdFunc || !ui) {
-        console.error("FileHandler: Missing getActiveSessionIdFunc or uiController dependency!");
+    if (!getActiveSessionIdFunc) {
+        console.error("FileHandler: Missing getActiveSessionIdFunc dependency!");
     } else {
         console.log("[FileHandler] Initialized (Note: DB/Renderer interaction via events assumed).");
     }
@@ -59,10 +58,6 @@ export async function handleFileSelected(event: Event) {
 }
 
 export function handleAttachClick() {
-    if (!ui) {
-        console.error("FileHandler: UI Controller not available to trigger file input.");
-        return;
-    }
     console.log("FileHandler: Triggering file input click.");
-    ui.triggerFileInputClick();
+    triggerFileInputClick();
 }

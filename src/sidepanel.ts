@@ -3,7 +3,6 @@ import './DB/db';
 import './modelAssetDownloader';
 import browser from 'webextension-polyfill';
 import { initializeNavigation } from './navigation';
-import * as uiController from './Home/uiController';
 import {
   initializeRenderer,
   setActiveSessionId as setRendererSessionId,
@@ -20,10 +19,17 @@ import {
   clearInput,
   focusInput,
   setActiveSession,
+  setDownloadModelButtonState,
+  setLoadModelButtonState,
+  getCurrentlySelectedModel ,
+  populateModelDropdown,      
+  populateOnnxVariantDropdown,
+  getModelSelectorOptions,  
+
 } from './Home/uiController';
 import { getActiveTab, showError as utilShowError, debounce } from './Utilities/generalUtils';
 import { showNotification } from './notifications';
-import { DbGetSessionRequest, DbAddLogRequest ,DbWorkerCreatedNotification, DbGetManifestRequest, DbGetAllModelFileManifestsRequest, DbInitializationCompleteNotification, DbCreateAllFileManifestsForRepoRequest, DbListModelFilesRequest, DbManifestUpdatedNotification } from './DB/dbEvents';
+import { DbGetSessionRequest, DbAddLogRequest ,DbWorkerCreatedNotification, DbGetManifestRequest, DbGetAllModelFileManifestsRequest, DbInitializationCompleteNotification, DbCreateAllFileManifestsForRepoRequest, DbListModelFilesRequest, DbManifestUpdatedNotification, DbGetModelAssetChunkRequest } from './DB/dbEvents';
 import { autoEnsureDbInitialized, forwardDbRequest } from './DB/db';
 import { initializeHistoryPopup } from './Controllers/HistoryPopupController';
 import { initializeLibraryController } from './Controllers/LibraryController';
@@ -66,6 +72,11 @@ let onnxSelectionPopupController: any = null;
 let allModelMetaFromDb: Record<string, any[]> = {};
 let allManifests: ModelAssetManifest[] = [];
 const prefix = '[Sidepanel]';
+
+let modelWorker: Worker | null = null;
+let currentModelIdInWorker: string | null = null;
+let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
+let isModelWorkerEnvReady: boolean = false;
 // --- Global Setup ---
 // Set EXTENSION_CONTEXT based on URL query string
 (function () {
@@ -130,10 +141,16 @@ function isDbLocalContext() {
 }
 
 async function sendDbRequestSmart(request: any) {
+  console.log('[Sidepanel][DB][LOG] sendDbRequestSmart called', { request });
+  let response;
   if (isDbLocalContext()) {
-    return await forwardDbRequest(request);
+    response = await forwardDbRequest(request);
+    console.log('[Sidepanel][DB][LOG] sendDbRequestSmart got local response', { response });
+  } else {
+    response = await browser.runtime.sendMessage(request);
+    console.log('[Sidepanel][DB][LOG] sendDbRequestSmart got remote response', { response });
   }
-  return await browser.runtime.sendMessage(request);
+  return response;
 }
 
 // Re-add: fire-and-forget DB request via channel (for logs)
@@ -181,6 +198,143 @@ logChannel.onmessage = (event) => {
 };
 
 // --- UI and Worker Utilities ---
+
+
+function handleModelWorkerMessage(event: MessageEvent) {
+  const { type, payload } = event.data;
+  console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
+
+  // Update state based on worker messages
+  switch (type) {
+      case WorkerEventNames.WORKER_SCRIPT_READY:
+          modelWorkerState = WorkerEventNames.WORKER_SCRIPT_READY;
+          console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
+          break;
+      case WorkerEventNames.WORKER_ENV_READY:
+          isModelWorkerEnvReady = true;
+          console.log(`${prefix} Model worker environment is ready.`);
+          updateModelActionButtons();
+          break;
+      case WorkerEventNames.LOADING_STATUS:
+          modelWorkerState = WorkerEventNames.LOADING_MODEL;
+          console.log(`${prefix} Worker loading status:`, payload);
+          // In a LATER STEP, we'll call uiController.updateMainProgressBar here
+          break;
+      case WorkerEventNames.WORKER_READY:
+          modelWorkerState = WorkerEventNames.MODEL_READY;
+          currentModelIdInWorker = payload.model; // Worker confirms which model is ready
+          console.log(`${prefix} Model worker is ready with model: ${payload.model}`);
+          utilShowError(`Model ${payload.model} loaded successfully!`); // Temporary feedback
+          // In a LATER STEP, we'll call uiController.setQueryInputState(true) and uiController.hideMainProgressBar()
+          break;
+      case WorkerEventNames.ERROR:
+          modelWorkerState = WorkerEventNames.ERROR;
+          isModelWorkerEnvReady = false;
+          console.error(`${prefix} Model worker reported an error:`, payload);
+          utilShowError(`Worker Error: ${payload}`);
+          currentModelIdInWorker = null; // Clear model ID on error
+          // In a LATER STEP, we'll update UI progress bar and input state
+          break;
+      case WorkerEventNames.RESET_COMPLETE:
+          modelWorkerState = WorkerEventNames.UNINITIALIZED;
+          isModelWorkerEnvReady = false;
+          currentModelIdInWorker = null;
+          console.log(`${prefix} Model worker reset complete.`);
+          break;
+      // GENERATION messages will be handled later when we integrate chat
+      default:
+          console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
+  }
+  updateModelActionButtons(); // Update button states based on worker's new state
+}
+
+function handleModelWorkerError(error: Event | string) {
+  let errorMessage: string;
+  if (error instanceof ErrorEvent) {
+    errorMessage = error.message;
+    console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
+  } else if (error instanceof Event && 'message' in error) {
+    errorMessage = (error as any).message;
+    console.error(`${prefix} Uncaught error in model worker:`, error);
+  } else {
+    errorMessage = String(error);
+    console.error(`${prefix} Uncaught error in model worker:`, error);
+  }
+  modelWorkerState = WorkerEventNames.ERROR;
+  currentModelIdInWorker = null;
+  utilShowError(`Critical Worker Failure: ${errorMessage}`);
+  updateModelActionButtons();
+  if (modelWorker) {
+      modelWorker.terminate();
+      modelWorker = null;
+  }
+}
+
+function initializeModelWorker() {
+  if (modelWorker && modelWorkerState !== WorkerEventNames.ERROR && modelWorkerState !== WorkerEventNames.UNINITIALIZED) {
+      // If worker exists and is in a seemingly okay state, don't re-initialize unless forced
+      // This check might need refinement based on desired behavior (e.g., if switching models)
+      console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
+      return; // Or terminate and re-create if that's the desired logic for every init call
+  }
+
+  if (modelWorker) { // If it exists but is in error/uninitialized, or we want to force re-init
+      console.log(`${prefix} Terminating existing model worker before creating a new one.`);
+      modelWorker.terminate();
+      modelWorker = null;
+  }
+
+  isModelWorkerEnvReady = false;
+  console.log(`${prefix} Initializing model worker...`);
+  try {
+      const workerUrl = browser.runtime.getURL('modelworker.js');
+      modelWorker = new Worker(workerUrl, { type: 'module' });
+      modelWorkerState = WorkerEventNames.CREATING_WORKER;
+
+      modelWorker.onmessage = handleModelWorkerMessage;
+      modelWorker.onerror = handleModelWorkerError;
+
+      console.log(`${prefix} Model worker instance created and listeners attached.`);
+  } catch (error) {
+      console.error(`${prefix} Failed to create model worker:`, error);
+      modelWorkerState = WorkerEventNames.ERROR;
+      utilShowError(`Failed to initialize model worker: ${(error as Error).message}`);
+      updateModelActionButtons();
+  }
+}
+
+function terminateModelWorker() {
+  if (modelWorker) {
+      console.log(`${prefix} Terminating model worker.`);
+      modelWorker.terminate();
+      modelWorker = null;
+  }
+  currentModelIdInWorker = null;
+  modelWorkerState = WorkerEventNames.UNINITIALIZED;
+  isModelWorkerEnvReady = false;
+  updateModelActionButtons();
+  // In a LATER STEP: uiController.setQueryInputState(false, "Model unloaded.");
+  // In a LATER STEP: uiController.hideMainProgressBar();
+  console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
+}
+
+function sendToModelWorker(message: any) {
+  if (!modelWorker || modelWorkerState === WorkerEventNames.CREATING_WORKER && message.type !== 'init') {
+      // If worker is still being created, only allow 'init' message.
+      // Or, queue other messages if worker script isn't ready yet.
+      // For now, if not ready for general messages, show error.
+      console.warn(`${prefix} Model worker not ready to receive message type '${message.type}'. State: ${modelWorkerState}`);
+      utilShowError("Model worker is not ready. Please wait or try reloading.");
+      return;
+  }
+  try {
+      modelWorker.postMessage(message);
+  } catch (error) {
+      console.error(`${prefix} Error posting message to model worker:`, error, message);
+      utilShowError(`Error communicating with model worker: ${(error as Error).message}`);
+  }
+}
+
 function sendUiEvent(type: string, payload: any) {
   browser.runtime.sendMessage({ type, payload });
 }
@@ -230,70 +384,171 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
     }
   };
 
-  llmChannel.onmessage = async (event) => {
+  llmChannel.onmessage = async (event: MessageEvent) => {
     const { type, payload, requestId, senderId: msgSenderId } = event.data;
-    if (msgSenderId && msgSenderId !== senderId) return; // Only process messages for this context
-    if (
-      [
-        WorkerEventNames.WORKER_SCRIPT_READY,
-        WorkerEventNames.WORKER_READY,
-        WorkerEventNames.LOADING_STATUS,
-        WorkerEventNames.ERROR,
-        WorkerEventNames.RESET_COMPLETE,
-      ].includes(type)
-    ) {
-      return;
+
+    console.log('[Sidepanel][Channel][STORY] onmessage START', { type, requestId, payload, msgSenderId, timestamp: Date.now() });
+
+    // --- Part 1: Handle asset requests FROM model-worker.js ---
+    if (msgSenderId && msgSenderId.startsWith('worker-')) {
+        console.log('[Sidepanel][Channel][STORY] From worker, checking type...', { type });
+        if (type === DbListModelFilesRequest.type) {
+            console.log('[Sidepanel][Channel][STORY] Matched DbListModelFilesRequest');
+            try {
+                if (payload && payload.fileName) {
+                    // Manifest request for a specific file
+                    console.log(`${prefix} llmChannel: Worker requests manifest:`, payload);
+                    const manifestRequest = new DbListModelFilesRequest({ folder: payload.modelId, fileName: payload.fileName, returnObjects: true });
+                    const dbResponse = await requestDbAndWait(manifestRequest);
+                    const foundManifest = (dbResponse && Array.isArray(dbResponse) && dbResponse.length > 0) ? dbResponse[0] : null;
+
+                    if (foundManifest) {
+                        llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: true, manifest: foundManifest }, requestId, senderId });
+                        console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: true, manifest: foundManifest }, timestamp: Date.now() });
+                    } else {
+                        throw new Error(`Manifest not found for ${payload.modelId}/${payload.fileName}`);
+                    }
+                } else {
+                    // List files request
+                    console.log(`${prefix} llmChannel: Worker requests list model files:`, payload);
+                    const dbListReq = new DbListModelFilesRequest({ folder: payload.modelId, returnObjects: true });
+                    const dbListResp = await sendDbRequestSmart(dbListReq); // Or requestDbAndWait
+                    const files = dbListResp.data || [];
+                    llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: true, files: files }, requestId, senderId });
+                }
+            } catch (error) {
+                console.error(`${prefix} Error handling DbListModelFilesRequest for worker:`, error);
+                llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: false, error: (error as Error).message }, requestId, senderId });
+                console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: false, error: (error as Error).message }, timestamp: Date.now() });
+            }
+            console.log('[Sidepanel][Channel][STORY] End DbListModelFilesRequest block');
+            return;
+        } else if (type === DbGetModelAssetChunkRequest.type) {
+            console.log('[Sidepanel][Channel][STORY] Matched DbGetModelAssetChunkRequest');
+            try {
+                console.log(`${prefix} llmChannel: Worker requests chunk:`, payload);
+                // Use DbGetModelAssetChunkRequest to fetch a chunk
+                const chunkRequest = new DbGetModelAssetChunkRequest({ folder: payload.folder, fileName: payload.fileName, chunkIndex: payload.chunkIndex });
+                const chunkResponse = await requestDbAndWait(chunkRequest); // Response may be { data: ModelAssetChunk }
+                const chunkObj = (chunkResponse && typeof chunkResponse === 'object' && 'data' in chunkResponse) ? chunkResponse.data : chunkResponse;
+
+                let arrayBuffer: ArrayBuffer | null = null;
+                if (chunkObj instanceof ArrayBuffer) {
+                    arrayBuffer = chunkObj;
+                } else if (chunkObj && typeof chunkObj === 'object' && 'data' in chunkObj && (chunkObj as any).data instanceof ArrayBuffer) {
+                    arrayBuffer = (chunkObj as any).data;
+                }
+
+                if (arrayBuffer) {
+                    llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: true, arrayBuffer }, requestId, senderId });
+                    console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: true, arrayBuffer }, timestamp: Date.now() });
+                } else {
+                    const folder = (chunkObj && typeof chunkObj === 'object' && 'folder' in chunkObj) ? (chunkObj as any).folder : payload.folder;
+                    const fileName = (chunkObj && typeof chunkObj === 'object' && 'fileName' in chunkObj) ? (chunkObj as any).fileName : payload.fileName;
+                    throw new Error(`Chunk ${payload.chunkIndex} not found for ${folder}/${fileName}`);
+                }
+            } catch (error) {
+                console.error(`${prefix} Error fetching chunk for worker:`, error);
+                llmChannel.postMessage({ type: `${type}_RESPONSE`, payload: { success: false, error: (error as Error).message }, requestId, senderId });
+                console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: false, error: (error as Error).message }, timestamp: Date.now() });
+            }
+            console.log('[Sidepanel][Channel][STORY] End DbGetModelAssetChunkRequest block');
+            return;
+        } else if (type === DbGetManifestRequest.type) {
+            console.log('[Sidepanel][Channel][STORY] Matched DbGetManifestRequest');
+            try {
+                console.log('[Sidepanel][Channel] Handling DbGetManifestRequest', { requestId, payload });
+                const manifestRequest = new DbGetManifestRequest(payload);
+                const dbResponse = await requestDbAndWait(manifestRequest);
+                console.log('[Sidepanel][Channel] DbGetManifestRequest DB response', { requestId, dbResponse });
+                llmChannel.postMessage({
+                    type: `${type}_RESPONSE`,
+                    payload: { success: true, manifest: dbResponse ?? null },
+                    requestId,
+                    senderId
+                });
+                console.log('[Sidepanel][Channel] Sending response to worker', { type: `${type}_RESPONSE`, requestId, payload: { success: true, manifest: dbResponse ?? null }, timestamp: Date.now() });
+            } catch (err) {
+                llmChannel.postMessage({
+                    type: `${type}_RESPONSE`,
+                    payload: { success: false, error: err instanceof Error ? err.message : String(err), manifest: null },
+                    requestId,
+                    senderId
+                });
+                console.error('[Sidepanel][Channel] Error in DbGetManifestRequest handler', { requestId, error: err });
+            }
+            console.log('[Sidepanel][Channel][STORY] End DbGetManifestRequest block');
+            return;
+        }
+        console.log('[Sidepanel][Channel][STORY] Unhandled worker message type', { type });
+        return;
     }
-    if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE && typeof window.sendChatMessage === 'function') {
-      const result = await window.sendChatMessage(payload);
-      llmChannel.postMessage({
-        type: RuntimeMessageTypes.SEND_CHAT_MESSAGE + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (
-      type === RuntimeMessageTypes.INTERRUPT_GENERATION &&
-      typeof window.interruptGeneration === 'function'
-    ) {
-      const result = await window.interruptGeneration(payload);
-      llmChannel.postMessage({
-        type: RuntimeMessageTypes.INTERRUPT_GENERATION + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (type === RuntimeMessageTypes.RESET_WORKER && typeof window.resetWorker === 'function') {
-      const result = await window.resetWorker(payload);
-      llmChannel.postMessage({
-        type: RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
-    } else if (type === RuntimeMessageTypes.LOAD_MODEL && typeof window.loadModel === 'function') {
-      const result = await window.loadModel(payload);
-      llmChannel.postMessage({
-        type: RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
-        payload: result,
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
+    // --- Part 2: Handle messages for this sidepanel instance (e.g., from background, or legacy calls) ---
+    if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
+        console.log('[Sidepanel][Channel][STORY] Message from another sidepanel context, ignoring', { msgSenderId, senderId });
+        return;
+    }
+
+    // Filter out worker status messages that are now handled by modelWorker.onmessage
+    if ([
+        WorkerEventNames.WORKER_SCRIPT_READY, WorkerEventNames.WORKER_READY,
+        WorkerEventNames.LOADING_STATUS, WorkerEventNames.ERROR, WorkerEventNames.RESET_COMPLETE
+    ].includes(type)) {
+        // These are now directly handled by modelWorker.onmessage, no need to process here via llmChannel
+        // unless this sidepanel instance itself posted them to llmChannel for broadcast.
+        return;
+    }
+
+    // Re-route legacy commands or commands from other parts of UI to the new worker mechanism
+    if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+        console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
+        sendToModelWorker({ type: 'generate', payload });
+        // No direct response needed here for the llmChannel; worker will postMessage updates.
+    } else if (type === RuntimeMessageTypes.INTERRUPT_GENERATION) {
+        console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
+        sendToModelWorker({ type: 'interrupt', payload });
+    } else if (type === RuntimeMessageTypes.RESET_WORKER) {
+        console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
+        terminateModelWorker();
+        // Worker is reset. If a new model needs to be loaded, REQUEST_MODEL_EXECUTION will handle it.
+        llmChannel.postMessage({ // Acknowledge the reset request
+            type: RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+            payload: { success: true, message: "Worker reset." },
+            requestId,
+            senderId: 'sidepanel',
+            timestamp: Date.now(),
+        });
+    } else if (type === RuntimeMessageTypes.LOAD_MODEL) {
+        console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
+        const modelToLoad = payload.modelId || payload.model;
+        const onnxToLoad = payload.onnxFile; // Assuming payload might have this
+        if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
+            // Dispatch the event as if it came from the UI
+            document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
+                detail: { modelId: modelToLoad, onnxFile: onnxToLoad }
+            }));
+        } else {
+            const errorMsg = `LOAD_MODEL received with invalid/missing modelId or onnxFile. Model: ${modelToLoad}, ONNX: ${onnxToLoad}`;
+            console.error(`${prefix} ${errorMsg}`);
+            llmChannel.postMessage({
+                type: RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                payload: { success: false, error: errorMsg },
+                requestId, senderId: 'sidepanel', timestamp: Date.now(),
+            });
+        }
     } else if (type === RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-      const state = window.currentModelWorkerState || 'UNINITIALIZED';
-      const modelId = window.currentModelIdForWorker || null;
-      llmChannel.postMessage({
-        type: RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
-        payload: { state, modelId },
-        requestId,
-        senderId: 'sidepanel',
-        timestamp: Date.now(),
-      });
+        llmChannel.postMessage({
+            type: RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+            payload: { state: modelWorkerState, modelId: currentModelIdInWorker },
+            requestId,
+            senderId: 'sidepanel',
+            timestamp: Date.now(),
+        });
+    } else {
+        console.log(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
     }
+
+    console.log('[Sidepanel][Channel][STORY] onmessage END', { type, requestId, payload, msgSenderId, timestamp: Date.now() });
   };
 }
 
@@ -332,6 +587,7 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
   } else {
     console.warn('[Sidepanel] Received unknown message type from background:', type, message);
   }
+
 }
 
 async function handleSessionCreated(newSessionId: string) {
@@ -450,28 +706,6 @@ async function handlePageChange(event: any) {
   }
 }
 
-// --- Worker Status Broadcasting ---
-function handleWorkerStatusEvent(event: MessageEvent) {
-  const { type, payload } = event.data;
-  if (
-    [
-      WorkerEventNames.WORKER_SCRIPT_READY,
-      WorkerEventNames.WORKER_READY,
-      WorkerEventNames.LOADING_STATUS,
-      WorkerEventNames.ERROR,
-      WorkerEventNames.RESET_COMPLETE,
-    ].includes(type)
-  ) {
-    llmChannel.postMessage({ type, payload, senderId: 'sidepanel', timestamp: Date.now() });
-  }
-}
-
-if (window.modelWorker) {
-  window.modelWorker.onmessage = (event: MessageEvent) => {
-    handleWorkerStatusEvent(event);
-  };
-}
-
 // --- Main Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
   console.log(`${prefix} DOM Content Loaded.`);
@@ -537,7 +771,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener(UIEventNames.NAVIGATION_PAGE_CHANGED, (e: Event) => handlePageChange((e as CustomEvent).detail));
 
     initializeFileHandling({
-      uiController,
       getActiveSessionIdFunc: getActiveChatSessionId,
     });
     console.log(`${prefix} File Handler Initialized.`);
@@ -607,29 +840,105 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
     }
 
-    document.addEventListener(UIEventNames.REQUEST_MODEL_LOAD, async (e: Event) => {
-      const { modelId } = (e as CustomEvent).detail || {};
+
+    document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async (e: Event) => {
+      const { modelId, onnxFile } = (e as CustomEvent).detail;
+      console.log(`${prefix} UIEvent: MODEL_SELECTION_CHANGED - Model: ${modelId}, ONNX: ${onnxFile}`);
+      // This replaces the logic from the old modelSelector and quantSelector 'change' listeners
+      currentModelId = modelId; // Update sidepanel's currentModelId if you still use it directly
+      await handleModelSelectorChange(); // This fetches manifests for the new model if needed
+                                        // and then calls renderDropdownsFromManifests
+      updateModelActionButtons(); // Ensure buttons update based on new selection
+    });
+
+    document.addEventListener(UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION, async (e: Event) => {
+      const { modelId, onnxFile } = (e as CustomEvent).detail;
+      console.log(`${prefix} UIEvent: REQUEST_MODEL_DOWNLOAD_ACTION - Model: ${modelId}, ONNX: ${onnxFile}`);
       if (!modelId) {
-        sendWorkerError('No model ID specified for loading.');
-        return;
+          sendWorkerError('No model ID specified for downloading assets.'); // Or use utilShowError
+          return;
       }
       try {
-        // Get selected ONNX file from dropdown
-        const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement;
-        let selectedOnnxFile = quantSelector?.value || null;
-        // Do NOT convert 'all' to null; pass 'all' as a string
-        console.log(`${prefix} selectedOnnxFile:`, selectedOnnxFile);
-
-        // Pass manifests for this modelId to the downloader
-        const manifestsForModel = allManifests.filter(m => m.folder === modelId);
-        const result = await downloadModelAssets(modelId, selectedOnnxFile, manifestsForModel);
-        if (!result.success) {
-          sendWorkerError(result.error || 'Unknown error during model download.');
-        }
+          // onnxFile can be 'all' or a specific file name
+          const manifestsForModel = allManifests.filter(m => m.folder === modelId);
+          const result = await downloadModelAssets(modelId, onnxFile, manifestsForModel); // downloadModelAssets needs to handle 'all'
+          if (!result.success) {
+              sendWorkerError(result.error || 'Unknown error during model asset download.');
+          }
+          // Progress is handled by MODEL_DOWNLOAD_PROGRESS event which updates uiController's progress bar
+          // Button states will be updated via DbManifestUpdatedNotification -> renderDropdowns -> updateModelActionButtons
       } catch (err) {
-        sendWorkerError(`Failed to download model: ${(err as Error).message}`);
+          sendWorkerError(`Failed to download model assets: ${(err as Error).message}`);
       }
     });
+
+    document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async (e: Event) => {
+      const { modelId, onnxFile } = (e as CustomEvent).detail; // onnxFile is passed but model-worker.js init currently only uses modelId
+      console.log(`${prefix} UIEvent: REQUEST_MODEL_EXECUTION - Model: ${modelId}, Specific ONNX for context (if needed by worker): ${onnxFile}`);
+
+      if (!modelId || !onnxFile || onnxFile === 'all') { // Ensure a specific ONNX file is selected for loading
+          utilShowError('A specific model and ONNX file must be selected to load.');
+          return;
+      }
+
+      // Terminate existing worker if loading a different model OR if the current worker is in an error state.
+      if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === WorkerEventNames.ERROR)) {
+          console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
+          terminateModelWorker();
+      }
+      
+      // Initialize worker if it's not there (e.g., first load or after termination)
+      if (!modelWorker) {
+          initializeModelWorker();
+      }
+
+      // Check if worker was successfully created/retained
+      if (!modelWorker) {
+          utilShowError("Failed to create/initialize model worker. Cannot load model.");
+          modelWorkerState = WorkerEventNames.ERROR;
+          updateModelActionButtons(); // Reflect error state on buttons
+          return;
+      }
+      
+      console.log(`${prefix} Requesting model load in worker: ${modelId}`);
+      modelWorkerState = WorkerEventNames.LOADING_MODEL;
+      currentModelIdInWorker = modelId; // Tentatively set this. Worker will confirm with WORKER_READY.
+
+      updateModelActionButtons(); // Update button states to "Loading..."
+      // In a LATER STEP: uiController.updateMainProgressBar({ progress: 0, message: `Initializing worker for ${modelId}...` }, 'worker_load');
+      console.log(`${prefix} UI would show: Initializing worker for ${modelId}...`);
+
+      // Gather all manifests for this modelId (repo/folder)
+      const repoManifests = allManifests.filter(m => m.folder === modelId);
+      // Build a map: { [fileName]: manifest }
+      const manifestMap: Record<string, any> = {};
+      for (const m of repoManifests) {
+          manifestMap[m.fileName] = m;
+      }
+
+      if (!manifestMap[onnxFile]) {
+          utilShowError(`Manifest not found for model ${modelId} and ONNX file ${onnxFile}`);
+          return;
+      }
+
+      // Build allowedOnnxFiles: selected ONNX file + any other ONNX files in the manifest for this model
+      const allowedOnnxFiles = repoManifests
+        .filter(m => m.fileType === 'onnx')
+        .map(m => m.fileName);
+
+
+      modelWorker.postMessage({
+          type: 'init',
+          payload: {
+              modelId: modelId,
+              manifest: manifestMap,
+              onnxFile: onnxFile,
+              allowedOnnxFiles: allowedOnnxFiles,
+
+          }
+      });
+    }); 
+
 
     initializeDiscoverController();
     console.log(`${prefix} Discover Controller Initialized.`);
@@ -675,22 +984,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadAndDisplaySession(null);
     }
 
-    // Track model selection
     const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
     if (modelSelector) {
       modelSelector.addEventListener('change', (e) => {
         currentModelId = (e.target as HTMLSelectElement).value;
       });
-      // Set initial value
       currentModelId = modelSelector.value;
     }
 
-    // Ensure the model dropdown is populated before fetching metadata and initializing DB
-    // Log the dropdown options
+
     const dropdownOptions = Array.from((document.getElementById('model-selector') as HTMLSelectElement).options).map(opt => opt.value);
     console.log(`${prefix} Model dropdown options before fetch:`, dropdownOptions);
 
-    // Initialize DB
     const dbInitSuccess = await initializeDatabase();
     if (!dbInitSuccess) return;
 
@@ -710,7 +1015,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       onnxCloseBtn.addEventListener('click', () => onnxSelectionPopupController.hide());
     }
 
-    // Expose to window for modelAssetDownloader.ts
     window.showOnnxSelectionPopup = (modelId, onnxFiles, downloadPlan, initialFileStates, nonOnnxProgress, nonOnnxStatus, requestFileDownloadCb) => {
       if (onnxSelectionPopupController) {
         onnxSelectionPopupController.show(
@@ -725,13 +1029,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    // Listen for per-file progress events and update the popup
-    document.addEventListener('MODEL_DOWNLOAD_PROGRESS', (e: any) => {
+    document.addEventListener(UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e: any) => {
       const detail = e.detail || (e as CustomEvent).detail;
       if (detail && detail.currentFile) {
-        // Only update ONNX file progress bar if it's an ONNX file
         if (detail.currentFile.endsWith('.onnx')) {
-          // Normalize to base file name for ONNXSelectionPopupController
           const fileKey = detail.currentFile.split('/').pop();
           const percent = detail.currentFileSize ? Math.floor((detail.currentFileDownloaded / detail.currentFileSize) * 100) : 0;
           if (onnxSelectionPopupController) {
@@ -742,7 +1043,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         }
       }
-      // Also update main progress bar as before
       if (typeof detail.progress === 'number') {
         updateMainProgress(detail.progress, detail.message || '');
         if (detail.done || detail.error) {
@@ -751,7 +1051,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // --- Main Model Load Progress Bar Wiring ---
     const modelLoadStatus = document.getElementById('model-load-status');
     const modelLoadStatusText = document.getElementById('model-load-status-text');
     const modelLoadProgressBar = document.getElementById('model-load-progress-bar');
@@ -781,33 +1080,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // On page load, hide both buttons
-  const downloadBtn = document.getElementById('download-model-btn') as HTMLButtonElement;
-  const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement;
-  if (downloadBtn) downloadBtn.style.display = 'none';
-  if (loadBtn) loadBtn.style.display = 'none';
 
-  // Add dropdown change listeners
-  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
-  if (modelSelector) {
-    modelSelector.addEventListener('change', async () => {
-      await handleModelSelectorChange();
-      updateModelActionButtons();
-    });
-  }
-  const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement;
-  if (quantSelector) {
-    quantSelector.addEventListener('change', () => {
-      updateModelActionButtons();
-    });
-  }
 });
 
 document.addEventListener(DbInitializationCompleteNotification.type, async (e: any) => {
   console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
   await handleModelSelectorChange();
   updateModelActionButtons();
-  
+  initializeModelWorker();
+  // Send environment setup to model worker (do not load model yet)
+  if (modelWorker && modelWorkerState !== WorkerEventNames.ERROR) {
+    const transformersWasmPath = browser.runtime.getURL('transformers.js/');
+    const llamaWasmPath = browser.runtime.getURL('wasm/llama_bitnet_inference.wasm');
+    modelWorker.postMessage({ type: 'initWorker', payload: { transformersWasmPath, llamaWasmPath } });
+  }
 });
 
 // Listen for manifest update notifications and refresh dropdowns
@@ -830,7 +1116,7 @@ document.addEventListener(DbManifestUpdatedNotification.type, async (e: any) => 
 async function handleModelSelectorChange() {
   const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
   if (!modelSelector) return;
-  const repoIds = Array.from(modelSelector.options).map(opt => opt.value);
+  const repoIds = getModelSelectorOptions();
   const reposNeedingFetch: string[] = [];
   allManifests = [];
 
@@ -879,66 +1165,47 @@ async function handleModelSelectorChange() {
 // --- Helper: Render dropdowns from manifests ---
 async function renderDropdownsFromManifests() {
   if (!allManifests.length) {
-    // fallback: fetch from DB if not already loaded
-    console.log(`${prefix} allManifests is empty. Fetching from DB.`);
-    const req = new DbGetAllModelFileManifestsRequest();
-    const response = await sendDbRequestSmart(req);
-    if (!response.success) return;
-    allManifests = response.data || [];
+      console.log(`${prefix} allManifests is empty. Fetching from DB.`);
+      const req = new DbGetAllModelFileManifestsRequest();
+      const response = await sendDbRequestSmart(req);
+      if (!response.success) {
+          populateModelDropdown([], null); // Use the new function
+          populateOnnxVariantDropdown([], null, false); // Use the new function
+          return;
+      }
+      allManifests = response.data || [];
   }
-  // Check again after fetch
   if (!allManifests.length) {
-    console.warn(`${prefix} allManifests is still empty after DB fetch. Nothing to render.`);
-    return;
+      console.warn(`${prefix} allManifests is still empty after DB fetch. Nothing to render.`);
+      populateModelDropdown([], null);
+      populateOnnxVariantDropdown([], null, false);
+      return;
   }
-  console.log(`${prefix} allManifests fetched from DB:`, allManifests);
-  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
-  const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement;
-  if (!modelSelector || !quantSelector) return;
-  // Store previous selection
-  const prevSelectedRepo = modelSelector.value;
+  console.log(`${prefix} allManifests for dropdown rendering:`, allManifests);
 
-  // Populate main repo dropdown (unique folders)
+  const { modelId: prevSelectedRepoInUI, onnxFile: prevSelectedOnnxInUI } = getCurrentlySelectedModel();
+
   const uniqueRepos = Array.from(new Set(allManifests.map((m: any) => String(m.folder)))) as string[];
-  modelSelector.innerHTML = '';
-  uniqueRepos.forEach((repo) => {
-    const option = document.createElement('option');
-    option.value = repo;
-    option.textContent = repo;
-    modelSelector.appendChild(option);
-  });
+  populateModelDropdown(uniqueRepos, prevSelectedRepoInUI);
 
-  // Try to restore previous selection if possible
-  let selectedRepo: string = prevSelectedRepo && uniqueRepos.includes(prevSelectedRepo)
-    ? prevSelectedRepo
-    : uniqueRepos[0] || '';
-  modelSelector.value = selectedRepo;
+  // Get the *actual* current selection from UI after population, as it might have defaulted
+  const { modelId: currentSelectedRepoInUI } = getCurrentlySelectedModel();
 
-  // Populate quantization dropdown for selected repo (ONNX files)
-  const repoManifests = allManifests.filter((m: any) => m.folder === selectedRepo && m.fileType === 'onnx');
-  quantSelector.innerHTML = '';
-  if (repoManifests.length > 1) {
-    const allOption = document.createElement('option');
-    allOption.value = 'all';
-    allOption.textContent = 'All (show popup)';
-    quantSelector.appendChild(allOption);
+  if (currentSelectedRepoInUI) {
+      const repoManifests = allManifests.filter((m: any) => m.folder === currentSelectedRepoInUI && m.fileType === 'onnx');
+      const onnxFilesForDropdown = repoManifests.map(m => ({ fileName: String(m.fileName), status: m.status }));
+      const multipleOnnx = repoManifests.length > 1;
+      populateOnnxVariantDropdown(onnxFilesForDropdown, prevSelectedOnnxInUI, multipleOnnx);
+  } else {
+      populateOnnxVariantDropdown([], null, false); // No repo selected, clear ONNX
   }
-  repoManifests.forEach((manifest: any) => {
-    const option = document.createElement('option');
-    option.value = String(manifest.fileName);
-    let statusIcon = '🟡'; // default: missing
-    if (manifest.status === 'present' || manifest.status === 'complete') statusIcon = '🟢';
-    if (manifest.status === 'corrupt') statusIcon = '🔴';
-    option.textContent = `${manifest.fileName} ${statusIcon}`;
-    quantSelector.appendChild(option);
-  });
 
-  updateModelActionButtons();
+  updateModelActionButtons(); // This function will be updated next
 
-  // --- NEW: Update ONNX popup if open ---
+  // --- Update ONNX popup if open --- (This part remains the same for now)
   const modal = document.getElementById('onnx-selection-modal');
-  if (modal && !modal.classList.contains('hidden')) {
-    updateRepoPopupState(selectedRepo);
+  if (modal && !modal.classList.contains('hidden') && currentSelectedRepoInUI) {
+      updateRepoPopupState(currentSelectedRepoInUI);
   }
 }
 
@@ -993,27 +1260,109 @@ function isModelReadyToLoad(selectedRepo: string, selectedOnnx: string) {
 }
 
 function updateModelActionButtons() {
-  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement;
-  const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement;
-  const downloadBtn = document.getElementById('download-model-btn') as HTMLButtonElement;
-  const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement;
+    const { modelId: selectedRepoInUI, onnxFile: selectedOnnxInUI } = getCurrentlySelectedModel();
 
-  if (!modelSelector || !quantSelector || !downloadBtn || !loadBtn) return;
+    let dlBtnVisible = false;
+    let dlBtnText = "Download Model";
+    let dlBtnDisabled = true; // Default to disabled
 
-  const selectedRepo = modelSelector.value;
-  const selectedOnnx = quantSelector.value;
+    let loadBtnVisible = false;
+    let loadBtnText = "Load Model";
+    let loadBtnDisabled = true; // Default to disabled
 
-  // Hide both by default
-  downloadBtn.style.display = 'none';
-  loadBtn.style.display = 'none';
+    if (!selectedRepoInUI || !selectedOnnxInUI) {
+        // No model or ONNX variant selected in UI - keep buttons hidden/disabled
+        setDownloadModelButtonState({ visible: false, text: dlBtnText, disabled: true });
+        setLoadModelButtonState({ visible: false, text: loadBtnText, disabled: true });
+        return;
+    }
 
-  if (!selectedRepo || !selectedOnnx) return;
+    const assetsReady = isModelReadyToLoad(selectedRepoInUI, selectedOnnxInUI);
 
-  if (isModelReadyToLoad(selectedRepo, selectedOnnx)) {
-    loadBtn.style.display = '';
-    downloadBtn.style.display = 'none';
-  } else {
-    loadBtn.style.display = 'none';
-    downloadBtn.style.display = '';
-  }
+    // Fallback for isDownloadingAssets if not defined
+    let isDownloadingAssets = false;
+    if (typeof window !== 'undefined' && typeof (window as any).isDownloadingAssets === 'boolean') {
+        isDownloadingAssets = (window as any).isDownloadingAssets;
+    } else if (typeof isDownloadingAssets !== 'undefined') {
+        // If defined elsewhere in the module
+    } else {
+        isDownloadingAssets = false;
+    }
+
+    if (!assetsReady) {
+        dlBtnVisible = true;
+        dlBtnDisabled = isDownloadingAssets; // Disable if any asset download is in progress
+        dlBtnText = isDownloadingAssets ? "Downloading..." : "Download Model";
+    } else {
+        // Assets are ready for the selected model/ONNX
+        loadBtnVisible = true; // "Load Model" button is relevant
+        dlBtnVisible = false; // "Download Model" button is not needed
+
+        if (!isModelWorkerEnvReady) {
+            loadBtnText = "Initializing...";
+            loadBtnDisabled = true;
+        } else if (selectedOnnxInUI === 'all') { // Cannot load 'all' variants
+            loadBtnText = "Select ONNX";
+            loadBtnDisabled = true;
+        } else if (currentModelIdInWorker === selectedRepoInUI && modelWorkerState === WorkerEventNames.MODEL_READY) {
+            loadBtnText = "Loaded";
+            loadBtnDisabled = true;
+        } else if (currentModelIdInWorker === selectedRepoInUI && modelWorkerState === WorkerEventNames.LOADING_MODEL) {
+            loadBtnText = "Loading...";
+            loadBtnDisabled = true;
+        } else if (modelWorkerState === WorkerEventNames.ERROR && currentModelIdInWorker === selectedRepoInUI) {
+            loadBtnText = "Load Failed"; // Or "Retry Load"
+            loadBtnDisabled = false; // Allow retry
+        } else {
+            // Ready to load this model, or a different model is loaded, or worker is uninitialized/error for other model
+            loadBtnText = "Load Model";
+            loadBtnDisabled = false;
+        }
+    }
+
+    // If any model is currently being loaded into the worker, disable asset downloads
+    if (modelWorkerState === WorkerEventNames.LOADING_MODEL) {
+        dlBtnDisabled = true;
+    }
+
+    setDownloadModelButtonState({ visible: dlBtnVisible, text: dlBtnText, disabled: dlBtnDisabled });
+    setLoadModelButtonState({ visible: loadBtnVisible, text: loadBtnText, disabled: loadBtnDisabled });
 }
+
+// --- Debug: Expose manifest fetch test in sidepanel context ---
+(window as any).testManifestFetchFromSidepanel = async function() {
+    const testModel = "onnx-models/all-MiniLM-L6-v2-onnx";
+    const testFile = "tokenizer.json";
+    const req = new DbGetManifestRequest({ folder: testModel, fileName: testFile });
+    console.log("[Sidepanel][TEST] Requesting manifest for", testModel, testFile, req);
+    const t0 = performance.now();
+    try {
+        const manifest = await requestDbAndWait(req);
+        const t1 = performance.now();
+        console.log(`[Sidepanel][TEST] Got manifest in ${(t1 - t0).toFixed(2)} ms:`, manifest);
+
+        // Print preview of manifest (first 10 keys/lines)
+        if (manifest && typeof manifest === "object") {
+            const manifestObj = manifest as Record<string, any>;
+            const keys = Object.keys(manifestObj);
+            console.log(`[Sidepanel][TEST] Manifest keys:`, keys.slice(0, 10));
+            if (manifestObj.data && typeof manifestObj.data === "object") {
+                const dataObj = manifestObj.data as Record<string, any>;
+                const dataKeys = Object.keys(dataObj);
+                console.log(`[Sidepanel][TEST] Manifest.data keys:`, dataKeys.slice(0, 10));
+                if (Array.isArray(dataObj)) {
+                    console.log(`[Sidepanel][TEST] Manifest.data (first 10 items):`, dataObj.slice(0, 10));
+                } else {
+                    const preview: Record<string, any> = {};
+                    for (const k of dataKeys.slice(0, 10)) preview[k] = dataObj[k];
+                    console.log(`[Sidepanel][TEST] Manifest.data preview:`, preview);
+                }
+            }
+        }
+        return manifest;
+    } catch (e) {
+        const t1 = performance.now();
+        console.error(`[Sidepanel][TEST] Manifest fetch error after ${(t1 - t0).toFixed(2)} ms:`, e);
+        throw e;
+    }
+};

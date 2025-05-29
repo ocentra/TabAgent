@@ -37,3 +37,4 @@ src/model/ggml-model-i2_s.gguf
 BKP/
 /dist
 tailwindcss-windows-x64.exe
+/scripts/transformers.js

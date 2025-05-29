@@ -1,18 +1,5 @@
 // idbSchema.ts
 
-// NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
-
-/**
- * DB_MODELS store conventions:
- * - Every file in a model repo (ONNX and non-ONNX) gets a manifest record, even if not downloaded yet.
- * - On first model load, fetch the repo's file list and create a manifest record for each file with status 'missing'.
- * - When a file is downloaded, update its status to 'present'.
- * - If a file is found to be corrupt/unloadable, update its status to 'corrupt'.
- * - The 'status' field can be: 'missing' (not downloaded), 'present' (downloaded and valid), 'corrupt' (downloaded but unloadable), 'downloading', 'incomplete', 'complete', etc.
- * - The 'fileType' field distinguishes ONNX, JSON, and other file types.
- * - (Optional) The 'variant' field can be used to store quantization/variant info parsed from the filename (e.g., 'int4', 'fp16').
- * - This enables efficient dropdown population and status display for all quantizations/variants.
- */
 
 export const DBNames = Object.freeze({
   DB_USER_DATA: 'TabAgentUserData',
@@ -82,33 +69,7 @@ export const schema = {
     version: 1,
     stores: { [DBNames.DB_LOGS]: { keyPath: 'id', indexes: [ { name: 'timestamp', keyPath: 'timestamp' }, { name: 'level', keyPath: 'level' } ] } }
   },
-  [DBNames.DB_MODELS]: {
-    version: 2, // bump version if needed
-    stores: {
-      [DBNames.DB_MODELS]: {
-        keyPath: 'id',
-        indexes: [
-          { name: 'chunkGroupId', keyPath: 'chunkGroupId' }, // Group all chunks/manifests for a file
-          { name: 'type', keyPath: 'type' }, // 'manifest' or 'chunk'
-          { name: 'chunkIndex', keyPath: 'chunkIndex' }, // For ordered chunk retrieval
-          { name: 'fileName', keyPath: 'fileName' }, // File name
-          { name: 'folder', keyPath: 'folder' }, // Folder or model id
-          { name: 'fileType', keyPath: 'fileType' }, // File type (e.g., onnx, json)
-          { name: 'addedAt', keyPath: 'addedAt' }, // For recency/cleanup
-          { name: 'lastAccessed', keyPath: 'lastAccessed' }, // For LRU/cleanup
-          { name: 'status', keyPath: 'status' }, // For manifest status (see above)
-          { name: 'totalChunks', keyPath: 'totalChunks' }, // For manifest: total number of chunks
-          { name: 'size', keyPath: 'size' }, // For manifest: total file size
-          { name: 'chunkSize', keyPath: 'chunkSize' }, // For chunk: size of this chunk
-          { name: 'checksum', keyPath: 'checksum' }, // For chunk or manifest integrity
-          { name: 'version', keyPath: 'version' }, // For file versioning
-          { name: 'variant', keyPath: 'variant' }, // For quantization/variant info
-          { name: 'folder_type', keyPath: ['folder', 'type'] }, // Compound index for efficient manifest queries
-          // Add more as needed
-        ]
-      }
-    }
-  }
+
 };
 
 export const dbChannel = new BroadcastChannel('tabagent-db');

@@ -21,13 +21,11 @@
     --color-amber-600: oklch(66.6% 0.179 58.318);
     --color-amber-700: oklch(55.5% 0.163 48.998);
     --color-yellow-300: oklch(90.5% 0.182 98.111);
-    --color-yellow-500: oklch(79.5% 0.184 86.047);
     --color-green-100: oklch(96.2% 0.044 156.743);
     --color-green-300: oklch(87.1% 0.15 154.449);
     --color-green-400: oklch(79.2% 0.209 151.711);
     --color-green-500: oklch(72.3% 0.219 149.579);
     --color-green-600: oklch(62.7% 0.194 149.214);
-    --color-green-700: oklch(52.7% 0.154 150.069);
     --color-green-800: oklch(44.8% 0.119 151.328);
     --color-green-900: oklch(39.3% 0.095 152.535);
     --color-blue-100: oklch(93.2% 0.032 255.585);
@@ -469,9 +467,6 @@
     width: calc(var(--spacing) * 6);
     height: calc(var(--spacing) * 6);
   }
-  .h-1 {
-    height: calc(var(--spacing) * 1);
-  }
   .h-1\/2 {
     height: calc(1/2 * 100%);
   }
@@ -535,9 +530,6 @@
   .max-h-\[40\%\] {
     max-height: 40%;
   }
-  .max-h-\[50vh\] {
-    max-height: 50vh;
-  }
   .max-h-\[85vh\] {
     max-height: 85vh;
   }
@@ -573,9 +565,6 @@
   }
   .min-h-\[100px\] {
     min-height: 100px;
-  }
-  .min-h-\[120px\] {
-    min-height: 120px;
   }
   .min-h-\[220px\] {
     min-height: 220px;
@@ -736,9 +725,6 @@
   .cursor-pointer {
     cursor: pointer;
   }
-  .cursor-wait {
-    cursor: wait;
-  }
   .resize {
     resize: both;
   }
@@ -795,13 +781,6 @@
   }
   .gap-5 {
     gap: calc(var(--spacing) * 5);
-  }
-  .space-y-2 {
-    :where(& > :not(:last-child)) {
-      --tw-space-y-reverse: 0;
-      margin-block-start: calc(calc(var(--spacing) * 2) * var(--tw-space-y-reverse));
-      margin-block-end: calc(calc(var(--spacing) * 2) * calc(1 - var(--tw-space-y-reverse)));
-    }
   }
   .space-y-3 {
     :where(& > :not(:last-child)) {
@@ -976,9 +955,6 @@
       background-color: color-mix(in oklab, var(--color-black) 50%, transparent);
     }
   }
-  .bg-blue-100 {
-    background-color: var(--color-blue-100);
-  }
   .bg-blue-300 {
     background-color: var(--color-blue-300);
   }
@@ -1021,9 +997,6 @@
   .bg-gray-800 {
     background-color: var(--color-gray-800);
   }
-  .bg-green-100 {
-    background-color: var(--color-green-100);
-  }
   .bg-green-300 {
     background-color: var(--color-green-300);
   }
@@ -1062,9 +1035,6 @@
   }
   .bg-yellow-300 {
     background-color: var(--color-yellow-300);
-  }
-  .bg-yellow-500 {
-    background-color: var(--color-yellow-500);
   }
   .mask-repeat {
     mask-repeat: repeat;
@@ -1286,9 +1256,6 @@
   .text-blue-600 {
     color: var(--color-blue-600);
   }
-  .text-blue-700 {
-    color: var(--color-blue-700);
-  }
   .text-blue-900 {
     color: var(--color-blue-900);
   }
@@ -1318,9 +1285,6 @@
   }
   .text-green-600 {
     color: var(--color-green-600);
-  }
-  .text-green-700 {
-    color: var(--color-green-700);
   }
   .text-green-900 {
     color: var(--color-green-900);
@@ -1489,10 +1453,6 @@
   .duration-150 {
     --tw-duration: 150ms;
     transition-duration: 150ms;
-  }
-  .duration-300 {
-    --tw-duration: 300ms;
-    transition-duration: 300ms;
   }
   .will-change-auto {
     will-change: auto;
@@ -1750,11 +1710,6 @@
       --tw-ring-color: var(--color-indigo-500);
     }
   }
-  .focus\:ring-red-400 {
-    &:focus {
-      --tw-ring-color: var(--color-red-400);
-    }
-  }
   .focus\:outline-none {
     &:focus {
       --tw-outline-style: none;
@@ -1912,11 +1867,6 @@
       background-color: var(--color-blue-600);
     }
   }
-  .dark\:bg-blue-700 {
-    @media (prefers-color-scheme: dark) {
-      background-color: var(--color-blue-700);
-    }
-  }
   .dark\:bg-gray-100 {
     @media (prefers-color-scheme: dark) {
       background-color: var(--color-gray-100);
@@ -1945,11 +1895,6 @@
   .dark\:bg-gray-900 {
     @media (prefers-color-scheme: dark) {
       background-color: var(--color-gray-900);
-    }
-  }
-  .dark\:bg-green-700 {
-    @media (prefers-color-scheme: dark) {
-      background-color: var(--color-green-700);
     }
   }
   .dark\:bg-red-600 {
@@ -2132,13 +2077,6 @@
     @media (prefers-color-scheme: dark) {
       &:focus {
         --tw-ring-color: var(--color-blue-800);
-      }
-    }
-  }
-  .dark\:focus\:ring-offset-gray-800 {
-    @media (prefers-color-scheme: dark) {
-      &:focus {
-        --tw-ring-offset-color: var(--color-gray-800);
       }
     }
   }

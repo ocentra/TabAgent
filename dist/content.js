@@ -1243,30 +1243,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DBEventNames: () => (/* binding */ DBEventNames),
 /* harmony export */   DbAddLogRequest: () => (/* binding */ DbAddLogRequest),
 /* harmony export */   DbAddLogResponse: () => (/* binding */ DbAddLogResponse),
-/* harmony export */   DbAddManifestRequest: () => (/* binding */ DbAddManifestRequest),
-/* harmony export */   DbAddManifestResponse: () => (/* binding */ DbAddManifestResponse),
 /* harmony export */   DbAddMessageRequest: () => (/* binding */ DbAddMessageRequest),
 /* harmony export */   DbAddMessageResponse: () => (/* binding */ DbAddMessageResponse),
-/* harmony export */   DbAddModelAssetRequest: () => (/* binding */ DbAddModelAssetRequest),
-/* harmony export */   DbAddModelAssetResponse: () => (/* binding */ DbAddModelAssetResponse),
 /* harmony export */   DbClearLogsRequest: () => (/* binding */ DbClearLogsRequest),
 /* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
-/* harmony export */   DbCountModelAssetChunksRequest: () => (/* binding */ DbCountModelAssetChunksRequest),
-/* harmony export */   DbCountModelAssetChunksResponse: () => (/* binding */ DbCountModelAssetChunksResponse),
-/* harmony export */   DbCreateAllFileManifestsForRepoRequest: () => (/* binding */ DbCreateAllFileManifestsForRepoRequest),
-/* harmony export */   DbCreateAllFileManifestsForRepoResponse: () => (/* binding */ DbCreateAllFileManifestsForRepoResponse),
-/* harmony export */   DbCreateManifestByChunkGroupIdRequest: () => (/* binding */ DbCreateManifestByChunkGroupIdRequest),
-/* harmony export */   DbCreateManifestByChunkGroupIdResponse: () => (/* binding */ DbCreateManifestByChunkGroupIdResponse),
 /* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
 /* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
-/* harmony export */   DbDeleteAllFileManifestsForRepoRequest: () => (/* binding */ DbDeleteAllFileManifestsForRepoRequest),
-/* harmony export */   DbDeleteAllFileManifestsForRepoResponse: () => (/* binding */ DbDeleteAllFileManifestsForRepoResponse),
-/* harmony export */   DbDeleteChunkRequest: () => (/* binding */ DbDeleteChunkRequest),
-/* harmony export */   DbDeleteChunkResponse: () => (/* binding */ DbDeleteChunkResponse),
-/* harmony export */   DbDeleteManifestByChunkGroupIdRequest: () => (/* binding */ DbDeleteManifestByChunkGroupIdRequest),
-/* harmony export */   DbDeleteManifestByChunkGroupIdResponse: () => (/* binding */ DbDeleteManifestByChunkGroupIdResponse),
-/* harmony export */   DbDeleteManifestRequest: () => (/* binding */ DbDeleteManifestRequest),
-/* harmony export */   DbDeleteManifestResponse: () => (/* binding */ DbDeleteManifestResponse),
 /* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
 /* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
 /* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
@@ -1274,20 +1256,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbEnsureInitializedRequest: () => (/* binding */ DbEnsureInitializedRequest),
 /* harmony export */   DbEnsureInitializedResponse: () => (/* binding */ DbEnsureInitializedResponse),
 /* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
-/* harmony export */   DbGetAllModelFileManifestsRequest: () => (/* binding */ DbGetAllModelFileManifestsRequest),
-/* harmony export */   DbGetAllModelFileManifestsResponse: () => (/* binding */ DbGetAllModelFileManifestsResponse),
 /* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
 /* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
 /* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
 /* harmony export */   DbGetLogsResponse: () => (/* binding */ DbGetLogsResponse),
-/* harmony export */   DbGetManifestRequest: () => (/* binding */ DbGetManifestRequest),
-/* harmony export */   DbGetManifestResponse: () => (/* binding */ DbGetManifestResponse),
-/* harmony export */   DbGetModelAssetChunkRequest: () => (/* binding */ DbGetModelAssetChunkRequest),
-/* harmony export */   DbGetModelAssetChunkResponse: () => (/* binding */ DbGetModelAssetChunkResponse),
-/* harmony export */   DbGetModelAssetChunksRequest: () => (/* binding */ DbGetModelAssetChunksRequest),
-/* harmony export */   DbGetModelAssetChunksResponse: () => (/* binding */ DbGetModelAssetChunksResponse),
 /* harmony export */   DbGetReadyStateRequest: () => (/* binding */ DbGetReadyStateRequest),
 /* harmony export */   DbGetReadyStateResponse: () => (/* binding */ DbGetReadyStateResponse),
 /* harmony export */   DbGetSessionRequest: () => (/* binding */ DbGetSessionRequest),
@@ -1300,14 +1274,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbInitWorkerResponse: () => (/* binding */ DbInitWorkerResponse),
 /* harmony export */   DbInitializationCompleteNotification: () => (/* binding */ DbInitializationCompleteNotification),
 /* harmony export */   DbInitializeRequest: () => (/* binding */ DbInitializeRequest),
-/* harmony export */   DbListModelFilesRequest: () => (/* binding */ DbListModelFilesRequest),
-/* harmony export */   DbListModelFilesResponse: () => (/* binding */ DbListModelFilesResponse),
-/* harmony export */   DbLogAllChunkGroupIdsForModelRequest: () => (/* binding */ DbLogAllChunkGroupIdsForModelRequest),
-/* harmony export */   DbLogAllChunkGroupIdsForModelResponse: () => (/* binding */ DbLogAllChunkGroupIdsForModelResponse),
-/* harmony export */   DbManifestUpdatedNotification: () => (/* binding */ DbManifestUpdatedNotification),
 /* harmony export */   DbMessagesUpdatedNotification: () => (/* binding */ DbMessagesUpdatedNotification),
-/* harmony export */   DbReadManifestRequest: () => (/* binding */ DbReadManifestRequest),
-/* harmony export */   DbReadManifestResponse: () => (/* binding */ DbReadManifestResponse),
 /* harmony export */   DbRenameSessionRequest: () => (/* binding */ DbRenameSessionRequest),
 /* harmony export */   DbRenameSessionResponse: () => (/* binding */ DbRenameSessionResponse),
 /* harmony export */   DbResetDatabaseRequest: () => (/* binding */ DbResetDatabaseRequest),
@@ -1317,14 +1284,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbStatusUpdatedNotification: () => (/* binding */ DbStatusUpdatedNotification),
 /* harmony export */   DbToggleStarRequest: () => (/* binding */ DbToggleStarRequest),
 /* harmony export */   DbToggleStarResponse: () => (/* binding */ DbToggleStarResponse),
-/* harmony export */   DbUpdateAllFileManifestsForRepoRequest: () => (/* binding */ DbUpdateAllFileManifestsForRepoRequest),
-/* harmony export */   DbUpdateAllFileManifestsForRepoResponse: () => (/* binding */ DbUpdateAllFileManifestsForRepoResponse),
-/* harmony export */   DbUpdateChunkRequest: () => (/* binding */ DbUpdateChunkRequest),
-/* harmony export */   DbUpdateChunkResponse: () => (/* binding */ DbUpdateChunkResponse),
-/* harmony export */   DbUpdateManifestByChunkGroupIdRequest: () => (/* binding */ DbUpdateManifestByChunkGroupIdRequest),
-/* harmony export */   DbUpdateManifestByChunkGroupIdResponse: () => (/* binding */ DbUpdateManifestByChunkGroupIdResponse),
-/* harmony export */   DbUpdateManifestRequest: () => (/* binding */ DbUpdateManifestRequest),
-/* harmony export */   DbUpdateManifestResponse: () => (/* binding */ DbUpdateManifestResponse),
 /* harmony export */   DbUpdateMessageRequest: () => (/* binding */ DbUpdateMessageRequest),
 /* harmony export */   DbUpdateMessageResponse: () => (/* binding */ DbUpdateMessageResponse),
 /* harmony export */   DbUpdateStatusRequest: () => (/* binding */ DbUpdateStatusRequest),
@@ -1374,24 +1333,6 @@ const DBEventNames = Object.freeze({
     DB_GET_READY_STATE_RESPONSE: 'DbGetReadyStateResponse',
     DB_RESET_DATABASE_REQUEST: 'DbResetDatabaseRequest',
     DB_RESET_DATABASE_RESPONSE: 'DbResetDatabaseResponse',
-    // Model Asset DB Operations
-    DB_ADD_MODEL_ASSET_REQUEST: 'DbAddModelAssetRequest', // For adding chunks
-    DB_ADD_MODEL_ASSET_RESPONSE: 'DbAddModelAssetResponse',
-    DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST: 'DbCountModelAssetChunksRequest',
-    DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE: 'DbCountModelAssetChunksResponse',
-    DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST: 'DbLogAllChunkGroupIdsForModelRequest',
-    DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE: 'DbLogAllChunkGroupIdsForModelResponse',
-    DB_LIST_MODEL_FILES_REQUEST: 'DbListModelFilesRequest', // Should ideally list manifests
-    DB_LIST_MODEL_FILES_RESPONSE: 'DbListModelFilesResponse',
-    DB_GET_MODEL_ASSET_CHUNKS_REQUEST: 'DbGetModelAssetChunksRequest', // Gets multiple chunk records (metadata or full)
-    DB_GET_MODEL_ASSET_CHUNKS_RESPONSE: 'DbGetModelAssetChunksResponse',
-    DB_GET_MODEL_ASSET_CHUNK_REQUEST: 'DbGetModelAssetChunkRequest', // Gets a single chunk record (with data)
-    DB_GET_MODEL_ASSET_CHUNK_RESPONSE: 'DbGetModelAssetChunkResponse',
-    // Model Asset Manifest Operations (NEW)
-    DB_ADD_MANIFEST_REQUEST: 'DbAddManifestRequest',
-    DB_ADD_MANIFEST_RESPONSE: 'DbAddManifestResponse',
-    DB_GET_MANIFEST_REQUEST: 'DbGetManifestRequest',
-    DB_GET_MANIFEST_RESPONSE: 'DbGetManifestResponse',
     // General DB Worker and Initialization
     DB_ENSURE_INITIALIZED_REQUEST: 'DbEnsureInitializedRequest',
     DB_ENSURE_INITIALIZED_RESPONSE: 'DbEnsureInitializedResponse',
@@ -1399,32 +1340,6 @@ const DBEventNames = Object.freeze({
     DB_INIT_WORKER_RESPONSE: 'DbInitWorkerResponse',
     DB_WORKER_ERROR: 'DbWorkerError', // Notification from worker for unhandled errors
     DB_WORKER_RESET: 'DbWorkerReset', // Potential command or notification for worker reset
-    // New events
-    DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbCreateAllFileManifestsForRepoRequest',
-    DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbCreateAllFileManifestsForRepoResponse',
-    DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbUpdateAllFileManifestsForRepoRequest',
-    DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbUpdateAllFileManifestsForRepoResponse',
-    DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST: 'DbDeleteAllFileManifestsForRepoRequest',
-    DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE: 'DbDeleteAllFileManifestsForRepoResponse',
-    DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbCreateManifestByChunkGroupIdRequest',
-    DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbCreateManifestByChunkGroupIdResponse',
-    DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbUpdateManifestByChunkGroupIdRequest',
-    DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbUpdateManifestByChunkGroupIdResponse',
-    DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST: 'DbDeleteManifestByChunkGroupIdRequest',
-    DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE: 'DbDeleteManifestByChunkGroupIdResponse',
-    DB_READ_MANIFEST_REQUEST: 'DbReadManifestRequest',
-    DB_READ_MANIFEST_RESPONSE: 'DbReadManifestResponse',
-    DB_UPDATE_MANIFEST_REQUEST: 'DbUpdateManifestRequest',
-    DB_UPDATE_MANIFEST_RESPONSE: 'DbUpdateManifestResponse',
-    DB_DELETE_MANIFEST_REQUEST: 'DbDeleteManifestRequest',
-    DB_DELETE_MANIFEST_RESPONSE: 'DbDeleteManifestResponse',
-    DB_UPDATE_CHUNK_REQUEST: 'DbUpdateChunkRequest',
-    DB_UPDATE_CHUNK_RESPONSE: 'DbUpdateChunkResponse',
-    DB_DELETE_CHUNK_REQUEST: 'DbDeleteChunkRequest',
-    DB_DELETE_CHUNK_RESPONSE: 'DbDeleteChunkResponse',
-    DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST: 'DbGetAllModelFileManifestsRequest',
-    DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE: 'DbGetAllModelFileManifestsResponse',
-    DB_MANIFEST_UPDATED_NOTIFICATION: 'DbManifestUpdatedNotification',
 });
 function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -1707,8 +1622,6 @@ class DbAddLogRequest extends DbEventBase {
     }
 }
 DbAddLogRequest.type = DBEventNames.DB_ADD_LOG_REQUEST;
-// DbAddLogResponse is not strictly necessary if it's fire and forget,
-// but can be added for consistency if db.js handler for it sends one.
 class DbAddLogResponse extends DbResponseBase {
     constructor(originalRequestId, success, data = true, error = null) {
         super(originalRequestId, success, data, error);
@@ -1761,209 +1674,6 @@ class DbResetDatabaseResponse extends DbResponseBase {
     }
 }
 DbResetDatabaseResponse.type = DBEventNames.DB_RESET_DATABASE_RESPONSE;
-// --- Model Asset DB Operations ---
-/**
- * @typedef {Object} ModelAssetChunkPayloadForRequest
- * @property {string} folder - The modelId or folder name.
- * @property {string} fileName - The name of the asset file.
- * @property {string} fileType - The type/extension of the file.
- * @property {ArrayBuffer} data - The binary data of the chunk.
- * @property {number} chunkIndex - The 0-based index of this chunk.
- * @property {number} totalChunks - The total number of chunks for this file.
- * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
- * // @property {number} [totalFileSize] - Optional: Total size of the parent file (contextual).
- */
-class DbAddModelAssetRequest extends DbEventBase {
-    /**
-     * @param {ModelAssetChunkPayloadForRequest} payload
-     */
-    constructor(payload) {
-        super();
-        this.type = DbAddModelAssetRequest.type;
-        this.payload = payload;
-    }
-}
-DbAddModelAssetRequest.type = DBEventNames.DB_ADD_MODEL_ASSET_REQUEST;
-class DbAddModelAssetResponse extends DbResponseBase {
-    /**
-     * @param {string} originalRequestId
-     * @param {boolean} success
-     * @param {{ chunkId: string } | null} data - On success, object containing the ID of the stored chunk.
-     * @param {string | null} error
-     */
-    constructor(originalRequestId, success, data, error = null) {
-        super(originalRequestId, success, data, error);
-        this.type = DbAddModelAssetResponse.type;
-    }
-}
-DbAddModelAssetResponse.type = DBEventNames.DB_ADD_MODEL_ASSET_RESPONSE;
-class DbCountModelAssetChunksRequest extends DbEventBase {
-    /**
-     * @param {{folder: string, fileName: string, expectedSize?: number, expectedChunks?: number}} payload
-     */
-    constructor(payload) {
-        super();
-        this.type = DbCountModelAssetChunksRequest.type;
-        this.payload = payload;
-    }
-}
-DbCountModelAssetChunksRequest.type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_REQUEST;
-class DbCountModelAssetChunksResponse extends DbResponseBase {
-    /**
-     * @param {string} originalRequestId
-     * @param {boolean} success
-     * @param {{ count: number, verified: boolean, error?: string } | null} data - Result of count/verification.
-     * @param {string | null} error - Top-level error for the request.
-     */
-    constructor(originalRequestId, success, data, error = null) {
-        super(originalRequestId, success, data, error); // data = { count, verified, (optional error for count op itself) }
-        this.type = DbCountModelAssetChunksResponse.type;
-    }
-    get count() { return this.data?.count; }
-    get verified() { return this.data?.verified; }
-}
-DbCountModelAssetChunksResponse.type = DBEventNames.DB_COUNT_MODEL_ASSET_CHUNKS_RESPONSE;
-class DbLogAllChunkGroupIdsForModelRequest extends DbEventBase {
-    constructor(payload) {
-        super();
-        this.type = DbLogAllChunkGroupIdsForModelRequest.type;
-        this.payload = payload;
-    }
-}
-DbLogAllChunkGroupIdsForModelRequest.type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_REQUEST;
-class DbLogAllChunkGroupIdsForModelResponse extends DbResponseBase {
-    constructor(originalRequestId, success, groupIdsArray, error = null) {
-        super(originalRequestId, success, groupIdsArray, error);
-        this.type = DbLogAllChunkGroupIdsForModelResponse.type;
-    }
-}
-DbLogAllChunkGroupIdsForModelResponse.type = DBEventNames.DB_LOG_ALL_CHUNK_GROUP_IDS_FOR_MODEL_RESPONSE;
-class DbListModelFilesRequest extends DbEventBase {
-    constructor(payload) {
-        super();
-        this.type = DbListModelFilesRequest.type;
-        this.payload = payload;
-    }
-}
-DbListModelFilesRequest.type = DBEventNames.DB_LIST_MODEL_FILES_REQUEST;
-class DbListModelFilesResponse extends DbResponseBase {
-    constructor(originalRequestId, success, fileNamesArray, error = null) {
-        super(originalRequestId, success, fileNamesArray, error);
-        this.type = DbListModelFilesResponse.type;
-    }
-}
-DbListModelFilesResponse.type = DBEventNames.DB_LIST_MODEL_FILES_RESPONSE;
-class DbGetModelAssetChunksRequest extends DbEventBase {
-    constructor(payload) {
-        super();
-        this.type = DbGetModelAssetChunksRequest.type;
-        this.payload = payload;
-    }
-}
-DbGetModelAssetChunksRequest.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_REQUEST;
-class DbGetModelAssetChunksResponse extends DbResponseBase {
-    constructor(originalRequestId, success, chunksArray, error = null) {
-        super(originalRequestId, success, chunksArray, error);
-        this.type = DbGetModelAssetChunksResponse.type;
-    }
-}
-DbGetModelAssetChunksResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNKS_RESPONSE;
-class DbGetModelAssetChunkRequest extends DbEventBase {
-    constructor(payload) {
-        super();
-        this.type = DbGetModelAssetChunkRequest.type;
-        this.payload = payload;
-    }
-}
-DbGetModelAssetChunkRequest.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_REQUEST;
-class DbGetModelAssetChunkResponse extends DbResponseBase {
-    constructor(originalRequestId, success, chunkData, error = null) {
-        super(originalRequestId, success, chunkData, error);
-        this.type = DbGetModelAssetChunkResponse.type;
-    }
-    get chunk() { return this.data; }
-}
-DbGetModelAssetChunkResponse.type = DBEventNames.DB_GET_MODEL_ASSET_CHUNK_RESPONSE;
-// --- Model Asset Manifest Operations (NEW - Definitions) ---
-/**
- * @typedef {import('./idbModelAsset').ModelAssetManifest} ModelAssetManifest
- */
-/**
- * @typedef {Object} ModelAssetManifestPayloadForRequest
- * @property {string} chunkGroupId - Identifier for the group of chunks (e.g., modelId/fileName).
- * @property {string} fileName - The original name of the model asset file.
- * @property {string} folder - The "folder" or modelId this asset belongs to.
- * @property {string} fileType - The type/extension of the file (e.g., 'onnx', 'json').
- * @property {number} totalFileSize - The total size of the complete file in bytes.
- * @property {number} totalChunks - The total number of chunks the file was split into.
- * @property {number} chunkSizeUsed - The CHUNK_SIZE (in bytes) that was used.
- * @property {'complete' | 'incomplete' | string} status - The status of this asset.
- * @property {number} downloadTimestamp - Timestamp of when the download/processing was completed.
- * @property {string} [id] - Optional: if pre-defining the manifest ID.
- * @property {string} [checksum] - Optional: checksum of the full file.
- * @property {string | number} [version] - Optional: version of the file.
- */
-class DbAddManifestRequest extends DbEventBase {
-    /**
-     * @param {ModelAssetManifest} payload
-     */
-    constructor(payload) {
-        super();
-        this.type = DbAddManifestRequest.type;
-        this.payload = payload;
-    }
-}
-DbAddManifestRequest.type = DBEventNames.DB_ADD_MANIFEST_REQUEST;
-class DbAddManifestResponse extends DbResponseBase {
-    /**
-     * @param {string} originalRequestId
-     * @param {boolean} success
-     * @param {{ manifestId: string } | null} data - On success, object containing the ID of the stored/updated manifest.
-     * @param {string | null} error
-     */
-    constructor(originalRequestId, success, data, error = null) {
-        super(originalRequestId, success, data, error);
-        this.type = DbAddManifestResponse.type;
-        this.data = data;
-    }
-    get manifestId() { return this.data?.manifestId; }
-}
-DbAddManifestResponse.type = DBEventNames.DB_ADD_MANIFEST_RESPONSE;
-/**
- * @typedef {Object} GetManifestPayload
- * @property {string} folder - The folder (modelId) of the asset.
- * @property {string} fileName - The fileName of the asset.
- */
-class DbGetManifestRequest extends DbEventBase {
-    /**
-     * @param {{ folder: string, fileName: string }} payload
-     */
-    constructor(payload) {
-        super();
-        this.type = DbGetManifestRequest.type;
-        this.payload = payload;
-    }
-}
-DbGetManifestRequest.type = DBEventNames.DB_GET_MANIFEST_REQUEST;
-class DbGetManifestResponse extends DbResponseBase {
-    /**
-     * The manifest object (from idbModelAsset.ts ModelAssetManifest interface) is expected
-     * to be the direct value of the `data` property in this response.
-     * @param {string} originalRequestId
-     * @param {boolean} success
-     * @param {ModelAssetManifest | null} data - The manifest object or null.
-     * @param {string | null} error
-     */
-    constructor(originalRequestId, success, data, error = null) {
-        super(originalRequestId, success, data, error);
-        this.type = DbGetManifestResponse.type;
-        this.data = data;
-    }
-    /** @returns {ModelAssetManifest | null} */
-    get manifest() { return this.data; }
-}
-DbGetManifestResponse.type = DBEventNames.DB_GET_MANIFEST_RESPONSE;
-// --- General DB Worker and Initialization ---
 class DbEnsureInitializedRequest extends DbEventBase {
     constructor() {
         super();
@@ -1979,8 +1689,6 @@ class DbEnsureInitializedResponse extends DbResponseBase {
     }
 }
 DbEnsureInitializedResponse.type = DBEventNames.DB_ENSURE_INITIALIZED_RESPONSE;
-// DbInitWorkerRequest was previously noted as unused in db.js handler map.
-// If it becomes used, define its payload and response. For now, just the request.
 class DbInitWorkerRequest extends DbEventBase {
     constructor(payload = {}) {
         super();
@@ -2006,197 +1714,6 @@ class DbWorkerCreatedNotification {
     }
 }
 DbWorkerCreatedNotification.type = 'DbWorkerCreatedNotification';
-// Add new event classes for ModelAsset CRUD/static symmetry
-class DbCreateAllFileManifestsForRepoRequest extends DbEventBase {
-    constructor(manifests) {
-        super();
-        this.type = DbCreateAllFileManifestsForRepoRequest.type;
-        this.payload = { manifests };
-    }
-}
-DbCreateAllFileManifestsForRepoRequest.type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
-class DbCreateAllFileManifestsForRepoResponse extends DbResponseBase {
-    constructor(requestId, success, ids, error = null) {
-        super(requestId, success, ids, error);
-        this.type = DbCreateAllFileManifestsForRepoResponse.type;
-        this.data = ids;
-    }
-}
-DbCreateAllFileManifestsForRepoResponse.type = DBEventNames.DB_CREATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
-class DbUpdateAllFileManifestsForRepoRequest extends DbEventBase {
-    constructor(manifests) {
-        super();
-        this.type = DbUpdateAllFileManifestsForRepoRequest.type;
-        this.payload = { manifests };
-    }
-}
-DbUpdateAllFileManifestsForRepoRequest.type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
-class DbUpdateAllFileManifestsForRepoResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbUpdateAllFileManifestsForRepoResponse.type;
-        this.data = data;
-    }
-}
-DbUpdateAllFileManifestsForRepoResponse.type = DBEventNames.DB_UPDATE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
-class DbDeleteAllFileManifestsForRepoRequest extends DbEventBase {
-    constructor(folder) {
-        super();
-        this.type = DbDeleteAllFileManifestsForRepoRequest.type;
-        this.payload = { folder };
-    }
-}
-DbDeleteAllFileManifestsForRepoRequest.type = DBEventNames.DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_REQUEST;
-class DbDeleteAllFileManifestsForRepoResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbDeleteAllFileManifestsForRepoResponse.type;
-    }
-}
-DbDeleteAllFileManifestsForRepoResponse.type = DBEventNames.DB_DELETE_ALL_FILE_MANIFESTS_FOR_REPO_RESPONSE;
-class DbCreateManifestByChunkGroupIdRequest extends DbEventBase {
-    constructor(manifest) {
-        super();
-        this.type = DbCreateManifestByChunkGroupIdRequest.type;
-        this.payload = { manifest };
-    }
-}
-DbCreateManifestByChunkGroupIdRequest.type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
-class DbCreateManifestByChunkGroupIdResponse extends DbResponseBase {
-    constructor(requestId, success, id, error = null) {
-        super(requestId, success, { id }, error);
-        this.type = DbCreateManifestByChunkGroupIdResponse.type;
-    }
-}
-DbCreateManifestByChunkGroupIdResponse.type = DBEventNames.DB_CREATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
-class DbUpdateManifestByChunkGroupIdRequest extends DbEventBase {
-    constructor(chunkGroupId, updates) {
-        super();
-        this.type = DbUpdateManifestByChunkGroupIdRequest.type;
-        this.payload = { chunkGroupId, updates };
-    }
-}
-DbUpdateManifestByChunkGroupIdRequest.type = DBEventNames.DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
-class DbUpdateManifestByChunkGroupIdResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbUpdateManifestByChunkGroupIdResponse.type;
-    }
-}
-DbUpdateManifestByChunkGroupIdResponse.type = DBEventNames.DB_UPDATE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
-class DbDeleteManifestByChunkGroupIdRequest extends DbEventBase {
-    constructor(chunkGroupId) {
-        super();
-        this.type = DbDeleteManifestByChunkGroupIdRequest.type;
-        this.payload = { chunkGroupId };
-    }
-}
-DbDeleteManifestByChunkGroupIdRequest.type = DBEventNames.DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_REQUEST;
-class DbDeleteManifestByChunkGroupIdResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbDeleteManifestByChunkGroupIdResponse.type;
-    }
-}
-DbDeleteManifestByChunkGroupIdResponse.type = DBEventNames.DB_DELETE_MANIFEST_BY_CHUNK_GROUP_ID_RESPONSE;
-class DbReadManifestRequest extends DbEventBase {
-    constructor(manifestId) {
-        super();
-        this.type = DbReadManifestRequest.type;
-        this.payload = { manifestId };
-    }
-}
-DbReadManifestRequest.type = DBEventNames.DB_READ_MANIFEST_REQUEST;
-class DbReadManifestResponse extends DbResponseBase {
-    constructor(requestId, success, manifest, error = null) {
-        super(requestId, success, manifest, error);
-        this.type = DbReadManifestResponse.type;
-        this.data = manifest;
-    }
-}
-DbReadManifestResponse.type = DBEventNames.DB_READ_MANIFEST_RESPONSE;
-class DbUpdateManifestRequest extends DbEventBase {
-    constructor(manifestId, updates) {
-        super();
-        this.type = DbUpdateManifestRequest.type;
-        this.payload = { manifestId, updates };
-    }
-}
-DbUpdateManifestRequest.type = DBEventNames.DB_UPDATE_MANIFEST_REQUEST;
-class DbUpdateManifestResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbUpdateManifestResponse.type;
-    }
-}
-DbUpdateManifestResponse.type = DBEventNames.DB_UPDATE_MANIFEST_RESPONSE;
-class DbDeleteManifestRequest extends DbEventBase {
-    constructor(manifestId) {
-        super();
-        this.type = DbDeleteManifestRequest.type;
-        this.payload = { manifestId };
-    }
-}
-DbDeleteManifestRequest.type = DBEventNames.DB_DELETE_MANIFEST_REQUEST;
-class DbDeleteManifestResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbDeleteManifestResponse.type;
-    }
-}
-DbDeleteManifestResponse.type = DBEventNames.DB_DELETE_MANIFEST_RESPONSE;
-class DbUpdateChunkRequest extends DbEventBase {
-    constructor(chunkId, updates) {
-        super();
-        this.type = DbUpdateChunkRequest.type;
-        this.payload = { chunkId, updates };
-    }
-}
-DbUpdateChunkRequest.type = DBEventNames.DB_UPDATE_CHUNK_REQUEST;
-class DbUpdateChunkResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbUpdateChunkResponse.type;
-    }
-}
-DbUpdateChunkResponse.type = DBEventNames.DB_UPDATE_CHUNK_RESPONSE;
-class DbDeleteChunkRequest extends DbEventBase {
-    constructor(chunkId) {
-        super();
-        this.type = DbDeleteChunkRequest.type;
-        this.payload = { chunkId };
-    }
-}
-DbDeleteChunkRequest.type = DBEventNames.DB_DELETE_CHUNK_REQUEST;
-class DbDeleteChunkResponse extends DbResponseBase {
-    constructor(requestId, success, data = true, error = null) {
-        super(requestId, success, data, error);
-        this.type = DbDeleteChunkResponse.type;
-    }
-}
-DbDeleteChunkResponse.type = DBEventNames.DB_DELETE_CHUNK_RESPONSE;
-class DbGetAllModelFileManifestsRequest extends DbEventBase {
-    constructor() {
-        super();
-        this.type = DbGetAllModelFileManifestsRequest.type;
-    }
-}
-DbGetAllModelFileManifestsRequest.type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_REQUEST;
-class DbGetAllModelFileManifestsResponse extends DbResponseBase {
-    constructor(originalRequestId, success, manifests, error = null) {
-        super(originalRequestId, success, manifests, error);
-        this.type = DbGetAllModelFileManifestsResponse.type;
-    }
-}
-DbGetAllModelFileManifestsResponse.type = DBEventNames.DB_GET_ALL_MODEL_FILE_MANIFESTS_RESPONSE;
-class DbManifestUpdatedNotification extends DbNotificationBase {
-    constructor(manifest) {
-        super(manifest.folder);
-        this.type = DbManifestUpdatedNotification.type;
-        this.payload = { manifest };
-    }
-}
-DbManifestUpdatedNotification.type = DBEventNames.DB_MANIFEST_UPDATED_NOTIFICATION;
 
 
 /***/ }),

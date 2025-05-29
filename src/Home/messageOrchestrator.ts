@@ -1,11 +1,12 @@
 import browser from 'webextension-polyfill';
 import { URL_REGEX,  showError } from '../Utilities/generalUtils';
-import { sendDbRequestSmart } from '../sidepanel';
+import { sendDbRequestSmart, sendToModelWorker } from '../sidepanel';
 import {
     DbCreateSessionRequest,
     DbAddMessageRequest,
     DbUpdateMessageRequest,
     DbUpdateStatusRequest,
+    DbGetSessionRequest,
 } from '../DB/dbEvents';
 import { clearTemporaryMessages } from './chatRenderer';
 import { UIEventNames, RuntimeMessageTypes } from '../events/eventNames';
@@ -34,6 +35,23 @@ function requestDbAndWait(requestEvent: any): Promise<any> {
             }
         })();
     });
+}
+
+/**
+ * Fetches the full chat history for a session and formats it for the model worker.
+ * Only includes user and ai messages, mapping sender to role.
+ * @param sessionId The chat session ID
+ * @returns Promise<Array<{role: string, content: string}>>
+ */
+async function getChatHistoryForModel(sessionId: string): Promise<Array<{role: string, content: string}>> {
+    const sessionData = await requestDbAndWait(new DbGetSessionRequest(sessionId));
+    if (!sessionData || !Array.isArray(sessionData.messages)) return [];
+    return sessionData.messages
+        .filter((m: any) => m.sender === 'user' || m.sender === 'ai')
+        .map((m: any) => ({
+            role: m.sender === 'user' ? 'user' : 'assistant',
+            content: m.text || m.content || ''
+        }));
 }
 
 async function handleQuerySubmit(data: any) {
@@ -120,31 +138,27 @@ async function handleQuerySubmit(data: any) {
                 isSendingMessage = false;
             }
         } else {
-            console.log("[Orchestrator: handleQuerySubmit] Sending query to background for AI response.");
+            // Instead of sending to background, send directly to model worker
+            console.log("[Orchestrator: handleQuerySubmit] Fetching full chat history for model worker.");
+            let history: Array<{role: string, content: string}> = [];
+            try {
+                history = await getChatHistoryForModel(sessionId!);
+            } catch (e) {
+                console.error('[Orchestrator: handleQuerySubmit] Failed to fetch chat history:', e);
+                history = [{ role: 'user', content: text }]; // fallback
+            }
             const messagePayload = {
-                type: RuntimeMessageTypes.SEND_CHAT_MESSAGE,
-                payload: {
-                    chatId: sessionId,
-                    messages: [{ role: 'user', content: text }], 
-                    options: { /* model, temp, etc */ },
-                    messageId: placeholderMessageId
-                }
+                chatId: sessionId,
+                messages: history,
+                options: { /* model, temp, etc */ },
+                messageId: placeholderMessageId
             };
             try {
-                const response = await browser.runtime.sendMessage(messagePayload);
-                if (response && response.success) {
-                    console.log('[Orchestrator: handleQuerySubmit] Background acknowledged forwarding sendChatMessage. Actual AI response will follow separately.', response);
-                } else {
-                    console.error('[Orchestrator: handleQuerySubmit] Background reported an error while attempting to forward sendChatMessage:', response?.error);
-                    const errorPayload = { isLoading: false, sender: 'error', text: `Error forwarding query: ${response?.error || 'Unknown error'}` };
-                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId!, placeholderMessageId, errorPayload);
-                    await requestDbAndWait(errorUpdateRequest); // Can await here too
-                    await requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error'));
-                    isSendingMessage = false; // Reset flag if forwarding failed
-                }
+                sendToModelWorker({ type: 'generate', payload: messagePayload });
+                // No need to await a response here; model worker will post back via events
             } catch (error: unknown) {
                 const errObj = error as Error;
-                console.error('[Orchestrator: handleQuerySubmit] Error sending query to background or processing its direct ack:', errObj);
+                console.error('[Orchestrator: handleQuerySubmit] Error sending query to model worker:', errObj);
                 const errorText = errObj && typeof errObj.message === 'string' ? errObj.message : 'Unknown error during send/ack';
                 const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
                 const errorUpdateRequest = new DbUpdateMessageRequest(sessionId!, placeholderMessageId, errorPayload);

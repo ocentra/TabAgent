@@ -7,7 +7,7 @@ export default [
   js.configs.recommended,
   {
     files: ['**/*.ts', '**/*.tsx'],
-    ignores: ['src/xenova/**', 'src/assets/**', 'src/theme-loader.js'],
+    ignores: ['src/xenova/**', 'src/assets/**', 'src/theme-loader.js', 'scripts/**'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

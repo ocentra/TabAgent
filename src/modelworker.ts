@@ -1,13 +1,61 @@
 /// <reference lib="dom" />
-// modelworker.js
-import { pipeline, env } from './xenova/transformers/dist/transformers.js';
-import { WorkerEventNames, ModelLoaderMessageTypes } from './events/eventNames';
-import { DbListModelFilesRequest, DbGetModelAssetChunkRequest, DbGetManifestRequest } from './DB/dbEvents';
-import { llmChannel } from './Utilities/dbChannels';
 
-console.log("[ModelWorker] modelworker.js loaded (top of file)");
+import { pipeline, env } from './assets/onnxruntime-web/transformers';
+import { WorkerEventNames, UIEventNames } from './events/eventNames';
 
-self.postMessage({ type: WorkerEventNames.WORKER_SCRIPT_READY });
+// --- START: Extension base URL setup ---
+let EXT_BASE_URL = '';
+self.addEventListener('message', (event: MessageEvent) => {
+    if (event.data && event.data.type === 'setBaseUrl') {
+        EXT_BASE_URL = event.data.baseUrl || '';
+        console.log('[ModelWorker] Received extension base URL:', EXT_BASE_URL);
+    }
+});
+// --- END: Extension base URL setup ---
+
+// --- START: Define constants for ONNX paths (using EXT_BASE_URL) ---
+const ONNX_ASSETS_ROOT_PATH = 'assets/onnxruntime-web/';
+const ONNX_WASM_FILE_NAME = 'ort-wasm-simd-threaded.jsep.wasm';
+const ONNX_LOADER_FILE_NAME = 'ort-wasm-simd-threaded.jsep.mjs';
+
+function getOnnxWasmFilePath() {
+    return EXT_BASE_URL + ONNX_ASSETS_ROOT_PATH + ONNX_WASM_FILE_NAME;
+}
+function getOnnxLoaderFilePath() {
+    return EXT_BASE_URL + ONNX_ASSETS_ROOT_PATH + ONNX_LOADER_FILE_NAME;
+}
+function getOnnxWasmRootPath() {
+    return EXT_BASE_URL + ONNX_ASSETS_ROOT_PATH;
+}
+// --- END: Define constants for ONNX paths ---
+
+console.log('[ModelWorker] Initial state of env.backends.onnx:', JSON.stringify(env.backends.onnx, null, 2));
+console.log('[ModelWorker] Initial state of env.backends:', JSON.stringify(env.backends, null, 2));
+
+// Ensure base objects exist and set crucial paths early
+if (!env.backends) { (env as any).backends = {}; }
+if (!env.backends.onnx) { (env.backends as any).onnx = {}; }
+
+// Configure env.backends.onnx.wasm (for ONNX runtime's own use, like finding the .mjs file)
+if (!(env.backends.onnx as any).wasm) { ((env.backends.onnx as any).wasm as any) = {}; }
+((env.backends.onnx as any).wasm as any).wasmPaths = getOnnxWasmRootPath(); // CRITICAL: Set base directory for .mjs
+((env.backends.onnx as any).wasm as any).proxy = false;
+
+// Configure env.backends.onnx.env.wasm (for Transformers.js layer)
+if (!((env.backends.onnx as any).env as any)) { ((env.backends.onnx as any).env as any) = {}; }
+if (!(((env.backends.onnx as any).env as any).wasm as any)) { (((env.backends.onnx as any).env as any).wasm as any) = {}; }
+
+(((env.backends.onnx as any).env as any).wasm as any).wasmPaths = {
+    [ONNX_WASM_FILE_NAME]: getOnnxWasmFilePath(),
+    [ONNX_LOADER_FILE_NAME]: getOnnxLoaderFilePath(),
+};
+(((env.backends.onnx as any).env as any).wasm as any).loader = getOnnxLoaderFilePath();
+
+(env.backends.onnx as any).executionProviders = ['webgpu', 'wasm'];
+(env.backends.onnx as any).logLevel = 'verbose';
+
+console.log("[ModelWorker] env.backends.onnx after initial setup:", JSON.stringify(env.backends.onnx, null, 2));
+console.log("[ModelWorker] Minimal modelworker.js loaded");
 
 self.addEventListener('error', function(e: ErrorEvent) {
     console.error("[ModelWorker] Global error in model-worker.js:", e);
@@ -27,499 +75,269 @@ self.addEventListener('unhandledrejection', function(e: PromiseRejectionEvent) {
 });
 
 let pipelineInstance: any = null;
-let tokenizerInstance: any = null;
-let currentModelIdForPipeline: string | null = null;
-let currentModelIdForGlobalFetchOverride: string | null = null;
-let isModelPipelineReady: boolean = false;
-let isGenerationInterrupted: boolean = false;
+let currentModel: string | null = null;
+let isModelPipelineReady = false;
 
-let specialStartThinkingTokenId: number | null = null;
-let specialEndThinkingTokenId: number | null = null;
+// IndexedDB-backed fetch cache for model files
+const DB_NAME = 'transformers-model-cache';
+const STORE_NAME = 'files';
 
-const originalFetch = self.fetch;
+let llamaWasmPathRef: string | null = null;
+let hasWebGPU: boolean = false;
+let envConfig: any = {};
 
-
-const senderId = `worker-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-const pendingRequests: Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void }> = new Map();
-
-llmChannel.onmessage = (event: MessageEvent) => {
-    const { type, payload, requestId, senderId: respSenderId, timestamp } = event.data;
-    console.log('[ModelWorker][Channel] Received response', { type, requestId, payload, timestamp: Date.now() });
-    if (respSenderId !== senderId && pendingRequests.has(requestId)) {
-        const { resolve } = pendingRequests.get(requestId)!;
-        resolve(payload);
-        pendingRequests.delete(requestId);
-    }
-};
-
-function sendRequestViaChannel(type: string, payload: any): Promise<any> {
-    const requestId = `worker-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-    const message = { type, payload, requestId, senderId, timestamp: Date.now() };
-    console.log('[ModelWorker][Channel] Sending request', { type, requestId, payload, timestamp: message.timestamp });
-    return new Promise((resolve, reject) => {
-        pendingRequests.set(requestId, { resolve, reject });
-        llmChannel.postMessage(message);
-        setTimeout(() => {
-            if (pendingRequests.has(requestId)) {
-                pendingRequests.delete(requestId);
-                reject(new Error(`Request to channel timed out for type: ${type}`));
-            }
-        }, 30000);
+function openDB() {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+            req.result.createObjectStore(STORE_NAME);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
     });
 }
 
-async function fetchChunk(modelId: string, fileName: string, chunkIndex: number): Promise<ArrayBuffer | null> {
-    try {
-        const response = await sendRequestViaChannel(DbGetModelAssetChunkRequest.type, { folder: modelId, fileName, chunkIndex });
-        return response && response.arrayBuffer ? response.arrayBuffer : null;
-    } catch (error) {
-        console.error(`[ModelWorker] Error in fetchChunk ${chunkIndex} for ${modelId}/${fileName}:`, error);
-        return null;
-    }
+async function getFromIndexedDB(url: string): Promise<Blob | null> {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(url);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
 }
 
-// Helper to fetch the latest manifest for a file from the DB by chunkGroupId
-async function fetchLatestManifest(folder: string, fileName: string): Promise<any | null> {
-    try {
-        // Send both folder and fileName as required by the DB handler
-        const response = await sendRequestViaChannel(DbGetManifestRequest.type, { folder, fileName });
-        // The manifest is in response.manifest (from sidepanel handler)
-        const manifest = response && response.manifest ? response.manifest : null;
-        return manifest;
-    } catch (error) {
-        console.error(`[ModelWorker] Error fetching latest manifest for ${folder}/${fileName}:`, error);
-        return null;
-    }
+async function saveToIndexedDB(url: string, blob: Blob) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.put(blob, url);
+        req.onsuccess = () => resolve(undefined);
+        req.onerror = () => reject(req.error);
+    });
 }
 
-// Store the selected ONNX file name from the init payload
-let selectedOnnxFileName: string | null = null;
-let allowedOnnxFiles: string[] = [];
-
-self.fetch = async (resource: any, options?: any): Promise<Response> => {
-    let resourceURLString: string;
-    if (typeof resource === 'string') {
-        resourceURLString = resource;
-    } else if (typeof Request !== 'undefined' && resource instanceof Request) {
-        resourceURLString = resource.url;
-    } else if (typeof URL !== 'undefined' && typeof resource === 'object' && resource instanceof URL) {
-        resourceURLString = resource.toString();
-    } else if (typeof resource === 'object' && resource && 'url' in resource && typeof (resource as any).url === 'string') {
-        resourceURLString = (resource as any).url;
-    } else {
-        resourceURLString = '';
+const originalFetch = self.fetch;
+self.fetch = async function(resource: any, options: any) {
+    if (typeof resource === 'string' && resource.includes(ONNX_WASM_FILE_NAME)) {
+       console.log(`[ModelWorker] Intercepting fetch for WASM: ${resource}, serving local: ${getOnnxWasmFilePath()}`);
+       return originalFetch.call(this, getOnnxWasmFilePath(), options);
     }
-    let isDBAssetRequest = false;
-    let fileNameToFetchForDB: string | null = null;
-    let modelIdForDBFetch: string | null = null;
-
-    if (currentModelIdForGlobalFetchOverride && resourceURLString.startsWith(`/${currentModelIdForGlobalFetchOverride}/`)) {
-        isDBAssetRequest = true;
-        modelIdForDBFetch = currentModelIdForGlobalFetchOverride;
-        fileNameToFetchForDB = resourceURLString.substring(`/${modelIdForDBFetch}/`.length);
+    // Model file caching logic (IndexedDB)
+    if (typeof resource === 'string' && resource.includes('/resolve/main/')) {
+        const cached = await getFromIndexedDB(resource);
+        if (cached) {
+            console.log(`[ModelWorker] Serving model file from IndexedDB: ${resource}`);
+            return new Response(cached);
+        }
+        const resp = await originalFetch(resource, options);
+        if (resp.ok) {
+            const blob = await resp.blob();
+            await saveToIndexedDB(resource, blob.slice()); // Use slice() to ensure the blob can be reused
+            console.log(`[ModelWorker] Fetched and cached model file: ${resource}`);
+            return new Response(blob, { headers: resp.headers });
+        }
+        return resp;
     }
-
-    // Only allow fetching the selected ONNX file, or supporting files (json, tokenizer, etc.)
-    if (isDBAssetRequest && modelIdForDBFetch && fileNameToFetchForDB) {
-        // If this is an ONNX file, only allow the selected one
-        if (fileNameToFetchForDB.endsWith('.onnx')) {
-            if (!allowedOnnxFiles || !allowedOnnxFiles.includes(fileNameToFetchForDB)) {
-                throw new Error(`[ModelWorker][fetch] Attempted to fetch ONNX file '${fileNameToFetchForDB}', but it is not allowed for this model/variant. Allowed: ${allowedOnnxFiles?.join(', ')}`);
-            }
-        }
-        console.log(`[ModelWorker][fetch] DB Asset Request for: ${modelIdForDBFetch}/${fileNameToFetchForDB}`);
-        // Always fetch the latest manifest for this file from the DB
-        const fileManifest = await fetchLatestManifest(modelIdForDBFetch, fileNameToFetchForDB);
-        if (!fileManifest || !Number.isFinite(fileManifest.totalChunks) || fileManifest.totalChunks < 1 || !Number.isFinite(fileManifest.size) || fileManifest.size <= 0 || (fileManifest.status !== 'present' && fileManifest.status !== 'complete')) {
-            console.error(`[ModelWorker][fetch] Invalid or missing manifest for asset: ${modelIdForDBFetch}/${fileNameToFetchForDB}`, fileManifest);
-            throw new Error(`No valid manifest found for asset: ${modelIdForDBFetch}/${fileNameToFetchForDB}`);
-        }
-        const { size: totalFileSize, totalChunks } = fileManifest;
-        console.log(`[ModelWorker][fetch] Assembling ${fileNameToFetchForDB}: Total Chunks: ${totalChunks}, Total Size: ${totalFileSize}`);
-
-        const combined = new Uint8Array(totalFileSize);
-        let currentOffset = 0;
-
-        for (let i = 0; i < totalChunks; i++) {
-            const chunkArrayBuffer = await fetchChunk(modelIdForDBFetch, fileNameToFetchForDB, i);
-            if (!chunkArrayBuffer) {
-                console.error(`[ModelWorker][fetch] Failed to fetch chunk ${i} (returned null/undefined) for ${fileNameToFetchForDB}`);
-                throw new Error(`Failed to fetch chunk ${i} of ${fileNameToFetchForDB}`);
-            }
-            const chunkUint8Array = new Uint8Array(chunkArrayBuffer);
-            if (currentOffset + chunkUint8Array.length > totalFileSize) {
-                 console.error(`[ModelWorker][fetch] Chunk ${i} overflow for ${fileNameToFetchForDB}. Offset: ${currentOffset}, ChunkLen: ${chunkUint8Array.length}, TotalSize: ${totalFileSize}`);
-                 throw new Error(`Chunk ${i} would overflow buffer for ${fileNameToFetchForDB}.`);
-            }
-            combined.set(chunkUint8Array, currentOffset);
-            currentOffset += chunkUint8Array.length;
-            if (i % 20 === 0 || i === totalChunks - 1) {
-                 console.log(`[ModelWorker][fetch] Assembled chunk ${i}/${totalChunks-1}. Offset: ${currentOffset}/${totalFileSize}`);
-            }
-        }
-
-        if (currentOffset !== totalFileSize) {
-            console.warn(`[ModelWorker][fetch] Assembled size ${currentOffset} mismatch expected ${totalFileSize} for ${fileNameToFetchForDB}. This may indicate an issue.`);
-            const headers = new Headers({ 'Content-Length': currentOffset.toString() });
-            return new Response(combined.buffer.slice(0, currentOffset), { headers });
-        }
-        
-        const headers = new Headers({ 'Content-Length': totalFileSize.toString() });
-        return new Response(combined.buffer, { headers });
-
-    } else {
-        return originalFetch(resource, options);
-    }
+    return originalFetch.call(this, resource, options);
 };
 
-let transformersWasmPathRef: string | null = null;
-let llamaWasmPathRef: string | null = null;
-let currentManifest: any = null;
+if (typeof (self as any).importScripts === 'function') {
+    const origImportScripts = (self as any).importScripts;
+    (self as any).importScripts = function (...urls: any[]) {
+        const patchedUrls = urls.map((url: any) =>
+            typeof url === 'string' && url.includes(ONNX_LOADER_FILE_NAME) ? getOnnxLoaderFilePath() : url
+        );
+        console.log('[ModelWorker] importScripts called with patched URLs:', patchedUrls);
+        return origImportScripts.apply(this, patchedUrls);
+    };
+}
+try {
+    console.log(`[ModelWorker] Attempting to importScripts: ${getOnnxLoaderFilePath()}`);
+    (self as any).importScripts(getOnnxLoaderFilePath());
+    console.log(`[ModelWorker] Successfully imported ${getOnnxLoaderFilePath()}`);
+} catch (e) {
+    console.warn(`[ModelWorker] Failed to importScripts ${getOnnxLoaderFilePath()} (may be normal if already loaded or not needed by direct importScripts):`, e);
+}
 
-async function initWorker({ transformersWasmPath, llamaWasmPath }: { transformersWasmPath: string, llamaWasmPath: string }) {
+async function setupOnnxWasmPathsHardcoded() {
     try {
-        transformersWasmPathRef = transformersWasmPath;
+        if (!env.backends) { (env as any).backends = {}; }
+        if (!env.backends.onnx) { (env.backends as any).onnx = {}; }
+
+        if (!(env.backends.onnx as any).wasm) { ((env.backends.onnx as any).wasm as any) = {}; }
+        ((env.backends.onnx as any).wasm as any).wasmPaths = getOnnxWasmRootPath();
+        ((env.backends.onnx as any).wasm as any).proxy = false;
+
+        if (!((env.backends.onnx as any).env as any)) { ((env.backends.onnx as any).env as any) = {}; }
+        if (!(((env.backends.onnx as any).env as any).wasm as any)) { (((env.backends.onnx as any).env as any).wasm as any) = {}; }
+
+        (((env.backends.onnx as any).env as any).wasm as any).wasmPaths = {
+            [ONNX_WASM_FILE_NAME]: getOnnxWasmFilePath(),
+            [ONNX_LOADER_FILE_NAME]: getOnnxLoaderFilePath()
+        };
+        (((env.backends.onnx as any).env as any).wasm as any).loader = getOnnxLoaderFilePath();
+
+        console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.wasm:', JSON.stringify(((env.backends.onnx as any).wasm as any), null, 2));
+        console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.env.wasm:', JSON.stringify(((env.backends.onnx as any).env as any).wasm, null, 2));
+    } catch (err) {
+        console.warn('[ModelWorker] Failed to re-affirm hardcoded ONNX WASM/loader config:', err);
+    }
+}
+
+async function initWorker({ wasmBase, llamaWasmPath, allowRemoteModels, allowLocalModels, localModelPath, device, useWebGPU, dtype, quantized }: {
+    wasmBase?: string,
+    llamaWasmPath: string,
+    allowRemoteModels?: boolean,
+    allowLocalModels?: boolean,
+    localModelPath?: string,
+    device?: string,
+    useWebGPU?: boolean,
+    dtype?: string,
+    quantized?: boolean
+}) {
+    try {
+        console.log('[ModelWorker] initWorker called with wasmBase:', wasmBase);
+        await setupOnnxWasmPathsHardcoded();
+
         llamaWasmPathRef = llamaWasmPath;
-        if (!transformersWasmPathRef) throw new Error("transformersWasmPath is required for environment setup.");
-        if (typeof navigator !== 'undefined' && (navigator as any).gpu) {
-            console.log("[ModelWorker] WebGPU is supported. Configuring ONNX for WebGPU.");
-            env.backends.onnx.executionProviders = ['webgpu', 'wasm'];
-            env.backends.onnx.webgpu = { powerPreference: 'high-performance' };
-        } else {
-            console.log("[ModelWorker] WebGPU not supported. Falling back to WebAssembly.");
-            env.backends.onnx.executionProviders = ['wasm'];
-        }
-        if (env.backends.onnx.wasm) {
-            env.backends.onnx.wasm.wasmPaths = transformersWasmPathRef;
-            env.backends.onnx.wasm.numThreads = 1;
-            console.log(`[ModelWorker] transformersWasmPath set to: ${transformersWasmPathRef}, numThreads=1`);
-        }
-        env.allowRemoteModels = false;
-        env.allowLocalModels = true;
-        self.postMessage({ type: WorkerEventNames.WORKER_ENV_READY, payload: { gpu: !!(navigator as any).gpu, transformersWasmPath: transformersWasmPathRef, llamaWasmPath: llamaWasmPathRef } });
+        hasWebGPU = typeof navigator !== 'undefined' && !!(navigator as any).gpu;
+        if (typeof allowRemoteModels === 'boolean') env.allowRemoteModels = allowRemoteModels;
+        if (typeof allowLocalModels === 'boolean') env.allowLocalModels = allowLocalModels;
+        if (localModelPath) env.localModelPath = localModelPath;
+        envConfig = { device, useWebGPU, dtype, quantized };
+        
+        console.log('[ModelWorker] env.backends.onnx after initWorker:', JSON.stringify(env.backends.onnx, null, 2));
+        self.postMessage({ type: WorkerEventNames.WORKER_ENV_READY, payload: { gpu: hasWebGPU, llamaWasmPath: llamaWasmPathRef } });
     } catch (error) {
         console.error("[ModelWorker] initWorker failed:", error);
         self.postMessage({ type: WorkerEventNames.ERROR, payload: `initWorker failed: ${(error as Error).message}` });
     }
 }
 
-async function initializePipeline(modelIdToLoad: string, manifest: any, progressCallbackForPipeline?: (data: any) => void): Promise<any> {
-    if (pipelineInstance && currentModelIdForPipeline === modelIdToLoad && isModelPipelineReady) {
-        console.log(`[ModelWorker] Pipeline for model ${modelIdToLoad} is already initialized.`);
-        return pipelineInstance;
-    }
+async function loadPipeline(payload: { modelId: string }) {
+    const { modelId } = payload;
 
-    if (pipelineInstance) {
-        console.warn(`[ModelWorker] Switching pipeline from ${currentModelIdForPipeline} to ${modelIdToLoad}. Disposing existing instance.`);
-        if (typeof pipelineInstance.dispose === 'function') {
-            try {
-                pipelineInstance.dispose();
-                console.log("[ModelWorker] Disposed previous pipeline instance.");
-            } catch (disposeError) {
-                console.warn("[ModelWorker] Error disposing previous pipeline instance:", disposeError);
-            }
-        }
-        pipelineInstance = null;
-        tokenizerInstance = null;
-        specialStartThinkingTokenId = null;
-        specialEndThinkingTokenId = null;
+    console.log('[ModelWorker] Re-affirming ONNX paths before pipeline call.');
+    await setupOnnxWasmPathsHardcoded();
+
+    const envLog = {
+        env: {
+            allowRemoteModels: env.allowRemoteModels,
+            allowLocalModels: env.allowLocalModels,
+            localModelPath: env.localModelPath,
+            onnxWasm: env.backends.onnx && (env.backends.onnx as any).env && ((env.backends.onnx as any).env as { wasm?: any }).wasm ? { ...(((env.backends.onnx as any).env as { wasm: any }).wasm) } : undefined
+        },
+        envConfig,
+        hasWebGPU
+    };
+    console.log('[ModelWorker] loadPipeline environment (pretty):', JSON.stringify(envLog, null, 2));
+
+    let resolvedDevice = envConfig.device;
+    if (!resolvedDevice && envConfig.useWebGPU && hasWebGPU) {
+        resolvedDevice = 'webgpu';
     }
-    currentModelIdForPipeline = modelIdToLoad;
-    isModelPipelineReady = false;
-    console.log(`[ModelWorker] Attempting to load 'text-generation' pipeline for model: ${modelIdToLoad}`);
-    currentManifest = manifest;
-    console.log('[ModelWorker] Using manifest for model:', modelIdToLoad, manifest);
+    const modelArg = modelId;
+    const options: any = {
+        progress_callback: (data: any) => {
+            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: data });
+        }
+    };
+    if (resolvedDevice) options.device = resolvedDevice;
+    if (envConfig.dtype) options.dtype = envConfig.dtype;
+    if (envConfig.quantized !== undefined) options.quantized = envConfig.quantized;
+
+    const pipelineLog: any = {
+        pipelineType: typeof pipeline,
+        modelArg,
+        options,
+        env: JSON.parse(JSON.stringify(env)), // Deep copy for logging
+        currentEnvOnnx: JSON.parse(JSON.stringify(env.backends.onnx)) // Deep copy for logging
+    };
+    console.log('[ModelWorker][DEBUG] About to call pipeline (pretty):', JSON.stringify(pipelineLog, null, 2));
 
     try {
-        if (typeof navigator !== 'undefined' && (navigator as any).gpu) {
-            console.log("[ModelWorker] WebGPU is supported. Configuring ONNX for WebGPU.");
-            env.backends.onnx.executionProviders = ['webgpu', 'wasm'];
-            env.backends.onnx.webgpu = { powerPreference: 'high-performance' };
-        } else {
-            console.log("[ModelWorker] WebGPU not supported. Falling back to WebAssembly.");
-            env.backends.onnx.executionProviders = ['wasm'];
-        }
-        if (env.backends.onnx.wasm && transformersWasmPathRef) {
-            env.backends.onnx.wasm.wasmPaths = transformersWasmPathRef;
-            console.log(`[ModelWorker] (initializePipeline) WASM path set to: ${transformersWasmPathRef}`);
-        }
-        if (env.backends.onnx.wasm) {
-            console.log("[ModelWorker] Applying WASM numThreads=1.");
-            env.backends.onnx.wasm.numThreads = 1;
-        } else {
-            console.warn("[ModelWorker] env.backends.onnx.wasm not defined for numThreads.");
-        }
-
-        env.allowRemoteModels = false;
-        env.allowLocalModels = true;
-        console.log('[ModelWorker] allowRemoteModels:', env.allowRemoteModels, 'allowLocalModels:', env.allowLocalModels);
-
-        console.log(`[ModelWorker] Calling transformers.js pipeline() for model: ${currentModelIdForPipeline}`);
-        pipelineInstance = await pipeline('text-generation', currentModelIdForPipeline, {
-            quantized: true,
-            progress_callback: progressCallbackForPipeline ? (data: any) => {
-                const progressDataWithModel = { ...data, model: currentModelIdForPipeline };
-                progressCallbackForPipeline(progressDataWithModel);
-            } : null,
-        });
-
-        tokenizerInstance = pipelineInstance.tokenizer;
-        console.log(`[ModelWorker] Pipeline and tokenizer loaded for ${currentModelIdForPipeline}.`);
+        pipelineInstance = await pipeline('text-generation', modelArg, options);
+        currentModel = modelId;
         isModelPipelineReady = true;
-
-        if (!tokenizerInstance) {
-            console.warn(`[ModelWorker] Tokenizer instance is null for ${currentModelIdForPipeline}.`);
-        } else {
-            try {
-                const thinkTokens = tokenizerInstance.encode('<think></think>', { add_special_tokens: false });
-                if (thinkTokens && thinkTokens.length === 2) {
-                    specialStartThinkingTokenId = thinkTokens[0];
-                    specialEndThinkingTokenId = thinkTokens[1];
-                    console.log(`[ModelWorker] Encoded <think> tokens: START=${specialStartThinkingTokenId}, END=${specialEndThinkingTokenId}`);
-                } else {
-                    console.warn(`[ModelWorker] Could not encode <think> tokens correctly for ${currentModelIdForPipeline}. Received:`, thinkTokens);
-                }
-            } catch (encodeError) {
-                console.error(`[ModelWorker] Error encoding <think> tokens for ${currentModelIdForPipeline}:`, encodeError);
-            }
-        }
-        return pipelineInstance;
-
-    } catch (error: unknown) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error(`[ModelWorker] Pipeline load failed for ${currentModelIdForPipeline}:`, error);
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `[ModelWorker] Pipeline load failed for ${currentModelIdForPipeline}: ${errMsg}` });
-        pipelineInstance = null;
-        tokenizerInstance = null;
-        currentModelIdForPipeline = null;
-        isModelPipelineReady = false;
-        throw error;
+        self.postMessage({ type: 'WORKER_READY', payload: { modelId, task: 'text-generation' } });
+    } catch (err) {
+        console.error('[ModelWorker][ERROR] pipeline() call failed:', err);
+        console.error('[ModelWorker][ERROR] env.backends.onnx at time of failure:', JSON.stringify(env.backends.onnx, null, 2));
+        throw err; // Rethrow to be caught by the onmessage handler
     }
-}
-
-let perFileProgressMap: Record<string, { loaded: number, total: number }> = {};
-function calculateOverallProgress(): number {
-    let totalLoadedBytes = 0;
-    let totalFileSizes = 0;
-    Object.values(perFileProgressMap).forEach((file: { loaded: number, total: number }) => {
-        totalLoadedBytes += file.loaded || 0;
-        totalFileSizes += file.total || 0;
-    });
-    return totalFileSizes > 0 ? (totalLoadedBytes / totalFileSizes) * 100 : 0;
 }
 
 self.onmessage = async (event: MessageEvent) => {
-    if (!event.data || !event.data.type) {
-        console.error("[ModelWorker] Received message without type or data:", event);
-        return;
-    }
-    const { type, payload } = event.data;
-    console.log(`[ModelWorker] Received message: Type: ${type}`);
-
+    const { type, payload } = (event.data || {}) as { type: string; payload: any };
     switch (type) {
         case 'init': {
-            console.log(`[ModelWorker] 'init' payload:`, payload);
-            const modelIdToInit: string | undefined = payload?.modelId;
-            const manifest: any = payload?.manifest;
-            // Capture the selected ONNX file name from the manifest map (the key that matches the ONNX file)
-            // Assume the UI sends the selected ONNX file as the key in the manifest map that matches the ONNX file
-            selectedOnnxFileName = null;
-            allowedOnnxFiles = Array.isArray(payload?.allowedOnnxFiles) ? payload.allowedOnnxFiles : [];
-            if (payload && payload.manifest && typeof payload.manifest === 'object') {
-                // Try to find the ONNX file (ends with .onnx)
-                for (const fileName of Object.keys(payload.manifest)) {
-                    if (fileName.endsWith('.onnx')) {
-                        // If only one ONNX file, or if the UI provides a specific field, use that
-                        if (!selectedOnnxFileName || fileName === payload.onnxFile) {
-                            selectedOnnxFileName = fileName;
-                        }
-                    }
-                }
-                // If the UI provides payload.onnxFile, prefer that
-                if (payload.onnxFile && payload.manifest[payload.onnxFile]) {
-                    selectedOnnxFileName = payload.onnxFile;
-                }
-            }
-
-            if (!modelIdToInit) {
-                console.error("[ModelWorker] Init failed: modelId not provided.");
-                self.postMessage({ type: WorkerEventNames.ERROR, payload: 'Initialization failed: modelId not provided.' });
-                return;
-            }
-
-            if (isModelPipelineReady && currentModelIdForPipeline === modelIdToInit) {
-                console.log(`[ModelWorker] Model ${modelIdToInit} already loaded. Signaling WORKER_READY.`);
-                self.postMessage({ type: WorkerEventNames.WORKER_READY, payload: { model: modelIdToInit } });
-                return;
-            }
-            
-            console.log(`[ModelWorker] Starting initialization for model: ${modelIdToInit}.`);
-            isModelPipelineReady = false;
-            perFileProgressMap = {};
-            self.postMessage({ type: WorkerEventNames.LOADING_STATUS, payload: { status: 'initializing_pipeline', file: 'pipeline_setup', progress: 0, model: modelIdToInit } });
-
             try {
-                if (!env) throw new Error("'env' object from transformers.js not available.");
-
-                env.localModelPath = '';
-                currentModelIdForGlobalFetchOverride = modelIdToInit;
-
-                await initializePipeline(modelIdToInit, manifest, (progressReport: any) => {
-                    if (progressReport && progressReport.file) {
-                         perFileProgressMap[progressReport.file] = {
-                            loaded: progressReport.loaded || 0,
-                            total: progressReport.total || 0,
-                        };
-                    }
-                    const overallProgressPercentage = calculateOverallProgress();
-                    self.postMessage({
-                        type: WorkerEventNames.LOADING_STATUS,
-                        payload: {
-                            ...progressReport,
-                            model: modelIdToInit,
-                            overallProgress: overallProgressPercentage,
-                        }
-                    });
-                });
-
-                self.postMessage({ type: WorkerEventNames.WORKER_READY, payload: { model: modelIdToInit } });
-                console.log(`[ModelWorker] Model ${modelIdToInit} init complete. WORKER_READY sent.`);
-
-            } catch (error: unknown) {
-                console.error(`[ModelWorker] Critical failure during model init for ${modelIdToInit}:`, error);
-                isModelPipelineReady = false;
+                if (currentModel !== payload.modelId || !isModelPipelineReady) {
+                    isModelPipelineReady = false;
+                    await loadPipeline(payload);
+                } else {
+                    self.postMessage({ type: 'WORKER_READY', payload: { modelId: payload.modelId, task: payload.task || 'text-generation' } });
+                }
+            } catch (error) {
+                self.postMessage({ type: 'ERROR', payload: error instanceof Error ? error.message : String(error) });
             }
             break;
         }
         case 'generate': {
-            console.log(`[ModelWorker] 'generate' payload:`, payload);
-            if (!isModelPipelineReady || !pipelineInstance || !currentModelIdForPipeline) {
-                console.error(`[ModelWorker] Cannot generate. Model pipeline not ready.`);
-                self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: 'Generation failed: Model pipeline is not ready.' });
+            if (!isModelPipelineReady || !pipelineInstance) {
+                self.postMessage({ type: 'GENERATION_ERROR', payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
                 return;
             }
-            const generationModelId: string = currentModelIdForPipeline;
-            
-            if (!payload || typeof payload.messages === 'undefined') {
-                console.error(`[ModelWorker] Generate failed: 'messages' missing for ${generationModelId}.`);
-                self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: 'Generate failed: Invalid messages payload.' });
-                return;
-            }
-
-            isGenerationInterrupted = false;
-            let accumulatedOutputText = '';
-            let currentThinkingState: string = (specialStartThinkingTokenId !== null && specialEndThinkingTokenId !== null) ? 'answering' : 'answering-only';
-
             try {
-                self.postMessage({ type: WorkerEventNames.GENERATION_STATUS, payload: { status: 'generating', model: generationModelId } });
-
-                const generationResultStream = await pipelineInstance(payload.messages, {
-                    max_new_tokens: payload.max_new_tokens || 512,
+                const result = await pipelineInstance(payload.messages, {
+                    max_new_tokens: payload.max_new_tokens || 128,
                     temperature: payload.temperature || 0.7,
-                    top_k: payload.top_k || 0,
-                    do_sample: (payload.temperature && payload.temperature > 0) || (payload.top_k && payload.top_k > 0),
-                    callback_function: (beams: any) => {
-                        if (isGenerationInterrupted) return;
-                        try {
-                            const tokenIdsForCurrentBeam = beams[0]?.output_token_ids;
-                            if (!tokenIdsForCurrentBeam || tokenIdsForCurrentBeam.length === 0) return;
-
-                            let newTextChunk = "";
-                            if (tokenizerInstance) {
-                                const decodedText = tokenizerInstance.decode(tokenIdsForCurrentBeam, { skip_special_tokens: true });
-                                newTextChunk = decodedText.substring(accumulatedOutputText.length);
-                                accumulatedOutputText = decodedText;
-                            } else {
-                                const lastTokenId = tokenIdsForCurrentBeam.slice(-1)[0];
-                                newTextChunk = `[RAW_TOKEN:${lastTokenId}]`;
-                                accumulatedOutputText += newTextChunk;
-                            }
-
-                            const lastToken = tokenIdsForCurrentBeam[tokenIdsForCurrentBeam.length - 1];
-                            if (currentThinkingState !== 'answering-only') {
-                                if (lastToken === specialEndThinkingTokenId) currentThinkingState = 'answering';
-                                else if (lastToken === specialStartThinkingTokenId) currentThinkingState = 'thinking';
-                            }
-
-                            if (newTextChunk && (currentThinkingState === 'answering' || currentThinkingState === 'answering-only')) {
-                                self.postMessage({
-                                    type: WorkerEventNames.GENERATION_UPDATE,
-                                    payload: { chunk: newTextChunk, state: currentThinkingState, model: generationModelId }
-                                });
-                            }
-                        } catch (streamError) {
-                            console.error(`[ModelWorker] Error in generation stream callback for ${generationModelId}:`, streamError);
-                        }
+                });
+                let text = '';
+                if (Array.isArray(result) && result[0]?.generated_text) {
+                    text = result[0].generated_text;
+                } else if (typeof result === 'object' && (result as any).generated_text) {
+                    text = (result as any).generated_text;
+                } else {
+                    text = JSON.stringify(result);
+                }
+                self.postMessage({
+                    type: 'GENERATION_COMPLETE',
+                    payload: {
+                        chatId: payload.chatId,
+                        messageId: payload.messageId,
+                        text
                     }
                 });
-
-                let finalOutputText = accumulatedOutputText;
-                if (typeof generationResultStream === 'string') {
-                    finalOutputText = generationResultStream;
-                } else if (Array.isArray(generationResultStream) && generationResultStream.length > 0 && generationResultStream[0].generated_text) {
-                    finalOutputText = generationResultStream[0].generated_text;
-                } else if (typeof generationResultStream === 'object' && generationResultStream !== null && generationResultStream.generated_text) {
-                    finalOutputText = generationResultStream.generated_text;
-                }
-                
-                console.log(`[ModelWorker] Generation stream finished for ${generationModelId}.`);
-                if (isGenerationInterrupted) {
-                    self.postMessage({ type: WorkerEventNames.GENERATION_STATUS, payload: { status: 'interrupted', model: generationModelId, output: finalOutputText } });
-                } else {
-                    self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { model: generationModelId, output: finalOutputText } });
-                }
-
-            } catch (error: unknown) {
-                const errMsg = error instanceof Error ? error.message : String(error);
-                console.error(`[ModelWorker] Failed during generation for ${generationModelId}:`, error);
-                self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: `Generation process failed: ${errMsg}` });
+            } catch (error) {
+                self.postMessage({
+                    type: 'GENERATION_ERROR',
+                    payload: {
+                        error: error instanceof Error ? error.message : String(error),
+                        chatId: payload.chatId,
+                        messageId: payload.messageId
+                    }
+                });
             }
-            break;
-        }
-        case 'interrupt': {
-            console.log("[ModelWorker] Received 'interrupt'. Setting flag.");
-            isGenerationInterrupted = true;
             break;
         }
         case 'reset': {
-            console.log("[ModelWorker] Received 'reset'.");
-            isGenerationInterrupted = false;
-            if (pipelineInstance && typeof pipelineInstance.dispose === 'function') {
-                try { pipelineInstance.dispose(); } catch(e) { console.warn("Error disposing pipeline on reset:", e); }
-            }
             pipelineInstance = null;
-            tokenizerInstance = null;
-            currentModelIdForPipeline = null;
+            currentModel = null;
             isModelPipelineReady = false;
-            console.log("[ModelWorker] Pipeline instance reset.");
-            self.postMessage({ type: WorkerEventNames.RESET_COMPLETE });
+            self.postMessage({ type: 'RESET_COMPLETE' });
             break;
         }
-        case ModelLoaderMessageTypes.LIST_MODEL_FILES_RESULT: {
+        case 'initWorker': {
+            initWorker(payload);
             break;
         }
-        case 'initWorker':
-            await initWorker(payload);
-            break;
         default: {
-            console.warn(`[ModelWorker] Unknown message type: ${type}. Payload:`, payload);
-            self.postMessage({ type: WorkerEventNames.ERROR, payload: `[ModelWorker] Unknown message type: ${type}` });
+            self.postMessage({ type: 'ERROR', payload: `Unknown message type: ${type}` });
             break;
         }
     }
 };
-
-// TEST: Manual manifest fetch for debugging roundtrip
-async function testManifestFetch() {
-    const testModel = "onnx-models/all-MiniLM-L6-v2-onnx";
-    const testFile = "tokenizer.json";
-    const requestId = `test-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-    console.log("[ModelWorker][TEST] Requesting manifest for", testModel, testFile, "requestId:", requestId);
-    try {
-        const manifest = await sendRequestViaChannel(DbGetManifestRequest.type, { folder: testModel, fileName: testFile });
-        console.log("[ModelWorker][TEST] Got manifest for", testModel, testFile, "requestId:", requestId, manifest);
-    } catch (e) {
-        console.error("[ModelWorker][TEST] Manifest fetch failed for", testModel, testFile, "requestId:", requestId, e);
-    }
-}
-(self as any).testManifestFetch = testManifestFetch;

@@ -3,10 +3,9 @@ console.log(`${prefix} indexedDBBackendWorker loaded and running`);
 /// <reference lib="dom" />
 // indexedDBBackendWorker.ts
 
-import { DBActions, DbInitOptions } from './dbActions'; // Correctly import from your file
-import { DBNames } from './idbSchema';
-// Explicitly import IDBValidKey type for clarity (even though it's global in browser/worker context)
-// This is a no-op in browser, but helps TypeScript recognize the type:
+import { DBActions } from './dbActions'; // Correctly import from your file
+
+
 type IDBValidKey = globalThis.IDBValidKey;
 
 // Type Definitions (Replaced JSDoc)

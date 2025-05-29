@@ -50,12 +50,13 @@
         "model-worker.js",
         "pageExtractor.js",
         "assets/*",
+        "assets/onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs",
+        "assets/onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm",
         "sidepanel.css",
         "icons/*",
         "xenova/*",
         "model/*",
         "wasm/*"
-
       ],
       "matches": ["<all_urls>"]
     }
@@ -67,8 +68,6 @@
     "128": "icons/icon128.png"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
-    "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self';",
-    "worker-src": "'self' 'wasm-unsafe-eval' 'blob:';"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'"
   }
 }

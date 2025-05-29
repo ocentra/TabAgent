@@ -20,6 +20,7 @@ function copyFolder(srcDir, destDir) {
 
 export default {
   mode: 'development', // Change to 'production' for minified output
+  target: 'webworker',
   entry: {
     sidepanel: path.resolve(__dirname, 'src/sidepanel.ts'),
     background: path.resolve(__dirname, 'src/background.ts'),
@@ -56,10 +57,9 @@ export default {
         { from: 'src/events', to: 'events' },
         { from: 'src/theme-loader.js', to: '.' },
         ...copyFolder('icons', 'icons'),
-        ...copyFolder('src/assets', 'assets'),
         ...copyFolder('src/model', 'model'),
+        ...copyFolder('src/assets', 'assets'),
         ...copyFolder('src/wasm', 'wasm'),
-        ...copyFolder('src/transformers.js/dist', 'transformers.js'),
       ],
     }),
   ],
@@ -81,7 +81,20 @@ export default {
         use: 'ts-loader',
         exclude: /node_modules/,
       },
+      {
+        test: /\.wasm$/,
+        type: 'asset/resource',
+      },
+      {
+        test: /\.mjs$/,
+        type: 'asset/resource',
+      },
       // Add loaders here if you need to handle CSS, images, etc.
     ],
   },
+  ignoreWarnings: [
+    {
+      message: /Critical dependency: Accessing import\.meta directly is unsupported/,
+    },
+  ],
 }; 

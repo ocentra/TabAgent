@@ -20,4 +20,7 @@ declare global {
     }
 }
 
-export {}; 
+export {};
+
+declare module '*.wasm';
+declare module '*.mjs'; 

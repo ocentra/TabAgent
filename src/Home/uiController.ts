@@ -13,7 +13,6 @@ let queryInput: HTMLTextAreaElement | null,
     fileInput: HTMLInputElement | null,
     loadingIndicatorElement: HTMLElement | null,
     newChatButton: HTMLButtonElement | null,
-    downloadModelButton: HTMLButtonElement | null,
     modelLoadProgress: HTMLElement | null;
 
 let isInitialized = false;
@@ -86,7 +85,6 @@ function selectElements() {
     modelLoadProgress = document.getElementById('model-load-progress') as HTMLElement | null;
     modelSelectorDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
     onnxVariantSelectorDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
-    downloadModelButton = document.getElementById('download-model-btn') as HTMLButtonElement | null; 
     loadModelButton = document.getElementById('load-model-button') as HTMLButtonElement | null;    
 
     if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
@@ -104,7 +102,6 @@ function attachListeners() {
 
     modelSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
     onnxVariantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
-    downloadModelButton?.addEventListener('click', _handleDownloadModelButtonClick);
     loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
 }
 
@@ -116,7 +113,6 @@ function removeListeners() {
 
     modelSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
     onnxVariantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
-    downloadModelButton?.removeEventListener('click', _handleDownloadModelButtonClick);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
 }
 
@@ -199,7 +195,7 @@ document.addEventListener(UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e: Event) => {
     handleDownLoadingProgress((e as CustomEvent).detail);
 });
 function handleDownLoadingProgress(payload: any) {
-    console.log('[DEBUG][handleLoadingProgress] payload:', payload);
+   // console.log('[DEBUG][handleLoadingProgress] payload:', payload);
     if (!payload) return;
     const statusDiv = document.getElementById('model-load-status');
     const statusText = document.getElementById('model-load-status-text');
@@ -207,14 +203,14 @@ function handleDownLoadingProgress(payload: any) {
     const progressInner = document.getElementById('model-load-progress-inner');
 
     if (!statusDiv || !statusText || !progressBar || !progressInner) {
-        console.warn('[UIController] Model load progress bar not found.');
+       // console.warn('[UIController] Model load progress bar not found.');
         return;
     }
 
     // Always show the status area while loading or on error
     statusDiv.style.display = 'block';
     progressBar.style.width = '100%';
-    console.log('[DEBUG][handleLoadingProgress] Showing progress bar.');
+   // console.log('[DEBUG][handleLoadingProgress] Showing progress bar.');
 
     // Handle error
     if (payload.status === 'error' || payload.error) {
@@ -227,7 +223,7 @@ function handleDownLoadingProgress(payload: any) {
     // Main progress bar (overall)
     let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
-    console.log('[DEBUG][handleLoadingProgress] percent:', percent);
+   // console.log('[DEBUG][handleLoadingProgress] percent:', percent);
     progressInner.style.width = percent + '%';
     progressInner.style.background = '#4caf50'; // green
 
@@ -256,101 +252,85 @@ function handleDownLoadingProgress(payload: any) {
 
     // Hide when done (but not on error)
     if ((percent >= 100 || payload.status === 'popupclosed'|| payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
-        console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
+        //console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
        
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
     }
 }
 
+document.addEventListener(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e: Event) => {
+    handleModelWorkerLoadingProgress((e as CustomEvent).detail);
+});
 
+function handleModelWorkerLoadingProgress(payload: any) {
+    if (!payload) return;
+    const statusDiv = document.getElementById('model-load-status');
+    const statusText = document.getElementById('model-load-status-text');
+    const progressBar = document.getElementById('model-load-progress-bar');
+    const progressInner = document.getElementById('model-load-progress-inner');
 
-const AVAILABLE_MODELS_STATIC_FALLBACK: Record<string, string> = {
-    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
-    "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
-    // Add more models here as needed from your original AVAILABLE_MODELS
-};
-
-export function populateModelDropdown(repoIds: string[], selectedRepoId: string | null) {
-    if (!modelSelectorDropdown) return;
-    const currentVal = modelSelectorDropdown.value;
-    modelSelectorDropdown.innerHTML = ''; // Clear existing options
-
-    if (!repoIds || repoIds.length === 0) {
-        const option = document.createElement('option');
-        option.value = "";
-        option.textContent = "No Models"; // Or "No Models Found"
-        modelSelectorDropdown.appendChild(option);
-        modelSelectorDropdown.disabled = true;
-        populateOnnxVariantDropdown([], null, false); // Clear ONNX variants too
+    if (!statusDiv || !statusText || !progressBar || !progressInner) {
+        console.warn('[UIController] Model load progress bar not found.');
         return;
     }
 
-    modelSelectorDropdown.disabled = false;
-    repoIds.forEach(repoId => {
-        if (!modelSelectorDropdown) return;
-        const option = document.createElement('option');
-        option.value = repoId;
-        const friendlyName = AVAILABLE_MODELS_STATIC_FALLBACK[repoId] || repoId;
-        option.textContent = friendlyName;
-        modelSelectorDropdown.appendChild(option);
-    });
+    statusDiv.style.display = 'block';
+    progressBar.style.width = '100%';
 
-    if (selectedRepoId && repoIds.includes(selectedRepoId)) {
-        modelSelectorDropdown.value = selectedRepoId;
-    } else if (currentVal && repoIds.includes(currentVal)) { // Try to preserve selection
-        modelSelectorDropdown.value = currentVal;
-    } else if (repoIds.length > 0) {
-        modelSelectorDropdown.value = repoIds[0]; // Default to first
-    }
-}
-
-export function populateOnnxVariantDropdown(
-    onnxFiles: { fileName: string; status?: string }[],
-    selectedFileName: string | null,
-    multipleOnnxFilesExistForModel: boolean
-) {
-    if (!onnxVariantSelectorDropdown) return;
-    const currentVal = onnxVariantSelectorDropdown.value;
-    onnxVariantSelectorDropdown.innerHTML = '';
-
-    if (!onnxFiles || onnxFiles.length === 0) {
-        const option = document.createElement('option');
-        option.value = "";
-        option.textContent = "N/A";
-        onnxVariantSelectorDropdown.appendChild(option);
-        onnxVariantSelectorDropdown.disabled = true;
+    // Handle error
+    if (payload.status === 'error' || payload.error) {
+        statusText.textContent = payload.error || 'Error loading model';
+        progressInner.style.background = '#f44336'; // red
+        progressInner.style.width = '100%';
         return;
     }
 
-    onnxVariantSelectorDropdown.disabled = false;
-    if (multipleOnnxFilesExistForModel) {
-        const allOption = document.createElement('option');
-        allOption.value = 'all';
-        allOption.textContent = 'All (for download)';
-        onnxVariantSelectorDropdown.appendChild(allOption);
+    let percent = payload.progress || payload.percent || 0;
+    percent = Math.max(0, Math.min(100, percent));
+    progressInner.style.width = percent + '%';
+    progressInner.style.background = '#4caf50'; // green;
+
+    function formatBytes(bytes: number) {
+        if (!bytes && bytes !== 0) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    function truncateFileName(name: string, maxLen = 32) {
+        if (!name) return '';
+        return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
     }
 
-    onnxFiles.forEach(file => {
-        if (!onnxVariantSelectorDropdown) return;
-        const option = document.createElement('option');
-        option.value = file.fileName;
-        let statusIcon = '';
-        if (file.status === 'present' || file.status === 'complete') statusIcon = '🟢';
-        else if (file.status === 'corrupt') statusIcon = '🔴';
-        option.textContent = `${file.fileName.split('/').pop()} ${statusIcon}`.trim();
-        onnxVariantSelectorDropdown.appendChild(option);
-    });
+    let text = '';
+    let shortFile = payload.file ? truncateFileName(payload.file) : '';
+    switch (payload.status) {
+        case 'initiate':
+            text = `Starting download: ${shortFile}`;
+            break;
+        case 'progress':
+            text = `Downloading ${shortFile}`;
+            if (typeof payload.loaded === 'number' && typeof payload.total === 'number') {
+                text += `... ${Math.round(percent)}% (${formatBytes(payload.loaded)} / ${formatBytes(payload.total)})`;
+            } else {
+                text += `... ${Math.round(percent)}%`;
+            }
+            break;
+        case 'done':
+            text = `${shortFile} downloaded. Preparing pipeline...`;
+            break;
+        case 'ready':
+            text = `Model ready!`;
+            break;
+        default:
+            text = 'Loading...';
+    }
+    statusText.textContent = text;
 
-    if (selectedFileName && onnxFiles.some(f => f.fileName === selectedFileName)) {
-        onnxVariantSelectorDropdown.value = selectedFileName;
-    } else if (currentVal && onnxFiles.some(f => f.fileName === currentVal)) { // Try to preserve
-        onnxVariantSelectorDropdown.value = currentVal;
-    } else if (multipleOnnxFilesExistForModel) {
-        onnxVariantSelectorDropdown.value = 'all';
-    } else if (onnxFiles.length > 0) {
-        onnxVariantSelectorDropdown.value = onnxFiles[0].fileName;
+    if ((percent >= 100 || payload.status === 'popupclosed'|| payload.status === 'done' || payload.status === 'ready' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
     }
 }
+
 
 export function getCurrentlySelectedModel(): { modelId: string | null; onnxFile: string | null } {
     if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return { modelId: null, onnxFile: null };
@@ -360,21 +340,7 @@ export function getCurrentlySelectedModel(): { modelId: string | null; onnxFile:
     };
 }
 
-export function setDownloadModelButtonState(options: { visible: boolean; text?: string; disabled?: boolean }) {
-    if (downloadModelButton) {
-        downloadModelButton.style.display = options.visible ? '' : 'none';
-        if (options.text) downloadModelButton.textContent = options.text;
-        if (typeof options.disabled === 'boolean') downloadModelButton.disabled = options.disabled;
-    }
-}
 
-export function setLoadModelButtonState(options: { visible: boolean; text?: string; disabled?: boolean }) {
-    if (loadModelButton) {
-        loadModelButton.style.display = options.visible ? '' : 'none';
-        if (options.text) loadModelButton.textContent = options.text;
-        if (typeof options.disabled === 'boolean') loadModelButton.disabled = options.disabled;
-    }
-}
 
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
     console.log("[UIController] Initializing...");
@@ -404,34 +370,84 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     clearTemporaryMessages();
 
 
-
-
-
     disableInput("Download or load a model from dropdown to begin.");
 
     console.log("[UIController] Initializing UI elements...");
 
     // Populate model selector
     console.log("[UIController] Attempting to find model selector...");
-    const modelSelector = document.getElementById('model-selector');
+    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
     console.log(modelSelector ? "[UIController] Model selector found." : "[UIController] WARNING: Model selector NOT found!");
     if (modelSelector) {
         modelSelector.innerHTML = ''; // Clear existing options
         console.log("[UIController] Populating model selector. Available models:", AVAILABLE_MODELS);
+        let hasModel = false;
         for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
             console.log(`[UIController] Adding option: ${displayName} (${modelId})`);
             const option = document.createElement('option');
             option.value = modelId;
             option.textContent = displayName;
             modelSelector.appendChild(option);
+            hasModel = true;
         }
-
+        // If no models, add a disabled option
+        if (!hasModel) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No models available';
+            option.disabled = true;
+            option.selected = true;
+            modelSelector.appendChild(option);
+        }
+        // Enable/disable dropdown based on model availability
+        modelSelector.disabled = !hasModel;
+        // Show/hide load button based on model selection
+        if (loadModelButton) {
+            const loadBtn = loadModelButton as HTMLButtonElement;
+            if (hasModel && modelSelector.value) {
+                loadBtn.style.display = '';
+                loadBtn.disabled = false;
+            } else {
+                loadBtn.style.display = 'none';
+                loadBtn.disabled = true;
+            }
+            // Add event listener to update button on dropdown change
+            modelSelector.addEventListener('change', () => {
+                if (loadModelButton) {
+                    const loadBtn = loadModelButton as HTMLButtonElement;
+                    if (modelSelector.value) {
+                        loadBtn.style.display = '';
+                        loadBtn.disabled = false;
+                    } else {
+                        loadBtn.style.display = 'none';
+                        loadBtn.disabled = true;
+                    }
+                }
+            });
+        }
     } else {
         console.warn("[UIController] Model selector dropdown not found.");
+        if (loadModelButton) (loadModelButton as HTMLButtonElement).style.display = 'none';
     }
 
-    if (downloadModelButton) downloadModelButton.style.display = 'none'; 
-    if (loadModelButton) loadModelButton.style.display = 'none';       
+    // Populate ONNX variant selector statically
+    if (onnxVariantSelectorDropdown) {
+        onnxVariantSelectorDropdown.innerHTML = '';
+        const quantOptions = [
+            { value: 'fp32', label: 'FP32 (Full Precision)' },
+            { value: 'int8', label: 'INT8 (8-bit Quantized)' },
+            { value: 'q4', label: 'Q4 (4-bit Quantized)' },
+            { value: 'q6_k', label: 'Q6_K (6-bit Quantized, K)' }
+        ];
+        for (const opt of quantOptions) {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.label;
+            onnxVariantSelectorDropdown.appendChild(option);
+        }
+        onnxVariantSelectorDropdown.disabled = false;
+        onnxVariantSelectorDropdown.selectedIndex = 0;
+    }
 
     console.log("[UIController] UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
@@ -470,9 +486,6 @@ export function triggerFileInputClick() {
 }
 
 
-
-
-
 function disableInput(reason = "Processing...") {
     if (!isInitialized || !queryInput || !sendButton) return;
     queryInput.disabled = true;
@@ -501,32 +514,16 @@ function _handleModelOrVariantChange() { // Underscore to indicate it's an inter
     // sidepanel will listen to MODEL_SELECTION_CHANGED and then decide to update buttons.
 }
 
-function _handleDownloadModelButtonClick() { // Underscore for internal handler
-    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return;
+function _handleLoadModelButtonClick() {
+    if (!modelSelectorDropdown) return;
     const modelId = modelSelectorDropdown.value;
-    const onnxFile = onnxVariantSelectorDropdown.value; // This can be 'all'
     if (!modelId) {
-        console.warn("[UIController] Download Model button clicked, but no model selected.");
-        // Sidepanel can show a notification if it listens for an error/warning event, or uiController can have its own simple notification
+        console.warn("[UIController] Load Model button clicked, but no model selected.");
         return;
     }
-    console.log(`[UIController] Download Model button clicked. Dispatching ${UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION}`, { modelId, onnxFile });
-    document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_DOWNLOAD_ACTION, {
-        detail: { modelId, onnxFile }
-    }));
-}
-
-function _handleLoadModelButtonClick() { // Underscore for internal handler
-    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return;
-    const modelId = modelSelectorDropdown.value;
-    const onnxFile = onnxVariantSelectorDropdown.value;
-    if (!modelId || !onnxFile || onnxFile === 'all') { // Must be a specific ONNX file to load
-        console.warn("[UIController] Load Model button clicked, but no model or specific ONNX file selected.");
-        return;
-    }
-    console.log(`[UIController] Load Model button clicked. Dispatching ${UIEventNames.REQUEST_MODEL_EXECUTION}`, { modelId, onnxFile });
+    console.log(`[UIController] Load Model button clicked. Dispatching ${UIEventNames.REQUEST_MODEL_EXECUTION}`, { modelId });
     document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
-        detail: { modelId, onnxFile }
+        detail: { modelId }
     }));
 }
 

@@ -5,9 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "tailwindcss-windows-x64.exe -i ./src/input.css -o ./src/output.css --config tailwind.config.js",
-    "build": "npm run build:css && rimraf dist && npm run build:webpack && npm run postbuild:webpack",
+    "build": "npm run build:css && rimraf dist && npm run build:webpack",
     "build:webpack": "webpack --config webpack.config.js",
-    "postbuild:webpack": "node scripts/generate-wasm-manifest.cjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\""
   },
   "keywords": [],
@@ -33,7 +32,6 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.5.1",
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.17.1",
     "highlight.js": "^11.11.1",

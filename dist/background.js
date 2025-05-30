@@ -13,7 +13,8 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 		__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
 		(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
 		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
-  } else { var mod; }
+  } else // removed by dead control flow
+{ var mod; }
 })(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : this, function (module) {
   /* webextension-polyfill - v0.12.0 - Tue May 14 2024 18:01:29 */
   /* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
@@ -1778,6 +1779,11 @@ const WorkerEventNames = Object.freeze({
     GENERATING: 'generating',
     IDLE: 'idle',
     WORKER_ENV_READY: 'workerEnvReady',
+    INIT: 'init',
+    GENERATE: 'generate',
+    RESET: 'reset',
+    SET_BASE_URL: 'setBaseUrl',
+    SET_ENV_CONFIG: 'setEnvConfig',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -1951,11 +1957,8 @@ let detachedPopups = {}; // TabId to Popup WindowId
 let popupIdToTabId = {}; // Popup WindowId to Original TabId
 const DNR_RULE_ID_1 = 1;
 const DNR_RULE_PRIORITY_1 = 1;
-let globalModelWorkerActiveState = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.ModelWorkerStates.UNINITIALIZED; // Conceptual state
-let currentActiveModelIdInSidePanel = null; // Tracks modelId believed to be in sidepanel's worker
 let currentLogSessionId = null;
 let previousLogSessionId = null;
-let background_lastLoggedProgress = -1; // For model pipeline loading progress
 async function initializeSessionIds() {
     let { currentLogSessionId: storedCurrentId, previousLogSessionId: storedPreviousId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
     if (storedCurrentId) {

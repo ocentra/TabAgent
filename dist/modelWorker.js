@@ -4805,7 +4805,8 @@ var zn=Object.defineProperty;var Up=Object.getOwnPropertyDescriptor;var Np=Objec
 `),R.push(w+`};
 `),s=function(ae){var le=Function;if(!(le instanceof Function))throw new TypeError(`new_ called with constructor type ${typeof le} which is not a function`);var _e=hi(le.name||"unknownFunctionName",function(){});return _e.prototype=le.prototype,_e=new _e,(ae=le.apply(_e,ae))instanceof Object?ae:_e}(R)(...G),h=`methodCaller<(${l.map(ae=>ae.name).join(", ")}) => ${y.name}>`,np(hi(h,s))}function ap(s){return s=ur(s>>>0),Ve(n[s])}function sp(s,l){return l>>>=0,s=De(s>>>0),l=De(l),Ve(s[l])}function up(s){9<(s>>>=0)&&(at[s+1]+=1)}function dp(){return Ve([])}function lp(s){s=De(s>>>0);for(var l=Array(s.length),h=0;h<s.length;h++)l[h]=s[h];return Ve(l)}function cp(s){return Ve(ur(s>>>0))}function pp(){return Ve({})}function mp(s){for(var l=De(s>>>=0);l.length;){var h=l.pop();l.pop()(h)}_n(s)}function fp(s,l,h){l>>>=0,h>>>=0,s=De(s>>>0),l=De(l),h=De(h),s[l]=h}function hp(s,l){return l>>>=0,s=(s=or(s>>>0,"_emval_take_value")).readValueFromPointer(l),Ve(s)}function gp(s,l){s=-9007199254740992>s||9007199254740992<s?NaN:Number(s),l>>>=0,s=new Date(1e3*s),C()[l>>>2>>>0]=s.getUTCSeconds(),C()[l+4>>>2>>>0]=s.getUTCMinutes(),C()[l+8>>>2>>>0]=s.getUTCHours(),C()[l+12>>>2>>>0]=s.getUTCDate(),C()[l+16>>>2>>>0]=s.getUTCMonth(),C()[l+20>>>2>>>0]=s.getUTCFullYear()-1900,C()[l+24>>>2>>>0]=s.getUTCDay(),s=(s.getTime()-Date.UTC(s.getUTCFullYear(),0,1,0,0,0,0))/864e5|0,C()[l+28>>>2>>>0]=s}var gi=s=>s%4==0&&(s%100!=0||s%400==0),bi=[0,31,60,91,121,152,182,213,244,274,305,335],yi=[0,31,59,90,120,151,181,212,243,273,304,334];function bp(s,l){s=-9007199254740992>s||9007199254740992<s?NaN:Number(s),l>>>=0,s=new Date(1e3*s),C()[l>>>2>>>0]=s.getSeconds(),C()[l+4>>>2>>>0]=s.getMinutes(),C()[l+8>>>2>>>0]=s.getHours(),C()[l+12>>>2>>>0]=s.getDate(),C()[l+16>>>2>>>0]=s.getMonth(),C()[l+20>>>2>>>0]=s.getFullYear()-1900,C()[l+24>>>2>>>0]=s.getDay();var h=(gi(s.getFullYear())?bi:yi)[s.getMonth()]+s.getDate()-1|0;C()[l+28>>>2>>>0]=h,C()[l+36>>>2>>>0]=-60*s.getTimezoneOffset(),h=new Date(s.getFullYear(),6,1).getTimezoneOffset();var y=new Date(s.getFullYear(),0,1).getTimezoneOffset();s=0|(h!=y&&s.getTimezoneOffset()==Math.min(y,h)),C()[l+32>>>2>>>0]=s}function yp(s){s>>>=0;var l=new Date(C()[s+20>>>2>>>0]+1900,C()[s+16>>>2>>>0],C()[s+12>>>2>>>0],C()[s+8>>>2>>>0],C()[s+4>>>2>>>0],C()[s>>>2>>>0],0),h=C()[s+32>>>2>>>0],y=l.getTimezoneOffset(),w=new Date(l.getFullYear(),6,1).getTimezoneOffset(),A=new Date(l.getFullYear(),0,1).getTimezoneOffset(),B=Math.min(A,w);return 0>h?C()[s+32>>>2>>>0]=+(w!=A&&B==y):0<h!=(B==y)&&(w=Math.max(A,w),l.setTime(l.getTime()+6e4*((0<h?B:w)-y))),C()[s+24>>>2>>>0]=l.getDay(),h=(gi(l.getFullYear())?bi:yi)[l.getMonth()]+l.getDate()-1|0,C()[s+28>>>2>>>0]=h,C()[s>>>2>>>0]=l.getSeconds(),C()[s+4>>>2>>>0]=l.getMinutes(),C()[s+8>>>2>>>0]=l.getHours(),C()[s+12>>>2>>>0]=l.getDate(),C()[s+16>>>2>>>0]=l.getMonth(),C()[s+20>>>2>>>0]=l.getYear(),s=l.getTime(),BigInt(isNaN(s)?-1:s/1e3)}function _i(s,l,h,y,w,A,B){return u?xe(16,1,s,l,h,y,w,A,B):-52}function wi(s,l,h,y,w,A){if(u)return xe(17,1,s,l,h,y,w,A)}var Ht={},_p=()=>performance.timeOrigin+performance.now();function vi(s,l){if(u)return xe(18,1,s,l);if(Ht[s]&&(clearTimeout(Ht[s].id),delete Ht[s]),!l)return 0;var h=setTimeout(()=>{delete Ht[s],vn(()=>Ri(s,performance.timeOrigin+performance.now()))},l);return Ht[s]={id:h,qc:l},0}function wp(s,l,h,y){s>>>=0,l>>>=0,h>>>=0,y>>>=0;var w=new Date().getFullYear(),A=new Date(w,0,1).getTimezoneOffset();w=new Date(w,6,1).getTimezoneOffset();var B=Math.max(A,w);V()[s>>>2>>>0]=60*B,C()[l>>>2>>>0]=+(A!=w),s=(l=R=>{var G=Math.abs(R);return`UTC${0<=R?"-":"+"}${String(Math.floor(G/60)).padStart(2,"0")}${String(G%60).padStart(2,"0")}`})(A),l=l(w),w<A?(zt(s,h,17),zt(l,y,17)):(zt(s,y,17),zt(l,h,17))}var vp=()=>Date.now(),$p=1;function xp(s,l,h){if(!(0<=s&&3>=s))return 28;if(s===0)s=Date.now();else{if(!$p)return 52;s=performance.timeOrigin+performance.now()}return Z[h>>>0>>>3]=BigInt(Math.round(1e6*s)),0}var Tn=[],$i=(s,l)=>{Tn.length=0;for(var h;h=he()[s++>>>0];){var y=h!=105;l+=(y&=h!=112)&&l%8?4:0,Tn.push(h==112?V()[l>>>2>>>0]:h==106?Z[l>>>3]:h==105?C()[l>>>2>>>0]:ze()[l>>>3>>>0]),l+=y?8:4}return Tn};function Sp(s,l,h){return s>>>=0,l=$i(l>>>0,h>>>0),cn[s](...l)}function Tp(s,l,h){return s>>>=0,l=$i(l>>>0,h>>>0),cn[s](...l)}var Ip=()=>{};function Cp(s,l){return x(Te(s>>>0,l>>>0))}var Ap=()=>{throw lt+=1,"unwind"};function Ep(){return 4294901760}var kp=()=>navigator.hardwareConcurrency;function Pp(){return dt("Cannot use emscripten_pc_get_function without -sUSE_OFFSET_CONVERTER"),0}function zp(s){s>>>=0;var l=he().length;if(s<=l||4294901760<s)return!1;for(var h=1;4>=h;h*=2){var y=l*(1+.2/h);y=Math.min(y,s+100663296);e:{y=(Math.min(4294901760,65536*Math.ceil(Math.max(s,y)/65536))-T.buffer.byteLength+65535)/65536|0;try{T.grow(y),Ce();var w=1;break e}catch{}w=void 0}if(w)return!0}return!1}var dr=()=>(dt("Cannot use convertFrameToPC (needed by __builtin_return_address) without -sUSE_OFFSET_CONVERTER"),0),Ot={},xi=s=>{s.forEach(l=>{var h=dr();h&&(Ot[h]=l)})};function Op(){var s=Error().stack.toString().split(`
 `);return s[0]=="Error"&&s.shift(),xi(s),Ot.Lb=dr(),Ot.cc=s,Ot.Lb}function Bp(s,l,h){if(s>>>=0,l>>>=0,Ot.Lb==s)var y=Ot.cc;else(y=Error().stack.toString().split(`
-`))[0]=="Error"&&y.shift(),xi(y);for(var w=3;y[w]&&dr()!=s;)++w;for(s=0;s<h&&y[s+w];++s)C()[l+4*s>>>2>>>0]=dr();return s}var In,Cn={},Si=()=>{if(!In){var s,l={USER:"web_user",LOGNAME:"web_user",PATH:"/",PWD:"/",HOME:"/home/web_user",LANG:(typeof navigator=="object"&&navigator.languages&&navigator.languages[0]||"C").replace("-","_")+".UTF-8",_:"./this.program"};for(s in Cn)Cn[s]===void 0?delete l[s]:l[s]=Cn[s];var h=[];for(s in l)h.push(`${s}=${l[s]}`);In=h}return In};function Ti(s,l){if(u)return xe(19,1,s,l);s>>>=0,l>>>=0;var h=0;return Si().forEach((y,w)=>{var A=l+h;for(w=V()[s+4*w>>>2>>>0]=A,A=0;A<y.length;++A)ue()[w++>>>0]=y.charCodeAt(A);ue()[w>>>0]=0,h+=y.length+1}),0}function Ii(s,l){if(u)return xe(20,1,s,l);s>>>=0,l>>>=0;var h=Si();V()[s>>>2>>>0]=h.length;var y=0;return h.forEach(w=>y+=w.length+1),V()[l>>>2>>>0]=y,0}function Ci(s){return u?xe(21,1,s):52}function Ai(s,l,h,y){return u?xe(22,1,s,l,h,y):52}function Ei(s,l,h,y){return u?xe(23,1,s,l,h,y):70}var Dp=[null,[],[]];function ki(s,l,h,y){if(u)return xe(24,1,s,l,h,y);l>>>=0,h>>>=0,y>>>=0;for(var w=0,A=0;A<h;A++){var B=V()[l>>>2>>>0],R=V()[l+4>>>2>>>0];l+=8;for(var G=0;G<R;G++){var K=he()[B+G>>>0],ae=Dp[s];K===0||K===10?((s===1?v:x)(Fo(ae)),ae.length=0):ae.push(K)}w+=R}return V()[y>>>2>>>0]=w,0}u||function(){for(var s=n.numThreads-1;s--;)Wo();mn.unshift(()=>{Pt++,function(l){u?l():Promise.all(ct.map(Vo)).then(l)}(()=>zo())})}();for(var Pi=Array(256),lr=0;256>lr;++lr)Pi[lr]=String.fromCharCode(lr);ai=Pi,pt=n.BindingError=class extends Error{constructor(s){super(s),this.name="BindingError"}},n.InternalError=class extends Error{constructor(s){super(s),this.name="InternalError"}},at.push(0,1,void 0,1,null,1,!0,1,!1,1),n.count_emval_handles=()=>at.length/2-5-yn.length;var Y,Mp=[fn,Mo,Lo,qo,jo,Zo,Qo,Yo,Xo,Jo,ei,ti,ri,ni,oi,ii,_i,wi,vi,Ti,Ii,Ci,Ai,Ei,ki];(async function(){function s(y,w){return Y=y.exports,Y=function(){var A=Y,B={};for(let[R,G]of Object.entries(A))B[R]=typeof G=="function"?(...K)=>{ar.push(R);try{return G(...K)}finally{te||(ar.pop(),Ze&&ft===1&&ar.length===0&&(ft=0,lt+=1,ir(Li),typeof Fibers<"u"&&Fibers.rc()))}}:G;return B}(),Y=function(){var A=Y,B=G=>K=>G(K)>>>0,R=G=>()=>G()>>>0;return(A=Object.assign({},A)).Da=B(A.Da),A.fb=R(A.fb),A.hb=B(A.hb),A.tb=B(A.tb),A.ub=R(A.ub),A.__cxa_get_exception_ptr=B(A.__cxa_get_exception_ptr),A}(),Ro.push(Y.ib),E=w,zo(),Y}Pt++;var l=Oo();if(n.instantiateWasm)return new Promise(y=>{n.instantiateWasm(l,(w,A)=>{s(w,A),y(w.exports)})});if(u)return new Promise(y=>{ve=w=>{var A=new WebAssembly.Instance(w,Oo());y(s(A,w))}});kt??=n.locateFile?n.locateFile?n.locateFile("ort-wasm-simd-threaded.jsep.wasm",_):_+"ort-wasm-simd-threaded.jsep.wasm":new URL(/* asset import */ __nested_webpack_require_153332__(/*! ort-wasm-simd-threaded.jsep.wasm */ "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm"), __nested_webpack_require_153332__.b).href;try{var h=await async function(y){var w=kt;if(!j&&typeof WebAssembly.instantiateStreaming=="function"&&!X(w))try{var A=fetch(w,{credentials:"same-origin"});return await WebAssembly.instantiateStreaming(A,y)}catch(B){x(`wasm streaming compile failed: ${B}`),x("falling back to ArrayBuffer instantiation")}return async function(B,R){try{var G=await async function(K){if(!j)try{var ae=await m(K);return new Uint8Array(ae)}catch{}if(K==kt&&j)K=new Uint8Array(j);else{if(!f)throw"both async and sync fetching of the wasm failed";K=f(K)}return K}(B);return await WebAssembly.instantiate(G,R)}catch(K){x(`failed to asynchronously prepare wasm: ${K}`),dt(K)}}(w,y)}(l);return s(h.instance,h.module)}catch(y){return r(y),Promise.reject(y)}})();var zi=s=>(zi=Y.Da)(s),Oi=()=>(Oi=Y.Ea)();n._OrtInit=(s,l)=>(n._OrtInit=Y.Fa)(s,l),n._OrtGetLastError=(s,l)=>(n._OrtGetLastError=Y.Ga)(s,l),n._OrtCreateSessionOptions=(s,l,h,y,w,A,B,R,G,K)=>(n._OrtCreateSessionOptions=Y.Ha)(s,l,h,y,w,A,B,R,G,K),n._OrtAppendExecutionProvider=(s,l,h,y,w)=>(n._OrtAppendExecutionProvider=Y.Ia)(s,l,h,y,w),n._OrtAddFreeDimensionOverride=(s,l,h)=>(n._OrtAddFreeDimensionOverride=Y.Ja)(s,l,h),n._OrtAddSessionConfigEntry=(s,l,h)=>(n._OrtAddSessionConfigEntry=Y.Ka)(s,l,h),n._OrtReleaseSessionOptions=s=>(n._OrtReleaseSessionOptions=Y.La)(s),n._OrtCreateSession=(s,l,h)=>(n._OrtCreateSession=Y.Ma)(s,l,h),n._OrtReleaseSession=s=>(n._OrtReleaseSession=Y.Na)(s),n._OrtGetInputOutputCount=(s,l,h)=>(n._OrtGetInputOutputCount=Y.Oa)(s,l,h),n._OrtGetInputOutputMetadata=(s,l,h,y)=>(n._OrtGetInputOutputMetadata=Y.Pa)(s,l,h,y),n._OrtFree=s=>(n._OrtFree=Y.Qa)(s),n._OrtCreateTensor=(s,l,h,y,w,A)=>(n._OrtCreateTensor=Y.Ra)(s,l,h,y,w,A),n._OrtGetTensorData=(s,l,h,y,w)=>(n._OrtGetTensorData=Y.Sa)(s,l,h,y,w),n._OrtReleaseTensor=s=>(n._OrtReleaseTensor=Y.Ta)(s),n._OrtCreateRunOptions=(s,l,h,y)=>(n._OrtCreateRunOptions=Y.Ua)(s,l,h,y),n._OrtAddRunConfigEntry=(s,l,h)=>(n._OrtAddRunConfigEntry=Y.Va)(s,l,h),n._OrtReleaseRunOptions=s=>(n._OrtReleaseRunOptions=Y.Wa)(s),n._OrtCreateBinding=s=>(n._OrtCreateBinding=Y.Xa)(s),n._OrtBindInput=(s,l,h)=>(n._OrtBindInput=Y.Ya)(s,l,h),n._OrtBindOutput=(s,l,h,y)=>(n._OrtBindOutput=Y.Za)(s,l,h,y),n._OrtClearBoundOutputs=s=>(n._OrtClearBoundOutputs=Y._a)(s),n._OrtReleaseBinding=s=>(n._OrtReleaseBinding=Y.$a)(s),n._OrtRunWithBinding=(s,l,h,y,w)=>(n._OrtRunWithBinding=Y.ab)(s,l,h,y,w),n._OrtRun=(s,l,h,y,w,A,B,R)=>(n._OrtRun=Y.bb)(s,l,h,y,w,A,B,R),n._OrtEndProfiling=s=>(n._OrtEndProfiling=Y.cb)(s),n._JsepOutput=(s,l,h)=>(n._JsepOutput=Y.db)(s,l,h),n._JsepGetNodeName=s=>(n._JsepGetNodeName=Y.eb)(s);var cr=()=>(cr=Y.fb)(),Qe=n._free=s=>(Qe=n._free=Y.gb)(s),pr=n._malloc=s=>(pr=n._malloc=Y.hb)(s),An=(s,l,h,y,w,A)=>(An=Y.kb)(s,l,h,y,w,A),Bi=()=>(Bi=Y.lb)(),Di=(s,l,h,y,w)=>(Di=Y.mb)(s,l,h,y,w),Mi=s=>(Mi=Y.nb)(s),En=s=>(En=Y.ob)(s),Ri=(s,l)=>(Ri=Y.pb)(s,l),Ui=()=>(Ui=Y.qb)(),Ni=(s,l)=>(Ni=Y.rb)(s,l),mr=s=>(mr=Y.sb)(s),kn=s=>(kn=Y.tb)(s),Pn=()=>(Pn=Y.ub)(),Vi=n.dynCall_ii=(s,l)=>(Vi=n.dynCall_ii=Y.vb)(s,l),Wi=s=>(Wi=Y.wb)(s),Li=()=>(Li=Y.xb)(),Gi=s=>(Gi=Y.yb)(s),Hi=()=>(Hi=Y.zb)();return n.stackSave=()=>Pn(),n.stackRestore=s=>mr(s),n.stackAlloc=s=>kn(s),n.setValue=function(s,l,h="i8"){switch(h.endsWith("*")&&(h="*"),h){case"i1":case"i8":ue()[s>>>0]=l;break;case"i16":ye()[s>>>1>>>0]=l;break;case"i32":C()[s>>>2>>>0]=l;break;case"i64":Z[s>>>3]=BigInt(l);break;case"float":de()[s>>>2>>>0]=l;break;case"double":ze()[s>>>3>>>0]=l;break;case"*":V()[s>>>2>>>0]=l;break;default:dt(`invalid type for setValue: ${h}`)}},n.getValue=function(s,l="i8"){switch(l.endsWith("*")&&(l="*"),l){case"i1":case"i8":return ue()[s>>>0];case"i16":return ye()[s>>>1>>>0];case"i32":return C()[s>>>2>>>0];case"i64":return Z[s>>>3];case"float":return de()[s>>>2>>>0];case"double":return ze()[s>>>3>>>0];case"*":return V()[s>>>2>>>0];default:dt(`invalid type for getValue: ${l}`)}},n.UTF8ToString=Te,n.stringToUTF8=zt,n.lengthBytesUTF8=Ko,function s(){if(0<Pt)Lt=s;else if(u)t(n),_t();else{for(;0<mn.length;)mn.shift()(n);0<Pt?Lt=s:(n.calledRun=!0,te||(_t(),t(n)))}}(),n.PTR_SIZE=4,o}),Fp=Sa,qp=globalThis.self?.name?.startsWith("em-pthread");qp&&Sa()});var Ea,Gn,jp,Ue,ka,Ln,Kp,Zp,Pa,Qp,Ca,za,Aa,Oa,_r=U(()=>{"use strict";yr();Ea=typeof location>"u"?void 0:location.origin,Gn= true&&"file:///E:/Desktop/TabAgent/src/assets/onnxruntime-web/transformers.js"<"file;",jp=()=>{if(true){if(Gn){let e=URL;return new URL(new e(/* asset import */ __nested_webpack_require_153332__(/*! ort.bundle.min.mjs */ "./node_modules/onnxruntime-web/dist/ort.bundle.min.mjs?46eb"), __nested_webpack_require_153332__.b).href,Ea).href}return "file:///E:/Desktop/TabAgent/src/assets/onnxruntime-web/transformers.js"}},Ue=jp(),ka=()=>{if(Ue&&!Ue.startsWith("blob:"))return Ue.substring(0,Ue.lastIndexOf("/")+1)},Ln=(e,t)=>{try{let r=t??Ue;return(r?new URL(e,r):new URL(e)).origin===Ea}catch{return!1}},Kp=(e,t)=>{let r=t??Ue;try{return(r?new URL(e,r):new URL(e)).href}catch{return}},Zp=(e,t)=>`${t??"./"}${e}`,Pa=async e=>{let r=await(await fetch(e,{credentials:"same-origin"})).blob();return URL.createObjectURL(r)},Qp=async e=>(await import(/*webpackIgnore:true*/e)).default,Ca=(xa(),Ft($a)).default,za=async()=>{if(!Ue)throw new Error("Failed to load proxy worker: cannot determine the script source URL.");if(Ln(Ue))return[void 0,Ca()];let e=await Pa(Ue);return[e,Ca(e)]},Aa=(Ia(),Ft(Ta)).default,Oa=async(e,t,r)=>{if(!e&&!t&&Aa&&Ue&&Ln(Ue))return[void 0,Aa];{let n="ort-wasm-simd-threaded.jsep.mjs",o=e??Kp(n,t),i=  true&&r&&o&&!Ln(o,t),a=i?await Pa(o):o??Zp(n,t);return[i?a:void 0,await Qp(a)]}}});var Hn,Fn,Ar,Ba,Yp,Xp,Jp,wr,fe,ht=U(()=>{"use strict";_r();Fn=!1,Ar=!1,Ba=!1,Yp=()=>{if(typeof SharedArrayBuffer>"u")return!1;try{return typeof MessageChannel<"u"&&new MessageChannel().port1.postMessage(new SharedArrayBuffer(1)),WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,4,1,3,1,1,10,11,1,9,0,65,0,254,16,2,0,26,11]))}catch{return!1}},Xp=()=>{try{return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,30,1,28,0,65,0,253,15,253,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,253,186,1,26,11]))}catch{return!1}},Jp=()=>{try{return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,19,1,17,0,65,1,253,15,65,2,253,15,65,3,253,15,253,147,2,11]))}catch{return!1}},wr=async e=>{if(Fn)return Promise.resolve();if(Ar)throw new Error("multiple calls to 'initializeWebAssembly()' detected.");if(Ba)throw new Error("previous call to 'initializeWebAssembly()' failed.");Ar=!0;let t=e.initTimeout,r=e.numThreads;if(e.simd!==!1){if(e.simd==="relaxed"){if(!Jp())throw new Error("Relaxed WebAssembly SIMD is not supported in the current environment.")}else if(!Xp())throw new Error("WebAssembly SIMD is not supported in the current environment.")}let n=Yp();r>1&&!n&&(typeof self<"u"&&!self.crossOriginIsolated&&console.warn("env.wasm.numThreads is set to "+r+", but this will not work unless you enable crossOriginIsolated mode. See https://web.dev/cross-origin-isolation-guide/ for more info."),console.warn("WebAssembly multi-threading is not supported in the current environment. Falling back to single-threading."),e.numThreads=r=1);let o=e.wasmPaths,i=typeof o=="string"?o:void 0,a=o?.mjs,u=a?.href??a,d=o?.wasm,c=d?.href??d,p=e.wasmBinary,[m,f]=await Oa(u,i,r>1),b=!1,g=[];if(t>0&&g.push(new Promise(_=>{setTimeout(()=>{b=!0,_()},t)})),g.push(new Promise((_,S)=>{let $={numThreads:r};if(p)$.wasmBinary=p;else if(c||i)$.locateFile=v=>c??i+v;else if(u&&u.indexOf("blob:")!==0)$.locateFile=v=>new URL(v,u).href;else if(m){let v=ka();v&&($.locateFile=x=>v+x)}f($).then(v=>{Ar=!1,Fn=!0,Hn=v,_(),m&&URL.revokeObjectURL(m)},v=>{Ar=!1,Ba=!0,S(v)})})),await Promise.race(g),b)throw new Error(`WebAssembly backend initializing failed due to timeout: ${t}ms`)},fe=()=>{if(Fn&&Hn)return Hn;throw new Error("WebAssembly is not initialized yet.")}});var Ne,Kt,pe,Er=U(()=>{"use strict";ht();Ne=(e,t)=>{let r=fe(),n=r.lengthBytesUTF8(e)+1,o=r._malloc(n);return r.stringToUTF8(e,o,n),t.push(o),o},Kt=(e,t,r,n)=>{if(typeof e=="object"&&e!==null){if(r.has(e))throw new Error("Circular reference in options");r.add(e)}Object.entries(e).forEach(([o,i])=>{let a=t?t+o:o;if(typeof i=="object")Kt(i,a+".",r,n);else if(typeof i=="string"||typeof i=="number")n(a,i.toString());else if(typeof i=="boolean")n(a,i?"1":"0");else throw new Error(`Can't handle extra config type: ${typeof i}`)})},pe=e=>{let t=fe(),r=t.stackSave();try{let n=t.PTR_SIZE,o=t.stackAlloc(2*n);t._OrtGetLastError(o,o+n);let i=Number(t.getValue(o,n===4?"i32":"i64")),a=t.getValue(o+n,"*"),u=a?t.UTF8ToString(a):"";throw new Error(`${e} ERROR_CODE: ${i}, ERROR_MESSAGE: ${u}`)}finally{t.stackRestore(r)}}});var Da,Ma=U(()=>{"use strict";ht();Er();Da=e=>{let t=fe(),r=0,n=[],o=e||{};try{if(e?.logSeverityLevel===void 0)o.logSeverityLevel=2;else if(typeof e.logSeverityLevel!="number"||!Number.isInteger(e.logSeverityLevel)||e.logSeverityLevel<0||e.logSeverityLevel>4)throw new Error(`log serverity level is not valid: ${e.logSeverityLevel}`);if(e?.logVerbosityLevel===void 0)o.logVerbosityLevel=0;else if(typeof e.logVerbosityLevel!="number"||!Number.isInteger(e.logVerbosityLevel))throw new Error(`log verbosity level is not valid: ${e.logVerbosityLevel}`);e?.terminate===void 0&&(o.terminate=!1);let i=0;return e?.tag!==void 0&&(i=Ne(e.tag,n)),r=t._OrtCreateRunOptions(o.logSeverityLevel,o.logVerbosityLevel,!!o.terminate,i),r===0&&pe("Can't create run options."),e?.extra!==void 0&&Kt(e.extra,"",new WeakSet,(a,u)=>{let d=Ne(a,n),c=Ne(u,n);t._OrtAddRunConfigEntry(r,d,c)!==0&&pe(`Can't set a run config entry: ${a} - ${u}.`)}),[r,n]}catch(i){throw r!==0&&t._OrtReleaseRunOptions(r),n.forEach(a=>t._free(a)),i}}});var em,tm,rm,kr,nm,Ra,Ua=U(()=>{"use strict";ht();Er();em=e=>{switch(e){case"disabled":return 0;case"basic":return 1;case"extended":return 2;case"all":return 99;default:throw new Error(`unsupported graph optimization level: ${e}`)}},tm=e=>{switch(e){case"sequential":return 0;case"parallel":return 1;default:throw new Error(`unsupported execution mode: ${e}`)}},rm=e=>{e.extra||(e.extra={}),e.extra.session||(e.extra.session={});let t=e.extra.session;t.use_ort_model_bytes_directly||(t.use_ort_model_bytes_directly="1"),e.executionProviders&&e.executionProviders.some(r=>(typeof r=="string"?r:r.name)==="webgpu")&&(e.enableMemPattern=!1)},kr=(e,t,r,n)=>{let o=Ne(t,n),i=Ne(r,n);fe()._OrtAddSessionConfigEntry(e,o,i)!==0&&pe(`Can't set a session config entry: ${t} - ${r}.`)},nm=async(e,t,r)=>{for(let n of t){let o=typeof n=="string"?n:n.name,i=[];switch(o){case"webnn":if(o="WEBNN",typeof n!="string"){let m=n?.deviceType;m&&kr(e,"deviceType",m,r)}break;case"webgpu":if(o="JS",typeof n!="string"){let p=n;if(p?.preferredLayout){if(p.preferredLayout!=="NCHW"&&p.preferredLayout!=="NHWC")throw new Error(`preferredLayout must be either 'NCHW' or 'NHWC': ${p.preferredLayout}`);kr(e,"preferredLayout",p.preferredLayout,r)}}break;case"wasm":case"cpu":continue;default:throw new Error(`not supported execution provider: ${o}`)}let a=Ne(o,r),u=i.length,d=0,c=0;if(u>0){d=fe()._malloc(u*fe().PTR_SIZE),r.push(d),c=fe()._malloc(u*fe().PTR_SIZE),r.push(c);for(let p=0;p<u;p++)fe().setValue(d+p*fe().PTR_SIZE,i[p][0],"*"),fe().setValue(c+p*fe().PTR_SIZE,i[p][1],"*")}await fe()._OrtAppendExecutionProvider(e,a,d,c,u)!==0&&pe(`Can't append execution provider: ${o}.`)}},Ra=async e=>{let t=fe(),r=0,n=[],o=e||{};rm(o);try{let i=em(o.graphOptimizationLevel??"all"),a=tm(o.executionMode??"sequential"),u=typeof o.logId=="string"?Ne(o.logId,n):0,d=o.logSeverityLevel??2;if(!Number.isInteger(d)||d<0||d>4)throw new Error(`log serverity level is not valid: ${d}`);let c=o.logVerbosityLevel??0;if(!Number.isInteger(c)||c<0||c>4)throw new Error(`log verbosity level is not valid: ${c}`);let p=typeof o.optimizedModelFilePath=="string"?Ne(o.optimizedModelFilePath,n):0;if(r=t._OrtCreateSessionOptions(i,!!o.enableCpuMemArena,!!o.enableMemPattern,a,!!o.enableProfiling,0,u,d,c,p),r===0&&pe("Can't create session options."),o.executionProviders&&await nm(r,o.executionProviders,n),o.enableGraphCapture!==void 0){if(typeof o.enableGraphCapture!="boolean")throw new Error(`enableGraphCapture must be a boolean value: ${o.enableGraphCapture}`);kr(r,"enableGraphCapture",o.enableGraphCapture.toString(),n)}if(o.freeDimensionOverrides)for(let[m,f]of Object.entries(o.freeDimensionOverrides)){if(typeof m!="string")throw new Error(`free dimension override name must be a string: ${m}`);if(typeof f!="number"||!Number.isInteger(f)||f<0)throw new Error(`free dimension override value must be a non-negative integer: ${f}`);let b=Ne(m,n);t._OrtAddFreeDimensionOverride(r,b,f)!==0&&pe(`Can't set a free dimension override: ${m} - ${f}.`)}return o.extra!==void 0&&Kt(o.extra,"",new WeakSet,(m,f)=>{kr(r,m,f,n)}),[r,n]}catch(i){throw r!==0&&t._OrtReleaseSessionOptions(r)!==0&&pe("Can't release session options."),n.forEach(a=>t._free(a)),i}}});var Mt,Ye,gt,Pr,Zt,zr,Or,qn,ee=U(()=>{"use strict";Mt=e=>{switch(e){case"int8":return 3;case"uint8":return 2;case"bool":return 9;case"int16":return 5;case"uint16":return 4;case"int32":return 6;case"uint32":return 12;case"float16":return 10;case"float32":return 1;case"float64":return 11;case"string":return 8;case"int64":return 7;case"uint64":return 13;case"int4":return 22;case"uint4":return 21;default:throw new Error(`unsupported data type: ${e}`)}},Ye=e=>{switch(e){case 3:return"int8";case 2:return"uint8";case 9:return"bool";case 5:return"int16";case 4:return"uint16";case 6:return"int32";case 12:return"uint32";case 10:return"float16";case 1:return"float32";case 11:return"float64";case 8:return"string";case 7:return"int64";case 13:return"uint64";case 22:return"int4";case 21:return"uint4";default:throw new Error(`unsupported data type: ${e}`)}},gt=(e,t)=>{let r=[-1,4,1,1,2,2,4,8,-1,1,2,8,4,8,-1,-1,-1,-1,-1,-1,-1,.5,.5][e],n=typeof t=="number"?t:t.reduce((o,i)=>o*i,1);return r>0?Math.ceil(n*r):void 0},Pr=e=>{switch(e){case"float16":return typeof Float16Array<"u"&&Float16Array.from?Float16Array:Uint16Array;case"float32":return Float32Array;case"uint8":return Uint8Array;case"int8":return Int8Array;case"uint16":return Uint16Array;case"int16":return Int16Array;case"int32":return Int32Array;case"bool":return Uint8Array;case"float64":return Float64Array;case"uint32":return Uint32Array;case"int64":return BigInt64Array;case"uint64":return BigUint64Array;default:throw new Error(`unsupported type: ${e}`)}},Zt=e=>{switch(e){case"verbose":return 0;case"info":return 1;case"warning":return 2;case"error":return 3;case"fatal":return 4;default:throw new Error(`unsupported logging level: ${e}`)}},zr=e=>e==="float32"||e==="float16"||e==="int32"||e==="int64"||e==="uint32"||e==="uint8"||e==="bool"||e==="uint4"||e==="int4",Or=e=>e==="float32"||e==="float16"||e==="int32"||e==="int64"||e==="uint32"||e==="uint64"||e==="int8"||e==="uint8"||e==="bool"||e==="uint4"||e==="int4",qn=e=>{switch(e){case"none":return 0;case"cpu":return 1;case"cpu-pinned":return 2;case"texture":return 3;case"gpu-buffer":return 4;case"ml-tensor":return 5;default:throw new Error(`unsupported data location: ${e}`)}}});var Qt,jn=U(()=>{"use strict";yr();Qt=async e=>{if(typeof e=="string")if(false){}else{let t=await fetch(e);if(!t.ok)throw new Error(`failed to load external data file: ${e}`);let r=t.headers.get("Content-Length"),n=r?parseInt(r,10):0;if(n<1073741824)return new Uint8Array(await t.arrayBuffer());{if(!t.body)throw new Error(`failed to load external data file: ${e}, no response body.`);let o=t.body.getReader(),i;try{i=new ArrayBuffer(n)}catch(u){if(u instanceof RangeError){let d=Math.ceil(n/65536);i=new WebAssembly.Memory({initial:d,maximum:d}).buffer}else throw u}let a=0;for(;;){let{done:u,value:d}=await o.read();if(u)break;let c=d.byteLength;new Uint8Array(i,a,c).set(d),a+=c}return new Uint8Array(i,0,n)}}else return e instanceof Blob?new Uint8Array(await e.arrayBuffer()):e instanceof Uint8Array?e:new Uint8Array(e)}});var om,im,Na,Va,Br,am,se,Xe=U(()=>{"use strict";ee();om=["V","I","W","E","F"],im=(e,t)=>{console.log(`[${om[e]},${new Date().toISOString()}]${t}`)},Br=(e,t)=>{Na=e,Va=t},am=(e,t)=>{let r=Zt(e),n=Zt(Na);r>=n&&im(r,typeof t=="function"?t():t)},se=(...e)=>{Va&&am(...e)}});var Kn,Je,k,Tt,Dr,Wa,La,ne=U(()=>{"use strict";Kn=class{static calcMatMulShape(t,r){return t[1]!==r[0]?void 0:[t[0],r[1]]}},Je=class{static calcShape(t,r,n=!1){let o=t.length,i=r.length;if(o===0)return r;if(i===0)return t;let a=Math.max(t.length,r.length),u=new Array(a);if(n){if(o<2||i<2)return;let d=Kn.calcMatMulShape([t[o-2],t[o-1]],[r[i-2],r[i-1]]);if(d===void 0)return;[u[a-2],u[a-1]]=d}for(let d=n?3:1;d<=a;d++){let c=o-d<0?1:t[o-d],p=i-d<0?1:r[i-d];if(c!==p&&c>1&&p>1)return;let m=Math.max(c,p);if(c&&p)u[a-d]=Math.max(c,p);else{if(m>1)return;u[a-d]=0}}return u}static isValidBroadcast(t,r){let n=t.length,o=r.length;if(n>o)return!1;for(let i=1;i<=n;i++)if(t[n-i]!==1&&t[n-i]!==r[o-i])return!1;return!0}},k=class e{static size(t){return e.getSizeFromDimensionRange(t,0,t.length)}static convertShape(t,r=4){let n=t.length;if(n===0)return[];let o=new Array(n),i=n-1;for(;i>=0;){if(t[i]%r===0){o[i]=t[i]/r;break}if(r%t[i]!==0)throw new Error("cannot convert shape");o[i]=1,r/=t[i],i--}for(i--;i>=0;i--)o[i]=t[i];return o}static sizeFromDimension(t,r){if(r<0||r>t.length)throw new Error(`invalid dimension of ${r} for sizeFromDimension as Tensor has ${t.length} dimensions.`);return e.getSizeFromDimensionRange(t,r,t.length)}static sizeToDimension(t,r){if(r<0||r>t.length)throw new Error(`invalid dimension of ${r} for sizeToDimension as Tensor has ${t.length} dimensions.`);return e.getSizeFromDimensionRange(t,0,r)}static getSizeFromDimensionRange(t,r,n){let o=1;for(let i=r;i<n;i++){if(t[i]<0)throw new Error("cannot get valid size from specified dimension range. Most likely the range contains negative values in them.");o*=Number(t[i])}return o}static computeStrides(t){let r=t.length;if(r===0)return[];if(r===1)return[1];let n=new Array(r);n[r-1]=1,n[r-2]=t[r-1];for(let o=r-3;o>=0;--o)n[o]=n[o+1]*t[o+1];return n}static normalizeAxis(t,r){if(t<-r&&t>=r)throw new Error("unsupported axis for this operation.");return t<0?t+r:t}static normalizeAxes(t,r){return t.map(n=>this.normalizeAxis(n,r??t.length))}static sortBasedOnPerm(t,r){return r?r.map(n=>t[n]):t.slice().reverse()}static padShape(t,r){let n=t.length;return t.map((o,i)=>o+r[i]+r[i+n])}static areEqual(t,r){return t.length!==r.length?!1:t.every((n,o)=>n===r[o])}},Tt=class e{static adjustPoolAttributes(t,r,n,o,i,a){if(!t&&n.length!==r.length-2)throw new Error("length of specified kernel shapes should be 2 less than length of input dimensions");if(t)for(let u=0;u<r.length-2;u++)u>=n.length?n.push(r[u+2]):n[u]=r[u+2];for(let u=0;u<n.length;u++)if(u<o.length){if(o[u]<0)throw new Error("strides should be greater than or equal to 1")}else o.push(1);for(let u=0;u<n.length;u++)if(u<i.length){if(i[u]<0)throw new Error("dilations should be greater than or equal to 1")}else i.push(1);for(let u=0;u<n.length*2;u++)if(u<a.length){if(a[u]<0)throw new Error("pad should be greater than or equal to 1")}else a.push(0);for(let u=0;u<n.length;u++){if(n[u]<=0)throw new Error("kernel shapes need to be greater than 0");if(a[u]>=n[u]||a[u+n.length]>=n[u])throw new Error("pads should be smaller than kernel")}}static adjustPadsBasedOnAutoPad(t,r,n,o,i,a,u){if(u){if(i.length!==2*(t.length-2))throw new Error("length of pads should be twice the length of data dimensions");if(r.length!==t.length-2)throw new Error("length of strides should be the length of data dimensions");if(o.length!==t.length-2)throw new Error("length of kernel shapes should be the length of data dimensions");for(let d=0;d<t.length-2;d++)e.adjustPadAndReturnShape(t[d+(a?1:2)],r[d],n[d],o[d],i,d,d+t.length-2,u)}}static computePoolOutputShape(t,r,n,o,i,a,u){if(r.length<=0)throw new Error("input shape must be of size greater than 0");let d=[r[0],r[1]];return e.computeShapeHelper(t,r,d,n,o,i,a,u),d}static computeConvOutputShape(t,r,n,o,i,a,u){if(t.length<=0||r.length<=0)throw new Error("invalid input tensor dims or invalid filter tensor dims");let d=[t[0],r[0]];return e.computeShapeHelper(!1,t,d,n,o,i,a,u),d}static computeShapeHelper(t,r,n,o,i,a,u,d){if(t)for(let c=0;c<r.length-2;c++)n.push(1);else for(let c=0;c<r.length-2;c++)n.push(e.adjustPadAndReturnShape(r[c+2],o[c],i[c],a[c],u,c,c+r.length-2,d))}static adjustPadAndReturnShape(t,r,n,o,i,a,u,d){let c=n*(o-1)+1;if(d&&d!=="NOTSET")switch(d){case"VALID":return i[a]=0,i[u]=0,Math.floor((t-c)/r+1);case"SAME_LOWER":case"SAME_UPPER":if(n!==1)throw new Error("Dilation not supported for SAME_UPPER or SAME_LOWER");{let m=((t+r-1)/r-1)*r+o-t;return i[a]=Math.floor(d==="SAME_LOWER"?(m+1)/2:m/2),i[u]=m-i[a],Math.floor((t+m-o)/r+1)}default:throw new Error("Unsupported AutoPad type")}else return Math.floor((t+i[a]+i[u]-c)/r+1)}},Dr=class{static getShapeOfGemmResult(t,r,n,o,i){if(t.length!==2||n.length!==2)throw new Error("shape need to be of size 2");let a,u,d;r?(a=t[1],u=t[0]):(a=t[0],u=t[1]);let c=-1;if(o?(d=n[0],c=1):(d=n[1],c=0),n[c]!==u)throw new Error("dimension mismatch");if(a<=0||d<=0||u<=0)throw new Error("invalid shape specified");if(i&&!Je.isValidBroadcast(i,[a,d]))throw new Error("gemm: invalid bias shape for broadcast");return[a,d,u]}},Wa=-34028234663852886e22,La=34028234663852886e22});var Mr,Zn=U(()=>{"use strict";ee();Mr=(e,t)=>new(Pr(t))(e)});var Yn,Ha,sm,Ga,um,Fa,Rr,Ur,Qn,qa,ja=U(()=>{"use strict";Xe();Yn=(e,t=!0)=>{if(e.byteLength%8!==0)throw new Error("Invalid Uint8Array length - must be a multiple of 8 (BigInt).");let r=e.byteLength/8,n=new BigInt64Array(e.buffer,e.byteOffset,r),o=new Int32Array(r);for(let i=0;i<r;i++){let a=n[i];if(a>2147483647n||a<-2147483648n)throw new Error(`Overflow occurred when converting BigInt to Int32 at index ${i}: ${a}`);o[i]=Number(a)}return t?new Uint8Array(o.buffer):o},Ha=(e,t=!0)=>{if(e.byteLength%4!==0)throw new Error("Invalid Uint8Array length - must be a multiple of 4 (Int32).");let r=e.byteLength/4,n=new Int32Array(e.buffer,e.byteOffset,r),o=BigInt64Array.from(n,BigInt);return t?new Uint8Array(o.buffer):o},sm=1,Ga=()=>sm++,um=new Map([["float32",32],["float16",16],["int32",32],["uint32",32],["int64",64],["uint64",64],["int8",8],["uint8",8],["int4",4],["uint4",4]]),Fa=(e,t)=>{let r=um.get(e);if(!r)throw new Error("Unsupported data type.");return t.length>0?Math.ceil(t.reduce((n,o)=>n*o)*r/8):0},Rr=class{constructor(t){this.shouldConvertInt64toInt32=!1;this.isInt64ToInt32Converted=!1;let{sessionId:r,context:n,tensor:o,dataType:i,shape:a,shouldConvertInt64toInt32:u=!1}=t;this.sessionId=r,this.mlContext=n,this.mlTensor=o,this.dataType=i,this.tensorShape=a,this.shouldConvertInt64toInt32=u}get tensor(){return this.mlTensor}get type(){return this.dataType}get shape(){return this.tensorShape}get byteLength(){return Fa(this.dataType,this.tensorShape)}destroy(){se("verbose",()=>"[WebNN] TensorWrapper.destroy"),this.mlTensor.destroy()}write(t){this.mlContext.writeTensor(this.mlTensor,t)}async read(t,r){if(t){let n=await this.mlContext.readTensor(this.mlTensor),o=Ha(new Uint8Array(n));if(r){(r instanceof ArrayBuffer?new Uint8Array(r):new Uint8Array(r.buffer,r.byteOffset,r.byteLength)).set(o);return}else return o.buffer}else return r?this.mlContext.readTensor(this.mlTensor,r):this.mlContext.readTensor(this.mlTensor)}canReuseTensor(t,r,n){return this.mlContext===t&&this.dataType===r&&this.tensorShape.length===n.length&&this.tensorShape.every((o,i)=>o===n[i])}setIsInt64ToInt32Converted(t){this.isInt64ToInt32Converted=t}},Ur=class{constructor(t,r){this.tensorManager=t;this.wrapper=r}get tensorWrapper(){return this.wrapper}releaseTensor(){this.tensorWrapper&&(this.tensorManager.releaseTensor(this.tensorWrapper),this.wrapper=void 0)}async ensureTensor(t,r,n,o){let i=r,a=this.tensorManager.getMLContext(t),u=i==="int64"&&!a.opSupportLimits().input.dataTypes.includes("int64");if(u&&(i="int32",se("verbose",()=>"[WebNN] TensorIdTracker.ensureTensor: convert dataType from int64 to int32")),this.wrapper){if(this.wrapper.canReuseTensor(a,i,n))return this.wrapper.tensor;if(o){if(this.wrapper.byteLength!==Fa(i,n))throw new Error("Unable to copy data to tensor with different size.");this.activeUpload=new Uint8Array(await this.wrapper.read())}this.tensorManager.releaseTensor(this.wrapper)}let d=typeof MLTensorUsage>"u"?void 0:MLTensorUsage.READ|MLTensorUsage.WRITE;return this.wrapper=await this.tensorManager.getCachedTensor(t,i,n,d,!0,!0,u),o&&this.activeUpload&&(this.wrapper.write(this.activeUpload),this.activeUpload=void 0),this.wrapper.tensor}upload(t){let r=t;if(this.wrapper)if(this.wrapper.shouldConvertInt64toInt32&&(r=Yn(t,!0),this.wrapper.setIsInt64ToInt32Converted(!0)),r.byteLength===this.wrapper.byteLength){this.wrapper.write(r);return}else se("verbose",()=>"Data size does not match tensor size. Releasing tensor."),this.releaseTensor();this.activeUpload?this.activeUpload.set(r):this.activeUpload=new Uint8Array(r)}async download(t){if(this.activeUpload){let r=this.wrapper?.isInt64ToInt32Converted?Ha(this.activeUpload):this.activeUpload;if(t){t instanceof ArrayBuffer?new Uint8Array(t).set(r):new Uint8Array(t.buffer,t.byteOffset,t.byteLength).set(r);return}else return r.buffer}if(!this.wrapper)throw new Error("Tensor has not been created.");return t?this.wrapper.read(this.wrapper?.shouldConvertInt64toInt32,t):this.wrapper.read(this.wrapper?.shouldConvertInt64toInt32)}},Qn=class{constructor(t){this.backend=t;this.tensorTrackersById=new Map;this.freeTensors=[];this.externalTensors=new Set}getMLContext(t){let r=this.backend.getMLContext(t);if(!r)throw new Error("MLContext not found for session.");return r}reserveTensorId(){let t=Ga();return this.tensorTrackersById.set(t,new Ur(this)),t}releaseTensorId(t){let r=this.tensorTrackersById.get(t);r&&(this.tensorTrackersById.delete(t),r.tensorWrapper&&this.releaseTensor(r.tensorWrapper))}async ensureTensor(t,r,n,o,i){se("verbose",()=>`[WebNN] TensorManager.ensureTensor {tensorId: ${r}, dataType: ${n}, shape: ${o}, copyOld: ${i}}`);let a=this.tensorTrackersById.get(r);if(!a)throw new Error("Tensor not found.");return a.ensureTensor(t,n,o,i)}upload(t,r){let n=this.tensorTrackersById.get(t);if(!n)throw new Error("Tensor not found.");n.upload(r)}async download(t,r){se("verbose",()=>`[WebNN] TensorManager.download {tensorId: ${t}, dstBuffer: ${r?.byteLength}}`);let n=this.tensorTrackersById.get(t);if(!n)throw new Error("Tensor not found.");return n.download(r)}releaseTensorsForSession(t){for(let r of this.freeTensors)r.sessionId===t&&r.destroy();this.freeTensors=this.freeTensors.filter(r=>r.sessionId!==t)}registerTensor(t,r,n,o){let i=this.getMLContext(t),a=Ga(),u=new Rr({sessionId:t,context:i,tensor:r,dataType:n,shape:o});return this.tensorTrackersById.set(a,new Ur(this,u)),this.externalTensors.add(u),a}async getCachedTensor(t,r,n,o,i,a,u=!1){let d=this.getMLContext(t);for(let[p,m]of this.freeTensors.entries())if(m.canReuseTensor(d,r,n)){se("verbose",()=>`[WebNN] Reusing tensor {dataType: ${r}, shape: ${n}}`);let f=this.freeTensors.splice(p,1)[0];return f.sessionId=t,f}se("verbose",()=>`[WebNN] MLContext.createTensor {dataType: ${r}, shape: ${n}}`);let c=await d.createTensor({dataType:r,shape:n,dimensions:n,usage:o,writable:i,readable:a});return new Rr({sessionId:t,context:d,tensor:c,dataType:r,shape:n,shouldConvertInt64toInt32:u})}releaseTensor(t){this.externalTensors.has(t)&&this.externalTensors.delete(t),this.freeTensors.push(t)}},qa=(...e)=>new Qn(...e)});var Xn,dm,Nr,Ka=U(()=>{"use strict";ee();ht();Zn();ja();Xe();Xn=new Map([[1,"float32"],[10,"float16"],[6,"int32"],[12,"uint32"],[7,"int64"],[13,"uint64"],[22,"int4"],[21,"uint4"],[3,"int8"],[2,"uint8"],[9,"uint8"]]),dm=(e,t)=>{if(e===t)return!0;if(e===void 0||t===void 0)return!1;let r=Object.keys(e).sort(),n=Object.keys(t).sort();return r.length===n.length&&r.every((o,i)=>o===n[i]&&e[o]===t[o])},Nr=class{constructor(t){this.tensorManager=qa(this);this.mlContextBySessionId=new Map;this.sessionIdsByMLContext=new Map;this.mlContextCache=[];this.sessionGraphInputs=new Map;this.temporaryGraphInputs=[];this.temporarySessionTensorIds=new Map;Br(t.logLevel,!!t.debug)}get currentSessionId(){if(this.activeSessionId===void 0)throw new Error("No active session");return this.activeSessionId}onRunStart(t){se("verbose",()=>`[WebNN] onRunStart {sessionId: ${t}}`),this.activeSessionId=t}onRunEnd(t){se("verbose",()=>`[WebNN] onRunEnd {sessionId: ${t}}`);let r=this.temporarySessionTensorIds.get(t);if(r){for(let n of r)se("verbose",()=>`[WebNN] releasing temporary tensor {tensorId: ${n}}`),this.tensorManager.releaseTensorId(n);this.temporarySessionTensorIds.delete(t),this.activeSessionId=void 0}}async createMLContext(t){if(t instanceof GPUDevice){let n=this.mlContextCache.findIndex(o=>o.gpuDevice===t);if(n!==-1)return this.mlContextCache[n].mlContext;{let o=await navigator.ml.createContext(t);return this.mlContextCache.push({gpuDevice:t,mlContext:o}),o}}else if(t===void 0){let n=this.mlContextCache.findIndex(o=>o.options===void 0&&o.gpuDevice===void 0);if(n!==-1)return this.mlContextCache[n].mlContext;{let o=await navigator.ml.createContext();return this.mlContextCache.push({mlContext:o}),o}}let r=this.mlContextCache.findIndex(n=>dm(n.options,t));if(r!==-1)return this.mlContextCache[r].mlContext;{let n=await navigator.ml.createContext(t);return this.mlContextCache.push({options:t,mlContext:n}),n}}registerMLContext(t,r){this.mlContextBySessionId.set(t,r);let n=this.sessionIdsByMLContext.get(r);n||(n=new Set,this.sessionIdsByMLContext.set(r,n)),n.add(t),this.temporaryGraphInputs.length>0&&(this.sessionGraphInputs.set(t,this.temporaryGraphInputs),this.temporaryGraphInputs=[])}onReleaseSession(t){this.sessionGraphInputs.delete(t);let r=this.mlContextBySessionId.get(t);if(!r)return;this.tensorManager.releaseTensorsForSession(t),this.mlContextBySessionId.delete(t);let n=this.sessionIdsByMLContext.get(r);if(n.delete(t),n.size===0){this.sessionIdsByMLContext.delete(r);let o=this.mlContextCache.findIndex(i=>i.mlContext===r);o!==-1&&this.mlContextCache.splice(o,1)}}getMLContext(t){return this.mlContextBySessionId.get(t)}reserveTensorId(){return this.tensorManager.reserveTensorId()}releaseTensorId(t){se("verbose",()=>`[WebNN] releaseTensorId {tensorId: ${t}}`),this.tensorManager.releaseTensorId(t)}async ensureTensor(t,r,n,o,i){let a=Xn.get(n);if(!a)throw new Error(`Unsupported ONNX data type: ${n}`);return this.tensorManager.ensureTensor(t??this.currentSessionId,r,a,o,i)}async createTemporaryTensor(t,r,n){se("verbose",()=>`[WebNN] createTemporaryTensor {onnxDataType: ${r}, shape: ${n}}`);let o=Xn.get(r);if(!o)throw new Error(`Unsupported ONNX data type: ${r}`);let i=this.tensorManager.reserveTensorId();await this.tensorManager.ensureTensor(t,i,o,n,!1);let a=this.temporarySessionTensorIds.get(t);return a?a.push(i):this.temporarySessionTensorIds.set(t,[i]),i}uploadTensor(t,r){if(!fe().shouldTransferToMLTensor)throw new Error("Trying to upload to a MLTensor while shouldTransferToMLTensor is false");se("verbose",()=>`[WebNN] uploadTensor {tensorId: ${t}, data: ${r.byteLength}}`),this.tensorManager.upload(t,r)}async downloadTensor(t,r){return this.tensorManager.download(t,r)}createMLTensorDownloader(t,r){return async()=>{let n=await this.tensorManager.download(t);return Mr(n,r)}}registerMLTensor(t,r,n,o){let i=Xn.get(n);if(!i)throw new Error(`Unsupported ONNX data type: ${n}`);let a=this.tensorManager.registerTensor(t,r,i,o);return se("verbose",()=>`[WebNN] registerMLTensor {tensor: ${r}, dataType: ${i}, dimensions: ${o}} -> {tensorId: ${a}}`),a}registerMLConstant(t,r,n,o,i,a,u=!1){if(!a)throw new Error("External mounted files are not available.");let d=t;t.startsWith("./")&&(d=t.substring(2));let c=a.get(d);if(!c)throw new Error(`File with name ${d} not found in preloaded files.`);if(r+n>c.byteLength)throw new Error("Out of bounds: data offset and length exceed the external file data size.");let p=c.slice(r,r+n).buffer,m;switch(i.dataType){case"float32":m=new Float32Array(p);break;case"float16":m=typeof Float16Array<"u"&&Float16Array.from?new Float16Array(p):new Uint16Array(p);break;case"int32":m=new Int32Array(p);break;case"uint32":m=new Uint32Array(p);break;case"int64":u?(m=Yn(new Uint8Array(p),!1),i.dataType="int32"):m=new BigInt64Array(p);break;case"uint64":m=new BigUint64Array(p);break;case"int8":m=new Int8Array(p);break;case"int4":case"uint4":case"uint8":m=new Uint8Array(p);break;default:throw new Error(`Unsupported data type: ${i.dataType} in creating WebNN Constant from external data.`)}return se("verbose",()=>`[WebNN] registerMLConstant {dataType: ${i.dataType}, shape: ${i.shape}}} ${u?"(Note: it was int64 data type and registered to int32 as workaround)":""}`),o.constant(i,m)}registerGraphInput(t){this.temporaryGraphInputs.push(t)}isGraphInput(t,r){let n=this.sessionGraphInputs.get(t);return n?n.includes(r):!1}isInt64Supported(t){return!!this.mlContextBySessionId.get(t)?.opSupportLimits().input.dataTypes.includes("int64")}flush(){}}});var Vr=U(()=>{"use strict"});var Za,Jn,eo,lm,cm,Qa,ro,to,Xa,Ja=U(()=>{"use strict";Xe();Vr();Za=new Map([[64,250],[128,200],[256,200],[512,200],[2048,230],[4096,200],[8192,50],[16384,50],[32768,50],[65536,50],[131072,50],[262144,50],[524288,50],[1048576,50],[2097152,30],[4194304,20],[8388608,10],[12582912,10],[16777216,10],[26214400,15],[33554432,22],[44236800,2],[58982400,6],[67108864,6],[134217728,6],[167772160,6]]),Jn=[],eo=e=>Math.ceil(Number(e)/16)*16,lm=e=>{for(let t=0;t<Jn.length;t++){let r=Jn[t];if(e<=r)return r}return Math.ceil(e/16)*16},cm=1,Qa=()=>cm++,ro=async(e,t,r,n)=>{let o=eo(r),i=e.device.createBuffer({size:o,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{let a=e.getCommandEncoder();e.endComputePass(),a.copyBufferToBuffer(t,0,i,0,o),e.flush(),await i.mapAsync(GPUMapMode.READ);let u=i.getMappedRange();if(n){let d=n();return d.set(new Uint8Array(u,0,r)),d}else return new Uint8Array(u.slice(0,r))}finally{i.destroy()}},to=class{constructor(t){this.backend=t;this.storageCache=new Map,this.freeBuffers=new Map,this.freeUniformBuffers=new Map,this.buffersPending=[],this.capturedPendingBuffers=new Map;for(let[r]of Za)Jn.push(r),this.freeBuffers.set(r,[]),this.freeUniformBuffers.set(r,[]);this.sessionCount=0}upload(t,r){let n=r.buffer,o=r.byteOffset,i=r.byteLength,a=eo(i),u=this.storageCache.get(t);if(!u)throw new Error("gpu data for uploading does not exist");if(Number(u.originalSize)!==i)throw new Error(`inconsistent data size. gpu data size=${u.originalSize}, data size=${i}`);let d=this.backend.device.createBuffer({mappedAtCreation:!0,size:a,usage:GPUBufferUsage.MAP_WRITE|GPUBufferUsage.COPY_SRC}),c=d.getMappedRange();new Uint8Array(c).set(new Uint8Array(n,o,i)),d.unmap();let p=this.backend.device.createCommandEncoder();p.copyBufferToBuffer(d,0,u.gpuData.buffer,0,a),this.backend.device.queue.submit([p.finish()]),d.destroy(),se("verbose",()=>`[WebGPU] GpuDataManager.upload(id=${t})`)}memcpy(t,r){let n=this.storageCache.get(t);if(!n)throw new Error("source gpu data for memcpy does not exist");let o=this.storageCache.get(r);if(!o)throw new Error("destination gpu data for memcpy does not exist");if(n.originalSize!==o.originalSize)throw new Error("inconsistent source and destination gpu data size");let i=eo(n.originalSize),a=this.backend.getCommandEncoder();this.backend.endComputePass(),a.copyBufferToBuffer(n.gpuData.buffer,0,o.gpuData.buffer,0,i)}registerExternalBuffer(t,r,n){let o;if(n){if(o=n[0],t===n[1])return se("verbose",()=>`[WebGPU] GpuDataManager.registerExternalBuffer(size=${r}) => id=${o}, buffer is the same, skip.`),o;if(this.backend.capturedCommandList.has(this.backend.currentSessionId))throw new Error(`Registering a different external buffer under graph capture mode is not supported yet.
+`))[0]=="Error"&&y.shift(),xi(y);for(var w=3;y[w]&&dr()!=s;)++w;for(s=0;s<h&&y[s+w];++s)C()[l+4*s>>>2>>>0]=dr();return s}var In,Cn={},Si=()=>{if(!In){var s,l={USER:"web_user",LOGNAME:"web_user",PATH:"/",PWD:"/",HOME:"/home/web_user",LANG:(typeof navigator=="object"&&navigator.languages&&navigator.languages[0]||"C").replace("-","_")+".UTF-8",_:"./this.program"};for(s in Cn)Cn[s]===void 0?delete l[s]:l[s]=Cn[s];var h=[];for(s in l)h.push(`${s}=${l[s]}`);In=h}return In};function Ti(s,l){if(u)return xe(19,1,s,l);s>>>=0,l>>>=0;var h=0;return Si().forEach((y,w)=>{var A=l+h;for(w=V()[s+4*w>>>2>>>0]=A,A=0;A<y.length;++A)ue()[w++>>>0]=y.charCodeAt(A);ue()[w>>>0]=0,h+=y.length+1}),0}function Ii(s,l){if(u)return xe(20,1,s,l);s>>>=0,l>>>=0;var h=Si();V()[s>>>2>>>0]=h.length;var y=0;return h.forEach(w=>y+=w.length+1),V()[l>>>2>>>0]=y,0}function Ci(s){return u?xe(21,1,s):52}function Ai(s,l,h,y){return u?xe(22,1,s,l,h,y):52}function Ei(s,l,h,y){return u?xe(23,1,s,l,h,y):70}var Dp=[null,[],[]];function ki(s,l,h,y){if(u)return xe(24,1,s,l,h,y);l>>>=0,h>>>=0,y>>>=0;for(var w=0,A=0;A<h;A++){var B=V()[l>>>2>>>0],R=V()[l+4>>>2>>>0];l+=8;for(var G=0;G<R;G++){var K=he()[B+G>>>0],ae=Dp[s];K===0||K===10?((s===1?v:x)(Fo(ae)),ae.length=0):ae.push(K)}w+=R}return V()[y>>>2>>>0]=w,0}u||function(){for(var s=n.numThreads-1;s--;)Wo();mn.unshift(()=>{Pt++,function(l){u?l():Promise.all(ct.map(Vo)).then(l)}(()=>zo())})}();for(var Pi=Array(256),lr=0;256>lr;++lr)Pi[lr]=String.fromCharCode(lr);ai=Pi,pt=n.BindingError=class extends Error{constructor(s){super(s),this.name="BindingError"}},n.InternalError=class extends Error{constructor(s){super(s),this.name="InternalError"}},at.push(0,1,void 0,1,null,1,!0,1,!1,1),n.count_emval_handles=()=>at.length/2-5-yn.length;var Y,Mp=[fn,Mo,Lo,qo,jo,Zo,Qo,Yo,Xo,Jo,ei,ti,ri,ni,oi,ii,_i,wi,vi,Ti,Ii,Ci,Ai,Ei,ki];(async function(){function s(y,w){return Y=y.exports,Y=function(){var A=Y,B={};for(let[R,G]of Object.entries(A))B[R]=typeof G=="function"?(...K)=>{ar.push(R);try{return G(...K)}finally{te||(ar.pop(),Ze&&ft===1&&ar.length===0&&(ft=0,lt+=1,ir(Li),typeof Fibers<"u"&&Fibers.rc()))}}:G;return B}(),Y=function(){var A=Y,B=G=>K=>G(K)>>>0,R=G=>()=>G()>>>0;return(A=Object.assign({},A)).Da=B(A.Da),A.fb=R(A.fb),A.hb=B(A.hb),A.tb=B(A.tb),A.ub=R(A.ub),A.__cxa_get_exception_ptr=B(A.__cxa_get_exception_ptr),A}(),Ro.push(Y.ib),E=w,zo(),Y}Pt++;var l=Oo();if(n.instantiateWasm)return new Promise(y=>{n.instantiateWasm(l,(w,A)=>{s(w,A),y(w.exports)})});if(u)return new Promise(y=>{ve=w=>{var A=new WebAssembly.Instance(w,Oo());y(s(A,w))}});kt??=n.locateFile?n.locateFile?n.locateFile("ort-wasm-simd-threaded.jsep.wasm",_):_+"ort-wasm-simd-threaded.jsep.wasm":new URL(/* asset import */ __nested_webpack_require_153332__(/*! ort-wasm-simd-threaded.jsep.wasm */ "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm"), __nested_webpack_require_153332__.b).href;try{var h=await async function(y){var w=kt;if(!j&&typeof WebAssembly.instantiateStreaming=="function"&&!X(w))try{var A=fetch(w,{credentials:"same-origin"});return await WebAssembly.instantiateStreaming(A,y)}catch(B){x(`wasm streaming compile failed: ${B}`),x("falling back to ArrayBuffer instantiation")}return async function(B,R){try{var G=await async function(K){if(!j)try{var ae=await m(K);return new Uint8Array(ae)}catch{}if(K==kt&&j)K=new Uint8Array(j);else{if(!f)throw"both async and sync fetching of the wasm failed";K=f(K)}return K}(B);return await WebAssembly.instantiate(G,R)}catch(K){x(`failed to asynchronously prepare wasm: ${K}`),dt(K)}}(w,y)}(l);return s(h.instance,h.module)}catch(y){return r(y),Promise.reject(y)}})();var zi=s=>(zi=Y.Da)(s),Oi=()=>(Oi=Y.Ea)();n._OrtInit=(s,l)=>(n._OrtInit=Y.Fa)(s,l),n._OrtGetLastError=(s,l)=>(n._OrtGetLastError=Y.Ga)(s,l),n._OrtCreateSessionOptions=(s,l,h,y,w,A,B,R,G,K)=>(n._OrtCreateSessionOptions=Y.Ha)(s,l,h,y,w,A,B,R,G,K),n._OrtAppendExecutionProvider=(s,l,h,y,w)=>(n._OrtAppendExecutionProvider=Y.Ia)(s,l,h,y,w),n._OrtAddFreeDimensionOverride=(s,l,h)=>(n._OrtAddFreeDimensionOverride=Y.Ja)(s,l,h),n._OrtAddSessionConfigEntry=(s,l,h)=>(n._OrtAddSessionConfigEntry=Y.Ka)(s,l,h),n._OrtReleaseSessionOptions=s=>(n._OrtReleaseSessionOptions=Y.La)(s),n._OrtCreateSession=(s,l,h)=>(n._OrtCreateSession=Y.Ma)(s,l,h),n._OrtReleaseSession=s=>(n._OrtReleaseSession=Y.Na)(s),n._OrtGetInputOutputCount=(s,l,h)=>(n._OrtGetInputOutputCount=Y.Oa)(s,l,h),n._OrtGetInputOutputMetadata=(s,l,h,y)=>(n._OrtGetInputOutputMetadata=Y.Pa)(s,l,h,y),n._OrtFree=s=>(n._OrtFree=Y.Qa)(s),n._OrtCreateTensor=(s,l,h,y,w,A)=>(n._OrtCreateTensor=Y.Ra)(s,l,h,y,w,A),n._OrtGetTensorData=(s,l,h,y,w)=>(n._OrtGetTensorData=Y.Sa)(s,l,h,y,w),n._OrtReleaseTensor=s=>(n._OrtReleaseTensor=Y.Ta)(s),n._OrtCreateRunOptions=(s,l,h,y)=>(n._OrtCreateRunOptions=Y.Ua)(s,l,h,y),n._OrtAddRunConfigEntry=(s,l,h)=>(n._OrtAddRunConfigEntry=Y.Va)(s,l,h),n._OrtReleaseRunOptions=s=>(n._OrtReleaseRunOptions=Y.Wa)(s),n._OrtCreateBinding=s=>(n._OrtCreateBinding=Y.Xa)(s),n._OrtBindInput=(s,l,h)=>(n._OrtBindInput=Y.Ya)(s,l,h),n._OrtBindOutput=(s,l,h,y)=>(n._OrtBindOutput=Y.Za)(s,l,h,y),n._OrtClearBoundOutputs=s=>(n._OrtClearBoundOutputs=Y._a)(s),n._OrtReleaseBinding=s=>(n._OrtReleaseBinding=Y.$a)(s),n._OrtRunWithBinding=(s,l,h,y,w)=>(n._OrtRunWithBinding=Y.ab)(s,l,h,y,w),n._OrtRun=(s,l,h,y,w,A,B,R)=>(n._OrtRun=Y.bb)(s,l,h,y,w,A,B,R),n._OrtEndProfiling=s=>(n._OrtEndProfiling=Y.cb)(s),n._JsepOutput=(s,l,h)=>(n._JsepOutput=Y.db)(s,l,h),n._JsepGetNodeName=s=>(n._JsepGetNodeName=Y.eb)(s);var cr=()=>(cr=Y.fb)(),Qe=n._free=s=>(Qe=n._free=Y.gb)(s),pr=n._malloc=s=>(pr=n._malloc=Y.hb)(s),An=(s,l,h,y,w,A)=>(An=Y.kb)(s,l,h,y,w,A),Bi=()=>(Bi=Y.lb)(),Di=(s,l,h,y,w)=>(Di=Y.mb)(s,l,h,y,w),Mi=s=>(Mi=Y.nb)(s),En=s=>(En=Y.ob)(s),Ri=(s,l)=>(Ri=Y.pb)(s,l),Ui=()=>(Ui=Y.qb)(),Ni=(s,l)=>(Ni=Y.rb)(s,l),mr=s=>(mr=Y.sb)(s),kn=s=>(kn=Y.tb)(s),Pn=()=>(Pn=Y.ub)(),Vi=n.dynCall_ii=(s,l)=>(Vi=n.dynCall_ii=Y.vb)(s,l),Wi=s=>(Wi=Y.wb)(s),Li=()=>(Li=Y.xb)(),Gi=s=>(Gi=Y.yb)(s),Hi=()=>(Hi=Y.zb)();return n.stackSave=()=>Pn(),n.stackRestore=s=>mr(s),n.stackAlloc=s=>kn(s),n.setValue=function(s,l,h="i8"){switch(h.endsWith("*")&&(h="*"),h){case"i1":case"i8":ue()[s>>>0]=l;break;case"i16":ye()[s>>>1>>>0]=l;break;case"i32":C()[s>>>2>>>0]=l;break;case"i64":Z[s>>>3]=BigInt(l);break;case"float":de()[s>>>2>>>0]=l;break;case"double":ze()[s>>>3>>>0]=l;break;case"*":V()[s>>>2>>>0]=l;break;default:dt(`invalid type for setValue: ${h}`)}},n.getValue=function(s,l="i8"){switch(l.endsWith("*")&&(l="*"),l){case"i1":case"i8":return ue()[s>>>0];case"i16":return ye()[s>>>1>>>0];case"i32":return C()[s>>>2>>>0];case"i64":return Z[s>>>3];case"float":return de()[s>>>2>>>0];case"double":return ze()[s>>>3>>>0];case"*":return V()[s>>>2>>>0];default:dt(`invalid type for getValue: ${l}`)}},n.UTF8ToString=Te,n.stringToUTF8=zt,n.lengthBytesUTF8=Ko,function s(){if(0<Pt)Lt=s;else if(u)t(n),_t();else{for(;0<mn.length;)mn.shift()(n);0<Pt?Lt=s:(n.calledRun=!0,te||(_t(),t(n)))}}(),n.PTR_SIZE=4,o}),Fp=Sa,qp=globalThis.self?.name?.startsWith("em-pthread");qp&&Sa()});var Ea,Gn,jp,Ue,ka,Ln,Kp,Zp,Pa,Qp,Ca,za,Aa,Oa,_r=U(()=>{"use strict";yr();Ea=typeof location>"u"?void 0:location.origin,Gn= true&&"file:///E:/Desktop/TabAgent/src/assets/onnxruntime-web/transformers.js"<"file;",jp=()=>{if(true){if(Gn){let e=URL;return new URL(new e(/* asset import */ __nested_webpack_require_153332__(/*! ort.bundle.min.mjs */ "./node_modules/onnxruntime-web/dist/ort.bundle.min.mjs?46eb"), __nested_webpack_require_153332__.b).href,Ea).href}return "file:///E:/Desktop/TabAgent/src/assets/onnxruntime-web/transformers.js"}},Ue=jp(),ka=()=>{if(Ue&&!Ue.startsWith("blob:"))return Ue.substring(0,Ue.lastIndexOf("/")+1)},Ln=(e,t)=>{try{let r=t??Ue;return(r?new URL(e,r):new URL(e)).origin===Ea}catch{return!1}},Kp=(e,t)=>{let r=t??Ue;try{return(r?new URL(e,r):new URL(e)).href}catch{return}},Zp=(e,t)=>`${t??"./"}${e}`,Pa=async e=>{let r=await(await fetch(e,{credentials:"same-origin"})).blob();return URL.createObjectURL(r)},Qp=async e=>(await import(/*webpackIgnore:true*/e)).default,Ca=(xa(),Ft($a)).default,za=async()=>{if(!Ue)throw new Error("Failed to load proxy worker: cannot determine the script source URL.");if(Ln(Ue))return[void 0,Ca()];let e=await Pa(Ue);return[e,Ca(e)]},Aa=(Ia(),Ft(Ta)).default,Oa=async(e,t,r)=>{if(!e&&!t&&Aa&&Ue&&Ln(Ue))return[void 0,Aa];{let n="ort-wasm-simd-threaded.jsep.mjs",o=e??Kp(n,t),i=  true&&r&&o&&!Ln(o,t),a=i?await Pa(o):o??Zp(n,t);return[i?a:void 0,await Qp(a)]}}});var Hn,Fn,Ar,Ba,Yp,Xp,Jp,wr,fe,ht=U(()=>{"use strict";_r();Fn=!1,Ar=!1,Ba=!1,Yp=()=>{if(typeof SharedArrayBuffer>"u")return!1;try{return typeof MessageChannel<"u"&&new MessageChannel().port1.postMessage(new SharedArrayBuffer(1)),WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,4,1,3,1,1,10,11,1,9,0,65,0,254,16,2,0,26,11]))}catch{return!1}},Xp=()=>{try{return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,30,1,28,0,65,0,253,15,253,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,253,186,1,26,11]))}catch{return!1}},Jp=()=>{try{return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,19,1,17,0,65,1,253,15,65,2,253,15,65,3,253,15,253,147,2,11]))}catch{return!1}},wr=async e=>{if(Fn)return Promise.resolve();if(Ar)throw new Error("multiple calls to 'initializeWebAssembly()' detected.");if(Ba)throw new Error("previous call to 'initializeWebAssembly()' failed.");Ar=!0;let t=e.initTimeout,r=e.numThreads;if(e.simd!==!1){if(e.simd==="relaxed"){if(!Jp())throw new Error("Relaxed WebAssembly SIMD is not supported in the current environment.")}else if(!Xp())throw new Error("WebAssembly SIMD is not supported in the current environment.")}let n=Yp();r>1&&!n&&(typeof self<"u"&&!self.crossOriginIsolated&&console.warn("env.wasm.numThreads is set to "+r+", but this will not work unless you enable crossOriginIsolated mode. See https://web.dev/cross-origin-isolation-guide/ for more info."),console.warn("WebAssembly multi-threading is not supported in the current environment. Falling back to single-threading."),e.numThreads=r=1);let o=e.wasmPaths,i=typeof o=="string"?o:void 0,a=o?.mjs,u=a?.href??a,d=o?.wasm,c=d?.href??d,p=e.wasmBinary,[m,f]=await Oa(u,i,r>1),b=!1,g=[];if(t>0&&g.push(new Promise(_=>{setTimeout(()=>{b=!0,_()},t)})),g.push(new Promise((_,S)=>{let $={numThreads:r};if(p)$.wasmBinary=p;else if(c||i)$.locateFile=v=>c??i+v;else if(u&&u.indexOf("blob:")!==0)$.locateFile=v=>new URL(v,u).href;else if(m){let v=ka();v&&($.locateFile=x=>v+x)}f($).then(v=>{Ar=!1,Fn=!0,Hn=v,_(),m&&URL.revokeObjectURL(m)},v=>{Ar=!1,Ba=!0,S(v)})})),await Promise.race(g),b)throw new Error(`WebAssembly backend initializing failed due to timeout: ${t}ms`)},fe=()=>{if(Fn&&Hn)return Hn;throw new Error("WebAssembly is not initialized yet.")}});var Ne,Kt,pe,Er=U(()=>{"use strict";ht();Ne=(e,t)=>{let r=fe(),n=r.lengthBytesUTF8(e)+1,o=r._malloc(n);return r.stringToUTF8(e,o,n),t.push(o),o},Kt=(e,t,r,n)=>{if(typeof e=="object"&&e!==null){if(r.has(e))throw new Error("Circular reference in options");r.add(e)}Object.entries(e).forEach(([o,i])=>{let a=t?t+o:o;if(typeof i=="object")Kt(i,a+".",r,n);else if(typeof i=="string"||typeof i=="number")n(a,i.toString());else if(typeof i=="boolean")n(a,i?"1":"0");else throw new Error(`Can't handle extra config type: ${typeof i}`)})},pe=e=>{let t=fe(),r=t.stackSave();try{let n=t.PTR_SIZE,o=t.stackAlloc(2*n);t._OrtGetLastError(o,o+n);let i=Number(t.getValue(o,n===4?"i32":"i64")),a=t.getValue(o+n,"*"),u=a?t.UTF8ToString(a):"";throw new Error(`${e} ERROR_CODE: ${i}, ERROR_MESSAGE: ${u}`)}finally{t.stackRestore(r)}}});var Da,Ma=U(()=>{"use strict";ht();Er();Da=e=>{let t=fe(),r=0,n=[],o=e||{};try{if(e?.logSeverityLevel===void 0)o.logSeverityLevel=2;else if(typeof e.logSeverityLevel!="number"||!Number.isInteger(e.logSeverityLevel)||e.logSeverityLevel<0||e.logSeverityLevel>4)throw new Error(`log serverity level is not valid: ${e.logSeverityLevel}`);if(e?.logVerbosityLevel===void 0)o.logVerbosityLevel=0;else if(typeof e.logVerbosityLevel!="number"||!Number.isInteger(e.logVerbosityLevel))throw new Error(`log verbosity level is not valid: ${e.logVerbosityLevel}`);e?.terminate===void 0&&(o.terminate=!1);let i=0;return e?.tag!==void 0&&(i=Ne(e.tag,n)),r=t._OrtCreateRunOptions(o.logSeverityLevel,o.logVerbosityLevel,!!o.terminate,i),r===0&&pe("Can't create run options."),e?.extra!==void 0&&Kt(e.extra,"",new WeakSet,(a,u)=>{let d=Ne(a,n),c=Ne(u,n);t._OrtAddRunConfigEntry(r,d,c)!==0&&pe(`Can't set a run config entry: ${a} - ${u}.`)}),[r,n]}catch(i){throw r!==0&&t._OrtReleaseRunOptions(r),n.forEach(a=>t._free(a)),i}}});var em,tm,rm,kr,nm,Ra,Ua=U(()=>{"use strict";ht();Er();em=e=>{switch(e){case"disabled":return 0;case"basic":return 1;case"extended":return 2;case"all":return 99;default:throw new Error(`unsupported graph optimization level: ${e}`)}},tm=e=>{switch(e){case"sequential":return 0;case"parallel":return 1;default:throw new Error(`unsupported execution mode: ${e}`)}},rm=e=>{e.extra||(e.extra={}),e.extra.session||(e.extra.session={});let t=e.extra.session;t.use_ort_model_bytes_directly||(t.use_ort_model_bytes_directly="1"),e.executionProviders&&e.executionProviders.some(r=>(typeof r=="string"?r:r.name)==="webgpu")&&(e.enableMemPattern=!1)},kr=(e,t,r,n)=>{let o=Ne(t,n),i=Ne(r,n);fe()._OrtAddSessionConfigEntry(e,o,i)!==0&&pe(`Can't set a session config entry: ${t} - ${r}.`)},nm=async(e,t,r)=>{for(let n of t){let o=typeof n=="string"?n:n.name,i=[];switch(o){case"webnn":if(o="WEBNN",typeof n!="string"){let m=n?.deviceType;m&&kr(e,"deviceType",m,r)}break;case"webgpu":if(o="JS",typeof n!="string"){let p=n;if(p?.preferredLayout){if(p.preferredLayout!=="NCHW"&&p.preferredLayout!=="NHWC")throw new Error(`preferredLayout must be either 'NCHW' or 'NHWC': ${p.preferredLayout}`);kr(e,"preferredLayout",p.preferredLayout,r)}}break;case"wasm":case"cpu":continue;default:throw new Error(`not supported execution provider: ${o}`)}let a=Ne(o,r),u=i.length,d=0,c=0;if(u>0){d=fe()._malloc(u*fe().PTR_SIZE),r.push(d),c=fe()._malloc(u*fe().PTR_SIZE),r.push(c);for(let p=0;p<u;p++)fe().setValue(d+p*fe().PTR_SIZE,i[p][0],"*"),fe().setValue(c+p*fe().PTR_SIZE,i[p][1],"*")}await fe()._OrtAppendExecutionProvider(e,a,d,c,u)!==0&&pe(`Can't append execution provider: ${o}.`)}},Ra=async e=>{let t=fe(),r=0,n=[],o=e||{};rm(o);try{let i=em(o.graphOptimizationLevel??"all"),a=tm(o.executionMode??"sequential"),u=typeof o.logId=="string"?Ne(o.logId,n):0,d=o.logSeverityLevel??2;if(!Number.isInteger(d)||d<0||d>4)throw new Error(`log serverity level is not valid: ${d}`);let c=o.logVerbosityLevel??0;if(!Number.isInteger(c)||c<0||c>4)throw new Error(`log verbosity level is not valid: ${c}`);let p=typeof o.optimizedModelFilePath=="string"?Ne(o.optimizedModelFilePath,n):0;if(r=t._OrtCreateSessionOptions(i,!!o.enableCpuMemArena,!!o.enableMemPattern,a,!!o.enableProfiling,0,u,d,c,p),r===0&&pe("Can't create session options."),o.executionProviders&&await nm(r,o.executionProviders,n),o.enableGraphCapture!==void 0){if(typeof o.enableGraphCapture!="boolean")throw new Error(`enableGraphCapture must be a boolean value: ${o.enableGraphCapture}`);kr(r,"enableGraphCapture",o.enableGraphCapture.toString(),n)}if(o.freeDimensionOverrides)for(let[m,f]of Object.entries(o.freeDimensionOverrides)){if(typeof m!="string")throw new Error(`free dimension override name must be a string: ${m}`);if(typeof f!="number"||!Number.isInteger(f)||f<0)throw new Error(`free dimension override value must be a non-negative integer: ${f}`);let b=Ne(m,n);t._OrtAddFreeDimensionOverride(r,b,f)!==0&&pe(`Can't set a free dimension override: ${m} - ${f}.`)}return o.extra!==void 0&&Kt(o.extra,"",new WeakSet,(m,f)=>{kr(r,m,f,n)}),[r,n]}catch(i){throw r!==0&&t._OrtReleaseSessionOptions(r)!==0&&pe("Can't release session options."),n.forEach(a=>t._free(a)),i}}});var Mt,Ye,gt,Pr,Zt,zr,Or,qn,ee=U(()=>{"use strict";Mt=e=>{switch(e){case"int8":return 3;case"uint8":return 2;case"bool":return 9;case"int16":return 5;case"uint16":return 4;case"int32":return 6;case"uint32":return 12;case"float16":return 10;case"float32":return 1;case"float64":return 11;case"string":return 8;case"int64":return 7;case"uint64":return 13;case"int4":return 22;case"uint4":return 21;default:throw new Error(`unsupported data type: ${e}`)}},Ye=e=>{switch(e){case 3:return"int8";case 2:return"uint8";case 9:return"bool";case 5:return"int16";case 4:return"uint16";case 6:return"int32";case 12:return"uint32";case 10:return"float16";case 1:return"float32";case 11:return"float64";case 8:return"string";case 7:return"int64";case 13:return"uint64";case 22:return"int4";case 21:return"uint4";default:throw new Error(`unsupported data type: ${e}`)}},gt=(e,t)=>{let r=[-1,4,1,1,2,2,4,8,-1,1,2,8,4,8,-1,-1,-1,-1,-1,-1,-1,.5,.5][e],n=typeof t=="number"?t:t.reduce((o,i)=>o*i,1);return r>0?Math.ceil(n*r):void 0},Pr=e=>{switch(e){case"float16":return typeof Float16Array<"u"&&Float16Array.from?Float16Array:Uint16Array;case"float32":return Float32Array;case"uint8":return Uint8Array;case"int8":return Int8Array;case"uint16":return Uint16Array;case"int16":return Int16Array;case"int32":return Int32Array;case"bool":return Uint8Array;case"float64":return Float64Array;case"uint32":return Uint32Array;case"int64":return BigInt64Array;case"uint64":return BigUint64Array;default:throw new Error(`unsupported type: ${e}`)}},Zt=e=>{switch(e){case"verbose":return 0;case"info":return 1;case"warning":return 2;case"error":return 3;case"fatal":return 4;default:throw new Error(`unsupported logging level: ${e}`)}},zr=e=>e==="float32"||e==="float16"||e==="int32"||e==="int64"||e==="uint32"||e==="uint8"||e==="bool"||e==="uint4"||e==="int4",Or=e=>e==="float32"||e==="float16"||e==="int32"||e==="int64"||e==="uint32"||e==="uint64"||e==="int8"||e==="uint8"||e==="bool"||e==="uint4"||e==="int4",qn=e=>{switch(e){case"none":return 0;case"cpu":return 1;case"cpu-pinned":return 2;case"texture":return 3;case"gpu-buffer":return 4;case"ml-tensor":return 5;default:throw new Error(`unsupported data location: ${e}`)}}});var Qt,jn=U(()=>{"use strict";yr();Qt=async e=>{if(typeof e=="string")if(false)// removed by dead control flow
+{}else{let t=await fetch(e);if(!t.ok)throw new Error(`failed to load external data file: ${e}`);let r=t.headers.get("Content-Length"),n=r?parseInt(r,10):0;if(n<1073741824)return new Uint8Array(await t.arrayBuffer());{if(!t.body)throw new Error(`failed to load external data file: ${e}, no response body.`);let o=t.body.getReader(),i;try{i=new ArrayBuffer(n)}catch(u){if(u instanceof RangeError){let d=Math.ceil(n/65536);i=new WebAssembly.Memory({initial:d,maximum:d}).buffer}else throw u}let a=0;for(;;){let{done:u,value:d}=await o.read();if(u)break;let c=d.byteLength;new Uint8Array(i,a,c).set(d),a+=c}return new Uint8Array(i,0,n)}}else return e instanceof Blob?new Uint8Array(await e.arrayBuffer()):e instanceof Uint8Array?e:new Uint8Array(e)}});var om,im,Na,Va,Br,am,se,Xe=U(()=>{"use strict";ee();om=["V","I","W","E","F"],im=(e,t)=>{console.log(`[${om[e]},${new Date().toISOString()}]${t}`)},Br=(e,t)=>{Na=e,Va=t},am=(e,t)=>{let r=Zt(e),n=Zt(Na);r>=n&&im(r,typeof t=="function"?t():t)},se=(...e)=>{Va&&am(...e)}});var Kn,Je,k,Tt,Dr,Wa,La,ne=U(()=>{"use strict";Kn=class{static calcMatMulShape(t,r){return t[1]!==r[0]?void 0:[t[0],r[1]]}},Je=class{static calcShape(t,r,n=!1){let o=t.length,i=r.length;if(o===0)return r;if(i===0)return t;let a=Math.max(t.length,r.length),u=new Array(a);if(n){if(o<2||i<2)return;let d=Kn.calcMatMulShape([t[o-2],t[o-1]],[r[i-2],r[i-1]]);if(d===void 0)return;[u[a-2],u[a-1]]=d}for(let d=n?3:1;d<=a;d++){let c=o-d<0?1:t[o-d],p=i-d<0?1:r[i-d];if(c!==p&&c>1&&p>1)return;let m=Math.max(c,p);if(c&&p)u[a-d]=Math.max(c,p);else{if(m>1)return;u[a-d]=0}}return u}static isValidBroadcast(t,r){let n=t.length,o=r.length;if(n>o)return!1;for(let i=1;i<=n;i++)if(t[n-i]!==1&&t[n-i]!==r[o-i])return!1;return!0}},k=class e{static size(t){return e.getSizeFromDimensionRange(t,0,t.length)}static convertShape(t,r=4){let n=t.length;if(n===0)return[];let o=new Array(n),i=n-1;for(;i>=0;){if(t[i]%r===0){o[i]=t[i]/r;break}if(r%t[i]!==0)throw new Error("cannot convert shape");o[i]=1,r/=t[i],i--}for(i--;i>=0;i--)o[i]=t[i];return o}static sizeFromDimension(t,r){if(r<0||r>t.length)throw new Error(`invalid dimension of ${r} for sizeFromDimension as Tensor has ${t.length} dimensions.`);return e.getSizeFromDimensionRange(t,r,t.length)}static sizeToDimension(t,r){if(r<0||r>t.length)throw new Error(`invalid dimension of ${r} for sizeToDimension as Tensor has ${t.length} dimensions.`);return e.getSizeFromDimensionRange(t,0,r)}static getSizeFromDimensionRange(t,r,n){let o=1;for(let i=r;i<n;i++){if(t[i]<0)throw new Error("cannot get valid size from specified dimension range. Most likely the range contains negative values in them.");o*=Number(t[i])}return o}static computeStrides(t){let r=t.length;if(r===0)return[];if(r===1)return[1];let n=new Array(r);n[r-1]=1,n[r-2]=t[r-1];for(let o=r-3;o>=0;--o)n[o]=n[o+1]*t[o+1];return n}static normalizeAxis(t,r){if(t<-r&&t>=r)throw new Error("unsupported axis for this operation.");return t<0?t+r:t}static normalizeAxes(t,r){return t.map(n=>this.normalizeAxis(n,r??t.length))}static sortBasedOnPerm(t,r){return r?r.map(n=>t[n]):t.slice().reverse()}static padShape(t,r){let n=t.length;return t.map((o,i)=>o+r[i]+r[i+n])}static areEqual(t,r){return t.length!==r.length?!1:t.every((n,o)=>n===r[o])}},Tt=class e{static adjustPoolAttributes(t,r,n,o,i,a){if(!t&&n.length!==r.length-2)throw new Error("length of specified kernel shapes should be 2 less than length of input dimensions");if(t)for(let u=0;u<r.length-2;u++)u>=n.length?n.push(r[u+2]):n[u]=r[u+2];for(let u=0;u<n.length;u++)if(u<o.length){if(o[u]<0)throw new Error("strides should be greater than or equal to 1")}else o.push(1);for(let u=0;u<n.length;u++)if(u<i.length){if(i[u]<0)throw new Error("dilations should be greater than or equal to 1")}else i.push(1);for(let u=0;u<n.length*2;u++)if(u<a.length){if(a[u]<0)throw new Error("pad should be greater than or equal to 1")}else a.push(0);for(let u=0;u<n.length;u++){if(n[u]<=0)throw new Error("kernel shapes need to be greater than 0");if(a[u]>=n[u]||a[u+n.length]>=n[u])throw new Error("pads should be smaller than kernel")}}static adjustPadsBasedOnAutoPad(t,r,n,o,i,a,u){if(u){if(i.length!==2*(t.length-2))throw new Error("length of pads should be twice the length of data dimensions");if(r.length!==t.length-2)throw new Error("length of strides should be the length of data dimensions");if(o.length!==t.length-2)throw new Error("length of kernel shapes should be the length of data dimensions");for(let d=0;d<t.length-2;d++)e.adjustPadAndReturnShape(t[d+(a?1:2)],r[d],n[d],o[d],i,d,d+t.length-2,u)}}static computePoolOutputShape(t,r,n,o,i,a,u){if(r.length<=0)throw new Error("input shape must be of size greater than 0");let d=[r[0],r[1]];return e.computeShapeHelper(t,r,d,n,o,i,a,u),d}static computeConvOutputShape(t,r,n,o,i,a,u){if(t.length<=0||r.length<=0)throw new Error("invalid input tensor dims or invalid filter tensor dims");let d=[t[0],r[0]];return e.computeShapeHelper(!1,t,d,n,o,i,a,u),d}static computeShapeHelper(t,r,n,o,i,a,u,d){if(t)for(let c=0;c<r.length-2;c++)n.push(1);else for(let c=0;c<r.length-2;c++)n.push(e.adjustPadAndReturnShape(r[c+2],o[c],i[c],a[c],u,c,c+r.length-2,d))}static adjustPadAndReturnShape(t,r,n,o,i,a,u,d){let c=n*(o-1)+1;if(d&&d!=="NOTSET")switch(d){case"VALID":return i[a]=0,i[u]=0,Math.floor((t-c)/r+1);case"SAME_LOWER":case"SAME_UPPER":if(n!==1)throw new Error("Dilation not supported for SAME_UPPER or SAME_LOWER");{let m=((t+r-1)/r-1)*r+o-t;return i[a]=Math.floor(d==="SAME_LOWER"?(m+1)/2:m/2),i[u]=m-i[a],Math.floor((t+m-o)/r+1)}default:throw new Error("Unsupported AutoPad type")}else return Math.floor((t+i[a]+i[u]-c)/r+1)}},Dr=class{static getShapeOfGemmResult(t,r,n,o,i){if(t.length!==2||n.length!==2)throw new Error("shape need to be of size 2");let a,u,d;r?(a=t[1],u=t[0]):(a=t[0],u=t[1]);let c=-1;if(o?(d=n[0],c=1):(d=n[1],c=0),n[c]!==u)throw new Error("dimension mismatch");if(a<=0||d<=0||u<=0)throw new Error("invalid shape specified");if(i&&!Je.isValidBroadcast(i,[a,d]))throw new Error("gemm: invalid bias shape for broadcast");return[a,d,u]}},Wa=-34028234663852886e22,La=34028234663852886e22});var Mr,Zn=U(()=>{"use strict";ee();Mr=(e,t)=>new(Pr(t))(e)});var Yn,Ha,sm,Ga,um,Fa,Rr,Ur,Qn,qa,ja=U(()=>{"use strict";Xe();Yn=(e,t=!0)=>{if(e.byteLength%8!==0)throw new Error("Invalid Uint8Array length - must be a multiple of 8 (BigInt).");let r=e.byteLength/8,n=new BigInt64Array(e.buffer,e.byteOffset,r),o=new Int32Array(r);for(let i=0;i<r;i++){let a=n[i];if(a>2147483647n||a<-2147483648n)throw new Error(`Overflow occurred when converting BigInt to Int32 at index ${i}: ${a}`);o[i]=Number(a)}return t?new Uint8Array(o.buffer):o},Ha=(e,t=!0)=>{if(e.byteLength%4!==0)throw new Error("Invalid Uint8Array length - must be a multiple of 4 (Int32).");let r=e.byteLength/4,n=new Int32Array(e.buffer,e.byteOffset,r),o=BigInt64Array.from(n,BigInt);return t?new Uint8Array(o.buffer):o},sm=1,Ga=()=>sm++,um=new Map([["float32",32],["float16",16],["int32",32],["uint32",32],["int64",64],["uint64",64],["int8",8],["uint8",8],["int4",4],["uint4",4]]),Fa=(e,t)=>{let r=um.get(e);if(!r)throw new Error("Unsupported data type.");return t.length>0?Math.ceil(t.reduce((n,o)=>n*o)*r/8):0},Rr=class{constructor(t){this.shouldConvertInt64toInt32=!1;this.isInt64ToInt32Converted=!1;let{sessionId:r,context:n,tensor:o,dataType:i,shape:a,shouldConvertInt64toInt32:u=!1}=t;this.sessionId=r,this.mlContext=n,this.mlTensor=o,this.dataType=i,this.tensorShape=a,this.shouldConvertInt64toInt32=u}get tensor(){return this.mlTensor}get type(){return this.dataType}get shape(){return this.tensorShape}get byteLength(){return Fa(this.dataType,this.tensorShape)}destroy(){se("verbose",()=>"[WebNN] TensorWrapper.destroy"),this.mlTensor.destroy()}write(t){this.mlContext.writeTensor(this.mlTensor,t)}async read(t,r){if(t){let n=await this.mlContext.readTensor(this.mlTensor),o=Ha(new Uint8Array(n));if(r){(r instanceof ArrayBuffer?new Uint8Array(r):new Uint8Array(r.buffer,r.byteOffset,r.byteLength)).set(o);return}else return o.buffer}else return r?this.mlContext.readTensor(this.mlTensor,r):this.mlContext.readTensor(this.mlTensor)}canReuseTensor(t,r,n){return this.mlContext===t&&this.dataType===r&&this.tensorShape.length===n.length&&this.tensorShape.every((o,i)=>o===n[i])}setIsInt64ToInt32Converted(t){this.isInt64ToInt32Converted=t}},Ur=class{constructor(t,r){this.tensorManager=t;this.wrapper=r}get tensorWrapper(){return this.wrapper}releaseTensor(){this.tensorWrapper&&(this.tensorManager.releaseTensor(this.tensorWrapper),this.wrapper=void 0)}async ensureTensor(t,r,n,o){let i=r,a=this.tensorManager.getMLContext(t),u=i==="int64"&&!a.opSupportLimits().input.dataTypes.includes("int64");if(u&&(i="int32",se("verbose",()=>"[WebNN] TensorIdTracker.ensureTensor: convert dataType from int64 to int32")),this.wrapper){if(this.wrapper.canReuseTensor(a,i,n))return this.wrapper.tensor;if(o){if(this.wrapper.byteLength!==Fa(i,n))throw new Error("Unable to copy data to tensor with different size.");this.activeUpload=new Uint8Array(await this.wrapper.read())}this.tensorManager.releaseTensor(this.wrapper)}let d=typeof MLTensorUsage>"u"?void 0:MLTensorUsage.READ|MLTensorUsage.WRITE;return this.wrapper=await this.tensorManager.getCachedTensor(t,i,n,d,!0,!0,u),o&&this.activeUpload&&(this.wrapper.write(this.activeUpload),this.activeUpload=void 0),this.wrapper.tensor}upload(t){let r=t;if(this.wrapper)if(this.wrapper.shouldConvertInt64toInt32&&(r=Yn(t,!0),this.wrapper.setIsInt64ToInt32Converted(!0)),r.byteLength===this.wrapper.byteLength){this.wrapper.write(r);return}else se("verbose",()=>"Data size does not match tensor size. Releasing tensor."),this.releaseTensor();this.activeUpload?this.activeUpload.set(r):this.activeUpload=new Uint8Array(r)}async download(t){if(this.activeUpload){let r=this.wrapper?.isInt64ToInt32Converted?Ha(this.activeUpload):this.activeUpload;if(t){t instanceof ArrayBuffer?new Uint8Array(t).set(r):new Uint8Array(t.buffer,t.byteOffset,t.byteLength).set(r);return}else return r.buffer}if(!this.wrapper)throw new Error("Tensor has not been created.");return t?this.wrapper.read(this.wrapper?.shouldConvertInt64toInt32,t):this.wrapper.read(this.wrapper?.shouldConvertInt64toInt32)}},Qn=class{constructor(t){this.backend=t;this.tensorTrackersById=new Map;this.freeTensors=[];this.externalTensors=new Set}getMLContext(t){let r=this.backend.getMLContext(t);if(!r)throw new Error("MLContext not found for session.");return r}reserveTensorId(){let t=Ga();return this.tensorTrackersById.set(t,new Ur(this)),t}releaseTensorId(t){let r=this.tensorTrackersById.get(t);r&&(this.tensorTrackersById.delete(t),r.tensorWrapper&&this.releaseTensor(r.tensorWrapper))}async ensureTensor(t,r,n,o,i){se("verbose",()=>`[WebNN] TensorManager.ensureTensor {tensorId: ${r}, dataType: ${n}, shape: ${o}, copyOld: ${i}}`);let a=this.tensorTrackersById.get(r);if(!a)throw new Error("Tensor not found.");return a.ensureTensor(t,n,o,i)}upload(t,r){let n=this.tensorTrackersById.get(t);if(!n)throw new Error("Tensor not found.");n.upload(r)}async download(t,r){se("verbose",()=>`[WebNN] TensorManager.download {tensorId: ${t}, dstBuffer: ${r?.byteLength}}`);let n=this.tensorTrackersById.get(t);if(!n)throw new Error("Tensor not found.");return n.download(r)}releaseTensorsForSession(t){for(let r of this.freeTensors)r.sessionId===t&&r.destroy();this.freeTensors=this.freeTensors.filter(r=>r.sessionId!==t)}registerTensor(t,r,n,o){let i=this.getMLContext(t),a=Ga(),u=new Rr({sessionId:t,context:i,tensor:r,dataType:n,shape:o});return this.tensorTrackersById.set(a,new Ur(this,u)),this.externalTensors.add(u),a}async getCachedTensor(t,r,n,o,i,a,u=!1){let d=this.getMLContext(t);for(let[p,m]of this.freeTensors.entries())if(m.canReuseTensor(d,r,n)){se("verbose",()=>`[WebNN] Reusing tensor {dataType: ${r}, shape: ${n}}`);let f=this.freeTensors.splice(p,1)[0];return f.sessionId=t,f}se("verbose",()=>`[WebNN] MLContext.createTensor {dataType: ${r}, shape: ${n}}`);let c=await d.createTensor({dataType:r,shape:n,dimensions:n,usage:o,writable:i,readable:a});return new Rr({sessionId:t,context:d,tensor:c,dataType:r,shape:n,shouldConvertInt64toInt32:u})}releaseTensor(t){this.externalTensors.has(t)&&this.externalTensors.delete(t),this.freeTensors.push(t)}},qa=(...e)=>new Qn(...e)});var Xn,dm,Nr,Ka=U(()=>{"use strict";ee();ht();Zn();ja();Xe();Xn=new Map([[1,"float32"],[10,"float16"],[6,"int32"],[12,"uint32"],[7,"int64"],[13,"uint64"],[22,"int4"],[21,"uint4"],[3,"int8"],[2,"uint8"],[9,"uint8"]]),dm=(e,t)=>{if(e===t)return!0;if(e===void 0||t===void 0)return!1;let r=Object.keys(e).sort(),n=Object.keys(t).sort();return r.length===n.length&&r.every((o,i)=>o===n[i]&&e[o]===t[o])},Nr=class{constructor(t){this.tensorManager=qa(this);this.mlContextBySessionId=new Map;this.sessionIdsByMLContext=new Map;this.mlContextCache=[];this.sessionGraphInputs=new Map;this.temporaryGraphInputs=[];this.temporarySessionTensorIds=new Map;Br(t.logLevel,!!t.debug)}get currentSessionId(){if(this.activeSessionId===void 0)throw new Error("No active session");return this.activeSessionId}onRunStart(t){se("verbose",()=>`[WebNN] onRunStart {sessionId: ${t}}`),this.activeSessionId=t}onRunEnd(t){se("verbose",()=>`[WebNN] onRunEnd {sessionId: ${t}}`);let r=this.temporarySessionTensorIds.get(t);if(r){for(let n of r)se("verbose",()=>`[WebNN] releasing temporary tensor {tensorId: ${n}}`),this.tensorManager.releaseTensorId(n);this.temporarySessionTensorIds.delete(t),this.activeSessionId=void 0}}async createMLContext(t){if(t instanceof GPUDevice){let n=this.mlContextCache.findIndex(o=>o.gpuDevice===t);if(n!==-1)return this.mlContextCache[n].mlContext;{let o=await navigator.ml.createContext(t);return this.mlContextCache.push({gpuDevice:t,mlContext:o}),o}}else if(t===void 0){let n=this.mlContextCache.findIndex(o=>o.options===void 0&&o.gpuDevice===void 0);if(n!==-1)return this.mlContextCache[n].mlContext;{let o=await navigator.ml.createContext();return this.mlContextCache.push({mlContext:o}),o}}let r=this.mlContextCache.findIndex(n=>dm(n.options,t));if(r!==-1)return this.mlContextCache[r].mlContext;{let n=await navigator.ml.createContext(t);return this.mlContextCache.push({options:t,mlContext:n}),n}}registerMLContext(t,r){this.mlContextBySessionId.set(t,r);let n=this.sessionIdsByMLContext.get(r);n||(n=new Set,this.sessionIdsByMLContext.set(r,n)),n.add(t),this.temporaryGraphInputs.length>0&&(this.sessionGraphInputs.set(t,this.temporaryGraphInputs),this.temporaryGraphInputs=[])}onReleaseSession(t){this.sessionGraphInputs.delete(t);let r=this.mlContextBySessionId.get(t);if(!r)return;this.tensorManager.releaseTensorsForSession(t),this.mlContextBySessionId.delete(t);let n=this.sessionIdsByMLContext.get(r);if(n.delete(t),n.size===0){this.sessionIdsByMLContext.delete(r);let o=this.mlContextCache.findIndex(i=>i.mlContext===r);o!==-1&&this.mlContextCache.splice(o,1)}}getMLContext(t){return this.mlContextBySessionId.get(t)}reserveTensorId(){return this.tensorManager.reserveTensorId()}releaseTensorId(t){se("verbose",()=>`[WebNN] releaseTensorId {tensorId: ${t}}`),this.tensorManager.releaseTensorId(t)}async ensureTensor(t,r,n,o,i){let a=Xn.get(n);if(!a)throw new Error(`Unsupported ONNX data type: ${n}`);return this.tensorManager.ensureTensor(t??this.currentSessionId,r,a,o,i)}async createTemporaryTensor(t,r,n){se("verbose",()=>`[WebNN] createTemporaryTensor {onnxDataType: ${r}, shape: ${n}}`);let o=Xn.get(r);if(!o)throw new Error(`Unsupported ONNX data type: ${r}`);let i=this.tensorManager.reserveTensorId();await this.tensorManager.ensureTensor(t,i,o,n,!1);let a=this.temporarySessionTensorIds.get(t);return a?a.push(i):this.temporarySessionTensorIds.set(t,[i]),i}uploadTensor(t,r){if(!fe().shouldTransferToMLTensor)throw new Error("Trying to upload to a MLTensor while shouldTransferToMLTensor is false");se("verbose",()=>`[WebNN] uploadTensor {tensorId: ${t}, data: ${r.byteLength}}`),this.tensorManager.upload(t,r)}async downloadTensor(t,r){return this.tensorManager.download(t,r)}createMLTensorDownloader(t,r){return async()=>{let n=await this.tensorManager.download(t);return Mr(n,r)}}registerMLTensor(t,r,n,o){let i=Xn.get(n);if(!i)throw new Error(`Unsupported ONNX data type: ${n}`);let a=this.tensorManager.registerTensor(t,r,i,o);return se("verbose",()=>`[WebNN] registerMLTensor {tensor: ${r}, dataType: ${i}, dimensions: ${o}} -> {tensorId: ${a}}`),a}registerMLConstant(t,r,n,o,i,a,u=!1){if(!a)throw new Error("External mounted files are not available.");let d=t;t.startsWith("./")&&(d=t.substring(2));let c=a.get(d);if(!c)throw new Error(`File with name ${d} not found in preloaded files.`);if(r+n>c.byteLength)throw new Error("Out of bounds: data offset and length exceed the external file data size.");let p=c.slice(r,r+n).buffer,m;switch(i.dataType){case"float32":m=new Float32Array(p);break;case"float16":m=typeof Float16Array<"u"&&Float16Array.from?new Float16Array(p):new Uint16Array(p);break;case"int32":m=new Int32Array(p);break;case"uint32":m=new Uint32Array(p);break;case"int64":u?(m=Yn(new Uint8Array(p),!1),i.dataType="int32"):m=new BigInt64Array(p);break;case"uint64":m=new BigUint64Array(p);break;case"int8":m=new Int8Array(p);break;case"int4":case"uint4":case"uint8":m=new Uint8Array(p);break;default:throw new Error(`Unsupported data type: ${i.dataType} in creating WebNN Constant from external data.`)}return se("verbose",()=>`[WebNN] registerMLConstant {dataType: ${i.dataType}, shape: ${i.shape}}} ${u?"(Note: it was int64 data type and registered to int32 as workaround)":""}`),o.constant(i,m)}registerGraphInput(t){this.temporaryGraphInputs.push(t)}isGraphInput(t,r){let n=this.sessionGraphInputs.get(t);return n?n.includes(r):!1}isInt64Supported(t){return!!this.mlContextBySessionId.get(t)?.opSupportLimits().input.dataTypes.includes("int64")}flush(){}}});var Vr=U(()=>{"use strict"});var Za,Jn,eo,lm,cm,Qa,ro,to,Xa,Ja=U(()=>{"use strict";Xe();Vr();Za=new Map([[64,250],[128,200],[256,200],[512,200],[2048,230],[4096,200],[8192,50],[16384,50],[32768,50],[65536,50],[131072,50],[262144,50],[524288,50],[1048576,50],[2097152,30],[4194304,20],[8388608,10],[12582912,10],[16777216,10],[26214400,15],[33554432,22],[44236800,2],[58982400,6],[67108864,6],[134217728,6],[167772160,6]]),Jn=[],eo=e=>Math.ceil(Number(e)/16)*16,lm=e=>{for(let t=0;t<Jn.length;t++){let r=Jn[t];if(e<=r)return r}return Math.ceil(e/16)*16},cm=1,Qa=()=>cm++,ro=async(e,t,r,n)=>{let o=eo(r),i=e.device.createBuffer({size:o,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{let a=e.getCommandEncoder();e.endComputePass(),a.copyBufferToBuffer(t,0,i,0,o),e.flush(),await i.mapAsync(GPUMapMode.READ);let u=i.getMappedRange();if(n){let d=n();return d.set(new Uint8Array(u,0,r)),d}else return new Uint8Array(u.slice(0,r))}finally{i.destroy()}},to=class{constructor(t){this.backend=t;this.storageCache=new Map,this.freeBuffers=new Map,this.freeUniformBuffers=new Map,this.buffersPending=[],this.capturedPendingBuffers=new Map;for(let[r]of Za)Jn.push(r),this.freeBuffers.set(r,[]),this.freeUniformBuffers.set(r,[]);this.sessionCount=0}upload(t,r){let n=r.buffer,o=r.byteOffset,i=r.byteLength,a=eo(i),u=this.storageCache.get(t);if(!u)throw new Error("gpu data for uploading does not exist");if(Number(u.originalSize)!==i)throw new Error(`inconsistent data size. gpu data size=${u.originalSize}, data size=${i}`);let d=this.backend.device.createBuffer({mappedAtCreation:!0,size:a,usage:GPUBufferUsage.MAP_WRITE|GPUBufferUsage.COPY_SRC}),c=d.getMappedRange();new Uint8Array(c).set(new Uint8Array(n,o,i)),d.unmap();let p=this.backend.device.createCommandEncoder();p.copyBufferToBuffer(d,0,u.gpuData.buffer,0,a),this.backend.device.queue.submit([p.finish()]),d.destroy(),se("verbose",()=>`[WebGPU] GpuDataManager.upload(id=${t})`)}memcpy(t,r){let n=this.storageCache.get(t);if(!n)throw new Error("source gpu data for memcpy does not exist");let o=this.storageCache.get(r);if(!o)throw new Error("destination gpu data for memcpy does not exist");if(n.originalSize!==o.originalSize)throw new Error("inconsistent source and destination gpu data size");let i=eo(n.originalSize),a=this.backend.getCommandEncoder();this.backend.endComputePass(),a.copyBufferToBuffer(n.gpuData.buffer,0,o.gpuData.buffer,0,i)}registerExternalBuffer(t,r,n){let o;if(n){if(o=n[0],t===n[1])return se("verbose",()=>`[WebGPU] GpuDataManager.registerExternalBuffer(size=${r}) => id=${o}, buffer is the same, skip.`),o;if(this.backend.capturedCommandList.has(this.backend.currentSessionId))throw new Error(`Registering a different external buffer under graph capture mode is not supported yet.
              Please use the previous external buffer!`)}else o=Qa();return this.storageCache.set(o,{gpuData:{id:o,type:0,buffer:t},originalSize:r}),se("verbose",()=>`[WebGPU] GpuDataManager.registerExternalBuffer(size=${r}) => id=${o}, registered.`),o}unregisterExternalBuffer(t){t!==void 0&&(this.storageCache.delete(t),se("verbose",()=>`[WebGPU] GpuDataManager.unregisterExternalBuffer() => id=${t}`))}create(t,r=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST){let n=lm(t),o,i=(r&GPUBufferUsage.STORAGE)===GPUBufferUsage.STORAGE,a=(r&GPUBufferUsage.UNIFORM)===GPUBufferUsage.UNIFORM;if(i||a){let c=(i?this.freeBuffers:this.freeUniformBuffers).get(n);c?c.length>0?o=c.pop():o=this.backend.device.createBuffer({size:n,usage:r}):o=this.backend.device.createBuffer({size:n,usage:r})}else o=this.backend.device.createBuffer({size:n,usage:r});let u={id:Qa(),type:0,buffer:o};return this.storageCache.set(u.id,{gpuData:u,originalSize:Number(t)}),se("verbose",()=>`[WebGPU] GpuDataManager.create(size=${t}) => id=${u.id}`),u}get(t){return this.storageCache.get(t)?.gpuData}release(t){let r=typeof t=="bigint"?Number(t):t,n=this.storageCache.get(r);if(!n){if(this.storageCache.size===0)return 0;throw new Error("releasing data does not exist")}return se("verbose",()=>`[WebGPU] GpuDataManager.release(id=${r}), gpuDataId=${n.gpuData.id}`),this.storageCache.delete(r),this.buffersPending.push(n.gpuData.buffer),n.originalSize}async download(t,r){let n=this.storageCache.get(Number(t));if(!n)throw new Error("data does not exist");await ro(this.backend,n.gpuData.buffer,n.originalSize,r)}refreshPendingBuffers(){if(this.buffersPending.length!==0)if(this.backend.sessionStatus==="default"){for(let t of this.buffersPending){let r=Za.get(t.size);if((t.usage&GPUBufferUsage.STORAGE)===GPUBufferUsage.STORAGE){let n=this.freeBuffers.get(t.size)||[];r===void 0||n.length>=r?t.destroy():n.push(t)}else if((t.usage&GPUBufferUsage.UNIFORM)===GPUBufferUsage.UNIFORM){let n=this.freeUniformBuffers.get(t.size)||[];r===void 0||n.length>=r?t.destroy():n.push(t)}else t.destroy()}this.buffersPending=[]}else{let t=this.capturedPendingBuffers.get(this.backend.currentSessionId);t||(t=[],this.capturedPendingBuffers.set(this.backend.currentSessionId,t));for(let r of this.buffersPending)t.push(r);this.buffersPending=[]}}dispose(){this.freeBuffers.forEach(t=>{t.forEach(r=>{r.destroy()})}),this.freeUniformBuffers.forEach(t=>{t.forEach(r=>{r.destroy()})}),this.storageCache.forEach(t=>{t.gpuData.buffer.destroy()}),this.capturedPendingBuffers.forEach(t=>{t.forEach(r=>{r.destroy()})}),this.storageCache=new Map,this.freeBuffers=new Map,this.freeUniformBuffers=new Map,this.capturedPendingBuffers=new Map}onCreateSession(){this.sessionCount+=1}onReleaseSession(t){let r=this.capturedPendingBuffers.get(t);r&&(r.forEach(n=>{n.destroy()}),this.capturedPendingBuffers.delete(t)),this.sessionCount-=1,this.sessionCount===0&&(se("warning",()=>"[WebGPU] Clearing webgpu buffer cache"),this.storageCache.forEach(n=>{n.gpuData.buffer.destroy()}),this.storageCache=new Map)}},Xa=(...e)=>new to(...e)});var no,J,Se=U(()=>{"use strict";no=class{constructor(t){Object.assign(this,t)}get cacheKey(){return this.key||(this.key=Object.getOwnPropertyNames(this).sort().map(t=>`${this[t]}`).join(";")),this.key}},J=e=>new no(e)});var It,io,be,Ae,N,ce,ao,Ct,He,F,Wr,P,M,es,Lr,oo,ts,ie=U(()=>{"use strict";ee();ne();It=64,io=(e,t)=>{if(t===3)throw new Error("vec3 has same alignment as vec4, use vec4 instead");switch(Number(e)){case 10:return t>1?`vec${t}<f16>`:"f16";case 1:return t>1?`vec${t}<f32>`:"f32";case 6:return t>1?`vec${t}<i32>`:"i32";case 12:return t>1?`vec${t}<u32>`:"u32";case 7:if(t>1)throw new Error("currently not supported vecX of uint64 yet");return["vec2<u32>","i32"];case 13:if(t>1)throw new Error("currently not supported vecX of uint64 yet");return["vec2<u32>","u32"];case 9:if(t!==4)throw new Error("bool must be vec4");return["u32","vec4<bool>"];case 22:return"i32";case 21:return"u32";default:throw new Error(`Unknown data type: ${e}`)}},be=(e,t=1)=>{let r=io(e,t);return typeof r=="string"?r:r[0]},Ae=(e,t=1)=>{let r=io(e,t);return typeof r=="string"?r:r[1]},N=(...e)=>{let t=[];return e.forEach(r=>{r.length!==0&&t.push({type:12,data:r},{type:12,data:k.computeStrides(r)})}),t},ce=e=>e%4===0?4:e%2===0?2:1,ao=(e="f32",t,r="0")=>!t||t===1?`${e}(${r})`:`vec${t}<${e}>(${r})`,Ct=(e,t,r)=>e==="f32"?r:t===1?`f32(${r})`:`vec${t}<f32>(${r})`,He=(e,t)=>t===4?`(${e}.x + ${e}.y + ${e}.z + ${e}.w)`:t===2?`(${e}.x + ${e}.y)`:t===3?`(${e}.x + ${e}.y + ${e}.z)`:e,F=(e,t,r,n)=>e.startsWith("uniforms.")&&r>4?typeof t=="string"?n==="f16"?`${e}[(${t}) / 8][(${t}) % 8 / 4][(${t}) % 8 % 4]`:`${e}[(${t}) / 4][(${t}) % 4]`:n==="f16"?`${e}[${Math.floor(t/8)}][${Math.floor(t%8/4)}][${t%8%4}]`:`${e}[${Math.floor(t/4)}][${t%4}]`:r>1?`${e}[${t}]`:e,Wr=(e,t,r,n,o)=>{let i=typeof r=="number",a=i?r:r.length,u=[...new Array(a).keys()],d=a<2?"u32":a<=4?`vec${a}<u32>`:`array<u32, ${a}>`,c=io(t,o),p=typeof c=="string"?c:c[1],m=typeof c=="string"?c:c[0],f={indices:d,value:p,storage:m,tensor:t},b=C=>typeof C=="string"?C:`${C}u`,g={offsetToIndices:!1,indicesToOffset:!1,broadcastedIndicesToOffset:!1,set:!1,setByIndices:!1,get:!1,getByIndices:!1},_=i?"uniforms.":"",S=`${_}${e}_shape`,$=`${_}${e}_strides`,v="";for(let C=0;C<a-1;C++)v+=`
     let dim${C} = current / ${F($,C,a)};
     let rest${C} = current % ${F($,C,a)};
@@ -41974,6 +41975,11 @@ const WorkerEventNames = Object.freeze({
     GENERATING: 'generating',
     IDLE: 'idle',
     WORKER_ENV_READY: 'workerEnvReady',
+    INIT: 'init',
+    GENERATE: 'generate',
+    RESET: 'reset',
+    SET_BASE_URL: 'setBaseUrl',
+    SET_ENV_CONFIG: 'setEnvConfig',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -42124,63 +42130,99 @@ var __webpack_exports__ = {};
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./assets/onnxruntime-web/transformers */ "./src/assets/onnxruntime-web/transformers.js");
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
-/// <reference lib="dom" />
+const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
+let hasWebGPU = _isNavigatorGpuAvailable;
+let webgpuCheckPromise = Promise.resolve();
+if (_isNavigatorGpuAvailable) {
+    webgpuCheckPromise = (async () => {
+        try {
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                console.warn('[ModelWorker] WebGPU navigator.gpu exists, but requestAdapter() returned null. WebGPU will not be used.');
+                hasWebGPU = false;
+            }
+            else {
+                console.log('[ModelWorker] WebGPU adapter successfully obtained. WebGPU is available.');
+            }
+        }
+        catch (e) {
+            console.warn('[ModelWorker] Error requesting WebGPU adapter. WebGPU will not be used.', e);
+            hasWebGPU = false;
+        }
+    })();
+}
+console.log('[ModelWorker] WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
 
 
-// --- START: Extension base URL setup ---
+_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.useBrowserCache = false;
 let EXT_BASE_URL = '';
+let extBaseUrlReadyResolve = null;
+const extBaseUrlReady = new Promise((resolve) => {
+    extBaseUrlReadyResolve = resolve;
+});
 self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'setBaseUrl') {
+    if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_BASE_URL) {
         EXT_BASE_URL = event.data.baseUrl || '';
         console.log('[ModelWorker] Received extension base URL:', EXT_BASE_URL);
+        if (extBaseUrlReadyResolve)
+            extBaseUrlReadyResolve(EXT_BASE_URL);
     }
 });
-// --- END: Extension base URL setup ---
-// --- START: Define constants for ONNX paths (using EXT_BASE_URL) ---
 const ONNX_ASSETS_ROOT_PATH = 'assets/onnxruntime-web/';
 const ONNX_WASM_FILE_NAME = 'ort-wasm-simd-threaded.jsep.wasm';
 const ONNX_LOADER_FILE_NAME = 'ort-wasm-simd-threaded.jsep.mjs';
-function getOnnxWasmFilePath() {
-    return EXT_BASE_URL + ONNX_ASSETS_ROOT_PATH + ONNX_WASM_FILE_NAME;
+async function getOnnxWasmFilePath() {
+    const baseUrl = await extBaseUrlReady;
+    return baseUrl + ONNX_ASSETS_ROOT_PATH + ONNX_WASM_FILE_NAME;
 }
-function getOnnxLoaderFilePath() {
-    return EXT_BASE_URL + ONNX_ASSETS_ROOT_PATH + ONNX_LOADER_FILE_NAME;
+async function getOnnxLoaderFilePath() {
+    const baseUrl = await extBaseUrlReady;
+    return baseUrl + ONNX_ASSETS_ROOT_PATH + ONNX_LOADER_FILE_NAME;
 }
-function getOnnxWasmRootPath() {
-    return EXT_BASE_URL + ONNX_ASSETS_ROOT_PATH;
+async function getOnnxWasmRootPath() {
+    const baseUrl = await extBaseUrlReady;
+    return baseUrl + ONNX_ASSETS_ROOT_PATH;
 }
-// --- END: Define constants for ONNX paths ---
-console.log('[ModelWorker] Initial state of env.backends.onnx:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
-console.log('[ModelWorker] Initial state of env.backends:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends, null, 2));
-// Ensure base objects exist and set crucial paths early
-if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends) {
-    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends = {};
-}
-if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx) {
-    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx = {};
-}
-// Configure env.backends.onnx.wasm (for ONNX runtime's own use, like finding the .mjs file)
-if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm) {
-    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm = {};
-}
-_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.wasmPaths = getOnnxWasmRootPath(); // CRITICAL: Set base directory for .mjs
-_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.proxy = false;
-// Configure env.backends.onnx.env.wasm (for Transformers.js layer)
-if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env) {
-    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env = {};
-}
-if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm) {
-    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm = {};
-}
-_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.wasmPaths = {
-    [ONNX_WASM_FILE_NAME]: getOnnxWasmFilePath(),
-    [ONNX_LOADER_FILE_NAME]: getOnnxLoaderFilePath(),
-};
-_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.loader = getOnnxLoaderFilePath();
-_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['webgpu', 'wasm'];
-_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.logLevel = 'verbose';
-console.log("[ModelWorker] env.backends.onnx after initial setup:", JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
-console.log("[ModelWorker] Minimal modelworker.js loaded");
+(async () => {
+    await extBaseUrlReady;
+    await webgpuCheckPromise;
+    console.log('[ModelWorker] Initial state of env.backends:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends, null, 2));
+    if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends) {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends = {};
+    }
+    if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx) {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx = {};
+    }
+    if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm) {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm = {};
+    }
+    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.wasmPaths = await getOnnxWasmRootPath();
+    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.proxy = false;
+    if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env) {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env = {};
+    }
+    if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm) {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm = {};
+    }
+    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.wasmPaths = {
+        [ONNX_WASM_FILE_NAME]: await getOnnxWasmFilePath(),
+        [ONNX_LOADER_FILE_NAME]: await getOnnxLoaderFilePath(),
+    };
+    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.loader = await getOnnxLoaderFilePath();
+    if (hasWebGPU) {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['webgpu', 'wasm'];
+        if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu) {
+            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu = {};
+        }
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu.powerPreference = 'high-performance';
+    }
+    else {
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['wasm'];
+    }
+    _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.logLevel = 'verbose';
+    console.log("[ModelWorker]  Minimal modelworker.js loaded and env.backends.onnx after initial setup:", JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
+    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_ENV_READY });
+})();
 self.addEventListener('error', function (e) {
     console.error("[ModelWorker] Global error in model-worker.js:", e);
     try {
@@ -42202,11 +42244,8 @@ self.addEventListener('unhandledrejection', function (e) {
 let pipelineInstance = null;
 let currentModel = null;
 let isModelPipelineReady = false;
-// IndexedDB-backed fetch cache for model files
 const DB_NAME = 'transformers-model-cache';
 const STORE_NAME = 'files';
-let llamaWasmPathRef = null;
-let hasWebGPU = false;
 let envConfig = {};
 function openDB() {
     return new Promise((resolve, reject) => {
@@ -42219,65 +42258,117 @@ function openDB() {
     });
 }
 async function getFromIndexedDB(url) {
+    // console.log('[ModelWorker] IndexedDB get key:', url);
     const db = await openDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const req = store.get(url);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (req.result) {
+                //console.log('[ModelWorker] Cache hit in IndexedDB for:', url);
+            }
+            else {
+                //console.log('[ModelWorker] Cache miss in IndexedDB for:', url);
+            }
+            resolve(req.result || null);
+        };
+        req.onerror = () => {
+            console.error('[ModelWorker] IndexedDB get error for:', url, req.error);
+            reject(req.error);
+        };
     });
 }
 async function saveToIndexedDB(url, blob) {
+    //console.log('[ModelWorker] IndexedDB save key:', url);
     const db = await openDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
         const req = store.put(blob, url);
-        req.onsuccess = () => resolve(undefined);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            //console.log('[ModelWorker] Saved to IndexedDB:', url);
+            resolve(undefined);
+        };
+        req.onerror = () => {
+            //console.error('[ModelWorker] IndexedDB save error for:', url, req.error);
+            reject(req.error);
+        };
     });
 }
 const originalFetch = self.fetch;
-self.fetch = async function (resource, options) {
-    if (typeof resource === 'string' && resource.includes(ONNX_WASM_FILE_NAME)) {
-        console.log(`[ModelWorker] Intercepting fetch for WASM: ${resource}, serving local: ${getOnnxWasmFilePath()}`);
-        return originalFetch.call(this, getOnnxWasmFilePath(), options);
+self.fetch = async function (input, options) {
+    let resourceUrl = undefined;
+    let isRequestObject = false;
+    if (typeof input === 'string') {
+        resourceUrl = input;
     }
-    // Model file caching logic (IndexedDB)
-    if (typeof resource === 'string' && resource.includes('/resolve/main/')) {
-        const cached = await getFromIndexedDB(resource);
-        if (cached) {
-            console.log(`[ModelWorker] Serving model file from IndexedDB: ${resource}`);
-            return new Response(cached);
-        }
-        const resp = await originalFetch(resource, options);
-        if (resp.ok) {
-            const blob = await resp.blob();
-            await saveToIndexedDB(resource, blob.slice()); // Use slice() to ensure the blob can be reused
-            console.log(`[ModelWorker] Fetched and cached model file: ${resource}`);
-            return new Response(blob, { headers: resp.headers });
-        }
-        return resp;
+    else if (input instanceof URL) {
+        resourceUrl = input.href;
     }
-    return originalFetch.call(this, resource, options);
+    else if (input instanceof Request) {
+        resourceUrl = input.url;
+        isRequestObject = true;
+    }
+    //console.log('[ModelWorker] fetch override called. Resource URL:', resourceUrl || 'N/A (Input not string, URL, or Request)', 'Input type:', typeof input);
+    if (isRequestObject) {
+        //console.log('[ModelWorker] Input was a Request object:', input);
+    }
+    if (resourceUrl && resourceUrl.includes(ONNX_WASM_FILE_NAME)) {
+        //console.log(`[ModelWorker] Intercepting fetch for WASM: ${resourceUrl}, serving local: ${await getOnnxWasmFilePath()}`);
+        const wasmPath = await getOnnxWasmFilePath();
+        return originalFetch.call(self, isRequestObject ? new Request(wasmPath, input) : wasmPath, options);
+    }
+    if (resourceUrl) {
+        //console.log('[ModelWorker] Potentially interceptable non-WASM fetch. URL:', resourceUrl);
+        if (resourceUrl.includes('/resolve/main/') || resourceUrl.includes('/resolve/')) {
+            // console.log('[ModelWorker] Matched model file pattern (/resolve/main/ or /resolve/). Attempting IndexedDB for URL:', resourceUrl);
+            try {
+                const cached = await getFromIndexedDB(resourceUrl);
+                if (cached) {
+                    //console.log(`[ModelWorker] Serving model file from IndexedDB: ${resourceUrl}`);
+                    const headers = new Headers();
+                    if (cached.type) {
+                        headers.set('Content-Type', cached.type);
+                    }
+                    else if (resourceUrl.endsWith('.json')) {
+                        headers.set('Content-Type', 'application/json');
+                    }
+                    else {
+                        headers.set('Content-Type', 'application/octet-stream');
+                    }
+                    headers.set('Content-Length', cached.size.toString());
+                    //console.log(`[ModelWorker] Serving from IDB with headers: Content-Type: ${headers.get('Content-Type')}, Content-Length: ${headers.get('Content-Length')}`);
+                    return new Response(cached, { headers: headers });
+                }
+            }
+            catch (dbError) {
+                console.error('[ModelWorker] Error reading from IndexedDB, proceeding to network fetch:', dbError);
+            }
+            // console.log(`[ModelWorker] Downloading model file from network: ${resourceUrl}`);
+            const resp = await originalFetch.call(self, input, options);
+            if (resp.ok) {
+                const blob = await resp.clone().blob();
+                try {
+                    await saveToIndexedDB(resourceUrl, blob);
+                    //console.log(`[ModelWorker] Fetched and cached model file to IndexedDB: ${resourceUrl}`);
+                }
+                catch (dbError) {
+                    // console.error('[ModelWorker] Error saving to IndexedDB:', dbError);
+                }
+                return resp;
+            }
+            return resp;
+        }
+        else {
+            console.log('[ModelWorker] URL did not match model pattern (/resolve/main/ or /resolve/):', resourceUrl);
+        }
+    }
+    else {
+        console.log('[ModelWorker] fetch override: resourceUrl could not be determined. Passing through.');
+    }
+    return originalFetch.call(self, input, options);
 };
-if (typeof self.importScripts === 'function') {
-    const origImportScripts = self.importScripts;
-    self.importScripts = function (...urls) {
-        const patchedUrls = urls.map((url) => typeof url === 'string' && url.includes(ONNX_LOADER_FILE_NAME) ? getOnnxLoaderFilePath() : url);
-        console.log('[ModelWorker] importScripts called with patched URLs:', patchedUrls);
-        return origImportScripts.apply(this, patchedUrls);
-    };
-}
-try {
-    console.log(`[ModelWorker] Attempting to importScripts: ${getOnnxLoaderFilePath()}`);
-    self.importScripts(getOnnxLoaderFilePath());
-    console.log(`[ModelWorker] Successfully imported ${getOnnxLoaderFilePath()}`);
-}
-catch (e) {
-    console.warn(`[ModelWorker] Failed to importScripts ${getOnnxLoaderFilePath()} (may be normal if already loaded or not needed by direct importScripts):`, e);
-}
 async function setupOnnxWasmPathsHardcoded() {
     try {
         if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends) {
@@ -42289,7 +42380,7 @@ async function setupOnnxWasmPathsHardcoded() {
         if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm) {
             _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm = {};
         }
-        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.wasmPaths = getOnnxWasmRootPath();
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.wasmPaths = await getOnnxWasmRootPath();
         _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm.proxy = false;
         if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env) {
             _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env = {};
@@ -42298,10 +42389,20 @@ async function setupOnnxWasmPathsHardcoded() {
             _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm = {};
         }
         _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.wasmPaths = {
-            [ONNX_WASM_FILE_NAME]: getOnnxWasmFilePath(),
-            [ONNX_LOADER_FILE_NAME]: getOnnxLoaderFilePath()
+            [ONNX_WASM_FILE_NAME]: await getOnnxWasmFilePath(),
+            [ONNX_LOADER_FILE_NAME]: await getOnnxLoaderFilePath()
         };
-        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.loader = getOnnxLoaderFilePath();
+        _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm.loader = await getOnnxLoaderFilePath();
+        if (hasWebGPU) {
+            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['webgpu', 'wasm'];
+            if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu) {
+                _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu = {};
+            }
+            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.webgpu.powerPreference = 'high-performance';
+        }
+        else {
+            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['wasm'];
+        }
         console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.wasm:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm, null, 2));
         console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.env.wasm:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm, null, 2));
     }
@@ -42309,29 +42410,38 @@ async function setupOnnxWasmPathsHardcoded() {
         console.warn('[ModelWorker] Failed to re-affirm hardcoded ONNX WASM/loader config:', err);
     }
 }
-async function initWorker({ wasmBase, llamaWasmPath, allowRemoteModels, allowLocalModels, localModelPath, device, useWebGPU, dtype, quantized }) {
-    try {
-        console.log('[ModelWorker] initWorker called with wasmBase:', wasmBase);
-        await setupOnnxWasmPathsHardcoded();
-        llamaWasmPathRef = llamaWasmPath;
-        hasWebGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
-        if (typeof allowRemoteModels === 'boolean')
-            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels = allowRemoteModels;
-        if (typeof allowLocalModels === 'boolean')
-            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels = allowLocalModels;
-        if (localModelPath)
-            _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.localModelPath = localModelPath;
-        envConfig = { device, useWebGPU, dtype, quantized };
-        console.log('[ModelWorker] env.backends.onnx after initWorker:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
-        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_ENV_READY, payload: { gpu: hasWebGPU, llamaWasmPath: llamaWasmPathRef } });
-    }
-    catch (error) {
-        console.error("[ModelWorker] initWorker failed:", error);
-        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `initWorker failed: ${error.message}` });
+function mapQuantToDtype(quant) {
+    switch (quant) {
+        case 'auto':
+            return 'auto';
+        case 'fp32':
+        case 'float32':
+            return 'fp32';
+        case 'fp16':
+        case 'float16':
+            return 'fp16';
+        case 'int8':
+        case 'q8':
+            return 'int8';
+        case 'uint8':
+            return 'uint8';
+        case 'q4':
+        case 'int4':
+            return 'q4';
+        case 'q4f16':
+            return 'q4f16';
+        case 'bnb4':
+        case 'nf4':
+            return quant;
+        case 'q6_k':
+            return 'q6_k';
+        default:
+            return quant;
     }
 }
 async function loadPipeline(payload) {
-    const { modelId } = payload;
+    await webgpuCheckPromise;
+    const { modelId, onnxFile: quantization } = payload;
     console.log('[ModelWorker] Re-affirming ONNX paths before pipeline call.');
     await setupOnnxWasmPathsHardcoded();
     const envLog = {
@@ -42346,62 +42456,218 @@ async function loadPipeline(payload) {
     };
     console.log('[ModelWorker] loadPipeline environment (pretty):', JSON.stringify(envLog, null, 2));
     let resolvedDevice = envConfig.device;
-    if (!resolvedDevice && envConfig.useWebGPU && hasWebGPU) {
+    if (!resolvedDevice && hasWebGPU) {
         resolvedDevice = 'webgpu';
+        console.log('[ModelWorker] Auto-selecting WebGPU as device');
     }
     const modelArg = modelId;
-    const options = {
+    let quantTried = quantization;
+    let fallbackUsed = false;
+    let options = {
         progress_callback: (data) => {
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: data });
         }
     };
-    if (resolvedDevice)
+    if (resolvedDevice) {
         options.device = resolvedDevice;
+        console.log('[ModelWorker] Setting device to:', resolvedDevice);
+    }
     if (envConfig.dtype)
         options.dtype = envConfig.dtype;
     if (envConfig.quantized !== undefined)
         options.quantized = envConfig.quantized;
+    if (quantization && quantization !== 'auto') {
+        options.quant = quantization;
+        options.dtype = mapQuantToDtype(quantization);
+    }
+    else {
+        options.dtype = 'auto';
+    }
+    if (hasWebGPU && resolvedDevice === 'webgpu') {
+        options.execution_providers = ['webgpu', 'wasm'];
+    }
+    console.log(`[ModelWorker] Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
     const pipelineLog = {
         pipelineType: typeof _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline,
         modelArg,
         options,
-        env: JSON.parse(JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env)), // Deep copy for logging
-        currentEnvOnnx: JSON.parse(JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx)) // Deep copy for logging
+        env: JSON.parse(JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env)),
+        currentEnvOnnx: JSON.parse(JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx))
     };
     console.log('[ModelWorker][DEBUG] About to call pipeline (pretty):', JSON.stringify(pipelineLog, null, 2));
+    let actualExecutionProvider = 'unknown';
+    let providerNote = undefined;
     try {
         pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', modelArg, options);
         currentModel = modelId;
         isModelPipelineReady = true;
-        self.postMessage({ type: 'WORKER_READY', payload: { modelId, task: 'text-generation' } });
+        console.log('[ModelWorker] pipelineInstance after creation:', pipelineInstance);
+        if (pipelineInstance) {
+            if (pipelineInstance.device && typeof pipelineInstance.device === 'string') {
+                actualExecutionProvider = pipelineInstance.device;
+            }
+            else if (pipelineInstance.model && pipelineInstance.model.session) {
+                const session = pipelineInstance.model.session;
+                if (session.executionProviders && Array.isArray(session.executionProviders) && session.executionProviders.length > 0) {
+                    actualExecutionProvider = session.executionProviders[0];
+                }
+                else if (session.providerName && typeof session.providerName === 'string') {
+                    actualExecutionProvider = session.providerName;
+                }
+                else if (session.handler && session.handler.backend && typeof session.handler.backend === 'string') {
+                    actualExecutionProvider = session.handler.backend;
+                }
+            }
+        }
+        // Normalize provider string
+        actualExecutionProvider = (actualExecutionProvider || 'unknown').toLowerCase().trim();
+        if (actualExecutionProvider === 'unknown' || actualExecutionProvider === 'cpu') {
+            if (resolvedDevice === 'webgpu' && hasWebGPU) {
+                actualExecutionProvider = 'wasm';
+                providerNote = 'WebGPU was requested but WASM was used. This may be due to a backend limitation or model incompatibility.';
+            }
+            else {
+                actualExecutionProvider = 'wasm';
+            }
+        }
+        else if (actualExecutionProvider.includes('webgpu')) {
+            actualExecutionProvider = 'webgpu';
+        }
+        else if (actualExecutionProvider.includes('wasm')) {
+            actualExecutionProvider = 'wasm';
+        }
+        console.log(`[ModelWorker] Successfully loaded pipeline. Actual execution provider: ${actualExecutionProvider}`);
+        if (providerNote) {
+            console.warn('[ModelWorker] Provider note:', providerNote);
+        }
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
+            payload: {
+                modelId,
+                onnxFile: quantTried,
+                task: 'text-generation',
+                fallback: fallbackUsed,
+                executionProvider: actualExecutionProvider,
+                providerNote
+            }
+        });
     }
     catch (err) {
-        console.error('[ModelWorker][ERROR] pipeline() call failed:', err);
-        console.error('[ModelWorker][ERROR] env.backends.onnx at time of failure:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
-        throw err; // Rethrow to be caught by the onmessage handler
+        console.error('[ModelWorker][ERROR] pipeline() call failed for quant', quantTried, ':', err);
+        if (quantization && quantization !== 'auto') {
+            try {
+                fallbackUsed = true;
+                quantTried = 'auto';
+                delete options.quant;
+                options.dtype = 'auto';
+                pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', modelArg, options);
+                currentModel = modelId;
+                isModelPipelineReady = true;
+                self.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
+                    payload: {
+                        modelId,
+                        onnxFile: quantTried,
+                        task: 'text-generation',
+                        fallback: fallbackUsed,
+                        requestedQuant: quantization,
+                        executionProvider: actualExecutionProvider
+                    }
+                });
+                return;
+            }
+            catch (fallbackErr) {
+                console.error('[ModelWorker][ERROR] pipeline() fallback to auto failed:', fallbackErr);
+                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quantization} and fallback quant auto` });
+                return;
+            }
+        }
+        if (resolvedDevice === 'webgpu' && hasWebGPU) {
+            try {
+                console.log('[ModelWorker] WebGPU failed, trying WASM fallback...');
+                fallbackUsed = true;
+                delete options.device;
+                delete options.execution_providers;
+                pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', modelArg, options);
+                currentModel = modelId;
+                isModelPipelineReady = true;
+                actualExecutionProvider = 'wasm (WebGPU fallback)';
+                self.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
+                    payload: {
+                        modelId,
+                        onnxFile: quantTried,
+                        task: 'text-generation',
+                        fallback: fallbackUsed,
+                        executionProvider: actualExecutionProvider
+                    }
+                });
+                return;
+            }
+            catch (wasmErr) {
+                console.error('[ModelWorker][ERROR] WASM fallback also failed:', wasmErr);
+            }
+        }
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quantization || 'default'}` });
+    }
+    console.log('[ModelWorker] pipelineInstance:', pipelineInstance);
+    if (pipelineInstance.device) {
+        console.log('[ModelWorker] Actual device/provider used (pipelineInstance.device):', pipelineInstance.device);
+    }
+    if (pipelineInstance.model) {
+        console.log('[ModelWorker] pipelineInstance.model:', pipelineInstance.model);
+        if (pipelineInstance.model.session) {
+            console.log('[ModelWorker] pipelineInstance.model.session:', pipelineInstance.model.session);
+            if ('executionProvider' in pipelineInstance.model.session) {
+                console.log('[ModelWorker] Actual executionProvider (model.session.executionProvider):', pipelineInstance.model.session.executionProvider);
+            }
+            if ('_backend' in pipelineInstance.model.session) {
+                console.log('[ModelWorker] Backend (model.session._backend):', pipelineInstance.model.session._backend);
+            }
+            if ('executionProviders' in pipelineInstance.model.session) {
+                console.log('[ModelWorker] Available executionProviders:', pipelineInstance.model.session.executionProviders);
+            }
+        }
+    }
+    if (pipelineInstance.session) {
+        console.log('[ModelWorker] pipelineInstance.session:', pipelineInstance.session);
+        if ('executionProvider' in pipelineInstance.session) {
+            console.log('[ModelWorker] Actual executionProvider (session.executionProvider):', pipelineInstance.session.executionProvider);
+        }
+        if ('_backend' in pipelineInstance.session) {
+            console.log('[ModelWorker] Backend (session._backend):', pipelineInstance.session._backend);
+        }
     }
 }
 self.onmessage = async (event) => {
     const { type, payload } = (event.data || {});
     switch (type) {
-        case 'init': {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_BASE_URL: {
+            return;
+        }
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_ENV_CONFIG: {
+            envConfig = { ...envConfig, ...payload };
+            console.log('[ModelWorker] Environment config updated:', envConfig);
+            break;
+        }
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INIT: {
             try {
                 if (currentModel !== payload.modelId || !isModelPipelineReady) {
                     isModelPipelineReady = false;
                     await loadPipeline(payload);
                 }
                 else {
-                    self.postMessage({ type: 'WORKER_READY', payload: { modelId: payload.modelId, task: payload.task || 'text-generation' } });
+                    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY, payload: { modelId: payload.modelId, onnxFile: payload.onnxFile, task: payload.task || 'text-generation', fallback: false } });
                 }
             }
             catch (error) {
-                self.postMessage({ type: 'ERROR', payload: error instanceof Error ? error.message : String(error) });
+                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: error instanceof Error ? error.message : String(error) });
             }
             break;
         }
-        case 'generate': {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATE: {
             if (!isModelPipelineReady || !pipelineInstance) {
-                self.postMessage({ type: 'GENERATION_ERROR', payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
+                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
                 return;
             }
             try {
@@ -42420,7 +42686,7 @@ self.onmessage = async (event) => {
                     text = JSON.stringify(result);
                 }
                 self.postMessage({
-                    type: 'GENERATION_COMPLETE',
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_COMPLETE,
                     payload: {
                         chatId: payload.chatId,
                         messageId: payload.messageId,
@@ -42430,7 +42696,7 @@ self.onmessage = async (event) => {
             }
             catch (error) {
                 self.postMessage({
-                    type: 'GENERATION_ERROR',
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR,
                     payload: {
                         error: error instanceof Error ? error.message : String(error),
                         chatId: payload.chatId,
@@ -42440,19 +42706,15 @@ self.onmessage = async (event) => {
             }
             break;
         }
-        case 'reset': {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET: {
             pipelineInstance = null;
             currentModel = null;
             isModelPipelineReady = false;
-            self.postMessage({ type: 'RESET_COMPLETE' });
-            break;
-        }
-        case 'initWorker': {
-            initWorker(payload);
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET_COMPLETE });
             break;
         }
         default: {
-            self.postMessage({ type: 'ERROR', payload: `Unknown message type: ${type}` });
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
             break;
         }
     }

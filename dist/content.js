@@ -13,7 +13,8 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 		__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
 		(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
 		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
-  } else { var mod; }
+  } else // removed by dead control flow
+{ var mod; }
 })(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : this, function (module) {
   /* webextension-polyfill - v0.12.0 - Tue May 14 2024 18:01:29 */
   /* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
@@ -1778,6 +1779,11 @@ const WorkerEventNames = Object.freeze({
     GENERATING: 'generating',
     IDLE: 'idle',
     WORKER_ENV_READY: 'workerEnvReady',
+    INIT: 'init',
+    GENERATE: 'generate',
+    RESET: 'reset',
+    SET_BASE_URL: 'setBaseUrl',
+    SET_ENV_CONFIG: 'setEnvConfig',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

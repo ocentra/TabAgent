@@ -61,6 +61,11 @@ const WorkerEventNames = Object.freeze({
     GENERATING: 'generating',
     IDLE: 'idle',
     WORKER_ENV_READY: 'workerEnvReady',
+    INIT: 'init',
+    GENERATE: 'generate',
+    RESET: 'reset',
+    SET_BASE_URL: 'setBaseUrl',
+    SET_ENV_CONFIG: 'setEnvConfig',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

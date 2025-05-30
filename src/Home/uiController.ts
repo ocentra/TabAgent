@@ -340,7 +340,49 @@ export function getCurrentlySelectedModel(): { modelId: string | null; onnxFile:
     };
 }
 
+// Known quantization/precision formats for transformers.js/ONNX:
+// fp32, float32, fp16, float16, int8, q8, q4, q4f16, bnb4, uint8, int4, nf4, q6_k
 
+const QUANT_OPTIONS = [
+  { value: 'auto', label: 'Auto (Let backend decide)' },
+  { value: 'fp32', label: 'FP32 (Full Precision)' },
+  { value: 'float32', label: 'FLOAT32 (Full Precision)' },
+  { value: 'fp16', label: 'FP16 (Half Precision)' },
+  { value: 'float16', label: 'FLOAT16 (Half Precision)' },
+  { value: 'int8', label: 'INT8 (8-bit Quantized)' },
+  { value: 'q8', label: 'Q8 (8-bit Quantized)' },
+  { value: 'uint8', label: 'UINT8 (8-bit Quantized, Unsigned)' },
+  { value: 'q4', label: 'Q4 (4-bit Quantized)' },
+  { value: 'int4', label: 'INT4 (4-bit Quantized)' },
+  { value: 'q4f16', label: 'Q4F16 (4-bit Quantized, F16)' },
+  { value: 'bnb4', label: 'BNB4 (4-bit Quantized, BNB)' },
+  { value: 'nf4', label: 'NF4 (4-bit Quantized, NormalFloat4)' },
+  { value: 'q6_k', label: 'Q6_K (6-bit Quantized, K)' }
+];
+
+export function normalizeQuant(quantDisplay: string): string {
+  const map: Record<string, string> = {
+    'auto': 'auto',
+    'fp32': 'fp32',
+    'float32': 'fp32',
+    'fp16': 'fp16',
+    'float16': 'fp16',
+    'int8': 'int8',
+    'q8': 'int8',
+    'uint8': 'uint8',
+    'q4': 'q4',
+    'int4': 'q4',
+    'q4f16': 'q4f16',
+    'bnb4': 'bnb4',
+    'nf4': 'nf4',
+    'q6_k': 'q6_k',
+  };
+  // Try direct match
+  if (map[quantDisplay.toLowerCase()]) return map[quantDisplay.toLowerCase()];
+  // Try to extract value from label (e.g., "FP32 (Full Precision)")
+  const key = quantDisplay.toLowerCase().split(' ')[0].replace(/[^a-z0-9_]/g, '');
+  return map[key] || key;
+}
 
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
     console.log("[UIController] Initializing...");
@@ -433,13 +475,7 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     // Populate ONNX variant selector statically
     if (onnxVariantSelectorDropdown) {
         onnxVariantSelectorDropdown.innerHTML = '';
-        const quantOptions = [
-            { value: 'fp32', label: 'FP32 (Full Precision)' },
-            { value: 'int8', label: 'INT8 (8-bit Quantized)' },
-            { value: 'q4', label: 'Q4 (4-bit Quantized)' },
-            { value: 'q6_k', label: 'Q6_K (6-bit Quantized, K)' }
-        ];
-        for (const opt of quantOptions) {
+        for (const opt of QUANT_OPTIONS) {
             const option = document.createElement('option');
             option.value = opt.value;
             option.textContent = opt.label;

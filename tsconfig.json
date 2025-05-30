@@ -13,7 +13,8 @@
     "lib": ["ESNext", "DOM"],
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "allowJs": true
+    "allowJs": true,
+    "outDir": "dist"
   },
   "include": [
     "src/**/*.ts"

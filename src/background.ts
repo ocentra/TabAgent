@@ -1,6 +1,5 @@
 import browser from 'webextension-polyfill';
 import { WorkerEventNames,
-    ModelWorkerStates, 
     RuntimeMessageTypes,   
     ModelLoaderMessageTypes,
     RawDirectMessageTypes,
@@ -16,13 +15,10 @@ let popupIdToTabId: { [popupId: number]: string } = {}; // Popup WindowId to Ori
 const DNR_RULE_ID_1 = 1;
 const DNR_RULE_PRIORITY_1 = 1;
 
-let globalModelWorkerActiveState = ModelWorkerStates.UNINITIALIZED; // Conceptual state
-let currentActiveModelIdInSidePanel: string | null = null; // Tracks modelId believed to be in sidepanel's worker
-
 let currentLogSessionId: string | null = null;
 let previousLogSessionId: string | null = null;
 
-let background_lastLoggedProgress: number = -1; // For model pipeline loading progress
+
 
 async function initializeSessionIds() {
     let { currentLogSessionId: storedCurrentId, previousLogSessionId: storedPreviousId } = await browser.storage.local.get(['currentLogSessionId', 'previousLogSessionId']);

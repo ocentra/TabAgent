@@ -18,8 +18,8 @@ import {
   clearInput,
   focusInput,
   setActiveSession,
-  getCurrentlySelectedModel ,
-
+  getCurrentlySelectedModel,
+  normalizeQuant,
 } from './Home/uiController';
 import { getActiveTab, showError as utilShowError, debounce } from './Utilities/generalUtils';
 import { showNotification } from './notifications';
@@ -64,8 +64,28 @@ let modelWorker: Worker | null = null;
 let currentModelIdInWorker: string | null = null;
 let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady: boolean = false;
-// --- Global Setup ---
-// Set EXTENSION_CONTEXT based on URL query string
+
+// Track the currently loaded model and quant (onnx variant)
+let currentLoadedModel: { modelId: string | null, onnxFile: string | null } = { modelId: null, onnxFile: null };
+
+function syncToggleLoadButton() {
+  const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
+  const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+  const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement | null;
+  if (!modelDropdown || !quantDropdown || !loadBtn) return;
+  const selectedModelId = modelDropdown.value;
+  const selectedQuant = quantDropdown.value;
+  if (
+    selectedModelId === currentLoadedModel.modelId &&
+    selectedQuant === currentLoadedModel.onnxFile &&
+    selectedModelId && selectedQuant
+  ) {
+    loadBtn.style.display = 'none';
+  } else {
+    loadBtn.style.display = '';
+  }
+}
+
 (function () {
   try {
     const urlParams = new URLSearchParams(window.location.search);
@@ -79,7 +99,7 @@ let isModelWorkerEnvReady: boolean = false;
         : Contexts.MAIN_UI;
   } catch (e) {
     window.EXTENSION_CONTEXT = Contexts.UNKNOWN;
-    console.error('[Sidepanel] Error setting EXTENSION_CONTEXT:', e);
+    console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
   }
 })();
 
@@ -91,13 +111,13 @@ if (window.marked) {
         try {
           return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
         } catch (e) {
-          console.error('hljs error:', e);
+          console.error(`${prefix} hljs error:`, e);
         }
       } else if (window.hljs) {
         try {
           return window.hljs.highlightAuto(code).value;
         } catch (e) {
-          console.error('hljs auto error:', e);
+          console.error(`${prefix} hljs auto error:`, e);
         }
       }
       const escapeHtml = (htmlStr: string) =>
@@ -113,12 +133,12 @@ if (window.marked) {
     gfm: true,
     breaks: true,
   });
-  console.log('[Sidepanel] Marked globally configured to use highlight.');
+  console.log(`${prefix} Marked globally configured to use highlight.`);
 } else {
-  console.error('[Sidepanel] Marked library (window.marked) not found.');
+  console.error(`${prefix} Marked library (window.marked) not found.`);
 }
 
-// --- DB and Channel Utilities ---
+
 function isDbRequest(type: string) {
   return typeof type === 'string' && type.endsWith('_REQUEST');
 }
@@ -128,19 +148,19 @@ function isDbLocalContext() {
 }
 
 async function sendDbRequestSmart(request: any) {
-  console.log('[Sidepanel][DB][LOG] sendDbRequestSmart called', { request });
+  console.log(`${prefix} sendDbRequestSmart called`, { request });
   let response;
   if (isDbLocalContext()) {
     response = await forwardDbRequest(request);
-    console.log('[Sidepanel][DB][LOG] sendDbRequestSmart got local response', { response });
+    console.log(`${prefix} sendDbRequestSmart got local response`, { response });
   } else {
     response = await browser.runtime.sendMessage(request);
-    console.log('[Sidepanel][DB][LOG] sendDbRequestSmart got remote response', { response });
+    console.log(`${prefix} sendDbRequestSmart got remote response`, { response });
   }
   return response;
 }
 
-// Re-add: fire-and-forget DB request via channel (for logs)
+
 function sendDbRequestViaChannel(request: any) {
   dbChannel.postMessage(request);
 }
@@ -164,7 +184,7 @@ function requestDbAndWait(requestEvent: any) {
   });
 }
 
-// --- Logging ---
+
 function bufferOrWriteLog(logPayload: any) {
   if (!isDbReady) {
     if (logQueue.length >= LOG_QUEUE_MAX) {
@@ -184,14 +204,60 @@ logChannel.onmessage = (event) => {
   }
 };
 
-// --- UI and Worker Utilities ---
 
+
+
+function showDeviceBadge(executionProvider: string | null, providerNote?: string | null) {
+  let badge = document.getElementById('device-badge');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'device-badge';
+    badge.style.display = 'inline-block';
+    badge.style.marginLeft = '12px';
+    badge.style.padding = '2px 10px';
+    badge.style.border = '2px solid #888';
+    badge.style.borderRadius = '8px';
+    badge.style.fontWeight = 'bold';
+    badge.style.fontSize = '0.95em';
+    badge.style.background = '#f8f8f8';
+    badge.style.color = executionProvider && executionProvider.includes('webgpu') ? '#1a7f37' : '#333';
+    badge.style.borderColor = executionProvider && executionProvider.includes('webgpu') ? '#1a7f37' : '#888';
+    badge.style.verticalAlign = 'middle';
+    badge.style.transition = 'all 0.2s';
+    const loadBtn = document.getElementById('load-model-button');
+    if (loadBtn && loadBtn.parentNode) {
+      loadBtn.parentNode.insertBefore(badge, loadBtn.nextSibling);
+    } else {
+      document.body.appendChild(badge);
+    }
+  }
+  if (!executionProvider) {
+    badge.textContent = 'Unknown';
+  } else if (executionProvider.includes('webgpu')) {
+    badge.textContent = 'GPU (WebGPU)';
+  } else if (executionProvider.includes('wasm')) {
+    badge.textContent = 'CPU (WASM)';
+  } else {
+    badge.textContent = executionProvider;
+  }
+  badge.style.display = '';
+  badge.title = providerNote || '';
+}
+
+function hideDeviceBadge() {
+  const badge = document.getElementById('device-badge');
+  if (badge) badge.style.display = 'none';
+}
 
 function handleModelWorkerMessage(event: MessageEvent) {
   const { type, payload } = event.data;
  // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
 
-  // Update state based on worker messages
+  // For use in WORKER_READY case
+  const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
+  const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+  const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement | null;
+
   switch (type) {
       case WorkerEventNames.WORKER_SCRIPT_READY:
           modelWorkerState = WorkerEventNames.WORKER_SCRIPT_READY;
@@ -204,37 +270,48 @@ function handleModelWorkerMessage(event: MessageEvent) {
       case WorkerEventNames.LOADING_STATUS:
           modelWorkerState = WorkerEventNames.LOADING_MODEL;
           console.log(`${prefix} Worker loading status:`, payload);
-          // In a LATER STEP, we'll call uiController.updateMainProgressBar here
           break;
       case WorkerEventNames.WORKER_READY:
           modelWorkerState = WorkerEventNames.MODEL_READY;
           currentModelIdInWorker = payload.modelId;
-          console.log(`${prefix} Model worker is ready with model: ${payload.modelId}`);
-          utilShowError(`Model ${payload.modelId} loaded successfully!`);
-          // In a LATER STEP, we'll call uiController.setQueryInputState(true) and uiController.hideMainProgressBar()
+          currentLoadedModel = {
+            modelId: payload.modelId,
+            onnxFile: payload.onnxFile || (quantDropdown ? quantDropdown.value : null)
+          };
+          syncToggleLoadButton();
+          if (loadBtn) loadBtn.style.display = 'none';
+          showDeviceBadge(payload.executionProvider, payload.providerNote);
+          if (payload.providerNote) {
+            utilShowError(payload.providerNote);
+          }
+          if (payload.fallback) {
+            let msg = `Requested quantization '${payload.requestedQuant}' not available. Loaded with '${payload.onnxFile}' instead.`;
+            utilShowError(msg);
+          } else {
+            console.log(`${prefix} Model ${payload.modelId} loaded successfully!`);
+          }
+          console.log(`${prefix} Model worker is ready with model: ${payload.modelId}, quant: ${payload.onnxFile}, fallback: ${payload.fallback}, executionProvider: ${payload.executionProvider}, providerNote: ${payload.providerNote}`);
           break;
       case WorkerEventNames.ERROR:
           modelWorkerState = WorkerEventNames.ERROR;
           isModelWorkerEnvReady = false;
+          hideDeviceBadge();
           console.error(`${prefix} Model worker reported an error:`, payload);
           utilShowError(`Worker Error: ${payload}`);
-          currentModelIdInWorker = null; // Clear model ID on error
-          // In a LATER STEP, we'll update UI progress bar and input state
+          currentModelIdInWorker = null; 
           break;
       case WorkerEventNames.RESET_COMPLETE:
           modelWorkerState = WorkerEventNames.UNINITIALIZED;
           isModelWorkerEnvReady = false;
           currentModelIdInWorker = null;
+          hideDeviceBadge();
           console.log(`${prefix} Model worker reset complete.`);
           break;
       case UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
-          // Forward to UI event system so UI progress bar updates
           document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
           break;
-      case 'GENERATION_COMPLETE': {
-          // Log the payload for debugging
-          console.log('[Sidepanel] GENERATION_COMPLETE payload:', payload);
-          // Extract only the assistant's reply if payload.text is an array
+      case WorkerEventNames.GENERATION_COMPLETE: {
+          console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
           let aiReply = '';
           if (Array.isArray(payload.text)) {
               const assistantMsg = payload.text.find((m: any) => m.role === 'assistant');
@@ -244,7 +321,6 @@ function handleModelWorkerMessage(event: MessageEvent) {
           } else {
               aiReply = JSON.stringify(payload.text);
           }
-          // Forward to orchestrator to update DB and UI
           document.dispatchEvent(new CustomEvent(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
               detail: {
                   chatId: payload.chatId,
@@ -254,8 +330,7 @@ function handleModelWorkerMessage(event: MessageEvent) {
           }));
           break;
       }
-      case 'GENERATION_ERROR':
-          // Forward error to orchestrator to update DB and UI
+      case WorkerEventNames.GENERATION_ERROR:
           document.dispatchEvent(new CustomEvent(UIEventNames.BACKGROUND_ERROR_RECEIVED, {
               detail: {
                   chatId: payload.chatId,
@@ -264,7 +339,6 @@ function handleModelWorkerMessage(event: MessageEvent) {
               }
           }));
           break;
-      // GENERATION messages will be handled later when we integrate chat
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
   }
@@ -320,14 +394,9 @@ function initializeModelWorker() {
       utilShowError(`Failed to initialize model worker: ${(error as Error).message}`);
   }
 
-    // Send environment setup to model worker (do not load model yet)
     if (modelWorker && modelWorkerState !== WorkerEventNames.ERROR) {
-      const wasmBase = browser.runtime.getURL('assets/');
-      const llamaWasmPath = browser.runtime.getURL('wasm/llama_bitnet_inference.wasm');
-      // Pass the extension base URL for asset resolution
       const extensionBaseUrl = browser.runtime.getURL('');
-      modelWorker.postMessage({ type: 'setBaseUrl', baseUrl: extensionBaseUrl });
-      modelWorker.postMessage({ type: 'initWorker', payload: { wasmBase, llamaWasmPath } });
+      modelWorker.postMessage({ type: WorkerEventNames.SET_BASE_URL, baseUrl: extensionBaseUrl });
     }
 }
 
@@ -340,15 +409,13 @@ function terminateModelWorker() {
   currentModelIdInWorker = null;
   modelWorkerState = WorkerEventNames.UNINITIALIZED;
   isModelWorkerEnvReady = false;
-
+  hideDeviceBadge();
   console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
 }
 
 function sendToModelWorker(message: any) {
-  if (!modelWorker || modelWorkerState === WorkerEventNames.CREATING_WORKER && message.type !== 'init') {
-      // If worker is still being created, only allow 'init' message.
-      // Or, queue other messages if worker script isn't ready yet.
-      // For now, if not ready for general messages, show error.
+  if (!modelWorker || modelWorkerState === WorkerEventNames.CREATING_WORKER && message.type !== WorkerEventNames.INIT) {
+
       console.warn(`${prefix} Model worker not ready to receive message type '${message.type}'. State: ${modelWorkerState}`);
       utilShowError("Model worker is not ready. Please wait or try reloading.");
       return;
@@ -365,9 +432,6 @@ function sendUiEvent(type: string, payload: any) {
   browser.runtime.sendMessage({ type, payload });
 }
 
-function sendWorkerError(message: string) {
-  browser.runtime.sendMessage({ type: UIEventNames.WORKER_ERROR, payload: message });
-}
 
 function getActiveChatSessionId(): string | null {
   return activeSessionId;
@@ -415,32 +479,26 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
 
 
     if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
-        console.log('[Sidepanel][Channel][STORY] Message from another sidepanel context, ignoring', { msgSenderId, senderId });
+        console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
         return;
     }
 
-    // Filter out worker status messages that are now handled by modelWorker.onmessage
     if ([
         WorkerEventNames.WORKER_SCRIPT_READY, WorkerEventNames.WORKER_READY,
         WorkerEventNames.LOADING_STATUS, WorkerEventNames.ERROR, WorkerEventNames.RESET_COMPLETE
     ].includes(type)) {
-        // These are now directly handled by modelWorker.onmessage, no need to process here via llmChannel
-        // unless this sidepanel instance itself posted them to llmChannel for broadcast.
         return;
     }
 
-    // Re-route legacy commands or commands from other parts of UI to the new worker mechanism
     if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
         console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
         sendToModelWorker({ type: 'generate', payload });
-        // No direct response needed here for the llmChannel; worker will postMessage updates.
     } else if (type === RuntimeMessageTypes.INTERRUPT_GENERATION) {
         console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
         sendToModelWorker({ type: 'interrupt', payload });
     } else if (type === RuntimeMessageTypes.RESET_WORKER) {
         console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
         terminateModelWorker();
-        // Worker is reset. If a new model needs to be loaded, REQUEST_MODEL_EXECUTION will handle it.
         llmChannel.postMessage({ // Acknowledge the reset request
             type: RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
             payload: { success: true, message: "Worker reset." },
@@ -451,9 +509,8 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
     } else if (type === RuntimeMessageTypes.LOAD_MODEL) {
         console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
         const modelToLoad = payload.modelId || payload.model;
-        const onnxToLoad = payload.onnxFile; // Assuming payload might have this
+        const onnxToLoad = payload.onnxFile; 
         if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
-            // Dispatch the event as if it came from the UI
             document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
                 detail: { modelId: modelToLoad, onnxFile: onnxToLoad }
             }));
@@ -478,7 +535,7 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
         console.log(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
     }
 
-    console.log('[Sidepanel][Channel][STORY] onmessage END', { type, requestId, payload, msgSenderId, timestamp: Date.now() });
+    console.log(`${prefix} onmessage END`, { type, requestId, payload, msgSenderId, timestamp: Date.now() });
   };
 }
 
@@ -515,7 +572,7 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
   ) {
     // No action needed
   } else {
-    console.warn('[Sidepanel] Received unknown message type from background:', type, message);
+    console.warn(`${prefix} Received unknown message type from background:`, type, message);
   }
 
 }
@@ -528,11 +585,11 @@ async function handleSessionCreated(newSessionId: string) {
     const request = new DbGetSessionRequest(newSessionId);
     const sessionData = await requestDbAndWait(request);
     if (!(sessionData as any)?.messages) {
-      console.warn(`[Sidepanel] No messages found in session data for new session ${newSessionId}.`, sessionData);
+      console.warn(`${prefix} No messages found in session data for new session ${newSessionId}.`, sessionData);
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`[Sidepanel] Failed to fetch messages for new session ${newSessionId}:`, err);
+    console.error(`${prefix} Failed to fetch messages for new session ${newSessionId}:`, err);
     utilShowError(`Failed to load initial messages for new chat: ${err.message}`);
   }
 }
@@ -603,7 +660,7 @@ async function handleDetach() {
     }
   } catch (error) {
     const err = error as Error;
-    console.error('Error during detach:', err);
+    console.error(`${prefix} Error during detach:`, err);
     utilShowError(`Error detaching chat: ${err.message}`);
   }
 }
@@ -655,7 +712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logViewerPage) {
       logViewerPage.classList.remove('hidden');
     } else {
-      console.error('CRITICAL: #page-log-viewer element not found!');
+      console.error(`${prefix} CRITICAL: #page-log-viewer element not found!`);
       document.body.innerHTML =
         "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>";
       return;
@@ -666,7 +723,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`${prefix} Log Viewer Controller initialized.`);
     } catch (err) {
       const error = err as Error;
-      console.error('Failed to load or initialize LogViewerController:', error);
+      console.error(`${prefix} Failed to load or initialize LogViewerController:`, error);
       if (logViewerPage) {
         logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${error.message}</div>`;
       }
@@ -689,7 +746,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log(`${prefix} UI Controller Initialized.`);
 
     if (!chatBody) {
-      console.error('[Sidepanel] CRITICAL: chatBody is null before initializeRenderer!');
+      console.error(`${prefix} CRITICAL: chatBody is null before initializeRenderer!`);
       throw new Error('chatBody is null');
     }
     initializeRenderer(chatBody, requestDbAndWait);
@@ -772,12 +829,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
     document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async () => {
-      const { modelId } = getCurrentlySelectedModel();
+      const { modelId, onnxFile } = getCurrentlySelectedModel();
       if (!modelId) {
           utilShowError('No model selected.');
           return;
       }
-      // Terminate existing worker if loading a different model OR if the current worker is in an error state.
       if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === WorkerEventNames.ERROR)) {
           console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
           terminateModelWorker();
@@ -790,22 +846,33 @@ document.addEventListener('DOMContentLoaded', async () => {
           modelWorkerState = WorkerEventNames.ERROR;
           return;
       }
-      // Wait for worker environment to be ready
-      const waitForEnvReady = async () => {
+      const waitForEnvReady = async (timeoutMs = 5000) => {
         if (isModelWorkerEnvReady) return;
         console.log(`${prefix} Waiting for model worker environment to be ready...`);
+        const start = Date.now();
         while (!isModelWorkerEnvReady) {
+          if (Date.now() - start > timeoutMs) {
+            throw new Error("Timed out waiting for model worker environment to be ready.");
+          }
           await new Promise(res => setTimeout(res, 50));
         }
         console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
       };
-      await waitForEnvReady();
-      console.log(`${prefix} UI would show: Initializing worker for ${modelId}...`);
+      try {
+        await waitForEnvReady();
+      } catch (e) {
+        const err = e as Error;
+        utilShowError(err.message || "Model worker failed to initialize.");
+        return;
+      }
+      // Normalize quantization value before sending INIT
+      const quant = normalizeQuant(onnxFile || '');
+      console.log(`${prefix} UI would show: Initializing worker for ${modelId} with quant: ${quant}...`);
       modelWorkerState = WorkerEventNames.LOADING_MODEL;
       currentModelIdInWorker = modelId;
       modelWorker.postMessage({
-          type: 'init',
-          payload: { modelId }
+          type: WorkerEventNames.INIT,
+          payload: { modelId, onnxFile: quant }
       });
     });
 
@@ -828,7 +895,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     console.log(`${prefix} Drive Controller Initialized.`);
 
-    // Handle Popup Context
     const popupContext = urlParams.get('context');
     originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
     isPopup = popupContext === 'popup';
@@ -858,6 +924,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!dbInitSuccess) return;
 
     console.log(`${prefix} Initialization complete.`);
+
+    // Add listeners to dropdowns to toggle load button
+    const modelDropdownEl = document.getElementById('model-selector');
+    const quantDropdownEl = document.getElementById('onnx-variant-selector');
+    if (modelDropdownEl) {
+      modelDropdownEl.addEventListener('change', () => {
+        hideDeviceBadge();
+        syncToggleLoadButton();
+      });
+    }
+    if (quantDropdownEl) {
+      quantDropdownEl.addEventListener('change', () => {
+        hideDeviceBadge();
+        syncToggleLoadButton();
+      });
+    }
+    // Initial toggle
+    syncToggleLoadButton();
   } catch (error) {
     const err = error as Error;
     console.error(`${prefix} Initialization failed:`, err);
@@ -877,7 +961,6 @@ document.addEventListener(DbInitializationCompleteNotification.type, async (e: a
 });
 
 
-// --- Helper: Database Initialization ---
 async function initializeDatabase(): Promise<boolean> {
   try {
     const result = await autoEnsureDbInitialized();
@@ -907,7 +990,3 @@ async function initializeDatabase(): Promise<boolean> {
 
 // --- Exports ---
 export { sendDbRequestSmart, sendToModelWorker };
-
-
-
-

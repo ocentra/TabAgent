@@ -38,6 +38,11 @@ export const WorkerEventNames = Object.freeze({
   GENERATING: 'generating',
   IDLE: 'idle',
   WORKER_ENV_READY: 'workerEnvReady',
+  INIT: 'init',
+  GENERATE: 'generate',
+  RESET: 'reset',
+  SET_BASE_URL: 'setBaseUrl',
+  SET_ENV_CONFIG: 'setEnvConfig',
 });
 
 export const ModelWorkerStates = Object.freeze({
@@ -49,6 +54,7 @@ export const ModelWorkerStates = Object.freeze({
   GENERATING: 'generating',
   ERROR: 'error',
   IDLE: 'idle',
+  
 });
 
 export const RuntimeMessageTypes = Object.freeze({

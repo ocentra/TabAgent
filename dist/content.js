@@ -1747,7 +1747,6 @@ const UIEventNames = Object.freeze({
     BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
     BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
     BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
-    BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
     REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
     WORKER_READY: 'worker:ready',
     WORKER_ERROR: 'worker:error',
@@ -1755,7 +1754,6 @@ const UIEventNames = Object.freeze({
     SCRAPE_PAGE: 'SCRAPE_PAGE',
     SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
     DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-    MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
     MODEL_WORKER_LOADING_PROGRESS: 'modelWorkerLoadingProgress', // For when the worker itself is loading the model (pipeline init)
     MODEL_SELECTION_CHANGED: 'ui:modelSelectionChanged', // When model or ONNX variant dropdown changes
     REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
@@ -1784,6 +1782,7 @@ const WorkerEventNames = Object.freeze({
     RESET: 'reset',
     SET_BASE_URL: 'setBaseUrl',
     SET_ENV_CONFIG: 'setEnvConfig',
+    MANIFEST_UPDATED: 'manifestUpdated',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

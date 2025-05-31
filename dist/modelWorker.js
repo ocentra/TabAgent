@@ -2,6 +2,451 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
+/***/ "./src/DB/idbModel.ts":
+/*!****************************!*\
+  !*** ./src/DB/idbModel.ts ***!
+  \****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
+/* harmony export */   addManifestEntry: () => (/* binding */ addManifestEntry),
+/* harmony export */   fetchModelMetadataInternal: () => (/* binding */ fetchModelMetadataInternal),
+/* harmony export */   fetchRepoFiles: () => (/* binding */ fetchRepoFiles),
+/* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
+/* harmony export */   getAllManifestEntries: () => (/* binding */ getAllManifestEntries),
+/* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
+/* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
+/* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
+/* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
+/* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB)
+/* harmony export */ });
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+
+// --- Types ---
+var QuantStatus;
+(function (QuantStatus) {
+    QuantStatus["Available"] = "available";
+    QuantStatus["Downloaded"] = "downloaded";
+    QuantStatus["Failed"] = "failed";
+    QuantStatus["NotFound"] = "not_found";
+    QuantStatus["Unavailable"] = "unavailable";
+    QuantStatus["Unsupported"] = "unsupported";
+})(QuantStatus || (QuantStatus = {}));
+const prefix = '[IDBModel]';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+// Canonical opener for model cache DB
+async function openModelCacheDB() {
+    if (LOG_GENERAL)
+        console.log(prefix, '[openModelCacheDB] Opening TabAgentModels DB');
+    const dbName = _idbSchema__WEBPACK_IMPORTED_MODULE_0__.DBNames.DB_MODELS;
+    const dbConfig = _idbSchema__WEBPACK_IMPORTED_MODULE_0__.modelCacheSchema[dbName];
+    const storeNames = Object.keys(dbConfig.stores);
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(dbName, dbConfig.version);
+        req.onupgradeneeded = (event) => {
+            const db = req.result;
+            if (LOG_DEBUG)
+                console.log(prefix, '[openModelCacheDB] onupgradeneeded event', event);
+            for (const storeName of storeNames) {
+                if (!db.objectStoreNames.contains(storeName)) {
+                    const storeConfig = dbConfig.stores[storeName];
+                    db.createObjectStore(storeName, { keyPath: storeConfig.keyPath });
+                    if (LOG_DEBUG)
+                        console.log(prefix, `[openModelCacheDB] Created object store: ${storeName}`);
+                }
+            }
+        };
+        req.onsuccess = (event) => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[openModelCacheDB] onsuccess event', event);
+            if (LOG_DEBUG)
+                console.log(prefix, '[openModelCacheDB] Success');
+            resolve(req.result);
+        };
+        req.onerror = (event) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[openModelCacheDB] onerror event', event);
+            if (LOG_ERROR)
+                console.error(prefix, '[openModelCacheDB] Error', req.error);
+            reject(req.error);
+        };
+        req.onblocked = (event) => {
+            if (LOG_WARN)
+                console.warn(prefix, '[openModelCacheDB] onblocked event', event);
+            reject(new Error('openModelCacheDB: DB open request was blocked.'));
+        };
+    });
+}
+// Update all helpers to use openModelCacheDB
+async function getFromIndexedDB(url) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[getFromIndexedDB] Getting', url);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readonly');
+        const store = tx.objectStore('files');
+        const req = store.get(url);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getFromIndexedDB] Success for', url, req.result);
+            const result = req.result;
+            resolve(result ? result.blob : null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getFromIndexedDB] Error for', url, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getFromIndexedDB] Transaction complete for', url);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getFromIndexedDB] Transaction error for', url, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getFromIndexedDB] Transaction aborted for', url, e);
+        };
+    });
+}
+async function saveToIndexedDB(url, blob) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[saveToIndexedDB] Saving', url);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        const store = tx.objectStore('files');
+        const req = store.put({ url, blob });
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[saveToIndexedDB] Saved', url, blob);
+            resolve(undefined);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveToIndexedDB] Error saving', url, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[saveToIndexedDB] Transaction complete for', url);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveToIndexedDB] Transaction error for', url, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveToIndexedDB] Transaction aborted for', url, e);
+        };
+    });
+}
+async function getManifestEntry(repo) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[getManifestEntry] Getting', repo);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readonly');
+        const store = tx.objectStore('manifest');
+        const req = store.get(repo);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getManifestEntry] Success for', repo, req.result);
+            resolve(req.result || null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getManifestEntry] Error for', repo, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getManifestEntry] Transaction complete for', repo);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getManifestEntry] Transaction error for', repo, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getManifestEntry] Transaction aborted for', repo, e);
+        };
+    });
+}
+async function addManifestEntry(repo, entry) {
+    if (!entry || typeof entry !== 'object' || entry.repo !== repo) {
+        throw new Error(`[addManifestEntry] Invalid entry: must be an object with repo === ${repo}`);
+    }
+    if (LOG_GENERAL)
+        console.log(prefix, '[addManifestEntry] Adding/Updating', repo, entry);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        const req = store.put(entry);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[addManifestEntry] Added/Updated', repo, entry);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[addManifestEntry] Error for', repo, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[addManifestEntry] Transaction complete for', repo);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[addManifestEntry] Transaction error for', repo, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[addManifestEntry] Transaction aborted for', repo, e);
+        };
+    });
+}
+async function fetchRepoFiles(repo) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[fetchRepoFiles] Fetching', repo);
+    const url = `https://huggingface.co/api/models/${repo}`;
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            if (LOG_ERROR)
+                console.error(prefix, '[fetchRepoFiles] Failed for', repo, resp.status, resp.statusText);
+            throw new Error(`Failed to fetch repo files for ${repo}`);
+        }
+        const json = await resp.json();
+        if (LOG_DEBUG)
+            console.log(prefix, '[fetchRepoFiles] Success for', repo, json);
+        // Return both siblings and pipeline_tag (task)
+        return { siblings: json.siblings || [], task: json.pipeline_tag || 'text-generation' };
+    }
+    catch (err) {
+        if (LOG_ERROR)
+            console.error(prefix, '[fetchRepoFiles] Exception for', repo, err);
+        throw err;
+    }
+}
+function parseQuantFromFilename(filename) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[parseQuantFromFilename] Parsing', filename);
+    const match = filename.match(/model_([a-z0-9_]+)\.onnx$/i);
+    const quant = match ? match[1] : null;
+    if (LOG_DEBUG)
+        console.log(prefix, '[parseQuantFromFilename] Result', quant);
+    return quant;
+}
+async function fetchModelMetadataInternal(modelId) {
+    const apiUrl = `https://huggingface.co/api/models/${encodeURIComponent(modelId)}`;
+    if (LOG_GENERAL)
+        console.log(prefix, `Fetching model metadata from: ${apiUrl}`);
+    try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(prefix, `Failed to fetch model file list for ${modelId}: ${response.status} ${response.statusText}`, errorText);
+            throw new Error(`Metadata fetch failed (${response.status}): ${response.statusText}`);
+        }
+        const metadata = await response.json();
+        if (LOG_GENERAL)
+            console.log(prefix, `Model metadata fetched successfully for ${modelId}.`);
+        return metadata;
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, `Error fetching metadata for ${modelId}:`, error);
+        throw error;
+    }
+}
+async function filterAndValidateFilesInternal(metadata, modelId, baseRepoUrl) {
+    const hfFileEntries = metadata.siblings || [];
+    // Only keep files we care about
+    const filteredEntries = hfFileEntries.filter((f) => f.rfilename.endsWith('.onnx') || f.rfilename.endsWith('on') || f.rfilename.endsWith('.txt'));
+    if (filteredEntries.length === 0) {
+        return { neededFileEntries: [], message: "No .onnx, on, or .txt files found in model metadata." };
+    }
+    async function getFileSizeWithHEAD(url) {
+        try {
+            const headResp = await fetch(url, { method: 'HEAD' });
+            if (headResp.ok) {
+                const len = headResp.headers.get('Content-Length');
+                return len ? parseInt(len, 10) : null;
+            }
+        }
+        catch (e) {
+            console.warn('[ModelMetadata]', `HEAD request failed for ${url}:`, e);
+        }
+        return null;
+    }
+    // Ensure size is set for each entry
+    const sizePromises = filteredEntries.map(async (entry) => {
+        if (typeof entry.size !== 'number' || !isFinite(entry.size) || entry.size <= 0) {
+            const url = baseRepoUrl + entry.rfilename;
+            const size = await getFileSizeWithHEAD(url);
+            if (size && isFinite(size) && size > 0) {
+                entry.size = size;
+            }
+            else {
+                entry.skip = true;
+            }
+        }
+    });
+    await Promise.all(sizePromises);
+    // Now build full manifest objects
+    const neededFileEntries = filteredEntries.filter((e) => !e.skip).map((entry) => {
+        const fileName = entry.rfilename;
+        const fileType = fileName.split('.').pop();
+        const size = entry.size;
+        const totalChunks = Math.ceil(size / (10 * 1024 * 1024)); // Use CHUNK_SIZE if available
+        const chunkGroupId = `${modelId}/${fileName}`;
+        return {
+            id: `${chunkGroupId}:manifest`,
+            type: 'manifest',
+            chunkGroupId,
+            fileName,
+            folder: modelId,
+            fileType,
+            size,
+            totalChunks,
+            chunkSizeUsed: 10 * 1024 * 1024, // Use CHUNK_SIZE if available
+            status: 'missing',
+            addedAt: Date.now(),
+        };
+    });
+    return { neededFileEntries, message: null };
+}
+async function getAllManifestEntries() {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readonly');
+        const store = tx.objectStore('manifest');
+        const req = store.getAll();
+        req.onsuccess = () => {
+            resolve(req.result || []);
+        };
+        req.onerror = () => {
+            reject(req.error);
+        };
+    });
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbSchema.ts":
+/*!*****************************!*\
+  !*** ./src/DB/idbSchema.ts ***!
+  \*****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   DBNames: () => (/* binding */ DBNames),
+/* harmony export */   LogLevel: () => (/* binding */ LogLevel),
+/* harmony export */   NodeType: () => (/* binding */ NodeType),
+/* harmony export */   dbChannel: () => (/* binding */ dbChannel),
+/* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
+/* harmony export */   schema: () => (/* binding */ schema)
+/* harmony export */ });
+// idbSchema.ts
+const DBNames = Object.freeze({
+    DB_USER_DATA: 'TabAgentUserData',
+    DB_LOGS: 'TabAgentLogs',
+    DB_MODELS: 'TabAgentModels',
+    DB_CHATS: 'TabAgentChats',
+    DB_MESSAGES: 'TabAgentMessages',
+    DB_EMBEDDINGS: 'TabAgentEmbeddings',
+    DB_KNOWLEDGE_GRAPH_NODES: 'TabAgentKnowledgeGraphNodes',
+    DB_KNOWLEDGE_GRAPH_EDGES: 'TabAgentKnowledgeGraphEdges',
+    DB_CHAT_SUMMARIES: 'TabAgentChatSummaries',
+    DB_ATTACHMENTS: 'TabAgentAttachments',
+});
+var NodeType;
+(function (NodeType) {
+    NodeType["Chat"] = "chat";
+    NodeType["Message"] = "message";
+    NodeType["Embedding"] = "embedding";
+    NodeType["Attachment"] = "attachment";
+    NodeType["Summary"] = "summary";
+})(NodeType || (NodeType = {}));
+var LogLevel;
+(function (LogLevel) {
+    LogLevel["Info"] = "info";
+    LogLevel["Log"] = "log";
+    LogLevel["Warn"] = "warn";
+    LogLevel["Error"] = "error";
+    LogLevel["Debug"] = "debug";
+})(LogLevel || (LogLevel = {}));
+const schema = {
+    [DBNames.DB_USER_DATA]: {
+        version: 2,
+        stores: {
+            [DBNames.DB_CHATS]: {
+                keyPath: 'id',
+                indexes: [{ name: 'chat_timestamp', keyPath: 'chat_timestamp' }, { name: 'user_id', keyPath: 'user_id' }]
+            },
+            [DBNames.DB_MESSAGES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'chat_id', keyPath: 'chat_id' }, { name: 'timestamp', keyPath: 'timestamp' }]
+            },
+            [DBNames.DB_EMBEDDINGS]: {
+                keyPath: 'id',
+                indexes: [{ name: 'input', keyPath: 'input', unique: false }, { name: 'model', keyPath: 'model', unique: false }]
+            },
+            [DBNames.DB_KNOWLEDGE_GRAPH_NODES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'type', keyPath: 'type', unique: false }, { name: 'label', keyPath: 'label', unique: false }, { name: 'embedding_id', keyPath: 'embedding_id', unique: false }]
+            },
+            [DBNames.DB_KNOWLEDGE_GRAPH_EDGES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'from_node_id', keyPath: 'from_node_id', unique: false }, { name: 'to_node_id', keyPath: 'to_node_id', unique: false }, { name: 'edge_type', keyPath: 'edge_type', unique: false }]
+            },
+            [DBNames.DB_ATTACHMENTS]: {
+                keyPath: 'id',
+                indexes: [{ name: 'message_id', keyPath: 'message_id' }]
+            },
+            [DBNames.DB_CHAT_SUMMARIES]: {
+                keyPath: 'id',
+                indexes: [{ name: 'chat_id', keyPath: 'chat_id' }, { name: 'created_at', keyPath: 'created_at' }]
+            },
+        }
+    },
+    [DBNames.DB_LOGS]: {
+        version: 1,
+        stores: { [DBNames.DB_LOGS]: { keyPath: 'id', indexes: [{ name: 'timestamp', keyPath: 'timestamp' }, { name: 'level', keyPath: 'level' }] } }
+    },
+};
+const dbChannel = new BroadcastChannel('tabagent-db');
+const modelCacheSchema = {
+    [DBNames.DB_MODELS]: {
+        version: 2,
+        stores: {
+            files: {
+                keyPath: 'url', // or just use the URL as the key
+                indexes: [] // No indexes needed for simple file storage
+            },
+            manifest: {
+                keyPath: 'repo', // repo name as the key
+                indexes: [] // No indexes needed for now
+            }
+        }
+    }
+};
+
+
+/***/ }),
+
 /***/ "./src/assets/onnxruntime-web/transformers.js":
 /*!****************************************************!*\
   !*** ./src/assets/onnxruntime-web/transformers.js ***!
@@ -41943,7 +42388,6 @@ const UIEventNames = Object.freeze({
     BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
     BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
     BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
-    BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
     REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
     WORKER_READY: 'worker:ready',
     WORKER_ERROR: 'worker:error',
@@ -41951,7 +42395,6 @@ const UIEventNames = Object.freeze({
     SCRAPE_PAGE: 'SCRAPE_PAGE',
     SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
     DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-    MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
     MODEL_WORKER_LOADING_PROGRESS: 'modelWorkerLoadingProgress', // For when the worker itself is loading the model (pipeline init)
     MODEL_SELECTION_CHANGED: 'ui:modelSelectionChanged', // When model or ONNX variant dropdown changes
     REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
@@ -41980,6 +42423,7 @@ const WorkerEventNames = Object.freeze({
     RESET: 'reset',
     SET_BASE_URL: 'setBaseUrl',
     SET_ENV_CONFIG: 'setEnvConfig',
+    MANIFEST_UPDATED: 'manifestUpdated',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -42130,28 +42574,40 @@ var __webpack_exports__ = {};
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./assets/onnxruntime-web/transformers */ "./src/assets/onnxruntime-web/transformers.js");
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
 let hasWebGPU = _isNavigatorGpuAvailable;
 let webgpuCheckPromise = Promise.resolve();
+const prefix = '[ModelWorker]';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_SELF = false;
 if (_isNavigatorGpuAvailable) {
     webgpuCheckPromise = (async () => {
         try {
             const adapter = await navigator.gpu.requestAdapter();
             if (!adapter) {
-                console.warn('[ModelWorker] WebGPU navigator.gpu exists, but requestAdapter() returned null. WebGPU will not be used.');
+                if (LOG_WARN)
+                    console.warn(prefix, 'WebGPU navigator.gpu exists, but requestAdapter() returned null. WebGPU will not be used.');
                 hasWebGPU = false;
             }
             else {
-                console.log('[ModelWorker] WebGPU adapter successfully obtained. WebGPU is available.');
+                if (LOG_GENERAL)
+                    console.log(prefix, 'WebGPU adapter successfully obtained. WebGPU is available.');
             }
         }
         catch (e) {
-            console.warn('[ModelWorker] Error requesting WebGPU adapter. WebGPU will not be used.', e);
+            if (LOG_WARN)
+                console.warn(prefix, 'Error requesting WebGPU adapter. WebGPU will not be used.', e);
             hasWebGPU = false;
         }
     })();
 }
-console.log('[ModelWorker] WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
+if (LOG_GENERAL)
+    console.log(prefix, 'WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
+
 
 
 _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.useBrowserCache = false;
@@ -42163,7 +42619,8 @@ const extBaseUrlReady = new Promise((resolve) => {
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_BASE_URL) {
         EXT_BASE_URL = event.data.baseUrl || '';
-        console.log('[ModelWorker] Received extension base URL:', EXT_BASE_URL);
+        if (LOG_GENERAL)
+            console.log(prefix, 'Received extension base URL:', EXT_BASE_URL);
         if (extBaseUrlReadyResolve)
             extBaseUrlReadyResolve(EXT_BASE_URL);
     }
@@ -42186,7 +42643,8 @@ async function getOnnxWasmRootPath() {
 (async () => {
     await extBaseUrlReady;
     await webgpuCheckPromise;
-    console.log('[ModelWorker] Initial state of env.backends:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends, null, 2));
+    if (LOG_DEBUG)
+        console.log(prefix, 'Initial state of env.backends:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends, null, 2));
     if (!_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends) {
         _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends = {};
     }
@@ -42220,82 +42678,37 @@ async function getOnnxWasmRootPath() {
         _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['wasm'];
     }
     _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.logLevel = 'verbose';
-    console.log("[ModelWorker]  Minimal modelworker.js loaded and env.backends.onnx after initial setup:", JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
+    if (LOG_DEBUG)
+        console.log(prefix, 'Minimal modelworker.js loaded and env.backends.onnx after initial setup:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx, null, 2));
     self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_ENV_READY });
 })();
 self.addEventListener('error', function (e) {
-    console.error("[ModelWorker] Global error in model-worker.js:", e);
+    if (LOG_ERROR)
+        console.error(prefix, 'Global error in model-worker.js:', e);
     try {
         self.postMessage({ type: 'FATAL_ERROR', payload: e.message || e });
     }
     catch (err) {
-        console.error("[ModelWorker] Failed to postMessage FATAL_ERROR:", err);
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to postMessage FATAL_ERROR:', err);
     }
 });
 self.addEventListener('unhandledrejection', function (e) {
-    console.error("[ModelWorker] Unhandled promise rejection in model-worker.js:", e);
+    if (LOG_ERROR)
+        console.error(prefix, 'Unhandled promise rejection in model-worker.js:', e);
     try {
         self.postMessage({ type: 'FATAL_ERROR', payload: e.reason || e });
     }
     catch (err) {
-        console.error("[ModelWorker] Failed to postMessage FATAL_ERROR (unhandledrejection):", err);
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to postMessage FATAL_ERROR (unhandledrejection):', err);
     }
 });
 let pipelineInstance = null;
 let currentModel = null;
+let currentQuantization = null;
 let isModelPipelineReady = false;
-const DB_NAME = 'transformers-model-cache';
-const STORE_NAME = 'files';
 let envConfig = {};
-function openDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            req.result.createObjectStore(STORE_NAME);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-async function getFromIndexedDB(url) {
-    // console.log('[ModelWorker] IndexedDB get key:', url);
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.get(url);
-        req.onsuccess = () => {
-            if (req.result) {
-                //console.log('[ModelWorker] Cache hit in IndexedDB for:', url);
-            }
-            else {
-                //console.log('[ModelWorker] Cache miss in IndexedDB for:', url);
-            }
-            resolve(req.result || null);
-        };
-        req.onerror = () => {
-            console.error('[ModelWorker] IndexedDB get error for:', url, req.error);
-            reject(req.error);
-        };
-    });
-}
-async function saveToIndexedDB(url, blob) {
-    //console.log('[ModelWorker] IndexedDB save key:', url);
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.put(blob, url);
-        req.onsuccess = () => {
-            //console.log('[ModelWorker] Saved to IndexedDB:', url);
-            resolve(undefined);
-        };
-        req.onerror = () => {
-            //console.error('[ModelWorker] IndexedDB save error for:', url, req.error);
-            reject(req.error);
-        };
-    });
-}
 const originalFetch = self.fetch;
 self.fetch = async function (input, options) {
     let resourceUrl = undefined;
@@ -42310,23 +42723,29 @@ self.fetch = async function (input, options) {
         resourceUrl = input.url;
         isRequestObject = true;
     }
-    //console.log('[ModelWorker] fetch override called. Resource URL:', resourceUrl || 'N/A (Input not string, URL, or Request)', 'Input type:', typeof input);
+    if (LOG_SELF)
+        console.log(prefix, 'fetch override called. Resource URL:', resourceUrl || 'N/A (Input not string, URL, or Request)', 'Input type:', typeof input);
     if (isRequestObject) {
-        //console.log('[ModelWorker] Input was a Request object:', input);
+        if (LOG_SELF)
+            console.log(prefix, 'Input was a Request object:', input);
     }
     if (resourceUrl && resourceUrl.includes(ONNX_WASM_FILE_NAME)) {
-        //console.log(`[ModelWorker] Intercepting fetch for WASM: ${resourceUrl}, serving local: ${await getOnnxWasmFilePath()}`);
+        if (LOG_SELF)
+            console.log(prefix, 'Intercepting fetch for WASM:', resourceUrl, 'serving local:', await getOnnxWasmFilePath());
         const wasmPath = await getOnnxWasmFilePath();
         return originalFetch.call(self, isRequestObject ? new Request(wasmPath, input) : wasmPath, options);
     }
     if (resourceUrl) {
-        //console.log('[ModelWorker] Potentially interceptable non-WASM fetch. URL:', resourceUrl);
+        if (LOG_SELF)
+            console.log(prefix, 'Potentially interceptable non-WASM fetch. URL:', resourceUrl);
         if (resourceUrl.includes('/resolve/main/') || resourceUrl.includes('/resolve/')) {
-            // console.log('[ModelWorker] Matched model file pattern (/resolve/main/ or /resolve/). Attempting IndexedDB for URL:', resourceUrl);
+            if (LOG_SELF)
+                console.log(prefix, 'Matched model file pattern (/resolve/main/ or /resolve/). Attempting IndexedDB for URL:', resourceUrl);
             try {
-                const cached = await getFromIndexedDB(resourceUrl);
+                const cached = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getFromIndexedDB)(resourceUrl);
                 if (cached) {
-                    //console.log(`[ModelWorker] Serving model file from IndexedDB: ${resourceUrl}`);
+                    if (LOG_SELF)
+                        console.log(prefix, 'Serving model file from IndexedDB:', resourceUrl);
                     const headers = new Headers();
                     if (cached.type) {
                         headers.set('Content-Type', cached.type);
@@ -42338,34 +42757,41 @@ self.fetch = async function (input, options) {
                         headers.set('Content-Type', 'application/octet-stream');
                     }
                     headers.set('Content-Length', cached.size.toString());
-                    //console.log(`[ModelWorker] Serving from IDB with headers: Content-Type: ${headers.get('Content-Type')}, Content-Length: ${headers.get('Content-Length')}`);
+                    if (LOG_SELF)
+                        console.log(prefix, 'Serving from IDB with headers: Content-Type:', headers.get('Content-Type'), 'Content-Length:', headers.get('Content-Length'));
                     return new Response(cached, { headers: headers });
                 }
             }
             catch (dbError) {
-                console.error('[ModelWorker] Error reading from IndexedDB, proceeding to network fetch:', dbError);
+                if (LOG_ERROR)
+                    console.error(prefix, 'Error reading from IndexedDB, proceeding to network fetch:', dbError);
             }
-            // console.log(`[ModelWorker] Downloading model file from network: ${resourceUrl}`);
+            if (LOG_SELF)
+                console.log(prefix, 'Downloading model file from network:', resourceUrl);
             const resp = await originalFetch.call(self, input, options);
             if (resp.ok) {
                 const blob = await resp.clone().blob();
                 try {
-                    await saveToIndexedDB(resourceUrl, blob);
-                    //console.log(`[ModelWorker] Fetched and cached model file to IndexedDB: ${resourceUrl}`);
+                    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.saveToIndexedDB)(resourceUrl, blob);
                 }
                 catch (dbError) {
-                    // console.error('[ModelWorker] Error saving to IndexedDB:', dbError);
+                    if (LOG_ERROR)
+                        console.error(prefix, 'Error saving to IndexedDB:', dbError);
                 }
                 return resp;
             }
-            return resp;
+            else {
+                return resp;
+            }
         }
         else {
-            console.log('[ModelWorker] URL did not match model pattern (/resolve/main/ or /resolve/):', resourceUrl);
+            if (LOG_GENERAL)
+                console.log(prefix, 'URL did not match model pattern (/resolve/main/ or /resolve/):', resourceUrl);
         }
     }
     else {
-        console.log('[ModelWorker] fetch override: resourceUrl could not be determined. Passing through.');
+        if (LOG_GENERAL)
+            console.log(prefix, 'fetch override: resourceUrl could not be determined. Passing through.');
     }
     return originalFetch.call(self, input, options);
 };
@@ -42403,11 +42829,14 @@ async function setupOnnxWasmPathsHardcoded() {
         else {
             _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.executionProviders = ['wasm'];
         }
-        console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.wasm:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm, null, 2));
-        console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.env.wasm:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm, null, 2));
+        if (LOG_DEBUG)
+            console.log(prefix, 'Re-affirmed ONNX WASM config. env.backends.onnx.wasm:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.wasm, null, 2));
+        if (LOG_DEBUG)
+            console.log(prefix, 'Re-affirmed ONNX WASM config. env.backends.onnx.env.wasm:', JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx.env.wasm, null, 2));
     }
     catch (err) {
-        console.warn('[ModelWorker] Failed to re-affirm hardcoded ONNX WASM/loader config:', err);
+        if (LOG_WARN)
+            console.warn(prefix, 'Failed to re-affirm hardcoded ONNX WASM/loader config:', err);
     }
 }
 function mapQuantToDtype(quant) {
@@ -42441,8 +42870,7 @@ function mapQuantToDtype(quant) {
 }
 async function loadPipeline(payload) {
     await webgpuCheckPromise;
-    const { modelId, onnxFile: quantization } = payload;
-    console.log('[ModelWorker] Re-affirming ONNX paths before pipeline call.');
+    const { modelId, quant, task, loadId } = payload;
     await setupOnnxWasmPathsHardcoded();
     const envLog = {
         env: {
@@ -42454,31 +42882,34 @@ async function loadPipeline(payload) {
         envConfig,
         hasWebGPU
     };
-    console.log('[ModelWorker] loadPipeline environment (pretty):', JSON.stringify(envLog, null, 2));
+    if (LOG_GENERAL)
+        console.log(prefix, 'loadPipeline environment (pretty):', JSON.stringify(envLog, null, 2));
     let resolvedDevice = envConfig.device;
     if (!resolvedDevice && hasWebGPU) {
         resolvedDevice = 'webgpu';
-        console.log('[ModelWorker] Auto-selecting WebGPU as device');
+        if (LOG_GENERAL)
+            console.log(prefix, 'Auto-selecting WebGPU as device');
     }
     const modelArg = modelId;
-    let quantTried = quantization;
+    let quantTried = quant;
     let fallbackUsed = false;
     let options = {
         progress_callback: (data) => {
-            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: data });
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...data, loadId } });
         }
     };
     if (resolvedDevice) {
         options.device = resolvedDevice;
-        console.log('[ModelWorker] Setting device to:', resolvedDevice);
+        if (LOG_GENERAL)
+            console.log(prefix, 'Setting device to:', resolvedDevice);
     }
     if (envConfig.dtype)
         options.dtype = envConfig.dtype;
     if (envConfig.quantized !== undefined)
         options.quantized = envConfig.quantized;
-    if (quantization && quantization !== 'auto') {
-        options.quant = quantization;
-        options.dtype = mapQuantToDtype(quantization);
+    if (quant && quant !== 'auto') {
+        options.quant = quant;
+        options.dtype = mapQuantToDtype(quant);
     }
     else {
         options.dtype = 'auto';
@@ -42486,7 +42917,9 @@ async function loadPipeline(payload) {
     if (hasWebGPU && resolvedDevice === 'webgpu') {
         options.execution_providers = ['webgpu', 'wasm'];
     }
-    console.log(`[ModelWorker] Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
+    if (LOG_GENERAL)
+        console.log(prefix, `Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
+    const pipelineTask = task || 'text-generation';
     const pipelineLog = {
         pipelineType: typeof _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline,
         modelArg,
@@ -42494,14 +42927,30 @@ async function loadPipeline(payload) {
         env: JSON.parse(JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env)),
         currentEnvOnnx: JSON.parse(JSON.stringify(_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.backends.onnx))
     };
-    console.log('[ModelWorker][DEBUG] About to call pipeline (pretty):', JSON.stringify(pipelineLog, null, 2));
+    if (LOG_DEBUG)
+        console.log(prefix, 'About to call pipeline (pretty):', JSON.stringify(pipelineLog, null, 2));
     let actualExecutionProvider = 'unknown';
     let providerNote = undefined;
     try {
-        pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', modelArg, options);
+        pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)(pipelineTask, modelArg, options);
         currentModel = modelId;
+        currentQuantization = quantTried || null;
         isModelPipelineReady = true;
-        console.log('[ModelWorker] pipelineInstance after creation:', pipelineInstance);
+        if (LOG_DEBUG)
+            console.log(prefix, 'pipelineInstance after creation:', pipelineInstance);
+        let actualQuantUsed = quantTried;
+        if (pipelineInstance && pipelineInstance.quant) {
+            actualQuantUsed = pipelineInstance.quant;
+        }
+        else if (options.quant) {
+            actualQuantUsed = options.quant;
+        }
+        else if (quantTried) {
+            actualQuantUsed = quantTried;
+        }
+        else {
+            actualQuantUsed = 'fp32';
+        }
         if (pipelineInstance) {
             if (pipelineInstance.device && typeof pipelineInstance.device === 'string') {
                 actualExecutionProvider = pipelineInstance.device;
@@ -42536,108 +42985,177 @@ async function loadPipeline(payload) {
         else if (actualExecutionProvider.includes('wasm')) {
             actualExecutionProvider = 'wasm';
         }
-        console.log(`[ModelWorker] Successfully loaded pipeline. Actual execution provider: ${actualExecutionProvider}`);
+        if (LOG_DEBUG)
+            console.log(prefix, `Successfully loaded pipeline. Actual execution provider: ${actualExecutionProvider}`);
         if (providerNote) {
-            console.warn('[ModelWorker] Provider note:', providerNote);
+            if (LOG_DEBUG)
+                console.warn(prefix, 'Provider note:', providerNote);
         }
         self.postMessage({
             type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
             payload: {
                 modelId,
-                onnxFile: quantTried,
-                task: 'text-generation',
+                quant: actualQuantUsed,
+                task: pipelineTask,
                 fallback: fallbackUsed,
                 executionProvider: actualExecutionProvider,
-                providerNote
+                warning: providerNote
             }
         });
     }
     catch (err) {
-        console.error('[ModelWorker][ERROR] pipeline() call failed for quant', quantTried, ':', err);
-        if (quantization && quantization !== 'auto') {
+        if (LOG_ERROR)
+            console.error(prefix, 'pipeline() call failed for quant', quantTried, ':', err);
+        if (quant && quant !== 'auto') {
             try {
                 fallbackUsed = true;
                 quantTried = 'auto';
                 delete options.quant;
                 options.dtype = 'auto';
-                pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', modelArg, options);
+                pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)(pipelineTask, modelArg, options);
                 currentModel = modelId;
+                currentQuantization = quantTried || null;
                 isModelPipelineReady = true;
+                let actualQuantUsed = quantTried;
+                if (pipelineInstance && pipelineInstance.quant) {
+                    actualQuantUsed = pipelineInstance.quant;
+                }
+                else if (options.quant) {
+                    actualQuantUsed = options.quant;
+                }
+                else if (quantTried) {
+                    actualQuantUsed = quantTried;
+                }
+                else {
+                    actualQuantUsed = 'fp32';
+                }
                 self.postMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
                     payload: {
                         modelId,
-                        onnxFile: quantTried,
-                        task: 'text-generation',
+                        quant: actualQuantUsed,
+                        task: pipelineTask,
                         fallback: fallbackUsed,
-                        requestedQuant: quantization,
-                        executionProvider: actualExecutionProvider
+                        requestedQuant: quant,
+                        executionProvider: actualExecutionProvider,
+                        warning: providerNote
                     }
                 });
                 return;
             }
             catch (fallbackErr) {
-                console.error('[ModelWorker][ERROR] pipeline() fallback to auto failed:', fallbackErr);
-                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quantization} and fallback quant auto` });
+                if (LOG_ERROR)
+                    console.error(prefix, 'pipeline() fallback to auto failed:', fallbackErr);
+                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quant} and fallback quant auto` });
                 return;
             }
         }
         if (resolvedDevice === 'webgpu' && hasWebGPU) {
             try {
-                console.log('[ModelWorker] WebGPU failed, trying WASM fallback...');
+                if (LOG_GENERAL)
+                    console.log(prefix, 'WebGPU failed, trying WASM fallback...');
                 fallbackUsed = true;
                 delete options.device;
                 delete options.execution_providers;
-                pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)('text-generation', modelArg, options);
+                pipelineInstance = await (0,_assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.pipeline)(pipelineTask, modelArg, options);
                 currentModel = modelId;
+                currentQuantization = quantTried || null;
                 isModelPipelineReady = true;
                 actualExecutionProvider = 'wasm (WebGPU fallback)';
+                let actualQuantUsed = quantTried;
+                if (pipelineInstance && pipelineInstance.quant) {
+                    actualQuantUsed = pipelineInstance.quant;
+                }
+                else if (options.quant) {
+                    actualQuantUsed = options.quant;
+                }
+                else if (quantTried) {
+                    actualQuantUsed = quantTried;
+                }
+                else {
+                    actualQuantUsed = 'fp32';
+                }
                 self.postMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
                     payload: {
                         modelId,
-                        onnxFile: quantTried,
-                        task: 'text-generation',
+                        quant: actualQuantUsed,
+                        task: pipelineTask,
                         fallback: fallbackUsed,
-                        executionProvider: actualExecutionProvider
+                        executionProvider: actualExecutionProvider,
+                        warning: providerNote
                     }
                 });
                 return;
             }
             catch (wasmErr) {
-                console.error('[ModelWorker][ERROR] WASM fallback also failed:', wasmErr);
+                if (LOG_ERROR)
+                    console.error(prefix, 'WASM fallback also failed:', wasmErr);
             }
         }
-        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quantization || 'default'}` });
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quant || 'default'}` });
     }
-    console.log('[ModelWorker] pipelineInstance:', pipelineInstance);
+    if (LOG_DEBUG)
+        console.log(prefix, 'pipelineInstance:', pipelineInstance);
     if (pipelineInstance.device) {
-        console.log('[ModelWorker] Actual device/provider used (pipelineInstance.device):', pipelineInstance.device);
+        if (LOG_DEBUG)
+            console.log(prefix, 'Actual device/provider used (pipelineInstance.device):', pipelineInstance.device);
     }
     if (pipelineInstance.model) {
-        console.log('[ModelWorker] pipelineInstance.model:', pipelineInstance.model);
+        if (LOG_DEBUG)
+            console.log(prefix, 'pipelineInstance.model:', pipelineInstance.model);
         if (pipelineInstance.model.session) {
-            console.log('[ModelWorker] pipelineInstance.model.session:', pipelineInstance.model.session);
+            if (LOG_DEBUG)
+                console.log(prefix, 'pipelineInstance.model.session:', pipelineInstance.model.session);
             if ('executionProvider' in pipelineInstance.model.session) {
-                console.log('[ModelWorker] Actual executionProvider (model.session.executionProvider):', pipelineInstance.model.session.executionProvider);
+                if (LOG_DEBUG)
+                    console.log(prefix, 'Actual executionProvider (model.session.executionProvider):', pipelineInstance.model.session.executionProvider);
             }
             if ('_backend' in pipelineInstance.model.session) {
-                console.log('[ModelWorker] Backend (model.session._backend):', pipelineInstance.model.session._backend);
+                if (LOG_DEBUG)
+                    console.log(prefix, 'Backend (model.session._backend):', pipelineInstance.model.session._backend);
             }
             if ('executionProviders' in pipelineInstance.model.session) {
-                console.log('[ModelWorker] Available executionProviders:', pipelineInstance.model.session.executionProviders);
+                if (LOG_DEBUG)
+                    console.log(prefix, 'Available executionProviders:', pipelineInstance.model.session.executionProviders);
             }
         }
     }
     if (pipelineInstance.session) {
-        console.log('[ModelWorker] pipelineInstance.session:', pipelineInstance.session);
+        if (LOG_DEBUG)
+            console.log(prefix, 'pipelineInstance.session:', pipelineInstance.session);
         if ('executionProvider' in pipelineInstance.session) {
-            console.log('[ModelWorker] Actual executionProvider (session.executionProvider):', pipelineInstance.session.executionProvider);
+            if (LOG_DEBUG)
+                console.log(prefix, 'Actual executionProvider (session.executionProvider):', pipelineInstance.session.executionProvider);
         }
         if ('_backend' in pipelineInstance.session) {
-            console.log('[ModelWorker] Backend (session._backend):', pipelineInstance.session._backend);
+            if (LOG_DEBUG)
+                console.log(prefix, 'Backend (session._backend):', pipelineInstance.session._backend);
         }
     }
+}
+// Helper: Set quant status in manifest (add if missing)
+async function setManifestQuantStatus(repo, quant, status) {
+    let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getManifestEntry)(repo);
+    if (!manifest)
+        return;
+    if (!manifest.quants[quant]) {
+        manifest.quants[quant] = { files: [], status };
+    }
+    else {
+        manifest.quants[quant].status = status;
+    }
+    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.addManifestEntry)(repo, manifest);
+    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MANIFEST_UPDATED });
+}
+// Helper: Add a new quant to manifest
+async function addQuantToManifest(repo, quant, status) {
+    let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getManifestEntry)(repo);
+    if (!manifest)
+        return;
+    manifest.quants[quant] = { files: [], status };
+    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.addManifestEntry)(repo, manifest);
+    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MANIFEST_UPDATED });
 }
 self.onmessage = async (event) => {
     const { type, payload } = (event.data || {});
@@ -42647,23 +43165,57 @@ self.onmessage = async (event) => {
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_ENV_CONFIG: {
             envConfig = { ...envConfig, ...payload };
-            console.log('[ModelWorker] Environment config updated:', envConfig);
+            if (LOG_GENERAL)
+                console.log(prefix, 'Environment config updated:', envConfig);
             break;
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INIT: {
+            const { modelId, quant, task, loadId } = payload;
+            let loadedSuccessfully = false;
+            // Try to load requested quant
             try {
-                if (currentModel !== payload.modelId || !isModelPipelineReady) {
-                    isModelPipelineReady = false;
-                    await loadPipeline(payload);
-                }
-                else {
-                    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY, payload: { modelId: payload.modelId, onnxFile: payload.onnxFile, task: payload.task || 'text-generation', fallback: false } });
-                }
+                await loadPipeline({ modelId, quant, task, loadId });
+                loadedSuccessfully = true;
             }
-            catch (error) {
-                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: error instanceof Error ? error.message : String(error) });
+            catch (e) {
+                // Detect unsupported pipeline error
+                if (typeof e?.message === 'string' && e.message.startsWith('Unsupported pipeline:')) {
+                    await setManifestQuantStatus(modelId, quant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Unsupported);
+                    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `This model's task is not supported by the current runtime.` });
+                    return;
+                }
+                loadedSuccessfully = false;
             }
-            break;
+            if (loadedSuccessfully) {
+                // Set quant to downloaded
+                await setManifestQuantStatus(modelId, quant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Downloaded);
+                return;
+            }
+            // Try fallback quant (auto)
+            const fallbackQuant = 'auto';
+            let fallbackLoaded = false;
+            try {
+                await loadPipeline({ modelId, quant: fallbackQuant, task, loadId });
+                fallbackLoaded = true;
+            }
+            catch (e) {
+                // Detect unsupported pipeline error for fallback
+                if (typeof e?.message === 'string' && e.message.startsWith('Unsupported pipeline:')) {
+                    await setManifestQuantStatus(modelId, fallbackQuant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Unsupported);
+                    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `This model's task is not supported by the current runtime.` });
+                    return;
+                }
+                fallbackLoaded = false;
+            }
+            if (fallbackLoaded) {
+                // Add fallback quant to manifest if not present, set to downloaded
+                await addQuantToManifest(modelId, fallbackQuant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Downloaded);
+                return;
+            }
+            // Both failed, mark original quant as failed
+            await setManifestQuantStatus(modelId, quant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Failed);
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quant || 'default'}` });
+            return;
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATE: {
             if (!isModelPipelineReady || !pipelineInstance) {
@@ -42709,6 +43261,7 @@ self.onmessage = async (event) => {
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET: {
             pipelineInstance = null;
             currentModel = null;
+            currentQuantization = null;
             isModelPipelineReady = false;
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET_COMPLETE });
             break;

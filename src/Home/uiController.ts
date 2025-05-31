@@ -1,9 +1,10 @@
-import {  UIEventNames } from '../events/eventNames';
+import {  UIEventNames, WorkerEventNames } from '../events/eventNames';
 import {  DBEventNames } from '../DB/dbEvents';
 import {  clearTemporaryMessages } from './chatRenderer';
 import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification } from '../DB/dbEvents';
+import {  QuantStatus, getAllManifestEntries, QuantInfo } from '../DB/idbModel';
 
 
 let queryInput: HTMLTextAreaElement | null,
@@ -19,24 +20,17 @@ let isInitialized = false;
 let attachFileCallback: (() => void) | null | undefined = null;
 let currentSessionId: string | null = null;
 let modelSelectorDropdown: HTMLSelectElement | null = null;
-let onnxVariantSelectorDropdown: HTMLSelectElement | null = null;
+let quantSelectorDropdown: HTMLSelectElement | null = null;
 
 let loadModelButton: HTMLButtonElement | null = null;    
 
-// Define available models (can be moved elsewhere later)
-const AVAILABLE_MODELS = {
-    // Model ID (value) : Display Name
-  //  "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
-   // "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
-    //"HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
-    //"HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
-   // "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
-   // "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
-    //"microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
-   // "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
-    //"Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
-    //"google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
+let isLoadingModel = false; // Track loading state
+let currentLoadId: string | null = null;
+let lastSeenLoadId: string | null = null;
 
+// Define available models (can be moved elsewhere later)
+export const AVAILABLE_MODELS = {
+    // Model ID (value) : Display Name
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
     // Add more models here as needed
@@ -59,10 +53,6 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     if (Object.values(DBEventNames).includes(type)) {
         return false;
     }
-    if (message.type === UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
-       
-        handleDownLoadingProgress(message.payload);
-    }
 });
 
 dbChannel.onmessage = (event) => {
@@ -84,7 +74,7 @@ function selectElements() {
     loadingIndicatorElement = document.getElementById('loading-indicator');
     modelLoadProgress = document.getElementById('model-load-progress') as HTMLElement | null;
     modelSelectorDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
-    onnxVariantSelectorDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    quantSelectorDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
     loadModelButton = document.getElementById('load-model-button') as HTMLButtonElement | null;    
 
     if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
@@ -101,7 +91,7 @@ function attachListeners() {
     attachButton?.addEventListener('click', handleAttachClick);
 
     modelSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
-    onnxVariantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    quantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
     loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
 }
 
@@ -112,7 +102,7 @@ function removeListeners() {
     attachButton?.removeEventListener('click', handleAttachClick);
 
     modelSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
-    onnxVariantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    quantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
 }
 
@@ -191,79 +181,19 @@ function handleStatusUpdate(notification: any) {
     }
 }
 
-document.addEventListener(UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e: Event) => {
-    handleDownLoadingProgress((e as CustomEvent).detail);
-});
-function handleDownLoadingProgress(payload: any) {
-   // console.log('[DEBUG][handleLoadingProgress] payload:', payload);
-    if (!payload) return;
-    const statusDiv = document.getElementById('model-load-status');
-    const statusText = document.getElementById('model-load-status-text');
-    const progressBar = document.getElementById('model-load-progress-bar');
-    const progressInner = document.getElementById('model-load-progress-inner');
-
-    if (!statusDiv || !statusText || !progressBar || !progressInner) {
-       // console.warn('[UIController] Model load progress bar not found.');
-        return;
-    }
-
-    // Always show the status area while loading or on error
-    statusDiv.style.display = 'block';
-    progressBar.style.width = '100%';
-   // console.log('[DEBUG][handleLoadingProgress] Showing progress bar.');
-
-    // Handle error
-    if (payload.status === 'error' || payload.error) {
-        statusText.textContent = payload.error || 'Error loading model';
-        progressInner.style.background = '#f44336'; // red
-        progressInner.style.width = '100%';
-        return;
-    }
-
-    // Main progress bar (overall)
-    let percent = payload.progress || payload.percent || 0;
-    percent = Math.max(0, Math.min(100, percent));
-   // console.log('[DEBUG][handleLoadingProgress] percent:', percent);
-    progressInner.style.width = percent + '%';
-    progressInner.style.background = '#4caf50'; // green
-
-    // Status text
-    let text = '';
-    function truncateFileName(name: string, maxLen = 32) {
-        if (!name) return '';
-        return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
-    }
-    if (payload.summary && payload.message) {
-        text = payload.message;
-    } else if (payload.status === 'progress' && payload.file) {
-        const shortFile = truncateFileName(payload.file);
-        text = `Downloading ${shortFile}`;
-        if (payload.chunkIndex && payload.totalChunks) {
-            text += ` (chunk ${payload.chunkIndex} of ${payload.totalChunks})`;
-        }
-        text += `... ${Math.round(percent)}%`;
-    } else if (payload.status === 'done' && payload.file) {
-        const shortFile = truncateFileName(payload.file);
-        text = `${shortFile} downloaded. Preparing pipeline...`;
-    } else {
-        text = 'Loading...';
-    }
-    statusText.textContent = text;
-
-    // Hide when done (but not on error)
-    if ((percent >= 100 || payload.status === 'popupclosed'|| payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
-        //console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
-       
-        setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
-    }
-}
-
 document.addEventListener(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e: Event) => {
     handleModelWorkerLoadingProgress((e as CustomEvent).detail);
 });
-
 function handleModelWorkerLoadingProgress(payload: any) {
     if (!payload) return;
+    // Double progress trigger detection
+    if (payload.loadId !== lastSeenLoadId) {
+        console.warn('[UIController] New loadId detected in progress:', payload.loadId);
+        if (lastSeenLoadId) {
+            console.error('[UIController] DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
+        }
+        lastSeenLoadId = payload.loadId;
+    }
     const statusDiv = document.getElementById('model-load-status');
     const statusText = document.getElementById('model-load-status-text');
     const progressBar = document.getElementById('model-load-progress-bar');
@@ -282,13 +212,21 @@ function handleModelWorkerLoadingProgress(payload: any) {
         statusText.textContent = payload.error || 'Error loading model';
         progressInner.style.background = '#f44336'; // red
         progressInner.style.width = '100%';
+        isLoadingModel = false;
+        if (loadModelButton) {
+            loadModelButton.disabled = false;
+            setLoadModelButtonText('Load Model');
+        }
+        enableInput();
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 1500);
+        lastSeenLoadId = null;
         return;
     }
 
     let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
     progressInner.style.width = percent + '%';
-    progressInner.style.background = '#4caf50'; // green;
+    progressInner.style.background = '#4caf50'; // green
 
     function formatBytes(bytes: number) {
         if (!bytes && bytes !== 0) return '';
@@ -326,62 +264,44 @@ function handleModelWorkerLoadingProgress(payload: any) {
     }
     statusText.textContent = text;
 
-    if ((percent >= 100 || payload.status === 'popupclosed'|| payload.status === 'done' || payload.status === 'ready' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
+        isLoadingModel = false;
+        if (loadModelButton) {
+            loadModelButton.disabled = false;
+            setLoadModelButtonText('Load Model');
+        }
+        enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
+        lastSeenLoadId = null;
     }
 }
 
 
-export function getCurrentlySelectedModel(): { modelId: string | null; onnxFile: string | null } {
-    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return { modelId: null, onnxFile: null };
+export function getCurrentlySelectedModel(): { modelId: string | null; quant: string | null } {
+    if (!modelSelectorDropdown || !quantSelectorDropdown) return { modelId: null, quant: null };
     return {
         modelId: modelSelectorDropdown.value || null,
-        onnxFile: onnxVariantSelectorDropdown.value || null,
+        quant: quantSelectorDropdown.value || null,
     };
 }
 
-// Known quantization/precision formats for transformers.js/ONNX:
-// fp32, float32, fp16, float16, int8, q8, q4, q4f16, bnb4, uint8, int4, nf4, q6_k
 
-const QUANT_OPTIONS = [
-  { value: 'auto', label: 'Auto (Let backend decide)' },
-  { value: 'fp32', label: 'FP32 (Full Precision)' },
-  { value: 'float32', label: 'FLOAT32 (Full Precision)' },
-  { value: 'fp16', label: 'FP16 (Half Precision)' },
-  { value: 'float16', label: 'FLOAT16 (Half Precision)' },
-  { value: 'int8', label: 'INT8 (8-bit Quantized)' },
-  { value: 'q8', label: 'Q8 (8-bit Quantized)' },
-  { value: 'uint8', label: 'UINT8 (8-bit Quantized, Unsigned)' },
-  { value: 'q4', label: 'Q4 (4-bit Quantized)' },
-  { value: 'int4', label: 'INT4 (4-bit Quantized)' },
-  { value: 'q4f16', label: 'Q4F16 (4-bit Quantized, F16)' },
-  { value: 'bnb4', label: 'BNB4 (4-bit Quantized, BNB)' },
-  { value: 'nf4', label: 'NF4 (4-bit Quantized, NormalFloat4)' },
-  { value: 'q6_k', label: 'Q6_K (6-bit Quantized, K)' }
-];
 
 export function normalizeQuant(quantDisplay: string): string {
+  // Remove emoji and non-alphanumeric characters (except underscore)
+  const cleaned = quantDisplay.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   const map: Record<string, string> = {
     'auto': 'auto',
     'fp32': 'fp32',
-    'float32': 'fp32',
     'fp16': 'fp16',
-    'float16': 'fp16',
     'int8': 'int8',
-    'q8': 'int8',
     'uint8': 'uint8',
     'q4': 'q4',
-    'int4': 'q4',
     'q4f16': 'q4f16',
     'bnb4': 'bnb4',
     'nf4': 'nf4',
-    'q6_k': 'q6_k',
   };
-  // Try direct match
-  if (map[quantDisplay.toLowerCase()]) return map[quantDisplay.toLowerCase()];
-  // Try to extract value from label (e.g., "FP32 (Full Precision)")
-  const key = quantDisplay.toLowerCase().split(' ')[0].replace(/[^a-z0-9_]/g, '');
-  return map[key] || key;
+  return map[cleaned] || cleaned;
 }
 
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
@@ -416,7 +336,6 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
 
     console.log("[UIController] Initializing UI elements...");
 
-    // Populate model selector
     console.log("[UIController] Attempting to find model selector...");
     const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
     console.log(modelSelector ? "[UIController] Model selector found." : "[UIController] WARNING: Model selector NOT found!");
@@ -432,7 +351,6 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
             modelSelector.appendChild(option);
             hasModel = true;
         }
-        // If no models, add a disabled option
         if (!hasModel) {
             const option = document.createElement('option');
             option.value = '';
@@ -441,9 +359,7 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
             option.selected = true;
             modelSelector.appendChild(option);
         }
-        // Enable/disable dropdown based on model availability
         modelSelector.disabled = !hasModel;
-        // Show/hide load button based on model selection
         if (loadModelButton) {
             const loadBtn = loadModelButton as HTMLButtonElement;
             if (hasModel && modelSelector.value) {
@@ -453,7 +369,6 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
                 loadBtn.style.display = 'none';
                 loadBtn.disabled = true;
             }
-            // Add event listener to update button on dropdown change
             modelSelector.addEventListener('change', () => {
                 if (loadModelButton) {
                     const loadBtn = loadModelButton as HTMLButtonElement;
@@ -470,19 +385,6 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     } else {
         console.warn("[UIController] Model selector dropdown not found.");
         if (loadModelButton) (loadModelButton as HTMLButtonElement).style.display = 'none';
-    }
-
-    // Populate ONNX variant selector statically
-    if (onnxVariantSelectorDropdown) {
-        onnxVariantSelectorDropdown.innerHTML = '';
-        for (const opt of QUANT_OPTIONS) {
-            const option = document.createElement('option');
-            option.value = opt.value;
-            option.textContent = opt.label;
-            onnxVariantSelectorDropdown.appendChild(option);
-        }
-        onnxVariantSelectorDropdown.disabled = false;
-        onnxVariantSelectorDropdown.selectedIndex = 0;
     }
 
     console.log("[UIController] UI Initialization complete.");
@@ -536,32 +438,172 @@ function enableInput() {
     sendButton.disabled = queryInput.value.trim() === '';
 }
 
-// Add these new functions inside uiController.ts
 
-function _handleModelOrVariantChange() { // Underscore to indicate it's an internal handler for a listener
-    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown) return;
+
+function _handleModelOrVariantChange() { 
+    if (!modelSelectorDropdown || !quantSelectorDropdown) return;
     const modelId = modelSelectorDropdown.value;
-    const onnxFile = onnxVariantSelectorDropdown.value;
-    console.log(`[UIController] Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, onnxFile });
+    const quant = quantSelectorDropdown.value;
+    console.log(`[UIController] Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, quant });
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
-        detail: { modelId, onnxFile } // Pass the selected values
+        detail: { modelId, quant } 
     }));
-    // DO NOT call sidepanel's updateModelActionButtons directly here.
-    // sidepanel will listen to MODEL_SELECTION_CHANGED and then decide to update buttons.
+
 }
 
 function _handleLoadModelButtonClick() {
-    if (!modelSelectorDropdown) return;
+    if (!modelSelectorDropdown || !loadModelButton) return;
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
         console.warn("[UIController] Load Model button clicked, but no model selected.");
         return;
     }
-    console.log(`[UIController] Load Model button clicked. Dispatching ${UIEventNames.REQUEST_MODEL_EXECUTION}`, { modelId });
+    if (isLoadingModel) return; 
+    isLoadingModel = true;
+    currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
+    const statusDiv = document.getElementById('model-load-status');
+    if (statusDiv) statusDiv.style.display = 'block';
+    disableInput("Loading model...");
+    loadModelButton.disabled = true;
+    setLoadModelButtonText('Loading...');
+    const badge = document.getElementById('device-badge');
+    if (badge) badge.style.display = 'none';
+    const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    const quant = quantDropdown ? quantDropdown.value : '';
     document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
-        detail: { modelId }
+        detail: { modelId, quant, loadId: currentLoadId }
     }));
 }
 
+let repoQuantsCache: Record<string, any> = {};
 
+export async function updateQuantDropdown() {
+  const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
+  const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+  
+  if (!modelDropdown || !quantDropdown) return;
+  
+  // Get all manifest entries in one call
+  const allManifests = await getAllManifestEntries();
+  const modelRepos = getModelSelectorOptions();
+  
+  // Build the cache dictionary: repo → manifest data
+  repoQuantsCache = {};
+  for (const repo of modelRepos) {
+    const manifestEntry = allManifests.find(entry => entry.repo === repo);
+    if (manifestEntry) {
+      repoQuantsCache[repo] = manifestEntry;
+    }
+  }
+  
+  // Now populate the quant dropdown based on currently selected repo
+  populateQuantDropdownForSelectedRepo();
+}
+
+function populateQuantDropdownForSelectedRepo() {
+  const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
+  const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+  const loadModelButton = document.getElementById('load-model-button') as HTMLButtonElement | null;
+  const statusDiv = document.getElementById('model-load-status');
+  const statusText = document.getElementById('model-load-status-text');
+  
+  if (!modelDropdown || !quantDropdown) return;
+  
+  const selectedRepo = modelDropdown.value;
+  if (!selectedRepo || !repoQuantsCache[selectedRepo]) {
+    quantDropdown.innerHTML = '';
+    quantDropdown.disabled = true;
+    return;
+  }
+  
+  const manifestEntry = repoQuantsCache[selectedRepo];
+  
+  // --- Save current selection ---
+  const prevSelectedQuant = quantDropdown.value;
+
+  // Clear the dropdown
+  quantDropdown.innerHTML = '';
+  
+  // Check if any quant is unsupported
+  const unsupported = Object.values(manifestEntry.quants).some(q => (q as QuantInfo).status === QuantStatus.Unsupported);
+  
+  if (unsupported) {
+    // Show error message in status area
+    if (statusDiv && statusText) {
+      statusDiv.style.display = 'block';
+      statusText.textContent = "This model's task is not supported by the current runtime.";
+    }
+    // Disable load button
+    if (loadModelButton) {
+      loadModelButton.disabled = true;
+      setLoadModelButtonText('Unsupported');
+      loadModelButton.style.opacity = '0.5';
+      loadModelButton.style.cursor = 'not-allowed';
+    }
+    // Disable quant dropdown
+    quantDropdown.disabled = true;
+    return;
+  } else {
+    // Hide error if previously shown
+    if (statusDiv && statusText) {
+      statusDiv.style.display = 'none';
+      statusText.textContent = '';
+    }
+    // Enable controls
+    quantDropdown.disabled = false;
+    if (loadModelButton) {
+      loadModelButton.disabled = false;
+      setLoadModelButtonText('Load Model');
+      loadModelButton.style.opacity = '';
+      loadModelButton.style.cursor = '';
+    }
+  }
+  
+  // Populate quant dropdown with options for selected repo
+  for (const quant in manifestEntry.quants) {
+    const option = document.createElement('option');
+    option.value = quant;
+    
+    // Set status indicator
+    let dot = '⚪'; // default gray
+    switch (manifestEntry.quants[quant].status) {
+      case QuantStatus.Downloaded: dot = '🟢'; break;
+      case QuantStatus.Available: dot = '🟡'; break;
+      case QuantStatus.Failed: dot = '🔴'; break;
+      case QuantStatus.NotFound:
+      case QuantStatus.Unavailable: dot = '⚪'; break;
+    }
+    
+    option.textContent = `${quant} ${dot}`;
+    quantDropdown.appendChild(option);
+  }
+
+  // --- Restore previous selection if possible ---
+  if (prevSelectedQuant && manifestEntry.quants[prevSelectedQuant]) {
+    quantDropdown.value = prevSelectedQuant;
+  }
+}
+document.getElementById('model-selector')?.addEventListener('change', onModelDropdownChange);
+// Call this when model dropdown changes
+export function onModelDropdownChange() {
+  populateQuantDropdownForSelectedRepo();
+}
+
+
+window.addEventListener('message', (event: MessageEvent) => {
+  if (event.data && event.data.type === WorkerEventNames.MANIFEST_UPDATED) {
+    console.log(`[UIController] Received MANIFEST_UPDATED event. Updating quant dropdown.`);
+    updateQuantDropdown();
+  }
+});
+
+document.addEventListener(WorkerEventNames.MANIFEST_UPDATED, () => {
+    console.log(`[UIController] Received DOM MANIFEST_UPDATED event. Updating quant dropdown.`);
+    updateQuantDropdown();
+  });
+
+// Add this helper near the top, after loadModelButton is defined
+function setLoadModelButtonText(text: string) {
+    if (loadModelButton) loadModelButton.textContent = text;
+}
 

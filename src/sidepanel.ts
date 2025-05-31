@@ -20,8 +20,9 @@ import {
   setActiveSession,
   getCurrentlySelectedModel,
   normalizeQuant,
+  getModelSelectorOptions,
 } from './Home/uiController';
-import { getActiveTab, showError as utilShowError, debounce } from './Utilities/generalUtils';
+import { getActiveTab, showError as utilShowError, debounce, showWarning as utilShowWarning } from './Utilities/generalUtils';
 import { showNotification } from './notifications';
 import { DbGetSessionRequest, DbAddLogRequest ,   DbInitializationCompleteNotification } from './DB/dbEvents';
 import { autoEnsureDbInitialized, forwardDbRequest } from './DB/db';
@@ -44,6 +45,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
+import { getManifestEntry, addManifestEntry, fetchRepoFiles, parseQuantFromFilename, QuantStatus, getAllManifestEntries } from './DB/idbModel';
 
 // --- Constants ---
 const LOG_QUEUE_MAX = 1000;
@@ -66,7 +68,7 @@ let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady: boolean = false;
 
 // Track the currently loaded model and quant (onnx variant)
-let currentLoadedModel: { modelId: string | null, onnxFile: string | null } = { modelId: null, onnxFile: null };
+let currentLoadedModel: { modelId: string | null, quant: string | null } = { modelId: null, quant: null };
 
 function syncToggleLoadButton() {
   const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
@@ -77,7 +79,7 @@ function syncToggleLoadButton() {
   const selectedQuant = quantDropdown.value;
   if (
     selectedModelId === currentLoadedModel.modelId &&
-    selectedQuant === currentLoadedModel.onnxFile &&
+    selectedQuant === currentLoadedModel.quant &&
     selectedModelId && selectedQuant
   ) {
     loadBtn.style.display = 'none';
@@ -271,27 +273,29 @@ function handleModelWorkerMessage(event: MessageEvent) {
           modelWorkerState = WorkerEventNames.LOADING_MODEL;
           console.log(`${prefix} Worker loading status:`, payload);
           break;
-      case WorkerEventNames.WORKER_READY:
+      case WorkerEventNames.WORKER_READY: {
           modelWorkerState = WorkerEventNames.MODEL_READY;
           currentModelIdInWorker = payload.modelId;
           currentLoadedModel = {
             modelId: payload.modelId,
-            onnxFile: payload.onnxFile || (quantDropdown ? quantDropdown.value : null)
+            quant: payload.quant || (quantDropdown ? quantDropdown.value : null)
           };
           syncToggleLoadButton();
           if (loadBtn) loadBtn.style.display = 'none';
-          showDeviceBadge(payload.executionProvider, payload.providerNote);
-          if (payload.providerNote) {
-            utilShowError(payload.providerNote);
-          }
+          showDeviceBadge(payload.executionProvider, payload.warning);
+          // Always show what quantization was actually loaded
+          let quantMsg = `Model loaded with quantization: '${payload.quant}'.`;
           if (payload.fallback) {
-            let msg = `Requested quantization '${payload.requestedQuant}' not available. Loaded with '${payload.onnxFile}' instead.`;
-            utilShowError(msg);
-          } else {
-            console.log(`${prefix} Model ${payload.modelId} loaded successfully!`);
+            quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${payload.quant}' was used.`;
           }
-          console.log(`${prefix} Model worker is ready with model: ${payload.modelId}, quant: ${payload.onnxFile}, fallback: ${payload.fallback}, executionProvider: ${payload.executionProvider}, providerNote: ${payload.providerNote}`);
+          utilShowWarning(quantMsg);
+          if (payload.warning) {
+            utilShowWarning(payload.warning);
+          }
+          console.log(`${prefix} Model ${payload.modelId} loaded successfully!`);
+          console.log(`${prefix} Model worker is ready with model: ${payload.modelId}, quant: ${payload.quant}, fallback: ${payload.fallback}, executionProvider: ${payload.executionProvider}, warning: ${payload.warning}`);
           break;
+      }
       case WorkerEventNames.ERROR:
           modelWorkerState = WorkerEventNames.ERROR;
           isModelWorkerEnvReady = false;
@@ -338,6 +342,9 @@ function handleModelWorkerMessage(event: MessageEvent) {
                   error: payload.error
               }
           }));
+          break;
+      case WorkerEventNames.MANIFEST_UPDATED:
+          document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
           break;
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
@@ -509,13 +516,13 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
     } else if (type === RuntimeMessageTypes.LOAD_MODEL) {
         console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
         const modelToLoad = payload.modelId || payload.model;
-        const onnxToLoad = payload.onnxFile; 
+        const onnxToLoad = payload.quant; 
         if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
             document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
-                detail: { modelId: modelToLoad, onnxFile: onnxToLoad }
+                detail: { modelId: modelToLoad, quant: onnxToLoad }
             }));
         } else {
-            const errorMsg = `LOAD_MODEL received with invalid/missing modelId or onnxFile. Model: ${modelToLoad}, ONNX: ${onnxToLoad}`;
+            const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
             console.error(`${prefix} ${errorMsg}`);
             llmChannel.postMessage({
                 type: RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
@@ -564,11 +571,9 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
   } else if (type === RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
     sendUiEvent(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
     sendResponse({});
-  } else if (type === RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
-    sendUiEvent(UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
   } else if (
     type === InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
-    type === UIEventNames.MODEL_DOWNLOAD_PROGRESS
+    type === UIEventNames.MODEL_WORKER_LOADING_PROGRESS
   ) {
     // No action needed
   } else {
@@ -828,8 +833,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
 
-    document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async () => {
-      const { modelId, onnxFile } = getCurrentlySelectedModel();
+    document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+      const { modelId, quant, loadId } = (e as CustomEvent).detail;
       if (!modelId) {
           utilShowError('No model selected.');
           return;
@@ -866,13 +871,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       // Normalize quantization value before sending INIT
-      const quant = normalizeQuant(onnxFile || '');
-      console.log(`${prefix} UI would show: Initializing worker for ${modelId} with quant: ${quant}...`);
+      const normQuant = normalizeQuant(quant || '');
+      // Get the task from the manifest
+      const manifestEntry = await getManifestEntry(modelId);
+      const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
+      console.log(`${prefix} UI would show: Initializing worker for ${modelId} with quant: ${normQuant}, task: ${task}...`);
       modelWorkerState = WorkerEventNames.LOADING_MODEL;
       currentModelIdInWorker = modelId;
       modelWorker.postMessage({
           type: WorkerEventNames.INIT,
-          payload: { modelId, onnxFile: quant }
+          payload: { modelId, quant: normQuant, task, loadId }
       });
     });
 
@@ -920,16 +928,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadAndDisplaySession(null);
     }
 
+    await ensureManifestForDropdownRepos();
+    
     const dbInitSuccess = await initializeDatabase();
     if (!dbInitSuccess) return;
+   
 
     console.log(`${prefix} Initialization complete.`);
 
-    // Add listeners to dropdowns to toggle load button
     const modelDropdownEl = document.getElementById('model-selector');
     const quantDropdownEl = document.getElementById('onnx-variant-selector');
     if (modelDropdownEl) {
-      modelDropdownEl.addEventListener('change', () => {
+      modelDropdownEl.addEventListener('change', async () => {
         hideDeviceBadge();
         syncToggleLoadButton();
       });
@@ -942,6 +952,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     // Initial toggle
     syncToggleLoadButton();
+
+    if (modelWorker) {
+      const originalOnMessage = modelWorker.onmessage;
+      modelWorker.onmessage = function(event) {
+        if (event.data && event.data.type === WorkerEventNames.MANIFEST_UPDATED) {
+          syncToggleLoadButton();
+        }
+        if (typeof originalOnMessage === 'function') {
+          originalOnMessage.call(this, event);
+        }
+      };
+    }
+
   } catch (error) {
     const err = error as Error;
     console.error(`${prefix} Initialization failed:`, err);
@@ -988,5 +1011,51 @@ async function initializeDatabase(): Promise<boolean> {
   }
 }
 
-// --- Exports ---
+async function ensureManifestForDropdownRepos() {
+  const dropdownRepos = getModelSelectorOptions();
+  const allManifests = await getAllManifestEntries();
+  const haveRepos = new Set(allManifests.map(entry => entry.repo));
+
+  console.log(`${prefix} [Manifest] Have repos:`, haveRepos);
+  console.log(`${prefix} [Manifest] Dropdown repos:`, dropdownRepos);
+
+  for (const repo of dropdownRepos) {
+    if (haveRepos.has(repo)) {
+      console.log(`${prefix} [Manifest] Repo ${repo} already in manifest, skipping fetch.`);
+      continue;
+    }
+    try {
+      const { siblings, task } = await fetchRepoFiles(repo);
+      const files = siblings;
+      const quantMap: Record<string, { files: string[], status: QuantStatus }> = {};
+      for (const file of files) {
+        const fname = file.rfilename ? file.rfilename.split('/').pop() : '';
+        if (file.rfilename && file.rfilename.endsWith('.onnx')) {
+          let quant = parseQuantFromFilename(file.rfilename);
+          if (!quant) {
+            quant = fname === 'model.onnx' ? 'fp32' : fname || 'unknown_quant';
+          }
+          quant = '' + quant;
+          if (!quantMap[quant]) quantMap[quant] = { files: [], status: QuantStatus.Available };
+          quantMap[quant].files.push(file.rfilename);
+        }
+      }
+      for (const file of files) {
+        if (file.rfilename && file.rfilename.endsWith('.json')) {
+          for (const quant in quantMap) {
+            quantMap[quant].files.push(file.rfilename);
+          }
+        }
+      }
+      const entry = { repo, quants: quantMap, task };
+      await addManifestEntry(repo, entry);
+      console.log(`${prefix}[Manifest] Added entry for repo: ${repo}`, entry);
+    } catch (e) {
+      console.warn(`${prefix} [Manifest] Failed to fetch/add entry for repo: ${repo}`, e);
+    }
+  }
+  document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
+}
+
+
 export { sendDbRequestSmart, sendToModelWorker };

@@ -1,19 +1,41 @@
 import browser from 'webextension-polyfill';
 
 export function showError(message: string): void {
-    console.error("UI Error:", message);
+    const container = document.getElementById('ui-inline-messages');
+    if (!container) return;
     const errorDiv = document.createElement('div');
-    errorDiv.style.position = 'fixed';
-    errorDiv.style.bottom = '10px';
-    errorDiv.style.left = '10px';
-    errorDiv.style.backgroundColor = 'red';
-    errorDiv.style.color = 'white';
-    errorDiv.style.padding = '10px';
-    errorDiv.style.borderRadius = '5px';
-    errorDiv.style.zIndex = '1000';
+    errorDiv.style.background = '#fff1f0';
+    errorDiv.style.color = '#a8071a';
+    errorDiv.style.border = '1px solid #ffa39e';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.padding = '4px 10px';
+    errorDiv.style.margin = '2px 0';
+    errorDiv.style.fontSize = '0.92em';
+    errorDiv.style.display = 'inline-block';
+    errorDiv.style.maxWidth = '100%';
+    errorDiv.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)';
     errorDiv.textContent = message;
-    document.body.appendChild(errorDiv);
-    setTimeout(() => errorDiv.remove(), 3000);
+    container.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 5000);
+}
+
+export function showWarning(message: string): void {
+    const container = document.getElementById('ui-inline-messages');
+    if (!container) return;
+    const warnDiv = document.createElement('div');
+    warnDiv.style.background = '#fffbe6';
+    warnDiv.style.color = '#856404';
+    warnDiv.style.border = '1px solid #ffe58f';
+    warnDiv.style.borderRadius = '4px';
+    warnDiv.style.padding = '4px 10px';
+    warnDiv.style.margin = '2px 0';
+    warnDiv.style.fontSize = '0.92em';
+    warnDiv.style.display = 'inline-block';
+    warnDiv.style.maxWidth = '100%';
+    warnDiv.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)';
+    warnDiv.textContent = message;
+    container.appendChild(warnDiv);
+    setTimeout(() => warnDiv.remove(), 5000);
 }
 
 export function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {

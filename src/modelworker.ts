@@ -1,31 +1,38 @@
 /// <reference lib="dom" />
 /* global RequestInfo, RequestInit */
-// Import DOM types for TypeScript
 export {};
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!(navigator as any).gpu;
 let hasWebGPU: boolean = _isNavigatorGpuAvailable;
 let webgpuCheckPromise: Promise<void> = Promise.resolve();
+const prefix = '[ModelWorker]';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_SELF = false;
 
 if (_isNavigatorGpuAvailable) {
     webgpuCheckPromise = (async () => {
         try {
             const adapter = await (navigator as any).gpu.requestAdapter();
             if (!adapter) {
-                console.warn('[ModelWorker] WebGPU navigator.gpu exists, but requestAdapter() returned null. WebGPU will not be used.');
+                if(LOG_WARN)console.warn(prefix, 'WebGPU navigator.gpu exists, but requestAdapter() returned null. WebGPU will not be used.');
                 hasWebGPU = false;
             } else {
-                console.log('[ModelWorker] WebGPU adapter successfully obtained. WebGPU is available.');
+                if(LOG_GENERAL)console.log(prefix, 'WebGPU adapter successfully obtained. WebGPU is available.');
             }
         } catch (e) {
-            console.warn('[ModelWorker] Error requesting WebGPU adapter. WebGPU will not be used.', e);
+            if(LOG_WARN)console.warn(prefix, 'Error requesting WebGPU adapter. WebGPU will not be used.', e);
             hasWebGPU = false;
         }
     })();
 }
 
-console.log('[ModelWorker] WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
+if(LOG_GENERAL)console.log(prefix, 'WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
 import { pipeline, env } from './assets/onnxruntime-web/transformers';
 import { WorkerEventNames, UIEventNames } from './events/eventNames';
+import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, parseQuantFromFilename, QuantStatus } from './DB/idbModel';
+
 
 env.useBrowserCache = false;
 
@@ -38,7 +45,7 @@ const extBaseUrlReady = new Promise<string>((resolve) => {
 self.addEventListener('message', (event: MessageEvent) => {
     if (event.data && event.data.type === WorkerEventNames.SET_BASE_URL) {
         EXT_BASE_URL = event.data.baseUrl || '';
-        console.log('[ModelWorker] Received extension base URL:', EXT_BASE_URL);
+        if(LOG_GENERAL)console.log(prefix, 'Received extension base URL:', EXT_BASE_URL);
         if (extBaseUrlReadyResolve) extBaseUrlReadyResolve(EXT_BASE_URL);
     }
 });
@@ -63,7 +70,7 @@ async function getOnnxWasmRootPath() {
 (async () => {
     await extBaseUrlReady;
     await webgpuCheckPromise;
-    console.log('[ModelWorker] Initial state of env.backends:', JSON.stringify(env.backends, null, 2));
+    if(LOG_DEBUG)console.log(prefix, 'Initial state of env.backends:', JSON.stringify(env.backends, null, 2));
 
     if (!env.backends) { (env as any).backends = {}; }
     if (!env.backends.onnx) { (env.backends as any).onnx = {}; }
@@ -92,86 +99,37 @@ async function getOnnxWasmRootPath() {
     }
     (env.backends.onnx as any).logLevel = 'verbose';
 
-    console.log("[ModelWorker]  Minimal modelworker.js loaded and env.backends.onnx after initial setup:", JSON.stringify(env.backends.onnx, null, 2));
+    if(LOG_DEBUG)console.log(prefix, 'Minimal modelworker.js loaded and env.backends.onnx after initial setup:', JSON.stringify(env.backends.onnx, null, 2));
     self.postMessage({ type: WorkerEventNames.WORKER_ENV_READY });
 })();
 
 self.addEventListener('error', function(e: ErrorEvent) {
-    console.error("[ModelWorker] Global error in model-worker.js:", e);
+    if(LOG_ERROR)console.error(prefix, 'Global error in model-worker.js:', e);
     try {
         self.postMessage({ type: 'FATAL_ERROR', payload: e.message || e });
     } catch (err) {
-        console.error("[ModelWorker] Failed to postMessage FATAL_ERROR:", err);
+        if(LOG_ERROR)console.error(prefix, 'Failed to postMessage FATAL_ERROR:', err);
     }
 });
 self.addEventListener('unhandledrejection', function(e: PromiseRejectionEvent) {
-    console.error("[ModelWorker] Unhandled promise rejection in model-worker.js:", e);
+    if(LOG_ERROR)console.error(prefix, 'Unhandled promise rejection in model-worker.js:', e);
     try {
         self.postMessage({ type: 'FATAL_ERROR', payload: (e as any).reason || e });
     } catch (err) {
-        console.error("[ModelWorker] Failed to postMessage FATAL_ERROR (unhandledrejection):", err);
+        if(LOG_ERROR)console.error(prefix, 'Failed to postMessage FATAL_ERROR (unhandledrejection):', err);
     }
 });
 
 let pipelineInstance: any = null;
 let currentModel: string | null = null;
+let currentQuantization: string | null = null;
 let isModelPipelineReady = false;
 
-const DB_NAME = 'transformers-model-cache';
-const STORE_NAME = 'files';
+
 
 let envConfig: any = {};
 
-function openDB() {
-    return new Promise<IDBDatabase>((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            req.result.createObjectStore(STORE_NAME);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
 
-async function getFromIndexedDB(url: string): Promise<Blob | null> {
-   // console.log('[ModelWorker] IndexedDB get key:', url);
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.get(url);
-        req.onsuccess = () => {
-            if (req.result) {
-                //console.log('[ModelWorker] Cache hit in IndexedDB for:', url);
-            } else {
-                //console.log('[ModelWorker] Cache miss in IndexedDB for:', url);
-            }
-            resolve(req.result || null);
-        };
-        req.onerror = () => {
-            console.error('[ModelWorker] IndexedDB get error for:', url, req.error);
-            reject(req.error);
-        };
-    });
-}
-
-async function saveToIndexedDB(url: string, blob: Blob) {
-    //console.log('[ModelWorker] IndexedDB save key:', url);
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.put(blob, url);
-        req.onsuccess = () => {
-            //console.log('[ModelWorker] Saved to IndexedDB:', url);
-            resolve(undefined);
-        };
-        req.onerror = () => {
-            //console.error('[ModelWorker] IndexedDB save error for:', url, req.error);
-            reject(req.error);
-        };
-    });
-}
 
 const originalFetch = self.fetch;
 
@@ -188,27 +146,27 @@ self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Pr
         isRequestObject = true;
     }
 
-    //console.log('[ModelWorker] fetch override called. Resource URL:', resourceUrl || 'N/A (Input not string, URL, or Request)', 'Input type:', typeof input);
+   if(LOG_SELF)console.log(prefix, 'fetch override called. Resource URL:', resourceUrl || 'N/A (Input not string, URL, or Request)', 'Input type:', typeof input);
     if (isRequestObject) {
-        //console.log('[ModelWorker] Input was a Request object:', input);
+       if(LOG_SELF)console.log(prefix, 'Input was a Request object:', input);
     }
 
 
     if (resourceUrl && resourceUrl.includes(ONNX_WASM_FILE_NAME)) {
-       //console.log(`[ModelWorker] Intercepting fetch for WASM: ${resourceUrl}, serving local: ${await getOnnxWasmFilePath()}`);
+       if(LOG_SELF)console.log(prefix, 'Intercepting fetch for WASM:', resourceUrl, 'serving local:', await getOnnxWasmFilePath());
        const wasmPath = await getOnnxWasmFilePath();
        return originalFetch.call(self, isRequestObject ? new Request(wasmPath, input as Request) : wasmPath, options);
     }
 
     if (resourceUrl) { 
-        //console.log('[ModelWorker] Potentially interceptable non-WASM fetch. URL:', resourceUrl);
+        if(LOG_SELF)console.log(prefix, 'Potentially interceptable non-WASM fetch. URL:', resourceUrl);
 
         if (resourceUrl.includes('/resolve/main/') || resourceUrl.includes('/resolve/')) { 
-           // console.log('[ModelWorker] Matched model file pattern (/resolve/main/ or /resolve/). Attempting IndexedDB for URL:', resourceUrl);
+           if(LOG_SELF)console.log(prefix, 'Matched model file pattern (/resolve/main/ or /resolve/). Attempting IndexedDB for URL:', resourceUrl);
             try {
                 const cached = await getFromIndexedDB(resourceUrl);
                 if (cached) {
-                    //console.log(`[ModelWorker] Serving model file from IndexedDB: ${resourceUrl}`);
+                    if(LOG_SELF)console.log(prefix, 'Serving model file from IndexedDB:', resourceUrl);
                     const headers = new Headers();
                     if (cached.type) {
                         headers.set('Content-Type', cached.type);
@@ -218,31 +176,31 @@ self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Pr
                         headers.set('Content-Type', 'application/octet-stream');
                     }
                     headers.set('Content-Length', cached.size.toString());
-                    //console.log(`[ModelWorker] Serving from IDB with headers: Content-Type: ${headers.get('Content-Type')}, Content-Length: ${headers.get('Content-Length')}`);
+                    if(LOG_SELF)console.log(prefix, 'Serving from IDB with headers: Content-Type:', headers.get('Content-Type'), 'Content-Length:', headers.get('Content-Length'));
                     return new Response(cached, { headers: headers });
                 }
             } catch (dbError) {
-                console.error('[ModelWorker] Error reading from IndexedDB, proceeding to network fetch:', dbError);
+                if(LOG_ERROR)console.error(prefix, 'Error reading from IndexedDB, proceeding to network fetch:', dbError);
             }
 
-            // console.log(`[ModelWorker] Downloading model file from network: ${resourceUrl}`);
+            if(LOG_SELF)console.log(prefix, 'Downloading model file from network:', resourceUrl);
             const resp = await originalFetch.call(self, input, options); 
             if (resp.ok) {
                 const blob = await resp.clone().blob(); 
                 try {
                     await saveToIndexedDB(resourceUrl, blob);
-                    //console.log(`[ModelWorker] Fetched and cached model file to IndexedDB: ${resourceUrl}`);
                 } catch (dbError) {
-                    // console.error('[ModelWorker] Error saving to IndexedDB:', dbError);
+                    if(LOG_ERROR)console.error(prefix, 'Error saving to IndexedDB:', dbError);
                 }
                 return resp; 
+            } else {
+                return resp;
             }
-            return resp;
         } else {
-            console.log('[ModelWorker] URL did not match model pattern (/resolve/main/ or /resolve/):', resourceUrl);
+            if(LOG_GENERAL)console.log(prefix, 'URL did not match model pattern (/resolve/main/ or /resolve/):', resourceUrl);
         }
     } else {
-        console.log('[ModelWorker] fetch override: resourceUrl could not be determined. Passing through.');
+        if(LOG_GENERAL)console.log(prefix, 'fetch override: resourceUrl could not be determined. Passing through.');
     }
 
     return originalFetch.call(self, input, options);
@@ -276,10 +234,10 @@ async function setupOnnxWasmPathsHardcoded() {
             (env.backends.onnx as any).executionProviders = ['wasm'];
         }
 
-        console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.wasm:', JSON.stringify(((env.backends.onnx as any).wasm as any), null, 2));
-        console.log('[ModelWorker] Re-affirmed ONNX WASM config. env.backends.onnx.env.wasm:', JSON.stringify(((env.backends.onnx as any).env as any).wasm, null, 2));
+        if(LOG_DEBUG)console.log(prefix, 'Re-affirmed ONNX WASM config. env.backends.onnx.wasm:', JSON.stringify(((env.backends.onnx as any).wasm as any), null, 2));
+        if(LOG_DEBUG)console.log(prefix, 'Re-affirmed ONNX WASM config. env.backends.onnx.env.wasm:', JSON.stringify(((env.backends.onnx as any).env as any).wasm, null, 2));
     } catch (err) {
-        console.warn('[ModelWorker] Failed to re-affirm hardcoded ONNX WASM/loader config:', err);
+        if(LOG_WARN)console.warn(prefix, 'Failed to re-affirm hardcoded ONNX WASM/loader config:', err);
     }
 }
 
@@ -313,11 +271,10 @@ function mapQuantToDtype(quant: string): string {
     }
 }
 
-async function loadPipeline(payload: { modelId: string, onnxFile?: string }) {
+async function loadPipeline(payload: { modelId: string, quant?: string, task?: string, loadId?: string }) {
     await webgpuCheckPromise;
-    const { modelId, onnxFile: quantization } = payload;
+    const { modelId, quant, task, loadId } = payload;
 
-    console.log('[ModelWorker] Re-affirming ONNX paths before pipeline call.');
     await setupOnnxWasmPathsHardcoded();
 
     const envLog = {
@@ -330,34 +287,34 @@ async function loadPipeline(payload: { modelId: string, onnxFile?: string }) {
         envConfig,
         hasWebGPU
     };
-    console.log('[ModelWorker] loadPipeline environment (pretty):', JSON.stringify(envLog, null, 2));
+    if(LOG_GENERAL)console.log(prefix, 'loadPipeline environment (pretty):', JSON.stringify(envLog, null, 2));
 
     let resolvedDevice = envConfig.device;
     if (!resolvedDevice && hasWebGPU) {
         resolvedDevice = 'webgpu';
-        console.log('[ModelWorker] Auto-selecting WebGPU as device');
+        if(LOG_GENERAL)console.log(prefix, 'Auto-selecting WebGPU as device');
     }
 
     const modelArg = modelId;
-    let quantTried = quantization;
+    let quantTried = quant;
     let fallbackUsed = false;
     let options: any = {
         progress_callback: (data: any) => {
-            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: data });
+            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...data, loadId } });
         }
     };
 
     if (resolvedDevice) {
         options.device = resolvedDevice;
-        console.log('[ModelWorker] Setting device to:', resolvedDevice);
+        if(LOG_GENERAL)console.log(prefix, 'Setting device to:', resolvedDevice);
     }
     
     if (envConfig.dtype) options.dtype = envConfig.dtype;
     if (envConfig.quantized !== undefined) options.quantized = envConfig.quantized;
     
-    if (quantization && quantization !== 'auto') {
-        options.quant = quantization;
-        options.dtype = mapQuantToDtype(quantization);
+    if (quant && quant !== 'auto') {
+        options.quant = quant;
+        options.dtype = mapQuantToDtype(quant);
     } else {
         options.dtype = 'auto';
     }
@@ -366,7 +323,9 @@ async function loadPipeline(payload: { modelId: string, onnxFile?: string }) {
         options.execution_providers = ['webgpu', 'wasm'];
     }
 
-    console.log(`[ModelWorker] Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
+    if(LOG_GENERAL)console.log(prefix, `Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
+
+    const pipelineTask = task || 'text-generation';
 
     const pipelineLog: any = {
         pipelineType: typeof pipeline,
@@ -375,16 +334,28 @@ async function loadPipeline(payload: { modelId: string, onnxFile?: string }) {
         env: JSON.parse(JSON.stringify(env)), 
         currentEnvOnnx: JSON.parse(JSON.stringify(env.backends.onnx)) 
     };
-    console.log('[ModelWorker][DEBUG] About to call pipeline (pretty):', JSON.stringify(pipelineLog, null, 2));
+    if(LOG_DEBUG)console.log(prefix, 'About to call pipeline (pretty):', JSON.stringify(pipelineLog, null, 2));
 
     let actualExecutionProvider: string = 'unknown';
     let providerNote: string | undefined = undefined;
     try {
       
-        pipelineInstance = await pipeline('text-generation', modelArg, options);
+        pipelineInstance = await pipeline(pipelineTask, modelArg, options);
         currentModel = modelId;
+        currentQuantization = quantTried || null;
         isModelPipelineReady = true;
-        console.log('[ModelWorker] pipelineInstance after creation:', pipelineInstance);
+        if(LOG_DEBUG)console.log(prefix, 'pipelineInstance after creation:', pipelineInstance);
+
+        let actualQuantUsed = quantTried;
+        if (pipelineInstance && pipelineInstance.quant) {
+            actualQuantUsed = pipelineInstance.quant;
+        } else if (options.quant) {
+            actualQuantUsed = options.quant;
+        } else if (quantTried) {
+            actualQuantUsed = quantTried;
+        } else {
+            actualQuantUsed = 'fp32';
+        }
 
         if (pipelineInstance) {
             if (pipelineInstance.device && typeof pipelineInstance.device === 'string') {
@@ -417,111 +388,159 @@ async function loadPipeline(payload: { modelId: string, onnxFile?: string }) {
             actualExecutionProvider = 'wasm';
         }
 
-        console.log(`[ModelWorker] Successfully loaded pipeline. Actual execution provider: ${actualExecutionProvider}`);
+        if(LOG_DEBUG)console.log(prefix, `Successfully loaded pipeline. Actual execution provider: ${actualExecutionProvider}`);
         if (providerNote) {
-            console.warn('[ModelWorker] Provider note:', providerNote);
+            if(LOG_DEBUG)console.warn(prefix, 'Provider note:', providerNote);
         }
         self.postMessage({ 
             type: WorkerEventNames.WORKER_READY, 
             payload: { 
                 modelId, 
-                onnxFile: quantTried, 
-                task: 'text-generation', 
+                quant: actualQuantUsed, 
+                task: pipelineTask, 
                 fallback: fallbackUsed, 
                 executionProvider: actualExecutionProvider,
-                providerNote
+                warning: providerNote
             } 
         });
     } catch (err) {
-        console.error('[ModelWorker][ERROR] pipeline() call failed for quant', quantTried, ':', err);
+        if(LOG_ERROR)console.error(prefix, 'pipeline() call failed for quant', quantTried, ':', err);
         
-        if (quantization && quantization !== 'auto') {
+        if (quant && quant !== 'auto') {
             try {
                 fallbackUsed = true;
                 quantTried = 'auto';
                 delete options.quant;
                 options.dtype = 'auto';
-                pipelineInstance = await pipeline('text-generation', modelArg, options);
+                pipelineInstance = await pipeline(pipelineTask, modelArg, options);
                 currentModel = modelId;
+                currentQuantization = quantTried || null;
                 isModelPipelineReady = true;
+                let actualQuantUsed = quantTried;
+                if (pipelineInstance && pipelineInstance.quant) {
+                    actualQuantUsed = pipelineInstance.quant;
+                } else if (options.quant) {
+                    actualQuantUsed = options.quant;
+                } else if (quantTried) {
+                    actualQuantUsed = quantTried;
+                } else {
+                    actualQuantUsed = 'fp32';
+                }
                 self.postMessage({ 
                     type: WorkerEventNames.WORKER_READY, 
                     payload: { 
                         modelId, 
-                        onnxFile: quantTried, 
-                        task: 'text-generation', 
+                        quant: actualQuantUsed, 
+                        task: pipelineTask, 
                         fallback: fallbackUsed, 
-                        requestedQuant: quantization, 
-                        executionProvider: actualExecutionProvider 
+                        requestedQuant: quant, 
+                        executionProvider: actualExecutionProvider,
+                        warning: providerNote
                     } 
                 });
                 return;
             } catch (fallbackErr) {
-                console.error('[ModelWorker][ERROR] pipeline() fallback to auto failed:', fallbackErr);
-                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quantization} and fallback quant auto` });
+                if(LOG_ERROR)console.error(prefix, 'pipeline() fallback to auto failed:', fallbackErr);
+                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quant} and fallback quant auto` });
                 return;
             }
         }
         
         if (resolvedDevice === 'webgpu' && hasWebGPU) {
             try {
-                console.log('[ModelWorker] WebGPU failed, trying WASM fallback...');
+                if(LOG_GENERAL)console.log(prefix, 'WebGPU failed, trying WASM fallback...');
                 fallbackUsed = true;
                 delete options.device;
                 delete options.execution_providers;
-                pipelineInstance = await pipeline('text-generation', modelArg, options);
+                pipelineInstance = await pipeline(pipelineTask, modelArg, options);
                 currentModel = modelId;
+                currentQuantization = quantTried || null;
                 isModelPipelineReady = true;
                 actualExecutionProvider = 'wasm (WebGPU fallback)';
+                let actualQuantUsed = quantTried;
+                if (pipelineInstance && pipelineInstance.quant) {
+                    actualQuantUsed = pipelineInstance.quant;
+                } else if (options.quant) {
+                    actualQuantUsed = options.quant;
+                } else if (quantTried) {
+                    actualQuantUsed = quantTried;
+                } else {
+                    actualQuantUsed = 'fp32';
+                }
                 self.postMessage({ 
                     type: WorkerEventNames.WORKER_READY, 
                     payload: { 
                         modelId, 
-                        onnxFile: quantTried, 
-                        task: 'text-generation', 
+                        quant: actualQuantUsed, 
+                        task: pipelineTask, 
                         fallback: fallbackUsed, 
-                        executionProvider: actualExecutionProvider 
+                        executionProvider: actualExecutionProvider,
+                        warning: providerNote
                     } 
                 });
                 return;
             } catch (wasmErr) {
-                console.error('[ModelWorker][ERROR] WASM fallback also failed:', wasmErr);
+                if(LOG_ERROR)console.error(prefix, 'WASM fallback also failed:', wasmErr);
             }
         }
         
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quantization || 'default'}` });
+        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quant || 'default'}` });
     }
 
-    console.log('[ModelWorker] pipelineInstance:', pipelineInstance);
+    if(LOG_DEBUG)console.log(prefix, 'pipelineInstance:', pipelineInstance);
 
     if (pipelineInstance.device) {
-      console.log('[ModelWorker] Actual device/provider used (pipelineInstance.device):', pipelineInstance.device);
+      if(LOG_DEBUG)console.log(prefix, 'Actual device/provider used (pipelineInstance.device):', pipelineInstance.device);
     }
     if (pipelineInstance.model) {
-      console.log('[ModelWorker] pipelineInstance.model:', pipelineInstance.model);
+      if(LOG_DEBUG)console.log(prefix, 'pipelineInstance.model:', pipelineInstance.model);
       if (pipelineInstance.model.session) {
-        console.log('[ModelWorker] pipelineInstance.model.session:', pipelineInstance.model.session);
+        if(LOG_DEBUG)console.log(prefix, 'pipelineInstance.model.session:', pipelineInstance.model.session);
         if ('executionProvider' in pipelineInstance.model.session) {
-          console.log('[ModelWorker] Actual executionProvider (model.session.executionProvider):', pipelineInstance.model.session.executionProvider);
+          if(LOG_DEBUG)console.log(prefix, 'Actual executionProvider (model.session.executionProvider):', pipelineInstance.model.session.executionProvider);
         }
         if ('_backend' in pipelineInstance.model.session) {
-          console.log('[ModelWorker] Backend (model.session._backend):', pipelineInstance.model.session._backend);
+          if(LOG_DEBUG)console.log(prefix, 'Backend (model.session._backend):', pipelineInstance.model.session._backend);
         }
         if ('executionProviders' in pipelineInstance.model.session) {
-          console.log('[ModelWorker] Available executionProviders:', pipelineInstance.model.session.executionProviders);
+          if(LOG_DEBUG)console.log(prefix, 'Available executionProviders:', pipelineInstance.model.session.executionProviders);
         }
       }
     }
     if (pipelineInstance.session) {
-      console.log('[ModelWorker] pipelineInstance.session:', pipelineInstance.session);
+      if(LOG_DEBUG)console.log(prefix, 'pipelineInstance.session:', pipelineInstance.session);
       if ('executionProvider' in pipelineInstance.session) {
-        console.log('[ModelWorker] Actual executionProvider (session.executionProvider):', pipelineInstance.session.executionProvider);
+        if(LOG_DEBUG)console.log(prefix, 'Actual executionProvider (session.executionProvider):', pipelineInstance.session.executionProvider);
       }
       if ('_backend' in pipelineInstance.session) {
-        console.log('[ModelWorker] Backend (session._backend):', pipelineInstance.session._backend);
+        if(LOG_DEBUG)console.log(prefix, 'Backend (session._backend):', pipelineInstance.session._backend);
       }
     }
 }
+
+// Helper: Set quant status in manifest (add if missing)
+async function setManifestQuantStatus(repo: string, quant: string, status: QuantStatus) {
+  let manifest = await getManifestEntry(repo);
+  if (!manifest) return;
+  if (!manifest.quants[quant]) {
+    manifest.quants[quant] = { files: [], status };
+  } else {
+    manifest.quants[quant].status = status;
+  }
+  await addManifestEntry(repo, manifest);
+  self.postMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
+}
+
+// Helper: Add a new quant to manifest
+async function addQuantToManifest(repo: string, quant: string, status: QuantStatus) {
+  let manifest = await getManifestEntry(repo);
+  if (!manifest) return;
+  manifest.quants[quant] = { files: [], status };
+  await addManifestEntry(repo, manifest);
+  self.postMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
+}
+
+
 
 self.onmessage = async (event: MessageEvent) => {
     const { type, payload } = (event.data || {}) as { type: string; payload: any };
@@ -531,21 +550,54 @@ self.onmessage = async (event: MessageEvent) => {
         }
         case WorkerEventNames.SET_ENV_CONFIG: {
             envConfig = { ...envConfig, ...payload };
-            console.log('[ModelWorker] Environment config updated:', envConfig);
+            if(LOG_GENERAL)console.log(prefix, 'Environment config updated:', envConfig);
             break;
         }
         case WorkerEventNames.INIT: {
+            const { modelId, quant, task, loadId } = payload;
+            let loadedSuccessfully = false;
+            // Try to load requested quant
             try {
-                if (currentModel !== payload.modelId || !isModelPipelineReady) {
-                    isModelPipelineReady = false;
-                    await loadPipeline(payload);
-                } else {
-                    self.postMessage({ type: WorkerEventNames.WORKER_READY, payload: { modelId: payload.modelId, onnxFile: payload.onnxFile, task: payload.task || 'text-generation', fallback: false } });
+                await loadPipeline({ modelId, quant, task, loadId });
+                loadedSuccessfully = true;
+            } catch (e: any) {
+                // Detect unsupported pipeline error
+                if (typeof e?.message === 'string' && e.message.startsWith('Unsupported pipeline:')) {
+                    await setManifestQuantStatus(modelId, quant, QuantStatus.Unsupported);
+                    self.postMessage({ type: WorkerEventNames.ERROR, payload: `This model's task is not supported by the current runtime.` });
+                    return;
                 }
-            } catch (error) {
-                self.postMessage({ type: WorkerEventNames.ERROR, payload: error instanceof Error ? error.message : String(error) });
+                loadedSuccessfully = false;
             }
-            break;
+            if (loadedSuccessfully) {
+                // Set quant to downloaded
+                await setManifestQuantStatus(modelId, quant, QuantStatus.Downloaded);
+                return;
+            }
+            // Try fallback quant (auto)
+            const fallbackQuant = 'auto';
+            let fallbackLoaded = false;
+            try {
+                await loadPipeline({ modelId, quant: fallbackQuant, task, loadId });
+                fallbackLoaded = true;
+            } catch (e: any) {
+                // Detect unsupported pipeline error for fallback
+                if (typeof e?.message === 'string' && e.message.startsWith('Unsupported pipeline:')) {
+                    await setManifestQuantStatus(modelId, fallbackQuant, QuantStatus.Unsupported);
+                    self.postMessage({ type: WorkerEventNames.ERROR, payload: `This model's task is not supported by the current runtime.` });
+                    return;
+                }
+                fallbackLoaded = false;
+            }
+            if (fallbackLoaded) {
+                // Add fallback quant to manifest if not present, set to downloaded
+                await addQuantToManifest(modelId, fallbackQuant, QuantStatus.Downloaded);
+                return;
+            }
+            // Both failed, mark original quant as failed
+            await setManifestQuantStatus(modelId, quant, QuantStatus.Failed);
+            self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model with quant ${quant || 'default'}` });
+            return;
         }
         case WorkerEventNames.GENERATE: {
             if (!isModelPipelineReady || !pipelineInstance) {
@@ -588,6 +640,7 @@ self.onmessage = async (event: MessageEvent) => {
         case WorkerEventNames.RESET: {
             pipelineInstance = null;
             currentModel = null;
+            currentQuantization = null;
             isModelPipelineReady = false;
             self.postMessage({ type: WorkerEventNames.RESET_COMPLETE });
             break;

@@ -73,3 +73,19 @@ export const schema = {
 };
 
 export const dbChannel = new BroadcastChannel('tabagent-db');
+
+export const modelCacheSchema = {
+  [DBNames.DB_MODELS]: {
+    version: 2,
+    stores: {
+      files: {
+        keyPath: 'url', // or just use the URL as the key
+        indexes: [] // No indexes needed for simple file storage
+      },
+      manifest: {
+        keyPath: 'repo', // repo name as the key
+        indexes: [] // No indexes needed for now
+      }
+    }
+  }
+};

@@ -5704,6 +5704,349 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
 
 /***/ }),
 
+/***/ "./src/DB/idbModel.ts":
+/*!****************************!*\
+  !*** ./src/DB/idbModel.ts ***!
+  \****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
+/* harmony export */   addManifestEntry: () => (/* binding */ addManifestEntry),
+/* harmony export */   fetchModelMetadataInternal: () => (/* binding */ fetchModelMetadataInternal),
+/* harmony export */   fetchRepoFiles: () => (/* binding */ fetchRepoFiles),
+/* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
+/* harmony export */   getAllManifestEntries: () => (/* binding */ getAllManifestEntries),
+/* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
+/* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
+/* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
+/* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
+/* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB)
+/* harmony export */ });
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+
+// --- Types ---
+var QuantStatus;
+(function (QuantStatus) {
+    QuantStatus["Available"] = "available";
+    QuantStatus["Downloaded"] = "downloaded";
+    QuantStatus["Failed"] = "failed";
+    QuantStatus["NotFound"] = "not_found";
+    QuantStatus["Unavailable"] = "unavailable";
+    QuantStatus["Unsupported"] = "unsupported";
+})(QuantStatus || (QuantStatus = {}));
+const prefix = '[IDBModel]';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+// Canonical opener for model cache DB
+async function openModelCacheDB() {
+    if (LOG_GENERAL)
+        console.log(prefix, '[openModelCacheDB] Opening TabAgentModels DB');
+    const dbName = _idbSchema__WEBPACK_IMPORTED_MODULE_0__.DBNames.DB_MODELS;
+    const dbConfig = _idbSchema__WEBPACK_IMPORTED_MODULE_0__.modelCacheSchema[dbName];
+    const storeNames = Object.keys(dbConfig.stores);
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(dbName, dbConfig.version);
+        req.onupgradeneeded = (event) => {
+            const db = req.result;
+            if (LOG_DEBUG)
+                console.log(prefix, '[openModelCacheDB] onupgradeneeded event', event);
+            for (const storeName of storeNames) {
+                if (!db.objectStoreNames.contains(storeName)) {
+                    const storeConfig = dbConfig.stores[storeName];
+                    db.createObjectStore(storeName, { keyPath: storeConfig.keyPath });
+                    if (LOG_DEBUG)
+                        console.log(prefix, `[openModelCacheDB] Created object store: ${storeName}`);
+                }
+            }
+        };
+        req.onsuccess = (event) => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[openModelCacheDB] onsuccess event', event);
+            if (LOG_DEBUG)
+                console.log(prefix, '[openModelCacheDB] Success');
+            resolve(req.result);
+        };
+        req.onerror = (event) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[openModelCacheDB] onerror event', event);
+            if (LOG_ERROR)
+                console.error(prefix, '[openModelCacheDB] Error', req.error);
+            reject(req.error);
+        };
+        req.onblocked = (event) => {
+            if (LOG_WARN)
+                console.warn(prefix, '[openModelCacheDB] onblocked event', event);
+            reject(new Error('openModelCacheDB: DB open request was blocked.'));
+        };
+    });
+}
+// Update all helpers to use openModelCacheDB
+async function getFromIndexedDB(url) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[getFromIndexedDB] Getting', url);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readonly');
+        const store = tx.objectStore('files');
+        const req = store.get(url);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getFromIndexedDB] Success for', url, req.result);
+            const result = req.result;
+            resolve(result ? result.blob : null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getFromIndexedDB] Error for', url, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getFromIndexedDB] Transaction complete for', url);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getFromIndexedDB] Transaction error for', url, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getFromIndexedDB] Transaction aborted for', url, e);
+        };
+    });
+}
+async function saveToIndexedDB(url, blob) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[saveToIndexedDB] Saving', url);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        const store = tx.objectStore('files');
+        const req = store.put({ url, blob });
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[saveToIndexedDB] Saved', url, blob);
+            resolve(undefined);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveToIndexedDB] Error saving', url, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[saveToIndexedDB] Transaction complete for', url);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveToIndexedDB] Transaction error for', url, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveToIndexedDB] Transaction aborted for', url, e);
+        };
+    });
+}
+async function getManifestEntry(repo) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[getManifestEntry] Getting', repo);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readonly');
+        const store = tx.objectStore('manifest');
+        const req = store.get(repo);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getManifestEntry] Success for', repo, req.result);
+            resolve(req.result || null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getManifestEntry] Error for', repo, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getManifestEntry] Transaction complete for', repo);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getManifestEntry] Transaction error for', repo, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getManifestEntry] Transaction aborted for', repo, e);
+        };
+    });
+}
+async function addManifestEntry(repo, entry) {
+    if (!entry || typeof entry !== 'object' || entry.repo !== repo) {
+        throw new Error(`[addManifestEntry] Invalid entry: must be an object with repo === ${repo}`);
+    }
+    if (LOG_GENERAL)
+        console.log(prefix, '[addManifestEntry] Adding/Updating', repo, entry);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        const req = store.put(entry);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[addManifestEntry] Added/Updated', repo, entry);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[addManifestEntry] Error for', repo, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[addManifestEntry] Transaction complete for', repo);
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[addManifestEntry] Transaction error for', repo, e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[addManifestEntry] Transaction aborted for', repo, e);
+        };
+    });
+}
+async function fetchRepoFiles(repo) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[fetchRepoFiles] Fetching', repo);
+    const url = `https://huggingface.co/api/models/${repo}`;
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            if (LOG_ERROR)
+                console.error(prefix, '[fetchRepoFiles] Failed for', repo, resp.status, resp.statusText);
+            throw new Error(`Failed to fetch repo files for ${repo}`);
+        }
+        const json = await resp.json();
+        if (LOG_DEBUG)
+            console.log(prefix, '[fetchRepoFiles] Success for', repo, json);
+        // Return both siblings and pipeline_tag (task)
+        return { siblings: json.siblings || [], task: json.pipeline_tag || 'text-generation' };
+    }
+    catch (err) {
+        if (LOG_ERROR)
+            console.error(prefix, '[fetchRepoFiles] Exception for', repo, err);
+        throw err;
+    }
+}
+function parseQuantFromFilename(filename) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[parseQuantFromFilename] Parsing', filename);
+    const match = filename.match(/model_([a-z0-9_]+)\.onnx$/i);
+    const quant = match ? match[1] : null;
+    if (LOG_DEBUG)
+        console.log(prefix, '[parseQuantFromFilename] Result', quant);
+    return quant;
+}
+async function fetchModelMetadataInternal(modelId) {
+    const apiUrl = `https://huggingface.co/api/models/${encodeURIComponent(modelId)}`;
+    if (LOG_GENERAL)
+        console.log(prefix, `Fetching model metadata from: ${apiUrl}`);
+    try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(prefix, `Failed to fetch model file list for ${modelId}: ${response.status} ${response.statusText}`, errorText);
+            throw new Error(`Metadata fetch failed (${response.status}): ${response.statusText}`);
+        }
+        const metadata = await response.json();
+        if (LOG_GENERAL)
+            console.log(prefix, `Model metadata fetched successfully for ${modelId}.`);
+        return metadata;
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, `Error fetching metadata for ${modelId}:`, error);
+        throw error;
+    }
+}
+async function filterAndValidateFilesInternal(metadata, modelId, baseRepoUrl) {
+    const hfFileEntries = metadata.siblings || [];
+    // Only keep files we care about
+    const filteredEntries = hfFileEntries.filter((f) => f.rfilename.endsWith('.onnx') || f.rfilename.endsWith('on') || f.rfilename.endsWith('.txt'));
+    if (filteredEntries.length === 0) {
+        return { neededFileEntries: [], message: "No .onnx, on, or .txt files found in model metadata." };
+    }
+    async function getFileSizeWithHEAD(url) {
+        try {
+            const headResp = await fetch(url, { method: 'HEAD' });
+            if (headResp.ok) {
+                const len = headResp.headers.get('Content-Length');
+                return len ? parseInt(len, 10) : null;
+            }
+        }
+        catch (e) {
+            console.warn('[ModelMetadata]', `HEAD request failed for ${url}:`, e);
+        }
+        return null;
+    }
+    // Ensure size is set for each entry
+    const sizePromises = filteredEntries.map(async (entry) => {
+        if (typeof entry.size !== 'number' || !isFinite(entry.size) || entry.size <= 0) {
+            const url = baseRepoUrl + entry.rfilename;
+            const size = await getFileSizeWithHEAD(url);
+            if (size && isFinite(size) && size > 0) {
+                entry.size = size;
+            }
+            else {
+                entry.skip = true;
+            }
+        }
+    });
+    await Promise.all(sizePromises);
+    // Now build full manifest objects
+    const neededFileEntries = filteredEntries.filter((e) => !e.skip).map((entry) => {
+        const fileName = entry.rfilename;
+        const fileType = fileName.split('.').pop();
+        const size = entry.size;
+        const totalChunks = Math.ceil(size / (10 * 1024 * 1024)); // Use CHUNK_SIZE if available
+        const chunkGroupId = `${modelId}/${fileName}`;
+        return {
+            id: `${chunkGroupId}:manifest`,
+            type: 'manifest',
+            chunkGroupId,
+            fileName,
+            folder: modelId,
+            fileType,
+            size,
+            totalChunks,
+            chunkSizeUsed: 10 * 1024 * 1024, // Use CHUNK_SIZE if available
+            status: 'missing',
+            addedAt: Date.now(),
+        };
+    });
+    return { neededFileEntries, message: null };
+}
+async function getAllManifestEntries() {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readonly');
+        const store = tx.objectStore('manifest');
+        const req = store.getAll();
+        req.onsuccess = () => {
+            resolve(req.result || []);
+        };
+        req.onerror = () => {
+            reject(req.error);
+        };
+    });
+}
+
+
+/***/ }),
+
 /***/ "./src/DB/idbSchema.ts":
 /*!*****************************!*\
   !*** ./src/DB/idbSchema.ts ***!
@@ -5717,6 +6060,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   LogLevel: () => (/* binding */ LogLevel),
 /* harmony export */   NodeType: () => (/* binding */ NodeType),
 /* harmony export */   dbChannel: () => (/* binding */ dbChannel),
+/* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   schema: () => (/* binding */ schema)
 /* harmony export */ });
 // idbSchema.ts
@@ -5788,6 +6132,21 @@ const schema = {
     },
 };
 const dbChannel = new BroadcastChannel('tabagent-db');
+const modelCacheSchema = {
+    [DBNames.DB_MODELS]: {
+        version: 2,
+        stores: {
+            files: {
+                keyPath: 'url', // or just use the URL as the key
+                indexes: [] // No indexes needed for simple file storage
+            },
+            manifest: {
+                keyPath: 'repo', // repo name as the key
+                indexes: [] // No indexes needed for now
+            }
+        }
+    }
+};
 
 
 /***/ }),
@@ -7020,6 +7379,7 @@ function initializeOrchestrator(dependencies) {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AVAILABLE_MODELS: () => (/* binding */ AVAILABLE_MODELS),
 /* harmony export */   adjustTextareaHeight: () => (/* binding */ adjustTextareaHeight),
 /* harmony export */   checkInitialized: () => (/* binding */ checkInitialized),
 /* harmony export */   clearInput: () => (/* binding */ clearInput),
@@ -7029,8 +7389,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getModelSelectorOptions: () => (/* binding */ getModelSelectorOptions),
 /* harmony export */   initializeUI: () => (/* binding */ initializeUI),
 /* harmony export */   normalizeQuant: () => (/* binding */ normalizeQuant),
+/* harmony export */   onModelDropdownChange: () => (/* binding */ onModelDropdownChange),
 /* harmony export */   setActiveSession: () => (/* binding */ setActiveSession),
-/* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick)
+/* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick),
+/* harmony export */   updateQuantDropdown: () => (/* binding */ updateQuantDropdown)
 /* harmony export */ });
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
@@ -7038,6 +7400,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_3__);
 /* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
+
 
 
 
@@ -7049,21 +7413,14 @@ let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
 let modelSelectorDropdown = null;
-let onnxVariantSelectorDropdown = null;
+let quantSelectorDropdown = null;
 let loadModelButton = null;
+let isLoadingModel = false; // Track loading state
+let currentLoadId = null;
+let lastSeenLoadId = null;
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     // Model ID (value) : Display Name
-    //  "Xenova/Qwen1.5-1.8B-Chat": "Qwen 1.8B Chat (Quantized)",
-    // "Xenova/Phi-3-mini-4k-instruct": "Phi-3 Mini Instruct (Quantized)",
-    //"HuggingFaceTB/SmolLM-1.7B-Instruct": "SmolLM 1.7B Instruct",
-    //"HuggingFaceTB/SmolLM2-1.7B": "SmolLM2 1.7B",
-    // "google/gemma-3-4b-it-qat-q4_0-gguf": "Gemma 3 4B IT Q4 (GGUF)", 
-    // "bubblspace/Bubbl-P4-multimodal-instruct": "Bubbl-P4 Instruct (Multimodal)", 
-    //"microsoft/Phi-4-multimodal-instruct": "Phi-4 Instruct (Multimodal)", 
-    // "microsoft/Phi-4-mini-instruct": "Phi-4 Mini Instruct",
-    //"Qwen/Qwen3-4B": "Qwen/Qwen3-4B",
-    //"google/gemma-3-1b-pt": "google/gemma-3-1b-pt",
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
     // Add more models here as needed
@@ -7082,9 +7439,6 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.a
     }
     if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DBEventNames).includes(type)) {
         return false;
-    }
-    if (message.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS || message.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE) {
-        handleDownLoadingProgress(message.payload);
     }
 });
 _DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__.dbChannel.onmessage = (event) => {
@@ -7105,7 +7459,7 @@ function selectElements() {
     loadingIndicatorElement = document.getElementById('loading-indicator');
     modelLoadProgress = document.getElementById('model-load-progress');
     modelSelectorDropdown = document.getElementById('model-selector');
-    onnxVariantSelectorDropdown = document.getElementById('onnx-variant-selector');
+    quantSelectorDropdown = document.getElementById('onnx-variant-selector');
     loadModelButton = document.getElementById('load-model-button');
     if (!queryInput || !sendButton || !chatBody || !attachButton || !fileInput /*|| !sessionListElement*/) {
         console.error("UIController: One or more essential elements not found (excluding session list)!");
@@ -7119,7 +7473,7 @@ function attachListeners() {
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
     modelSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
-    onnxVariantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    quantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
     loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
 }
 function removeListeners() {
@@ -7128,7 +7482,7 @@ function removeListeners() {
     sendButton?.removeEventListener('click', handleSendButtonClick);
     attachButton?.removeEventListener('click', handleAttachClick);
     modelSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
-    onnxVariantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    quantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
 }
 function handleEnterKey(event) {
@@ -7204,76 +7558,20 @@ function handleStatusUpdate(notification) {
         setInputStateInternal(notification.payload.status || 'idle');
     }
 }
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_DOWNLOAD_PROGRESS, (e) => {
-    handleDownLoadingProgress(e.detail);
-});
-function handleDownLoadingProgress(payload) {
-    // console.log('[DEBUG][handleLoadingProgress] payload:', payload);
-    if (!payload)
-        return;
-    const statusDiv = document.getElementById('model-load-status');
-    const statusText = document.getElementById('model-load-status-text');
-    const progressBar = document.getElementById('model-load-progress-bar');
-    const progressInner = document.getElementById('model-load-progress-inner');
-    if (!statusDiv || !statusText || !progressBar || !progressInner) {
-        // console.warn('[UIController] Model load progress bar not found.');
-        return;
-    }
-    // Always show the status area while loading or on error
-    statusDiv.style.display = 'block';
-    progressBar.style.width = '100%';
-    // console.log('[DEBUG][handleLoadingProgress] Showing progress bar.');
-    // Handle error
-    if (payload.status === 'error' || payload.error) {
-        statusText.textContent = payload.error || 'Error loading model';
-        progressInner.style.background = '#f44336'; // red
-        progressInner.style.width = '100%';
-        return;
-    }
-    // Main progress bar (overall)
-    let percent = payload.progress || payload.percent || 0;
-    percent = Math.max(0, Math.min(100, percent));
-    // console.log('[DEBUG][handleLoadingProgress] percent:', percent);
-    progressInner.style.width = percent + '%';
-    progressInner.style.background = '#4caf50'; // green
-    // Status text
-    let text = '';
-    function truncateFileName(name, maxLen = 32) {
-        if (!name)
-            return '';
-        return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
-    }
-    if (payload.summary && payload.message) {
-        text = payload.message;
-    }
-    else if (payload.status === 'progress' && payload.file) {
-        const shortFile = truncateFileName(payload.file);
-        text = `Downloading ${shortFile}`;
-        if (payload.chunkIndex && payload.totalChunks) {
-            text += ` (chunk ${payload.chunkIndex} of ${payload.totalChunks})`;
-        }
-        text += `... ${Math.round(percent)}%`;
-    }
-    else if (payload.status === 'done' && payload.file) {
-        const shortFile = truncateFileName(payload.file);
-        text = `${shortFile} downloaded. Preparing pipeline...`;
-    }
-    else {
-        text = 'Loading...';
-    }
-    statusText.textContent = text;
-    // Hide when done (but not on error)
-    if ((percent >= 100 || payload.status === 'popupclosed' || payload.status === 'done' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
-        //console.log('[DEBUG][handleLoadingProgress] Hiding progress bar in 1s');
-        setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
-    }
-}
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e) => {
     handleModelWorkerLoadingProgress(e.detail);
 });
 function handleModelWorkerLoadingProgress(payload) {
     if (!payload)
         return;
+    // Double progress trigger detection
+    if (payload.loadId !== lastSeenLoadId) {
+        console.warn('[UIController] New loadId detected in progress:', payload.loadId);
+        if (lastSeenLoadId) {
+            console.error('[UIController] DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
+        }
+        lastSeenLoadId = payload.loadId;
+    }
     const statusDiv = document.getElementById('model-load-status');
     const statusText = document.getElementById('model-load-status-text');
     const progressBar = document.getElementById('model-load-progress-bar');
@@ -7289,12 +7587,20 @@ function handleModelWorkerLoadingProgress(payload) {
         statusText.textContent = payload.error || 'Error loading model';
         progressInner.style.background = '#f44336'; // red
         progressInner.style.width = '100%';
+        isLoadingModel = false;
+        if (loadModelButton) {
+            loadModelButton.disabled = false;
+            setLoadModelButtonText('Load Model');
+        }
+        enableInput();
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 1500);
+        lastSeenLoadId = null;
         return;
     }
     let percent = payload.progress || payload.percent || 0;
     percent = Math.max(0, Math.min(100, percent));
     progressInner.style.width = percent + '%';
-    progressInner.style.background = '#4caf50'; // green;
+    progressInner.style.background = '#4caf50'; // green
     function formatBytes(bytes) {
         if (!bytes && bytes !== 0)
             return '';
@@ -7334,59 +7640,40 @@ function handleModelWorkerLoadingProgress(payload) {
             text = 'Loading...';
     }
     statusText.textContent = text;
-    if ((percent >= 100 || payload.status === 'popupclosed' || payload.status === 'done' || payload.status === 'ready' || (payload.summary && percent >= 100)) && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
+        isLoadingModel = false;
+        if (loadModelButton) {
+            loadModelButton.disabled = false;
+            setLoadModelButtonText('Load Model');
+        }
+        enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
+        lastSeenLoadId = null;
     }
 }
 function getCurrentlySelectedModel() {
-    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown)
-        return { modelId: null, onnxFile: null };
+    if (!modelSelectorDropdown || !quantSelectorDropdown)
+        return { modelId: null, quant: null };
     return {
         modelId: modelSelectorDropdown.value || null,
-        onnxFile: onnxVariantSelectorDropdown.value || null,
+        quant: quantSelectorDropdown.value || null,
     };
 }
-// Known quantization/precision formats for transformers.js/ONNX:
-// fp32, float32, fp16, float16, int8, q8, q4, q4f16, bnb4, uint8, int4, nf4, q6_k
-const QUANT_OPTIONS = [
-    { value: 'auto', label: 'Auto (Let backend decide)' },
-    { value: 'fp32', label: 'FP32 (Full Precision)' },
-    { value: 'float32', label: 'FLOAT32 (Full Precision)' },
-    { value: 'fp16', label: 'FP16 (Half Precision)' },
-    { value: 'float16', label: 'FLOAT16 (Half Precision)' },
-    { value: 'int8', label: 'INT8 (8-bit Quantized)' },
-    { value: 'q8', label: 'Q8 (8-bit Quantized)' },
-    { value: 'uint8', label: 'UINT8 (8-bit Quantized, Unsigned)' },
-    { value: 'q4', label: 'Q4 (4-bit Quantized)' },
-    { value: 'int4', label: 'INT4 (4-bit Quantized)' },
-    { value: 'q4f16', label: 'Q4F16 (4-bit Quantized, F16)' },
-    { value: 'bnb4', label: 'BNB4 (4-bit Quantized, BNB)' },
-    { value: 'nf4', label: 'NF4 (4-bit Quantized, NormalFloat4)' },
-    { value: 'q6_k', label: 'Q6_K (6-bit Quantized, K)' }
-];
 function normalizeQuant(quantDisplay) {
+    // Remove emoji and non-alphanumeric characters (except underscore)
+    const cleaned = quantDisplay.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
     const map = {
         'auto': 'auto',
         'fp32': 'fp32',
-        'float32': 'fp32',
         'fp16': 'fp16',
-        'float16': 'fp16',
         'int8': 'int8',
-        'q8': 'int8',
         'uint8': 'uint8',
         'q4': 'q4',
-        'int4': 'q4',
         'q4f16': 'q4f16',
         'bnb4': 'bnb4',
         'nf4': 'nf4',
-        'q6_k': 'q6_k',
     };
-    // Try direct match
-    if (map[quantDisplay.toLowerCase()])
-        return map[quantDisplay.toLowerCase()];
-    // Try to extract value from label (e.g., "FP32 (Full Precision)")
-    const key = quantDisplay.toLowerCase().split(' ')[0].replace(/[^a-z0-9_]/g, '');
-    return map[key] || key;
+    return map[cleaned] || cleaned;
 }
 async function initializeUI(callbacks) {
     console.log("[UIController] Initializing...");
@@ -7411,7 +7698,6 @@ async function initializeUI(callbacks) {
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
     disableInput("Download or load a model from dropdown to begin.");
     console.log("[UIController] Initializing UI elements...");
-    // Populate model selector
     console.log("[UIController] Attempting to find model selector...");
     const modelSelector = document.getElementById('model-selector');
     console.log(modelSelector ? "[UIController] Model selector found." : "[UIController] WARNING: Model selector NOT found!");
@@ -7427,7 +7713,6 @@ async function initializeUI(callbacks) {
             modelSelector.appendChild(option);
             hasModel = true;
         }
-        // If no models, add a disabled option
         if (!hasModel) {
             const option = document.createElement('option');
             option.value = '';
@@ -7436,9 +7721,7 @@ async function initializeUI(callbacks) {
             option.selected = true;
             modelSelector.appendChild(option);
         }
-        // Enable/disable dropdown based on model availability
         modelSelector.disabled = !hasModel;
-        // Show/hide load button based on model selection
         if (loadModelButton) {
             const loadBtn = loadModelButton;
             if (hasModel && modelSelector.value) {
@@ -7449,7 +7732,6 @@ async function initializeUI(callbacks) {
                 loadBtn.style.display = 'none';
                 loadBtn.disabled = true;
             }
-            // Add event listener to update button on dropdown change
             modelSelector.addEventListener('change', () => {
                 if (loadModelButton) {
                     const loadBtn = loadModelButton;
@@ -7469,18 +7751,6 @@ async function initializeUI(callbacks) {
         console.warn("[UIController] Model selector dropdown not found.");
         if (loadModelButton)
             loadModelButton.style.display = 'none';
-    }
-    // Populate ONNX variant selector statically
-    if (onnxVariantSelectorDropdown) {
-        onnxVariantSelectorDropdown.innerHTML = '';
-        for (const opt of QUANT_OPTIONS) {
-            const option = document.createElement('option');
-            option.value = opt.value;
-            option.textContent = opt.label;
-            onnxVariantSelectorDropdown.appendChild(option);
-        }
-        onnxVariantSelectorDropdown.disabled = false;
-        onnxVariantSelectorDropdown.selectedIndex = 0;
     }
     console.log("[UIController] UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
@@ -7525,31 +7795,164 @@ function enableInput() {
     queryInput.placeholder = "Ask Tab Agent...";
     sendButton.disabled = queryInput.value.trim() === '';
 }
-// Add these new functions inside uiController.ts
 function _handleModelOrVariantChange() {
-    if (!modelSelectorDropdown || !onnxVariantSelectorDropdown)
+    if (!modelSelectorDropdown || !quantSelectorDropdown)
         return;
     const modelId = modelSelectorDropdown.value;
-    const onnxFile = onnxVariantSelectorDropdown.value;
-    console.log(`[UIController] Model or variant changed by user. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, onnxFile });
+    const quant = quantSelectorDropdown.value;
+    console.log(`[UIController] Model or variant changed by user. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, quant });
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED, {
-        detail: { modelId, onnxFile } // Pass the selected values
+        detail: { modelId, quant }
     }));
-    // DO NOT call sidepanel's updateModelActionButtons directly here.
-    // sidepanel will listen to MODEL_SELECTION_CHANGED and then decide to update buttons.
 }
 function _handleLoadModelButtonClick() {
-    if (!modelSelectorDropdown)
+    if (!modelSelectorDropdown || !loadModelButton)
         return;
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
         console.warn("[UIController] Load Model button clicked, but no model selected.");
         return;
     }
-    console.log(`[UIController] Load Model button clicked. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_EXECUTION}`, { modelId });
+    if (isLoadingModel)
+        return;
+    isLoadingModel = true;
+    currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
+    const statusDiv = document.getElementById('model-load-status');
+    if (statusDiv)
+        statusDiv.style.display = 'block';
+    disableInput("Loading model...");
+    loadModelButton.disabled = true;
+    setLoadModelButtonText('Loading...');
+    const badge = document.getElementById('device-badge');
+    if (badge)
+        badge.style.display = 'none';
+    const quantDropdown = document.getElementById('onnx-variant-selector');
+    const quant = quantDropdown ? quantDropdown.value : '';
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_EXECUTION, {
-        detail: { modelId }
+        detail: { modelId, quant, loadId: currentLoadId }
     }));
+}
+let repoQuantsCache = {};
+async function updateQuantDropdown() {
+    const modelDropdown = document.getElementById('model-selector');
+    const quantDropdown = document.getElementById('onnx-variant-selector');
+    if (!modelDropdown || !quantDropdown)
+        return;
+    // Get all manifest entries in one call
+    const allManifests = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getAllManifestEntries)();
+    const modelRepos = getModelSelectorOptions();
+    // Build the cache dictionary: repo → manifest data
+    repoQuantsCache = {};
+    for (const repo of modelRepos) {
+        const manifestEntry = allManifests.find(entry => entry.repo === repo);
+        if (manifestEntry) {
+            repoQuantsCache[repo] = manifestEntry;
+        }
+    }
+    // Now populate the quant dropdown based on currently selected repo
+    populateQuantDropdownForSelectedRepo();
+}
+function populateQuantDropdownForSelectedRepo() {
+    const modelDropdown = document.getElementById('model-selector');
+    const quantDropdown = document.getElementById('onnx-variant-selector');
+    const loadModelButton = document.getElementById('load-model-button');
+    const statusDiv = document.getElementById('model-load-status');
+    const statusText = document.getElementById('model-load-status-text');
+    if (!modelDropdown || !quantDropdown)
+        return;
+    const selectedRepo = modelDropdown.value;
+    if (!selectedRepo || !repoQuantsCache[selectedRepo]) {
+        quantDropdown.innerHTML = '';
+        quantDropdown.disabled = true;
+        return;
+    }
+    const manifestEntry = repoQuantsCache[selectedRepo];
+    // --- Save current selection ---
+    const prevSelectedQuant = quantDropdown.value;
+    // Clear the dropdown
+    quantDropdown.innerHTML = '';
+    // Check if any quant is unsupported
+    const unsupported = Object.values(manifestEntry.quants).some(q => q.status === _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Unsupported);
+    if (unsupported) {
+        // Show error message in status area
+        if (statusDiv && statusText) {
+            statusDiv.style.display = 'block';
+            statusText.textContent = "This model's task is not supported by the current runtime.";
+        }
+        // Disable load button
+        if (loadModelButton) {
+            loadModelButton.disabled = true;
+            setLoadModelButtonText('Unsupported');
+            loadModelButton.style.opacity = '0.5';
+            loadModelButton.style.cursor = 'not-allowed';
+        }
+        // Disable quant dropdown
+        quantDropdown.disabled = true;
+        return;
+    }
+    else {
+        // Hide error if previously shown
+        if (statusDiv && statusText) {
+            statusDiv.style.display = 'none';
+            statusText.textContent = '';
+        }
+        // Enable controls
+        quantDropdown.disabled = false;
+        if (loadModelButton) {
+            loadModelButton.disabled = false;
+            setLoadModelButtonText('Load Model');
+            loadModelButton.style.opacity = '';
+            loadModelButton.style.cursor = '';
+        }
+    }
+    // Populate quant dropdown with options for selected repo
+    for (const quant in manifestEntry.quants) {
+        const option = document.createElement('option');
+        option.value = quant;
+        // Set status indicator
+        let dot = '⚪'; // default gray
+        switch (manifestEntry.quants[quant].status) {
+            case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Downloaded:
+                dot = '🟢';
+                break;
+            case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Available:
+                dot = '🟡';
+                break;
+            case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Failed:
+                dot = '🔴';
+                break;
+            case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.NotFound:
+            case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Unavailable:
+                dot = '⚪';
+                break;
+        }
+        option.textContent = `${quant} ${dot}`;
+        quantDropdown.appendChild(option);
+    }
+    // --- Restore previous selection if possible ---
+    if (prevSelectedQuant && manifestEntry.quants[prevSelectedQuant]) {
+        quantDropdown.value = prevSelectedQuant;
+    }
+}
+document.getElementById('model-selector')?.addEventListener('change', onModelDropdownChange);
+// Call this when model dropdown changes
+function onModelDropdownChange() {
+    populateQuantDropdownForSelectedRepo();
+}
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.WorkerEventNames.MANIFEST_UPDATED) {
+        console.log(`[UIController] Received MANIFEST_UPDATED event. Updating quant dropdown.`);
+        updateQuantDropdown();
+    }
+});
+document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.WorkerEventNames.MANIFEST_UPDATED, () => {
+    console.log(`[UIController] Received DOM MANIFEST_UPDATED event. Updating quant dropdown.`);
+    updateQuantDropdown();
+});
+// Add this helper near the top, after loadModelButton is defined
+function setLoadModelButtonText(text) {
+    if (loadModelButton)
+        loadModelButton.textContent = text;
 }
 
 
@@ -7777,25 +8180,49 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   debounce: () => (/* binding */ debounce),
 /* harmony export */   getActiveTab: () => (/* binding */ getActiveTab),
 /* harmony export */   getActiveTabUrl: () => (/* binding */ getActiveTabUrl),
-/* harmony export */   showError: () => (/* binding */ showError)
+/* harmony export */   showError: () => (/* binding */ showError),
+/* harmony export */   showWarning: () => (/* binding */ showWarning)
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
 
 function showError(message) {
-    console.error("UI Error:", message);
+    const container = document.getElementById('ui-inline-messages');
+    if (!container)
+        return;
     const errorDiv = document.createElement('div');
-    errorDiv.style.position = 'fixed';
-    errorDiv.style.bottom = '10px';
-    errorDiv.style.left = '10px';
-    errorDiv.style.backgroundColor = 'red';
-    errorDiv.style.color = 'white';
-    errorDiv.style.padding = '10px';
-    errorDiv.style.borderRadius = '5px';
-    errorDiv.style.zIndex = '1000';
+    errorDiv.style.background = '#fff1f0';
+    errorDiv.style.color = '#a8071a';
+    errorDiv.style.border = '1px solid #ffa39e';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.padding = '4px 10px';
+    errorDiv.style.margin = '2px 0';
+    errorDiv.style.fontSize = '0.92em';
+    errorDiv.style.display = 'inline-block';
+    errorDiv.style.maxWidth = '100%';
+    errorDiv.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)';
     errorDiv.textContent = message;
-    document.body.appendChild(errorDiv);
-    setTimeout(() => errorDiv.remove(), 3000);
+    container.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 5000);
+}
+function showWarning(message) {
+    const container = document.getElementById('ui-inline-messages');
+    if (!container)
+        return;
+    const warnDiv = document.createElement('div');
+    warnDiv.style.background = '#fffbe6';
+    warnDiv.style.color = '#856404';
+    warnDiv.style.border = '1px solid #ffe58f';
+    warnDiv.style.borderRadius = '4px';
+    warnDiv.style.padding = '4px 10px';
+    warnDiv.style.margin = '2px 0';
+    warnDiv.style.fontSize = '0.92em';
+    warnDiv.style.display = 'inline-block';
+    warnDiv.style.maxWidth = '100%';
+    warnDiv.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)';
+    warnDiv.textContent = message;
+    container.appendChild(warnDiv);
+    setTimeout(() => warnDiv.remove(), 5000);
 }
 function debounce(func, wait) {
     let timeout;
@@ -7879,7 +8306,6 @@ const UIEventNames = Object.freeze({
     BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
     BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
     BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
-    BACKGROUND_LOADING_STATUS_UPDATE: 'ui:loadingStatusUpdate',
     REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
     WORKER_READY: 'worker:ready',
     WORKER_ERROR: 'worker:error',
@@ -7887,7 +8313,6 @@ const UIEventNames = Object.freeze({
     SCRAPE_PAGE: 'SCRAPE_PAGE',
     SCRAPE_ACTIVE_TAB: 'SCRAPE_ACTIVE_TAB',
     DYNAMIC_SCRIPT_MESSAGE_TYPE: 'offscreenIframeResult',
-    MODEL_DOWNLOAD_PROGRESS: 'modelDownloadProgress',
     MODEL_WORKER_LOADING_PROGRESS: 'modelWorkerLoadingProgress', // For when the worker itself is loading the model (pipeline init)
     MODEL_SELECTION_CHANGED: 'ui:modelSelectionChanged', // When model or ONNX variant dropdown changes
     REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
@@ -7916,6 +8341,7 @@ const WorkerEventNames = Object.freeze({
     RESET: 'reset',
     SET_BASE_URL: 'setBaseUrl',
     SET_ENV_CONFIG: 'setEnvConfig',
+    MANIFEST_UPDATED: 'manifestUpdated',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -8164,7 +8590,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
 /* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
 /* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
 // --- Imports ---
+
 
 
 
@@ -8203,7 +8631,7 @@ let currentModelIdInWorker = null;
 let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady = false;
 // Track the currently loaded model and quant (onnx variant)
-let currentLoadedModel = { modelId: null, onnxFile: null };
+let currentLoadedModel = { modelId: null, quant: null };
 function syncToggleLoadButton() {
     const modelDropdown = document.getElementById('model-selector');
     const quantDropdown = document.getElementById('onnx-variant-selector');
@@ -8213,7 +8641,7 @@ function syncToggleLoadButton() {
     const selectedModelId = modelDropdown.value;
     const selectedQuant = quantDropdown.value;
     if (selectedModelId === currentLoadedModel.modelId &&
-        selectedQuant === currentLoadedModel.onnxFile &&
+        selectedQuant === currentLoadedModel.quant &&
         selectedModelId && selectedQuant) {
         loadBtn.style.display = 'none';
     }
@@ -8400,29 +8828,30 @@ function handleModelWorkerMessage(event) {
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.LOADING_MODEL;
             console.log(`${prefix} Worker loading status:`, payload);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.WORKER_READY:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.WORKER_READY: {
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MODEL_READY;
             currentModelIdInWorker = payload.modelId;
             currentLoadedModel = {
                 modelId: payload.modelId,
-                onnxFile: payload.onnxFile || (quantDropdown ? quantDropdown.value : null)
+                quant: payload.quant || (quantDropdown ? quantDropdown.value : null)
             };
             syncToggleLoadButton();
             if (loadBtn)
                 loadBtn.style.display = 'none';
-            showDeviceBadge(payload.executionProvider, payload.providerNote);
-            if (payload.providerNote) {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(payload.providerNote);
-            }
+            showDeviceBadge(payload.executionProvider, payload.warning);
+            // Always show what quantization was actually loaded
+            let quantMsg = `Model loaded with quantization: '${payload.quant}'.`;
             if (payload.fallback) {
-                let msg = `Requested quantization '${payload.requestedQuant}' not available. Loaded with '${payload.onnxFile}' instead.`;
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(msg);
+                quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${payload.quant}' was used.`;
             }
-            else {
-                console.log(`${prefix} Model ${payload.modelId} loaded successfully!`);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showWarning)(quantMsg);
+            if (payload.warning) {
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showWarning)(payload.warning);
             }
-            console.log(`${prefix} Model worker is ready with model: ${payload.modelId}, quant: ${payload.onnxFile}, fallback: ${payload.fallback}, executionProvider: ${payload.executionProvider}, providerNote: ${payload.providerNote}`);
+            console.log(`${prefix} Model ${payload.modelId} loaded successfully!`);
+            console.log(`${prefix} Model worker is ready with model: ${payload.modelId}, quant: ${payload.quant}, fallback: ${payload.fallback}, executionProvider: ${payload.executionProvider}, warning: ${payload.warning}`);
             break;
+        }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR:
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR;
             isModelWorkerEnvReady = false;
@@ -8471,6 +8900,9 @@ function handleModelWorkerMessage(event) {
                     error: payload.error
                 }
             }));
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED));
             break;
         default:
             console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
@@ -8632,14 +9064,14 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_16_
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.LOAD_MODEL) {
             console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
             const modelToLoad = payload.modelId || payload.model;
-            const onnxToLoad = payload.onnxFile;
+            const onnxToLoad = payload.quant;
             if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
                 document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.REQUEST_MODEL_EXECUTION, {
-                    detail: { modelId: modelToLoad, onnxFile: onnxToLoad }
+                    detail: { modelId: modelToLoad, quant: onnxToLoad }
                 }));
             }
             else {
-                const errorMsg = `LOAD_MODEL received with invalid/missing modelId or onnxFile. Model: ${modelToLoad}, ONNX: ${onnxToLoad}`;
+                const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
                 console.error(`${prefix} ${errorMsg}`);
                 _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_17__.llmChannel.postMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
@@ -8692,11 +9124,8 @@ function handleMessage(message, sender, sendResponse) {
         sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
         sendResponse({});
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_UI_LOADING_STATUS_UPDATE) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_LOADING_STATUS_UPDATE, message.payload);
-    }
     else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_DOWNLOAD_PROGRESS) {
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS) {
         // No action needed
     }
     else {
@@ -8943,8 +9372,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         else {
             console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.REQUEST_MODEL_EXECUTION, async () => {
-            const { modelId, onnxFile } = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.getCurrentlySelectedModel)();
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+            const { modelId, quant, loadId } = e.detail;
             if (!modelId) {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No model selected.');
                 return;
@@ -8983,13 +9412,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             // Normalize quantization value before sending INIT
-            const quant = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.normalizeQuant)(onnxFile || '');
-            console.log(`${prefix} UI would show: Initializing worker for ${modelId} with quant: ${quant}...`);
+            const normQuant = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.normalizeQuant)(quant || '');
+            // Get the task from the manifest
+            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getManifestEntry)(modelId);
+            const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
+            console.log(`${prefix} UI would show: Initializing worker for ${modelId} with quant: ${normQuant}, task: ${task}...`);
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.LOADING_MODEL;
             currentModelIdInWorker = modelId;
             modelWorker.postMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.INIT,
-                payload: { modelId, onnxFile: quant }
+                payload: { modelId, quant: normQuant, task, loadId }
             });
         });
         (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_12__.initializeDiscoverController)();
@@ -9027,15 +9459,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
             await loadAndDisplaySession(null);
         }
+        await ensureManifestForDropdownRepos();
         const dbInitSuccess = await initializeDatabase();
         if (!dbInitSuccess)
             return;
         console.log(`${prefix} Initialization complete.`);
-        // Add listeners to dropdowns to toggle load button
         const modelDropdownEl = document.getElementById('model-selector');
         const quantDropdownEl = document.getElementById('onnx-variant-selector');
         if (modelDropdownEl) {
-            modelDropdownEl.addEventListener('change', () => {
+            modelDropdownEl.addEventListener('change', async () => {
                 hideDeviceBadge();
                 syncToggleLoadButton();
             });
@@ -9048,6 +9480,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         // Initial toggle
         syncToggleLoadButton();
+        if (modelWorker) {
+            const originalOnMessage = modelWorker.onmessage;
+            modelWorker.onmessage = function (event) {
+                if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED) {
+                    syncToggleLoadButton();
+                }
+                if (typeof originalOnMessage === 'function') {
+                    originalOnMessage.call(this, event);
+                }
+            };
+        }
     }
     catch (error) {
         const err = error;
@@ -9090,7 +9533,51 @@ async function initializeDatabase() {
         return false;
     }
 }
-// --- Exports ---
+async function ensureManifestForDropdownRepos() {
+    const dropdownRepos = (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.getModelSelectorOptions)();
+    const allManifests = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getAllManifestEntries)();
+    const haveRepos = new Set(allManifests.map(entry => entry.repo));
+    console.log(`${prefix} [Manifest] Have repos:`, haveRepos);
+    console.log(`${prefix} [Manifest] Dropdown repos:`, dropdownRepos);
+    for (const repo of dropdownRepos) {
+        if (haveRepos.has(repo)) {
+            console.log(`${prefix} [Manifest] Repo ${repo} already in manifest, skipping fetch.`);
+            continue;
+        }
+        try {
+            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.fetchRepoFiles)(repo);
+            const files = siblings;
+            const quantMap = {};
+            for (const file of files) {
+                const fname = file.rfilename ? file.rfilename.split('/').pop() : '';
+                if (file.rfilename && file.rfilename.endsWith('.onnx')) {
+                    let quant = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.parseQuantFromFilename)(file.rfilename);
+                    if (!quant) {
+                        quant = fname === 'model.onnx' ? 'fp32' : fname || 'unknown_quant';
+                    }
+                    quant = '' + quant;
+                    if (!quantMap[quant])
+                        quantMap[quant] = { files: [], status: _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.Available };
+                    quantMap[quant].files.push(file.rfilename);
+                }
+            }
+            for (const file of files) {
+                if (file.rfilename && file.rfilename.endsWith('.json')) {
+                    for (const quant in quantMap) {
+                        quantMap[quant].files.push(file.rfilename);
+                    }
+                }
+            }
+            const entry = { repo, quants: quantMap, task };
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.addManifestEntry)(repo, entry);
+            console.log(`${prefix}[Manifest] Added entry for repo: ${repo}`, entry);
+        }
+        catch (e) {
+            console.warn(`${prefix} [Manifest] Failed to fetch/add entry for repo: ${repo}`, e);
+        }
+    }
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED));
+}
 
 
 

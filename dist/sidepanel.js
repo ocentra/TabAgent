@@ -2222,6 +2222,602 @@ function initializeHistoryPopup(elements, requestFunc) {
 
 /***/ }),
 
+/***/ "./src/Controllers/InferenceSettings.ts":
+/*!**********************************************!*\
+  !*** ./src/Controllers/InferenceSettings.ts ***!
+  \**********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ADVANCED_SETTINGS: () => (/* binding */ ADVANCED_SETTINGS),
+/* harmony export */   COMMON_SETTINGS: () => (/* binding */ COMMON_SETTINGS),
+/* harmony export */   DEFAULT_INFERENCE_SETTINGS: () => (/* binding */ DEFAULT_INFERENCE_SETTINGS),
+/* harmony export */   INFERENCE_SETTINGS_SINGLETON_ID: () => (/* binding */ INFERENCE_SETTINGS_SINGLETON_ID),
+/* harmony export */   INFERENCE_SETTING_KEYS: () => (/* binding */ INFERENCE_SETTING_KEYS),
+/* harmony export */   applySettings: () => (/* binding */ applySettings),
+/* harmony export */   getCurrentSettings: () => (/* binding */ getCurrentSettings),
+/* harmony export */   initInferenceSettingsUI: () => (/* binding */ initInferenceSettingsUI),
+/* harmony export */   keyToLabel: () => (/* binding */ keyToLabel),
+/* harmony export */   loadAndApplySettingsToUI: () => (/* binding */ loadAndApplySettingsToUI),
+/* harmony export */   reloadSettingsFromDB: () => (/* binding */ reloadSettingsFromDB),
+/* harmony export */   saveCurrentSettingsToDBDebounced: () => (/* binding */ saveCurrentSettingsToDBDebounced),
+/* harmony export */   setupInferenceSettings: () => (/* binding */ setupInferenceSettings)
+/* harmony export */ });
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+// src/Controllers/InferenceSettings.ts
+
+
+
+const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
+const INFERENCE_SETTING_KEYS = {
+    temperature: 'temperature',
+    max_length: 'max_length',
+    max_new_tokens: 'max_new_tokens',
+    min_length: 'min_length',
+    top_k: 'top_k',
+    top_p: 'top_p',
+    repetition_penalty: 'repetition_penalty',
+    attention_mask: 'attention_mask',
+    batch_size: 'batch_size',
+    do_sample: 'do_sample',
+    eos_token_id: 'eos_token_id',
+    num_beams: 'num_beams',
+    num_return_sequences: 'num_return_sequences',
+    pad_token_id: 'pad_token_id',
+    diversity_penalty: 'diversity_penalty',
+    early_stopping: 'early_stopping',
+    length_penalty: 'length_penalty',
+    no_repeat_ngram_size: 'no_repeat_ngram_size',
+    num_beam_groups: 'num_beam_groups',
+    threads: 'threads',
+    bad_words_ids: 'bad_words_ids',
+    bos_token_id: 'bos_token_id',
+    decoder_start_token_id: 'decoder_start_token_id',
+    forced_bos_token_id: 'forced_bos_token_id',
+    forced_eos_token_id: 'forced_eos_token_id',
+    max_time: 'max_time',
+    min_new_tokens: 'min_new_tokens',
+    output_attentions: 'output_attentions',
+    output_hidden_states: 'output_hidden_states',
+    output_scores: 'output_scores',
+    penalty_alpha: 'penalty_alpha',
+    prefix: 'prefix',
+    remove_invalid_values: 'remove_invalid_values',
+    return_dict_in_generate: 'return_dict_in_generate',
+    suppress_tokens: 'suppress_tokens',
+    use_cache: 'use_cache',
+};
+function keyToLabel(key) {
+    return key
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+const COMMON_SETTINGS = [
+    {
+        key: INFERENCE_SETTING_KEYS.temperature,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.temperature),
+        type: 'slider',
+        min: 0.0,
+        max: 2.0,
+        step: 0.01,
+        defaultValue: 0.7,
+        description: `Controls how creative or predictable the AI's responses are. Lower values make the AI more strict and focused—great for coding, technical answers, or when you want fewer made-up (hallucinated) details. Higher values make the AI more creative and varied—useful for brainstorming, stories, or blog posts, but can sometimes lead to less accurate or more imaginative answers.`,
+        example: `Use 0.1–0.3 for precise tasks like code or factual Q&A. 0.7–1.0 for balanced conversation. 1.2–1.8 for creative writing or idea generation.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.max_length,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.max_length),
+        type: 'input',
+        defaultValue: 2048,
+        description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
+        example: `Use 512 for short answers, 2048 for medium, 4096+ for long explanations or stories.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.max_new_tokens,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
+        type: 'input',
+        defaultValue: 512,
+        description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
+        example: `Try 50 for brief replies, 200 for paragraphs, 500+ for essays or stories.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.min_length,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.min_length),
+        type: 'input',
+        defaultValue: 0,
+        description: `Sets the minimum length (in tokens) for the AI's answer. Use this if you want to make sure the response is at least a certain size (for example, always a full sentence or paragraph).`,
+        example: `10 for at least a sentence, 50 for a paragraph. 0 means no minimum.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.top_k,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.top_k),
+        type: 'input',
+        defaultValue: 50,
+        description: `Controls how many word choices the AI considers at each step. Lower values make the AI more focused and repetitive. Higher values allow for more variety and creativity, but can sometimes make answers less predictable.`,
+        example: `1 = most focused (greedy), 10 = focused, 50 = balanced, 0 = unlimited variety.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.top_p,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.top_p),
+        type: 'slider',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        defaultValue: 0.9,
+        description: `Lets the AI pick from the most likely words until their combined probability reaches P. Lower values make answers more predictable and safe. Higher values allow for more diverse and surprising responses.`,
+        example: `0.5 = very focused, 0.9 = balanced, 0.95 = more creative. Use lower for technical tasks, higher for creative writing.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.repetition_penalty,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.repetition_penalty),
+        type: 'slider',
+        min: 1.0,
+        max: 2.0,
+        step: 0.01,
+        defaultValue: 1.1,
+        description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
+        example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.do_sample,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.do_sample),
+        type: 'checkbox',
+        defaultValue: true,
+        description: `When ON, the AI will generate more varied and creative answers by sampling from possible words. When OFF, the AI will always pick the most likely next word, making answers more predictable and less creative.`,
+        example: `ON = creative, varied output. OFF = more predictable, sometimes repetitive.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.num_beams,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.num_beams),
+        type: 'input',
+        defaultValue: 1,
+        description: `Controls how many different answer paths the AI explores before picking the best one. Higher values can improve answer quality but may take longer.`,
+        example: `1 = no beam search (faster), 3–5 = better quality, 10+ = very thorough (slower).`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.batch_size,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.batch_size),
+        type: 'input',
+        defaultValue: 1,
+        description: `How many answers the AI generates at once. Use more than 1 if you want to see several different responses to the same question.`,
+        example: `1 = single answer, 4 = four different options.`
+    }
+];
+const ADVANCED_SETTINGS = [
+    {
+        key: INFERENCE_SETTING_KEYS.diversity_penalty,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.diversity_penalty),
+        type: 'slider',
+        min: 0.0,
+        max: 2.0,
+        step: 0.01,
+        defaultValue: 0.0,
+        description: `Encourages the AI to make each answer in a batch more different from the others. Useful if you want a variety of ideas or styles in multiple responses.`,
+        example: `0.0 = no penalty, 0.5 = some variety, 1.0 = high diversity. Use higher values when generating many answers at once.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.early_stopping,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.early_stopping),
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When ON, the AI will stop generating as soon as it thinks the answer is complete. When OFF, it will keep going until the maximum length is reached.`,
+        example: `ON = shorter, more natural endings. OFF = longer, may run on.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.length_penalty,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.length_penalty),
+        type: 'slider',
+        min: -2.0,
+        max: 2.0,
+        step: 0.01,
+        defaultValue: 1.0,
+        description: `Controls whether the AI prefers shorter or longer answers. Lower values make answers shorter, higher values make them longer.`,
+        example: `<1.0 = shorter, 1.0 = neutral, >1.0 = longer answers.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
+        type: 'input',
+        defaultValue: 0,
+        description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
+        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.num_beam_groups,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.num_beam_groups),
+        type: 'input',
+        defaultValue: 1,
+        description: `Splits the answer search into groups for more variety. Useful for getting different styles or ideas in multiple answers.`,
+        example: `1 = standard, 2+ = more diverse answers (when batch size > 1).`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.threads,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.threads),
+        type: 'input',
+        defaultValue: 2,
+        description: `How many CPU threads to use for generating answers. More threads can be faster on powerful computers, but may use more resources.`,
+        example: `1 = single thread, 4 = quad core, 8 = octa core.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.min_new_tokens,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.min_new_tokens),
+        type: 'input',
+        defaultValue: 0,
+        description: `The minimum number of new words or pieces (tokens) the AI must generate. Use this to ensure answers are not too short.`,
+        example: `0 = no minimum, 10 = at least 10 new words.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.penalty_alpha,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.penalty_alpha),
+        type: 'slider',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        defaultValue: 0.0,
+        description: `Affects how much the AI penalizes less likely words. Higher values can make answers more focused, but may reduce creativity.`,
+        example: `0.0 = disabled, 0.6 = balanced, 0.9 = strong penalty.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.output_attentions,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.output_attentions),
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When ON, the AI will include extra data about how it paid attention to each word. Useful for advanced users or debugging, but not needed for most people.`,
+        example: `ON = include attention data (slower), OFF = text only.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.output_hidden_states,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.output_hidden_states),
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When ON, the AI will include its internal state data. Useful for research or advanced analysis, but not needed for most users.`,
+        example: `ON = include internal states (memory intensive), OFF = text only.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.output_scores,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.output_scores),
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When ON, the AI will include confidence scores for each word it generates. Useful for advanced users or debugging.`,
+        example: `ON = include confidence scores, OFF = text only.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.use_cache,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.use_cache),
+        type: 'checkbox',
+        defaultValue: true,
+        description: `When ON, the AI remembers previous answers to speed up follow-up responses. Uses more memory, but makes things faster.`,
+        example: `ON = faster, OFF = slower but uses less memory.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.remove_invalid_values,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.remove_invalid_values),
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When ON, the AI will remove any invalid or strange values from its output. Useful if you see weird symbols or errors in answers.`,
+        example: `ON = clean output, OFF = allow all values.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.return_dict_in_generate,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.return_dict_in_generate),
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When ON, the AI will return a detailed object with extra info about the answer. Useful for advanced users or developers.`,
+        example: `ON = detailed output, OFF = simple text.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.attention_mask,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.attention_mask),
+        type: 'checkbox',
+        defaultValue: true,
+        description: `When ON, the AI will ignore padding (empty) parts of your input for better accuracy. Usually best to leave ON.`,
+        example: `ON = proper masking (recommended), OFF = no masking.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.num_return_sequences,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.num_return_sequences),
+        type: 'input',
+        defaultValue: 1,
+        description: `How many different answers the AI should return for your question. Use more than 1 to see a variety of responses.`,
+        example: `1 = single answer, 3 = three options, 5+ = many choices.`
+    }
+];
+const DEFAULT_INFERENCE_SETTINGS = {
+    temperature: 0.7,
+    max_length: 2048,
+    max_new_tokens: 512,
+    min_length: 0,
+    top_k: 50,
+    top_p: 0.9,
+    repetition_penalty: 1.1,
+    attention_mask: true,
+    batch_size: 1,
+    do_sample: true,
+    eos_token_id: null,
+    num_beams: 1,
+    num_return_sequences: 1,
+    pad_token_id: null,
+    diversity_penalty: 0.0,
+    early_stopping: false,
+    length_penalty: 1.0,
+    no_repeat_ngram_size: 0,
+    num_beam_groups: 1,
+    threads: 2,
+    bad_words_ids: null,
+    bos_token_id: null,
+    decoder_start_token_id: null,
+    forced_bos_token_id: null,
+    forced_eos_token_id: null,
+    max_time: null,
+    min_new_tokens: 0,
+    output_attentions: false,
+    output_hidden_states: false,
+    output_scores: false,
+    penalty_alpha: 0.0,
+    prefix: null,
+    remove_invalid_values: false,
+    return_dict_in_generate: false,
+    suppress_tokens: null,
+    use_cache: true
+};
+function setupInferenceSettings() {
+    const settingsContainer = document.getElementById('page-settings');
+    if (!settingsContainer)
+        return;
+    const inferenceSection = createInferenceSettingsSection();
+    settingsContainer.appendChild(inferenceSection);
+    const reloadBtn = document.createElement('button');
+    reloadBtn.textContent = 'Reload Settings';
+    reloadBtn.className = 'ml-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600';
+    reloadBtn.onclick = () => reloadSettingsFromDB();
+    inferenceSection.appendChild(reloadBtn);
+    initInferenceSettingsUI();
+}
+function createInferenceSettingsSection() {
+    const section = document.createElement('div');
+    section.className = 'inference-settings mb-6';
+    section.innerHTML = `
+      <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
+          <button class="inference-foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
+              <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">Inference Settings</h3>
+              <span class="fold-icon transform transition-transform duration-200">▼</span>
+          </button>
+          <div class="inference-content p-3 space-y-1">
+              ${createCommonSettingsSection()}
+              ${createAdvancedSettingsSection()}
+          </div>
+      </div>
+  `;
+    setupFoldoutToggle(section, '.inference-foldout-toggle', '.inference-content');
+    setupCommonSettingsToggle(section);
+    setupAdvancedSettingsToggle(section);
+    setupAllSettingsControls(section);
+    return section;
+}
+function createCommonSettingsSection() {
+    return `
+      <div class="common-settings">
+          <button class="common-foldout-toggle w-full flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded transition-colors">
+              <h4 class="font-medium text-blue-800 dark:text-blue-200">Common Settings</h4>
+              <span class="fold-icon transform transition-transform duration-200">▼</span>
+          </button>
+          <div class="common-content mt-2 space-y-1">
+              ${COMMON_SETTINGS.map(setting => createSettingControl(setting)).join('')}
+          </div>
+      </div>
+  `;
+}
+function createAdvancedSettingsSection() {
+    return `
+      <div class="advanced-settings">
+          <button class="advanced-foldout-toggle w-full flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded transition-colors">
+              <h4 class="font-medium text-purple-800 dark:text-purple-200">Advanced Settings</h4>
+              <span class="fold-icon transform transition-transform duration-200">▼</span>
+          </button>
+          <div class="advanced-content mt-2 space-y-1 hidden">
+              ${ADVANCED_SETTINGS.map(setting => createSettingControl(setting)).join('')}
+          </div>
+      </div>
+  `;
+}
+function createSettingControl(setting) {
+    const controlId = `setting-${setting.key}`;
+    const valueId = `${controlId}-value`;
+    const infoId = `${controlId}-info`;
+    let controlHTML = '';
+    switch (setting.type) {
+        case 'slider':
+            controlHTML = `
+              <input type="range" 
+                     id="${controlId}" 
+                     min="${setting.min}" 
+                     max="${setting.max}" 
+                     step="${setting.step}" 
+                     value="${setting.defaultValue}"
+                     class="flex-1 mx-2 accent-blue-500">
+              <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
+          `;
+            break;
+        case 'input':
+            controlHTML = `
+              <input type="number" 
+                     id="${controlId}" 
+                     value="${setting.defaultValue}"
+                     class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+          `;
+            break;
+        case 'checkbox':
+            controlHTML = `
+              <input type="checkbox" 
+                     id="${controlId}" 
+                     ${setting.defaultValue ? 'checked' : ''}
+                     class="mx-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+          `;
+            break;
+    }
+    return `
+      <div class="setting-row flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+          <label for="${controlId}" class="min-w-[8rem] text-sm font-medium text-gray-700 dark:text-gray-300">${setting.label}</label>
+          ${controlHTML}
+          <button id="${infoId}" class="ml-2 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
+      </div>
+  `;
+}
+function setupFoldoutToggle(container, toggleSelector, contentSelector) {
+    const toggle = container.querySelector(toggleSelector);
+    const content = container.querySelector(contentSelector);
+    const icon = toggle?.querySelector('.fold-icon');
+    if (toggle && content && icon) {
+        toggle.addEventListener('click', () => {
+            const isHidden = content.classList.contains('hidden');
+            content.classList.toggle('hidden');
+            icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-180deg)';
+        });
+    }
+}
+function setupCommonSettingsToggle(container) {
+    setupFoldoutToggle(container, '.common-foldout-toggle', '.common-content');
+}
+function setupAdvancedSettingsToggle(container) {
+    setupFoldoutToggle(container, '.advanced-foldout-toggle', '.advanced-content');
+}
+function setupAllSettingsControls(container) {
+    [...COMMON_SETTINGS, ...ADVANCED_SETTINGS].forEach(setting => {
+        setupSettingControl(container, setting);
+    });
+}
+function setupSettingControl(container, setting) {
+    const controlId = `setting-${setting.key}`;
+    const control = container.querySelector(`#${controlId}`);
+    const valueSpan = container.querySelector(`#${controlId}-value`);
+    const infoButton = container.querySelector(`#${controlId}-info`);
+    if (setting.type === 'slider' && control && valueSpan) {
+        control.addEventListener('input', () => {
+            valueSpan.textContent = control.value;
+        });
+    }
+    if (infoButton) {
+        let tooltip = null;
+        infoButton.addEventListener('mouseenter', () => {
+            tooltip = createTooltip(setting.description, setting.example);
+            document.body.appendChild(tooltip);
+            positionTooltip(tooltip, infoButton);
+        });
+        infoButton.addEventListener('mouseleave', () => {
+            if (tooltip) {
+                tooltip.remove();
+                tooltip = null;
+            }
+        });
+    }
+}
+function createTooltip(description, example) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'fixed z-50 max-w-sm p-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm rounded-lg shadow-lg border border-gray-700 dark:border-gray-300';
+    tooltip.innerHTML = `
+      <div class="font-medium mb-1">${description}</div>
+      <div class="text-xs opacity-75 italic">Example: ${example}</div>
+  `;
+    return tooltip;
+}
+function positionTooltip(tooltip, trigger) {
+    const rect = trigger.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    tooltip.style.left = `${rect.left - tooltipRect.width - 10}px`;
+    tooltip.style.top = `${rect.top + rect.height / 2 - tooltipRect.height / 2}px`;
+    if (parseFloat(tooltip.style.left) < 0) {
+        tooltip.style.left = `${rect.right + 10}px`;
+    }
+}
+function getCurrentSettings() {
+    const settings = { ...DEFAULT_INFERENCE_SETTINGS };
+    [...COMMON_SETTINGS, ...ADVANCED_SETTINGS].forEach(setting => {
+        const control = document.querySelector(`#setting-${setting.key}`);
+        if (control) {
+            let value;
+            switch (setting.type) {
+                case 'slider':
+                case 'input':
+                    value = parseFloat(control.value);
+                    if (isNaN(value))
+                        value = setting.defaultValue;
+                    break;
+                case 'checkbox':
+                    value = control.checked;
+                    break;
+                default:
+                    value = setting.defaultValue;
+            }
+            settings[setting.key] = value;
+        }
+    });
+    return settings;
+}
+function applySettings(settings) {
+    Object.entries(settings).forEach(([key, value]) => {
+        const control = document.querySelector(`#setting-${key}`);
+        const valueSpan = document.querySelector(`#setting-${key}-value`);
+        if (control) {
+            if (control.type === 'checkbox') {
+                control.checked = Boolean(value);
+            }
+            else {
+                control.value = String(value);
+                if (valueSpan) {
+                    valueSpan.textContent = String(value);
+                }
+            }
+        }
+    });
+}
+let saveTimeout = null;
+const SAVE_DEBOUNCE_MS = 200;
+async function loadAndApplySettingsToUI() {
+    try {
+        const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getInferenceSettings)() || DEFAULT_INFERENCE_SETTINGS;
+        applySettings(settings);
+    }
+    catch (e) {
+        console.error('[InferenceSettings] Failed to load settings from DB:', e);
+        applySettings(DEFAULT_INFERENCE_SETTINGS);
+    }
+}
+function saveCurrentSettingsToDBDebounced() {
+    if (saveTimeout)
+        clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+        try {
+            const settings = getCurrentSettings();
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(settings);
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+        }
+        catch (e) {
+            console.error('[InferenceSettings] Failed to save settings to DB:', e);
+        }
+    }, SAVE_DEBOUNCE_MS);
+}
+function attachSettingsListeners() {
+    document.querySelectorAll('.setting-row input').forEach(input => {
+        input.addEventListener('change', saveCurrentSettingsToDBDebounced);
+        input.addEventListener('input', saveCurrentSettingsToDBDebounced); // for sliders
+    });
+}
+async function reloadSettingsFromDB() {
+    await loadAndApplySettingsToUI();
+}
+async function initInferenceSettingsUI() {
+    await loadAndApplySettingsToUI();
+    attachSettingsListeners();
+}
+
+
+/***/ }),
+
 /***/ "./src/Controllers/LibraryController.ts":
 /*!**********************************************!*\
   !*** ./src/Controllers/LibraryController.ts ***!
@@ -2511,75 +3107,93 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../sidepanel */ "./src/sidepanel.ts");
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _InferenceSettings__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
 // src/Controllers/SettingsController.js
 
 
 
+
 let isInitialized = false;
-const updateThemeButtonText = (button) => {
-    if (!button)
-        return;
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    button.textContent = isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode';
-};
-function setupThemeToggle() {
-    const settingsPageContainer = document.getElementById('page-settings');
-    if (!settingsPageContainer) {
-        console.warn("[SettingsController] Could not find #page-settings container.");
-        return;
+// Helper to create a foldout section (matching Inference Settings style)
+function createFoldoutSection({ title, contentHTML, sectionClass = '', initiallyOpen = true }) {
+    const section = document.createElement('div');
+    section.className = `${sectionClass} mb-6`;
+    section.innerHTML = `
+        <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
+            <button class="foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
+                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">${title}</h3>
+                <span class="fold-icon transform transition-transform duration-200">▼</span>
+            </button>
+            <div class="foldout-content p-3 space-y-3${initiallyOpen ? '' : ' hidden'}">
+                ${contentHTML}
+            </div>
+        </div>
+    `;
+    // Setup foldout toggle
+    const toggle = section.querySelector('.foldout-toggle');
+    const content = section.querySelector('.foldout-content');
+    const icon = toggle?.querySelector('.fold-icon');
+    if (toggle && content && icon) {
+        toggle.addEventListener('click', () => {
+            const isHidden = content.classList.contains('hidden');
+            content.classList.toggle('hidden');
+            icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-180deg)';
+        });
     }
-    let themeToggleButton = settingsPageContainer.querySelector('#theme-toggle-button');
-    if (!themeToggleButton) {
-        console.log("[SettingsController] Creating theme toggle button.");
-        themeToggleButton = document.createElement('button');
-        themeToggleButton.id = 'theme-toggle-button';
-        themeToggleButton.className = 'p-2 border rounded bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 mt-4'; // Standard styling
-        themeToggleButton.onclick = () => {
-            const htmlElement = document.documentElement;
-            const isCurrentlyDark = htmlElement.classList.contains('dark');
-            console.log(`[SettingsToggle] Before toggle - isDark: ${isCurrentlyDark}`);
-            if (isCurrentlyDark) {
-                htmlElement.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-                console.log(`[SettingsToggle] Removed dark class, set localStorage to light`);
-            }
-            else {
-                htmlElement.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-                console.log(`[SettingsToggle] Added dark class, set localStorage to dark`);
-            }
-            updateThemeButtonText(themeToggleButton);
-        };
-        const placeholderText = settingsPageContainer.querySelector('p');
-        if (placeholderText) {
-            placeholderText.insertAdjacentElement('afterend', themeToggleButton);
+    return section;
+}
+function createCommonSettingsFoldout() {
+    // Theme toggle button
+    const themeToggleButton = document.createElement('button');
+    themeToggleButton.id = 'theme-toggle-button';
+    themeToggleButton.className = 'p-2 border rounded bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500';
+    // Set initial text
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    themeToggleButton.textContent = isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    themeToggleButton.onclick = () => {
+        const htmlElement = document.documentElement;
+        const isCurrentlyDark = htmlElement.classList.contains('dark');
+        if (isCurrentlyDark) {
+            htmlElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
         }
         else {
-            settingsPageContainer.appendChild(themeToggleButton);
+            htmlElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
         }
+        themeToggleButton.textContent = htmlElement.classList.contains('dark') ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    };
+    // Section content
+    const contentHTML = `<div class="flex flex-col items-start">${themeToggleButton.outerHTML}</div>`;
+    const section = createFoldoutSection({
+        title: 'Common Settings',
+        contentHTML,
+        sectionClass: 'common-settings-section',
+        initiallyOpen: true
+    });
+    // Replace placeholder with actual button element (to preserve event)
+    const contentDiv = section.querySelector('.foldout-content .flex');
+    if (contentDiv) {
+        contentDiv.innerHTML = '';
+        contentDiv.appendChild(themeToggleButton);
     }
-    else {
-        console.log("[SettingsController] Theme toggle button already exists.");
-    }
-    updateThemeButtonText(themeToggleButton);
+    return section;
 }
-function setupSlider(sliderId, valueSpanId) {
-    const slider = document.getElementById(sliderId);
-    const valueSpan = document.getElementById(valueSpanId);
-    if (slider && valueSpan) {
-        valueSpan.textContent = slider.value;
-        slider.addEventListener('input', (event) => {
-            const target = event.target;
-            valueSpan.textContent = target.value;
-        });
-        console.log(`[SettingsController] Setup slider ${sliderId} with value display ${valueSpanId}`);
-    }
-    else {
-        if (!slider)
-            console.warn(`[SettingsController] Slider element not found: #${sliderId}`);
-        if (!valueSpan)
-            console.warn(`[SettingsController] Value span element not found: #${valueSpanId}`);
-    }
+function createLogManagementFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="flex flex-wrap justify-center md:justify-start gap-2 pt-3">
+                <button id="viewLogsButton" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">View Logs</button>
+                <button id="resetDbButton" class="px-3 py-1 bg-red-200 dark:bg-red-600 hover:bg-red-300 dark:hover:bg-red-500 text-xs">Reset DB</button>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Log Management',
+        contentHTML,
+        sectionClass: 'log-management-section',
+        initiallyOpen: false
+    });
 }
 function initializeSettingsController() {
     if (isInitialized) {
@@ -2587,12 +3201,31 @@ function initializeSettingsController() {
         return;
     }
     console.log("[SettingsController] Initializing...");
-    setupThemeToggle();
-    setupSlider('setting-temperature', 'setting-temperature-value');
-    setupSlider('setting-repeat-penalty', 'setting-repeat-penalty-value');
-    setupSlider('setting-top-p', 'setting-top-p-value');
-    setupSlider('setting-min-p', 'setting-min-p-value');
-    const viewLogsButton = document.getElementById('viewLogsButton');
+    // Remove the old Settings heading if present
+    const settingsPageContainer = document.getElementById('page-settings');
+    if (!settingsPageContainer) {
+        console.warn("[SettingsController] Could not find #page-settings container.");
+        return;
+    }
+    const oldHeading = settingsPageContainer.querySelector('h2');
+    if (oldHeading)
+        oldHeading.remove();
+    // Remove any old log management section (if present)
+    const oldLogSection = settingsPageContainer.querySelector('.log-management-section');
+    if (oldLogSection)
+        oldLogSection.remove();
+    // Remove any old theme toggle button (if present)
+    const oldThemeBtn = settingsPageContainer.querySelector('#theme-toggle-button');
+    if (oldThemeBtn)
+        oldThemeBtn.remove();
+    // Inject Common Settings foldout (theme toggle)
+    const commonSettingsFoldout = createCommonSettingsFoldout();
+    settingsPageContainer.appendChild(commonSettingsFoldout);
+    // Inject Log Management foldout
+    const logManagementFoldout = createLogManagementFoldout();
+    settingsPageContainer.appendChild(logManagementFoldout);
+    // Setup listeners for log management buttons
+    const viewLogsButton = settingsPageContainer.querySelector('#viewLogsButton');
     if (viewLogsButton) {
         viewLogsButton.addEventListener('click', () => {
             console.log('[SettingsController] View Logs button clicked. Opening log viewer popup...');
@@ -2609,33 +3242,30 @@ function initializeSettingsController() {
                 console.error('[SettingsController] Error opening log viewer popup:', error);
             }
         });
-        console.log('[SettingsController] Added listener to View Logs button.');
-        const resetDbButton = document.getElementById('resetDbButton');
-        if (resetDbButton) {
-            resetDbButton.addEventListener('click', async () => {
-                console.log('[SettingsController] Reset DB button clicked.');
-                try {
-                    const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest();
-                    const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_1__.sendDbRequestSmart)(request);
-                    if (result && result.success) {
-                        alert('Database reset successfully!');
-                    }
-                    else {
-                        alert('Database reset failed.');
-                    }
-                    console.log('[SettingsController] Reset DB result:', result);
-                }
-                catch (e) {
-                    alert('Failed to reset database: ' + (e.message || e));
-                    console.error('[SettingsController] Reset DB error:', e);
-                }
-            });
-        }
-        console.log('[SettingsController] Added Reset DB button next to View Logs button.');
     }
-    else {
-        console.warn('[SettingsController] View Logs button (viewLogsButton) not found.');
+    const resetDbButton = settingsPageContainer.querySelector('#resetDbButton');
+    if (resetDbButton) {
+        resetDbButton.addEventListener('click', async () => {
+            console.log('[SettingsController] Reset DB button clicked.');
+            try {
+                const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest();
+                const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_1__.sendDbRequestSmart)(request);
+                if (result && result.success) {
+                    alert('Database reset successfully!');
+                }
+                else {
+                    alert('Database reset failed.');
+                }
+                console.log('[SettingsController] Reset DB result:', result);
+            }
+            catch (e) {
+                alert('Failed to reset database: ' + (e.message || e));
+                console.error('[SettingsController] Reset DB error:', e);
+            }
+        });
     }
+    // Inject Inference Settings foldout (already styled)
+    (0,_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.setupInferenceSettings)();
     isInitialized = true;
     console.log("[SettingsController] Initialized successfully.");
     return {};
@@ -5720,12 +6350,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
 /* harmony export */   getAllManifestEntries: () => (/* binding */ getAllManifestEntries),
 /* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
+/* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
+/* harmony export */   saveInferenceSettings: () => (/* binding */ saveInferenceSettings),
 /* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB)
 /* harmony export */ });
-/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Controllers/InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
+/* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
+
 
 // --- Types ---
 var QuantStatus;
@@ -5746,8 +6380,8 @@ const LOG_WARN = true;
 async function openModelCacheDB() {
     if (LOG_GENERAL)
         console.log(prefix, '[openModelCacheDB] Opening TabAgentModels DB');
-    const dbName = _idbSchema__WEBPACK_IMPORTED_MODULE_0__.DBNames.DB_MODELS;
-    const dbConfig = _idbSchema__WEBPACK_IMPORTED_MODULE_0__.modelCacheSchema[dbName];
+    const dbName = _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS;
+    const dbConfig = _idbSchema__WEBPACK_IMPORTED_MODULE_1__.modelCacheSchema[dbName];
     const storeNames = Object.keys(dbConfig.stores);
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(dbName, dbConfig.version);
@@ -6043,6 +6677,28 @@ async function getAllManifestEntries() {
         };
     });
 }
+// Save settings
+async function saveInferenceSettings(settings) {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('inferenceSettings', 'readwrite');
+        const store = tx.objectStore('inferenceSettings');
+        const req = store.put({ id: _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__.INFERENCE_SETTINGS_SINGLETON_ID, ...settings });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+    });
+}
+// Get settings
+async function getInferenceSettings() {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('inferenceSettings', 'readonly');
+        const store = tx.objectStore('inferenceSettings');
+        const req = store.get(_Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__.INFERENCE_SETTINGS_SINGLETON_ID);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
+}
 
 
 /***/ }),
@@ -6134,7 +6790,7 @@ const schema = {
 const dbChannel = new BroadcastChannel('tabagent-db');
 const modelCacheSchema = {
     [DBNames.DB_MODELS]: {
-        version: 2,
+        version: 3,
         stores: {
             files: {
                 keyPath: 'url', // or just use the URL as the key
@@ -6142,6 +6798,10 @@ const modelCacheSchema = {
             },
             manifest: {
                 keyPath: 'repo', // repo name as the key
+                indexes: [] // No indexes needed for now
+            },
+            inferenceSettings: {
+                keyPath: 'id',
                 indexes: [] // No indexes needed for now
             }
         }
@@ -8342,6 +9002,7 @@ const WorkerEventNames = Object.freeze({
     SET_BASE_URL: 'setBaseUrl',
     SET_ENV_CONFIG: 'setEnvConfig',
     MANIFEST_UPDATED: 'manifestUpdated',
+    INFERENCE_SETTINGS_UPDATE: 'inferenceSettingsUpdate',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

@@ -31,7 +31,8 @@ if (_isNavigatorGpuAvailable) {
 if(LOG_GENERAL)console.log(prefix, 'WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
 import { pipeline, env } from './assets/onnxruntime-web/transformers';
 import { WorkerEventNames, UIEventNames } from './events/eventNames';
-import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, parseQuantFromFilename, QuantStatus } from './DB/idbModel';
+import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, parseQuantFromFilename, QuantStatus, getInferenceSettings } from './DB/idbModel';
+import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings } from './Controllers/InferenceSettings';
 
 
 env.useBrowserCache = false;
@@ -128,8 +129,17 @@ let isModelPipelineReady = false;
 
 
 let envConfig: any = {};
+let inferenceSettings: InferenceSettings = DEFAULT_INFERENCE_SETTINGS;
 
-
+// On startup, fetch settings
+(async () => {
+    const settings = await getInferenceSettings();
+    if (settings) {
+      inferenceSettings = { ...settings };
+      if (LOG_GENERAL) console.log(prefix, 'Loaded inference settings on startup:', inferenceSettings);
+    }
+})();
+  
 
 const originalFetch = self.fetch;
 
@@ -551,6 +561,14 @@ self.onmessage = async (event: MessageEvent) => {
         case WorkerEventNames.SET_ENV_CONFIG: {
             envConfig = { ...envConfig, ...payload };
             if(LOG_GENERAL)console.log(prefix, 'Environment config updated:', envConfig);
+            break;
+        }
+        case WorkerEventNames.INFERENCE_SETTINGS_UPDATE: {
+            const settings = await getInferenceSettings();
+            if(settings) {
+                inferenceSettings = { ...inferenceSettings, ...settings };
+            }
+            if(LOG_GENERAL)console.log(prefix, 'Inference settings updated:', inferenceSettings);
             break;
         }
         case WorkerEventNames.INIT: {

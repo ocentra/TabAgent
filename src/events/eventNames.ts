@@ -41,6 +41,7 @@ export const WorkerEventNames = Object.freeze({
   SET_BASE_URL: 'setBaseUrl',
   SET_ENV_CONFIG: 'setEnvConfig',
   MANIFEST_UPDATED: 'manifestUpdated',
+  INFERENCE_SETTINGS_UPDATE: 'inferenceSettingsUpdate',
 });
 
 export const ModelWorkerStates = Object.freeze({

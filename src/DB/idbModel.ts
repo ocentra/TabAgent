@@ -1,3 +1,4 @@
+import { INFERENCE_SETTINGS_SINGLETON_ID, InferenceSettings } from '../Controllers/InferenceSettings';
 import { modelCacheSchema, DBNames } from './idbSchema';
 
 // --- Types ---
@@ -295,3 +296,27 @@ export async function getAllManifestEntries(): Promise<ManifestEntry[]> {
         };
     });
 } 
+
+// Save settings
+export async function saveInferenceSettings(settings: InferenceSettings) {
+    const db = await openModelCacheDB();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('inferenceSettings', 'readwrite');
+      const store = tx.objectStore('inferenceSettings');
+      const req = store.put({ id: INFERENCE_SETTINGS_SINGLETON_ID, ...settings });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  
+  // Get settings
+  export async function getInferenceSettings(): Promise<InferenceSettings | null> {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('inferenceSettings', 'readonly');
+      const store = tx.objectStore('inferenceSettings');
+      const req = store.get(INFERENCE_SETTINGS_SINGLETON_ID);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }

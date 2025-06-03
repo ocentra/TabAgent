@@ -19,16 +19,16 @@
     <div id="header" class="flex items-center justify-between p-2 border-b border-gray-300 dark:border-gray-700 shadow-sm flex-shrink-0 bg-gray-300 dark:bg-gray-700">
         <div class="flex items-center space-x-2">
             <button id="new-chat-button" title="New Chat" class="p-1 rounded">
-                <!-- Plus Icon replaced with img --> <img src="icons/NewChat.png" alt="New Chat" class="w-6 h-6 action-icon-img">
+                <!-- Plus Icon replaced with img --> <img id="icon-new-chat" alt="New Chat" class="w-6 h-6 action-icon-img">
             </button>
             <h1 class="text-lg font-semibold">Tab Agent</h1>
              <button id="history-button" title="Chat History" class="p-1 rounded">
-                <!-- History Icon (<img>) --> <img src="icons/history.png" alt="History" class="w-6 h-6 action-icon-img">
+                <!-- History Icon (<img>) --> <img id="icon-history" alt="History" class="w-6 h-6 action-icon-img">
             </button>
         </div>
         <div class="flex items-center space-x-1">
             <button id="detach-button" title="Detach Panel" class="p-1 rounded">
-                <!-- Detach Icon (Pop-up <img>) --> <img src="icons/popup.png" alt="Detach" class="w-5 h-5 action-icon-img">
+                <!-- Detach Icon (Pop-up <img>) --> <img id="icon-popup" alt="Detach" class="w-5 h-5 action-icon-img">
             </button>
             <!-- Close button might be handled by Chrome Side Panel API - TBC -->
         </div>
@@ -75,10 +75,10 @@
                     </div>
                     <div class="flex items-center space-x-1">
                          <button id="drive-button" title="Link Google Drive" class="p-1 rounded text-gray-500 dark:text-gray-400">
-                            <!-- Drive Icon (<img>) --> <img src="icons/googledrive.png" alt="Google Drive" class="w-4 h-4 action-icon-img">
+                            <!-- Drive Icon (<img>) --> <img id="icon-googledrive" alt="Google Drive" class="w-4 h-4 action-icon-img">
                         </button>
                         <button id="attach-button" title="Attach File" class="p-1 rounded text-gray-500 dark:text-gray-400">
-                            <!-- Attach Icon (<img>) --> <img src="icons/attach-svgrepo-com.svg" alt="Attach File" class="w-4 h-4 action-icon-img">
+                            <!-- Attach Icon (<img>) --> <img id="icon-attach" alt="Attach File" class="w-4 h-4 action-icon-img">
                         </button>
                     </div>
                  </div>
@@ -180,7 +180,7 @@
         <div class="popup-header bg-gray-200 dark:bg-gray-800">
             <h2>Chat History</h2>
             <button id="close-history" class="icon-button" title="Close History">
-                <!-- Close Icon (<img>) --> <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+                <!-- Close Icon (<img>) --> <img id="icon-close-history" alt="Close" class="w-5 h-5 action-icon-img">
             </button>
         </div>
         <div class="popup-content">
@@ -215,7 +215,7 @@
                 </div>
                 <!-- Close Button - Needs specific styling or inherits -->
                 <button id="drive-viewer-close" class="icon-button" title="Close Viewer">
-                     <img src="icons/close-circle-svgrepo-com.svg" alt="Close" class="w-5 h-5 action-icon-img">
+                     <img id="icon-close-drive-viewer" alt="Close" class="w-5 h-5 action-icon-img">
                 </button>
            </div>
 
@@ -259,19 +259,19 @@
     <!-- Bottom Navigation -->
     <div id="bottom-nav" class="flex justify-around items-center p-1 border-t border-gray-300 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-700">
         <button data-page="page-home" class="nav-button p-2 rounded">
-            <!-- Home Icon (<img>) --> <img src="icons/home-svgrepo-com.svg" alt="Home" class="w-6 h-6 action-icon-img">
+            <!-- Home Icon (<img>) --> <img id="icon-home" alt="Home" class="w-6 h-6 action-icon-img">
         </button>
         <button data-page="page-discover" class="nav-button p-2 rounded">
-            <!-- Discover/Rocket Icon (<img>) --> <img src="icons/rocket-2-svgrepo-com.svg" alt="Discover" class="w-6 h-6 action-icon-img">
+            <!-- Discover/Rocket Icon (<img>) --> <img id="icon-rocket" alt="Discover" class="w-6 h-6 action-icon-img">
         </button>
         <button data-page="page-spaces" class="nav-button p-2 rounded">
-             <!-- Spaces/MySpace Icon (<img>) --> <img src="icons/myspace-microsoft-svgrepo-com.svg" alt="Spaces" class="w-6 h-6 action-icon-img">
+             <!-- Spaces/MySpace Icon (<img>) --> <img id="icon-myspace" alt="Spaces" class="w-6 h-6 action-icon-img">
         </button>
         <button data-page="page-library" class="nav-button p-2 rounded">
-            <!-- Library Icon (<img>) --> <img src="icons/library-svgrepo-com.svg" alt="Library" class="w-6 h-6 action-icon-img">
+            <!-- Library Icon (<img>) --> <img id="icon-library" alt="Library" class="w-6 h-6 action-icon-img">
         </button>
         <button data-page="page-settings" class="nav-button p-2 rounded">
-            <!-- Settings Icon (<img>) --> <img src="icons/settings-svgrepo-com.svg" alt="Settings" class="w-6 h-6 action-icon-img">
+            <!-- Settings Icon (<img>) --> <img id="icon-settings" alt="Settings" class="w-6 h-6 action-icon-img">
          </button>
     </div>
 

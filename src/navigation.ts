@@ -10,6 +10,8 @@ window.EXTENSION_CONTEXT = Contexts.OTHERS;
 let pageContainers = document.querySelectorAll('.page-container');
 let navButtons = document.querySelectorAll('.nav-button');
 let mainHeaderTitle: HTMLElement | null = document.querySelector('#header h1');
+const newChatButton = document.getElementById('new-chat-button');
+const historyButton = document.getElementById('history-button');
 const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles: { [key: string]: string } = {
     'page-home': 'Tab Agent', 
@@ -44,6 +46,17 @@ async function navigateTo(pageId: string) {
          mainHeaderTitle.textContent = pageTitles[pageId];
     } else if (mainHeaderTitle) {
          mainHeaderTitle.textContent = 'Tab Agent'; 
+    }
+
+    // Show/hide new chat and history buttons based on page
+    if (newChatButton && historyButton) {
+        if (pageId === 'page-home') {
+            newChatButton.style.display = '';
+            historyButton.style.display = '';
+        } else {
+            newChatButton.style.display = 'none';
+            historyButton.style.display = 'none';
+        }
     }
 
     navButtons.forEach(button => {

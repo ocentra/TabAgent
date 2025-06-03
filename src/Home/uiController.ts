@@ -5,6 +5,7 @@ import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification } from '../DB/dbEvents';
 import {  QuantStatus, getAllManifestEntries, QuantInfo } from '../DB/idbModel';
+import { MESSAGE_EVENT } from '../Utilities/eventConstants';
 
 
 let queryInput: HTMLTextAreaElement | null,

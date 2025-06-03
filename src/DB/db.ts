@@ -163,6 +163,7 @@ function createDbWorker() {
 
 // Helper to ensure dbWorker is not null
 function getDbWorker(): Worker {
+  console.log('[DEBUG] getDbWorker called. dbWorker:', dbWorker);
   if (!dbWorker) throw new AppError('WORKER_NOT_INITIALIZED', 'DB Worker is not initialized');
   return dbWorker;
 }

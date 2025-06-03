@@ -10,6 +10,7 @@ const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
 const LOG_SELF = false;
+const LOG_GENERATION = true;
 
 if (_isNavigatorGpuAvailable) {
     webgpuCheckPromise = (async () => {
@@ -32,7 +33,8 @@ if(LOG_GENERAL)console.log(prefix, 'WebGPU available in worker (navigator.gpu):'
 import { pipeline, env } from './assets/onnxruntime-web/transformers';
 import { WorkerEventNames, UIEventNames } from './events/eventNames';
 import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, parseQuantFromFilename, QuantStatus, getInferenceSettings } from './DB/idbModel';
-import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings } from './Controllers/InferenceSettings';
+import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings, INFERENCE_SETTING_KEYS } from './Controllers/InferenceSettings';
+import { MESSAGE_EVENT } from './Utilities/eventConstants';
 
 
 env.useBrowserCache = false;
@@ -43,7 +45,7 @@ const extBaseUrlReady = new Promise<string>((resolve) => {
     extBaseUrlReadyResolve = resolve;
 });
 
-self.addEventListener('message', (event: MessageEvent) => {
+self.addEventListener(MESSAGE_EVENT, (event: MessageEvent) => {
     if (event.data && event.data.type === WorkerEventNames.SET_BASE_URL) {
         EXT_BASE_URL = event.data.baseUrl || '';
         if(LOG_GENERAL)console.log(prefix, 'Received extension base URL:', EXT_BASE_URL);
@@ -333,6 +335,15 @@ async function loadPipeline(payload: { modelId: string, quant?: string, task?: s
         options.execution_providers = ['webgpu', 'wasm'];
     }
 
+    // Add relevant inferenceSettings to pipeline options if not already set
+    // Only add settings that are relevant for pipeline creation (e.g., threads, batch_size)
+    if (inferenceSettings.threads !== undefined && options.threads === undefined) {
+        options.threads = inferenceSettings.threads;
+    }
+    if (inferenceSettings.batch_size !== undefined && options.batch_size === undefined) {
+        options.batch_size = inferenceSettings.batch_size;
+    }
+
     if(LOG_GENERAL)console.log(prefix, `Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
 
     const pipelineTask = task || 'text-generation';
@@ -527,6 +538,33 @@ async function loadPipeline(payload: { modelId: string, quant?: string, task?: s
       }
     }
 }
+// Helper: Generate text using the pipeline instance
+async function generateText(payload: any) {
+    if (!isModelPipelineReady || !pipelineInstance) {
+        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
+        return;
+    }
+    try {
+        
+        const generationParams = { ...inferenceSettings };
+
+        if(LOG_GENERATION)console.log(prefix, 'Generation params:', generationParams);      
+        const input = payload.messages || payload.message || payload.input;
+        const output = await pipelineInstance(input, generationParams);
+        self.postMessage({
+            type: WorkerEventNames.GENERATION_COMPLETE,
+            payload: {
+                ...payload,
+                output,
+            },
+        });
+        
+        if(LOG_GENERATION)console.log(prefix, 'Generation complete:', output);
+
+    } catch (err: any) {
+        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { error: err?.message || String(err), chatId: payload.chatId, messageId: payload.messageId } });
+    }
+}
 
 // Helper: Set quant status in manifest (add if missing)
 async function setManifestQuantStatus(repo: string, quant: string, status: QuantStatus) {
@@ -549,7 +587,6 @@ async function addQuantToManifest(repo: string, quant: string, status: QuantStat
   await addManifestEntry(repo, manifest);
   self.postMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
 }
-
 
 
 self.onmessage = async (event: MessageEvent) => {
@@ -579,7 +616,6 @@ self.onmessage = async (event: MessageEvent) => {
                 await loadPipeline({ modelId, quant, task, loadId });
                 loadedSuccessfully = true;
             } catch (e: any) {
-                // Detect unsupported pipeline error
                 if (typeof e?.message === 'string' && e.message.startsWith('Unsupported pipeline:')) {
                     await setManifestQuantStatus(modelId, quant, QuantStatus.Unsupported);
                     self.postMessage({ type: WorkerEventNames.ERROR, payload: `This model's task is not supported by the current runtime.` });
@@ -588,7 +624,6 @@ self.onmessage = async (event: MessageEvent) => {
                 loadedSuccessfully = false;
             }
             if (loadedSuccessfully) {
-                // Set quant to downloaded
                 await setManifestQuantStatus(modelId, quant, QuantStatus.Downloaded);
                 return;
             }
@@ -618,41 +653,7 @@ self.onmessage = async (event: MessageEvent) => {
             return;
         }
         case WorkerEventNames.GENERATE: {
-            if (!isModelPipelineReady || !pipelineInstance) {
-                self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
-                return;
-            }
-            try {
-                const result = await pipelineInstance(payload.messages, {
-                    max_new_tokens: payload.max_new_tokens || 128,
-                    temperature: payload.temperature || 0.7,
-                });
-                let text = '';
-                if (Array.isArray(result) && result[0]?.generated_text) {
-                    text = result[0].generated_text;
-                } else if (typeof result === 'object' && (result as any).generated_text) {
-                    text = (result as any).generated_text;
-                } else {
-                    text = JSON.stringify(result);
-                }
-                self.postMessage({
-                    type: WorkerEventNames.GENERATION_COMPLETE,
-                    payload: {
-                        chatId: payload.chatId,
-                        messageId: payload.messageId,
-                        text
-                    }
-                });
-            } catch (error) {
-                self.postMessage({
-                    type: WorkerEventNames.GENERATION_ERROR,
-                    payload: {
-                        error: error instanceof Error ? error.message : String(error),
-                        chatId: payload.chatId,
-                        messageId: payload.messageId
-                    }
-                });
-            }
+            await generateText(payload);
             break;
         }
         case WorkerEventNames.RESET: {

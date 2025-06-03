@@ -56,7 +56,6 @@ export default {
         { from: 'src/sidepanel.css', to: '.' },
         { from: 'src/events', to: 'events' },
         { from: 'src/theme-loader.js', to: '.' },
-        ...copyFolder('icons', 'icons'),
         ...copyFolder('src/model', 'model'),
         ...copyFolder('src/assets', 'assets'),
         ...copyFolder('src/wasm', 'wasm'),
@@ -88,6 +87,14 @@ export default {
       {
         test: /\.mjs$/,
         type: 'asset/resource',
+      },
+      {
+        test: /\.(png|jpe?g|gif|svg)$/i,
+        include: [path.resolve(__dirname, 'src/assets/icons')],
+        type: 'asset/resource',
+        generator: {
+          filename: 'icons/[name][ext]'
+        }
       },
       // Add loaders here if you need to handle CSS, images, etc.
     ],

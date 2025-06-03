@@ -8,8 +8,12 @@ import { Summary } from "./idbSummary";
 import { DBNames, NodeType } from "./idbSchema";
 import { DBActions } from "./dbActions";
 import { Embedding } from "./idbEmbedding";
+import { DB_ENTITY_TYPES } from "./idbBase";
+import { assertDbWorker } from '../Utilities/dbChannels';
+import { MESSAGE_EVENT } from '../Utilities/eventConstants';
 
 export class Chat extends KnowledgeGraphNode {
+
   public user_id: string;
   public tabId?: number;
   public chat_timestamp: number;
@@ -25,7 +29,6 @@ export class Chat extends KnowledgeGraphNode {
   constructor(
     id: string,
     title: string,
-    dbWorker: Worker,
     kgn_created_at: number,
     kgn_updated_at: number,
     options: {
@@ -42,12 +45,19 @@ export class Chat extends KnowledgeGraphNode {
         kgn_properties?: Record<string, any>;
         kgn_embedding_id?: string;
         modelWorker?: Worker;
-    } = {}
+    } = {},
+    dbWorker?: Worker
   ) {
     super(
-        id, NodeType.Chat, title, dbWorker, kgn_created_at, kgn_updated_at,
+        id,
+        NodeType.Chat,
+        title,
+        kgn_created_at,
+        kgn_updated_at,
         options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined,
-        options.kgn_embedding_id, options.modelWorker
+        options.kgn_embedding_id,
+        options.modelWorker,
+        dbWorker
     );
     this.title = title;
     this.user_id = options.user_id || '';
@@ -62,9 +72,10 @@ export class Chat extends KnowledgeGraphNode {
     this.domain = options.domain;
   }
 
-  toJSON() {
+  toJSON(): { [key: string]: any } {
     return {
-      id: this.id,
+      ...super.toJSON(),
+      __type: DB_ENTITY_TYPES.Chat,
       user_id: this.user_id,
       tabId: this.tabId,
       chat_timestamp: this.chat_timestamp,
@@ -75,15 +86,34 @@ export class Chat extends KnowledgeGraphNode {
       summary_ids: this.summary_ids,
       chat_metadata_json: this.chat_metadata_json,
       topic: this.topic,
-      domain: this.domain,
-      kgn_type: this.type,
-      kgn_label: this.label,
-      kgn_properties_json: this.properties_json,
-      kgn_embedding_id: this.embedding_id,
-      kgn_created_at: this.created_at,
-      kgn_updated_at: this.updated_at
-      // dbWorker and modelWorker are intentionally omitted
+      domain: this.domain
     };
+  }
+
+  static fromJSON(obj: any, dbWorker?: Worker, modelWorker?: Worker): Chat {
+    if (!obj) throw new Error('Cannot hydrate Chat from null/undefined');
+    return new Chat(
+      obj.id,
+      obj.title,
+      obj.kgn_created_at || obj.chat_timestamp,
+      obj.kgn_updated_at || obj.chat_timestamp,
+      {
+        user_id: obj.user_id,
+        tabId: obj.tabId,
+        chat_timestamp: obj.chat_timestamp,
+        isStarred: obj.isStarred,
+        status: obj.status,
+        message_ids: obj.message_ids || [],
+        summary_ids: obj.summary_ids || [],
+        chat_metadata: obj.chat_metadata_json ? JSON.parse(obj.chat_metadata_json) : undefined,
+        topic: obj.topic,
+        domain: obj.domain,
+        kgn_properties: obj.kgn_properties_json ? JSON.parse(obj.kgn_properties_json) : undefined,
+        kgn_embedding_id: obj.kgn_embedding_id,
+        modelWorker: modelWorker
+      },
+      dbWorker
+    );
   }
 
   get chat_metadata(): Record<string, any> | undefined {
@@ -118,6 +148,8 @@ export class Chat extends KnowledgeGraphNode {
         initialMessageSender?: string;
     } = {}
   ): Promise<Chat> {
+    console.log('[DEBUG] Chat.createChat called with dbWorker:', dbWorker);
+    assertDbWorker(dbWorker, Chat.createChat.name, Chat.name);
     const chatId = options.id || crypto.randomUUID();
     const now = Date.now();
     const title = initialTitleOrPrompt.length > 50 ? initialTitleOrPrompt.split(' ').slice(0, 7).join(' ') + '...' : initialTitleOrPrompt;
@@ -147,12 +179,13 @@ export class Chat extends KnowledgeGraphNode {
     }
 
     const chat = new Chat(
-      chatId, title, dbWorker, now, now,
+      chatId, title, now, now,
       {
         user_id: options.user_id, tabId: options.tabId, chat_timestamp: now,
         isStarred: options.isStarred, status: options.status, topic: options.topic, domain: options.domain,
         kgn_properties: options.kgn_properties, kgn_embedding_id: kgn_embedding_id_to_set, modelWorker: options.modelWorker
-      }
+      },
+      dbWorker
     );
     await chat.saveToDB();
     if (initialTitleOrPrompt.length > title.length || (initialTitleOrPrompt && options.initialMessageSender)) {
@@ -167,6 +200,7 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   async saveToDB(): Promise<string> {
+    assertDbWorker(this, 'saveToDB', this.constructor.name);
     const now = Date.now();
     this.updated_at = now;
     if (!this.created_at) { this.created_at = this.chat_timestamp; }
@@ -195,7 +229,7 @@ export class Chat extends KnowledgeGraphNode {
     return new Promise((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          this.dbWorker.removeEventListener('message', handleMessage);
+          this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success && typeof event.data.result === 'string') {
             resolve(event.data.result);
           } else if (event.data.success) {
@@ -205,30 +239,33 @@ export class Chat extends KnowledgeGraphNode {
           }
         }
       };
-      this.dbWorker.addEventListener('message', handleMessage);
-      this.dbWorker.postMessage({ action: DBActions.PUT, payload: [DBNames.DB_USER_DATA, DBNames.DB_CHATS, chatDataForStore], requestId });
-      setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout for DB_CHATS save (id: ${this.id})`)); }, 5000);
+      this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+      this.dbWorker!.postMessage({ action: DBActions.PUT, payload: [DBNames.DB_USER_DATA, DBNames.DB_CHATS, chatDataForStore], requestId });
+      setTimeout(() => { this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout for DB_CHATS save (id: ${this.id})`)); }, 5000);
     });
   }
 
   static async read(id: string, dbWorker: Worker, modelWorker?: Worker): Promise<Chat | undefined> {
+    console.log('[DEBUG] Chat.read called with dbWorker:', dbWorker);
+    assertDbWorker(dbWorker, Chat.read.name, Chat.name);
+    if (!dbWorker) throw new Error('dbWorker is required for Chat.read');
     const requestId = crypto.randomUUID();
     const chatData = await new Promise<any | undefined>((resolve, reject) => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data && event.data.requestId === requestId) {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
                 if (event.data.success) { resolve(event.data.result); }
                 else { reject(new Error(event.data.error || `Failed to get chat (id: ${id}) from DB_CHATS`)); }
             }
         };
-        dbWorker.addEventListener('message', handleMessage);
+        dbWorker.addEventListener(MESSAGE_EVENT, handleMessage);
         dbWorker.postMessage({ action: DBActions.GET, payload: [DBNames.DB_USER_DATA, DBNames.DB_CHATS, id], requestId });
-        setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting chat ${id}`)); }, 5000);
+        setTimeout(() => { dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout getting chat ${id}`)); }, 5000);
     });
 
     if (chatData) {
         return new Chat(
-            chatData.id, chatData.title, dbWorker, chatData.kgn_created_at, chatData.kgn_updated_at,
+            chatData.id, chatData.title, chatData.kgn_created_at, chatData.kgn_updated_at,
             {
                 user_id: chatData.user_id, tabId: chatData.tabId, chat_timestamp: chatData.chat_timestamp,
                 isStarred: chatData.isStarred, status: chatData.status, message_ids: chatData.message_ids || [],
@@ -237,13 +274,15 @@ export class Chat extends KnowledgeGraphNode {
                 topic: chatData.topic, domain: chatData.domain,
                 kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
                 kgn_embedding_id: chatData.kgn_embedding_id, modelWorker: modelWorker
-            }
+            },
+            dbWorker
         );
     }
     return undefined;
   }
 
   async update(updates: Partial<Omit<Chat, 'dbWorker' | 'modelWorker' | 'id' | 'created_at' | 'type' | 'label' | 'edgesOut' | 'edgesIn' | '_embedding' >>): Promise<void> {
+    assertDbWorker(this, 'update', this.constructor.name);
     const { ...allowedUpdates } = updates as any;
     if (allowedUpdates.title !== undefined) { this.title = allowedUpdates.title; this.label = allowedUpdates.title; }
     if (allowedUpdates.chat_metadata && typeof allowedUpdates.chat_metadata === 'object') {
@@ -258,10 +297,11 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   async delete(options: { deleteMessages?: boolean, deleteSummaries?: boolean, deleteKGNRels?: boolean, deleteOrphanedEmbedding?: boolean } = {}): Promise<void> {
+    assertDbWorker(this, 'delete', this.constructor.name);
     const { deleteMessages = true, deleteSummaries = true, deleteKGNRels = true, deleteOrphanedEmbedding = false } = options;
     if (deleteMessages) {
         for (const msgId of this.message_ids) {
-            const message = await Message.read(msgId, this.dbWorker, this.modelWorker);
+            const message = await Message.read(msgId, this.dbWorker!, this.modelWorker);
             if (message) {
                 await message.delete({ deleteAttachments: true, deleteKGNRels: true, deleteOrphanedEmbedding: true })
                     .catch(e => console.warn(`Failed to delete message ${msgId} for chat ${this.id}: ${e.message}`));
@@ -271,7 +311,7 @@ export class Chat extends KnowledgeGraphNode {
     }
     if (deleteSummaries) {
         for (const summaryId of this.summary_ids) {
-            const summary = await Summary.read(summaryId, this.dbWorker);
+            const summary = await Summary.read(summaryId, this.dbWorker!);
             if (summary) {
                 await summary.delete().catch(e => console.warn(`Failed to delete summary ${summaryId} for chat ${this.id}: ${e.message}`));
             }
@@ -283,14 +323,14 @@ export class Chat extends KnowledgeGraphNode {
     await new Promise<void>((resolve, reject) => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data && event.data.requestId === requestId) {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
                 if (event.data.success) { resolve(); }
                 else { reject(new Error(event.data.error || `Failed to delete chat (id: ${this.id}) from DB_CHATS`)); }
             }
         };
-        this.dbWorker.addEventListener('message', handleMessage);
-        this.dbWorker.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_CHATS, this.id], requestId });
-        setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting chat ${this.id} from DB_CHATS`)); }, 5000);
+        this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+        this.dbWorker!.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_CHATS, this.id], requestId });
+        setTimeout(() => { this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout deleting chat ${this.id} from DB_CHATS`)); }, 5000);
     });
     await super.delete({ deleteOrphanedEmbedding, deleteEdges: deleteKGNRels });
   }
@@ -309,13 +349,14 @@ export class Chat extends KnowledgeGraphNode {
         kgn_embeddingVector?: number[] | Float32Array | ArrayBuffer;
     }
   ): Promise<string> {
+    assertDbWorker(this, 'addMessage', this.constructor.name);
     const content = data.text || (data.attachment ? data.attachment.file_name : (data.attachmentsData && data.attachmentsData.length > 0 ? data.attachmentsData[0].file_name : 'Message with attachments'));
     if (!data.text && !data.attachment && (!data.attachmentsData || data.attachmentsData.length === 0)) {
         throw new Error("Cannot add an empty message without text or attachments.");
     }
 
     const messageId = await Message.createMessage(
-      this.id, data.sender, content, this.dbWorker,
+      this.id, data.sender, content, this.dbWorker!,
       {
         message_type: data.message_type, metadata: data.metadata,
         kgn_properties: data.kgn_properties, kgn_embeddingInput: data.kgn_embeddingInput,
@@ -327,7 +368,7 @@ export class Chat extends KnowledgeGraphNode {
         this.message_ids.push(messageId);
     }
 
-    const messageInstance = await Message.read(messageId, this.dbWorker, this.modelWorker);
+    const messageInstance = await Message.read(messageId, this.dbWorker!, this.modelWorker);
     if (!messageInstance) throw new Error("Failed to retrieve newly created message for attachment processing.");
 
     if (data.attachment) {
@@ -343,20 +384,23 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   async getMessage(messageId: string): Promise<Message | undefined> {
-    return Message.read(messageId, this.dbWorker, this.modelWorker);
+    assertDbWorker(this, 'getMessage', this.constructor.name);
+    return Message.read(messageId, this.dbWorker!, this.modelWorker);
   }
 
   async getMessages(): Promise<Message[]> {
+    assertDbWorker(this, 'getMessages', this.constructor.name);
     const messages: Message[] = [];
     for (const msgId of this.message_ids) {
-        const msg = await Message.read(msgId, this.dbWorker, this.modelWorker);
+        const msg = await Message.read(msgId, this.dbWorker!, this.modelWorker);
         if (msg) messages.push(msg);
     }
     return messages;
   }
 
   async deleteMessage(messageId: string, deleteOptions: { deleteAttachments?: boolean, deleteKGNRels?: boolean, deleteOrphanedEmbedding?: boolean } = {}): Promise<boolean> {
-    const msg = await Message.read(messageId, this.dbWorker, this.modelWorker);
+    assertDbWorker(this, 'deleteMessage', this.constructor.name);
+    const msg = await Message.read(messageId, this.dbWorker!, this.modelWorker);
     if (msg && msg.chat_id === this.id) {
       await msg.delete(deleteOptions);
       const initialLength = this.message_ids.length;
@@ -384,10 +428,11 @@ export class Chat extends KnowledgeGraphNode {
       embedding_id?: string;
     }
   ): Promise<string> {
+    assertDbWorker(this, 'addSummary', this.constructor.name);
     const summaryId = await Summary.create(
       this.id, // chat_id
       summary_text,
-      this.dbWorker,
+      this.dbWorker!,
       {
         ...options,
         message_ids: message_ids_for_summary,
@@ -403,20 +448,23 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   async getSummary(summaryId: string): Promise<Summary | undefined> {
-    return Summary.read(summaryId, this.dbWorker);
+    assertDbWorker(this, 'getSummary', this.constructor.name);
+    return Summary.read(summaryId, this.dbWorker!);
   }
 
   async getSummaries(): Promise<Summary[]> {
+    assertDbWorker(this, 'getSummaries', this.constructor.name);
     const summaries: Summary[] = [];
     for (const summaryId of this.summary_ids) {
-        const summary = await Summary.read(summaryId, this.dbWorker);
+        const summary = await Summary.read(summaryId, this.dbWorker!);
         if (summary) summaries.push(summary);
     }
     return summaries;
   }
 
   async deleteSummary(summaryId: string): Promise<boolean> {
-    const summary = await Summary.read(summaryId, this.dbWorker);
+    assertDbWorker(this, 'deleteSummary', this.constructor.name);
+    const summary = await Summary.read(summaryId, this.dbWorker!);
     if (summary && summary.chat_id === this.id) {
         await summary.delete();
         const initialLength = this.summary_ids.length;
@@ -435,12 +483,14 @@ export class Chat extends KnowledgeGraphNode {
     dbWorker: Worker,
     modelWorker?: Worker
   ): Promise<{ success: boolean; chat?: Chat; error?: string }> {
+    console.log('[DEBUG] Chat.updateChat called with dbWorker:', dbWorker);
+    assertDbWorker(dbWorker, Chat.updateChat.name, Chat.name);
     const chat = await Chat.read(chatId, dbWorker, modelWorker);
     if (!chat) return { success: false, error: 'Chat not found' };
     try {
       await chat.update(updates);
       const updatedChat = await Chat.read(chatId, dbWorker, modelWorker);
-      return { success: true, chat: updatedChat };
+      return { success: true, chat: updatedChat };      
     } catch (e: any) {
       return { success: false, error: e.message || 'Update failed' };
     }
@@ -452,6 +502,8 @@ export class Chat extends KnowledgeGraphNode {
     modelWorker?: Worker,
     options: { deleteMessages?: boolean, deleteSummaries?: boolean, deleteKGNRels?: boolean, deleteOrphanedEmbedding?: boolean } = {}
   ): Promise<{ success: boolean; error?: string }> {
+    console.log('[DEBUG] Chat.deleteChat called with dbWorker:', dbWorker);
+    assertDbWorker(dbWorker, Chat.deleteChat.name, Chat.name);
     const chat = await Chat.read(chatId, dbWorker, modelWorker);
     if (!chat) return { success: false, error: 'Chat not found' };
     try {
@@ -479,6 +531,8 @@ export class Chat extends KnowledgeGraphNode {
     dbWorker: Worker,
     modelWorker?: Worker
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    console.log('[DEBUG] Chat.addMessageToChat called with dbWorker:', dbWorker);
+    assertDbWorker(dbWorker, Chat.addMessageToChat.name, Chat.name);
     const chat = await Chat.read(chatId, dbWorker, modelWorker);
     if (!chat) return { success: false, error: 'Chat not found' };
     try {
@@ -490,21 +544,23 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   static async getAllChats(dbWorker: Worker): Promise<Chat[]> {
+    console.log('[DEBUG] Chat.getAllChats called with dbWorker:', dbWorker);
+    assertDbWorker(dbWorker, Chat.getAllChats.name, Chat.name);
     const requestId = crypto.randomUUID();
     const chatDatas = await new Promise<any[]>((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          dbWorker.removeEventListener('message', handleMessage);
+          dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success) { resolve(event.data.result); }
           else { reject(new Error(event.data.error || 'Failed to get all chats from DB_CHATS')) }
         }
       };
-      dbWorker.addEventListener('message', handleMessage);
+      dbWorker.addEventListener(MESSAGE_EVENT, handleMessage);
       dbWorker.postMessage({ action: DBActions.GET_ALL, payload: [DBNames.DB_USER_DATA, DBNames.DB_CHATS], requestId });
-      setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error('Timeout getting all chats')); }, 5000);
+      setTimeout(() => { dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage); reject(new Error('Timeout getting all chats')); }, 5000);
     });
     return (chatDatas || []).map(chatData => new Chat(
-      chatData.id, chatData.title, dbWorker, chatData.kgn_created_at, chatData.kgn_updated_at,
+      chatData.id, chatData.title, chatData.kgn_created_at, chatData.kgn_updated_at,
       {
         user_id: chatData.user_id, tabId: chatData.tabId, chat_timestamp: chatData.chat_timestamp,
         isStarred: chatData.isStarred, status: chatData.status, message_ids: chatData.message_ids || [],
@@ -513,7 +569,8 @@ export class Chat extends KnowledgeGraphNode {
         topic: chatData.topic, domain: chatData.domain,
         kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
         kgn_embedding_id: chatData.kgn_embedding_id
-      }
+      },
+      dbWorker
     ));
   }
 }

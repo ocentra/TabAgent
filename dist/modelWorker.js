@@ -2,6 +2,112 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
+/***/ "./src/Components/SystemPromptPopup.ts":
+/*!*********************************************!*\
+  !*** ./src/Components/SystemPromptPopup.ts ***!
+  \*********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   showSystemPromptPopup: () => (/* binding */ showSystemPromptPopup)
+/* harmony export */ });
+function showSystemPromptPopup(currentPrompt, onSave) {
+    // Create backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center';
+    backdrop.style.position = 'fixed';
+    backdrop.style.top = '0';
+    backdrop.style.left = '0';
+    backdrop.style.width = '100vw';
+    backdrop.style.height = '100vh';
+    backdrop.style.display = 'flex';
+    backdrop.style.alignItems = 'center';
+    backdrop.style.justifyContent = 'center';
+    // Create modal (full size, flex column)
+    const modal = document.createElement('div');
+    modal.className = 'bg-gray-50 dark:bg-gray-800 rounded-lg shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.maxWidth = '100%';
+    modal.style.maxHeight = '100%';
+    modal.style.padding = '0';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    // Header (minimal)
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900';
+    header.style.flex = '0 0 auto';
+    header.innerHTML = `
+    <span class="text-base font-semibold text-gray-800 dark:text-gray-100">Edit System Prompt</span>
+    <button class="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 text-xl font-bold px-2" title="Close">&times;</button>
+  `;
+    const closeBtn = header.querySelector('button');
+    // Textarea (main focus, fills space)
+    const textarea = document.createElement('textarea');
+    textarea.value = currentPrompt;
+    textarea.className = 'flex-1 w-full px-4 py-3 bg-transparent text-gray-900 dark:text-gray-100 text-base resize-vertical border-0 outline-none';
+    textarea.style.height = '100%';
+    textarea.style.minHeight = '0';
+    textarea.style.maxHeight = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.boxSizing = 'border-box';
+    textarea.style.background = 'transparent';
+    textarea.style.fontFamily = 'inherit';
+    textarea.style.fontSize = '1rem';
+    textarea.style.margin = '0';
+    textarea.style.flex = '1 1 auto';
+    textarea.style.overflowY = 'auto';
+    // Footer (minimal)
+    const footer = document.createElement('div');
+    footer.className = 'flex justify-end gap-2 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900';
+    footer.style.flex = '0 0 auto';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'px-4 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 text-sm';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = 'OK';
+    okBtn.className = 'px-4 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm';
+    footer.appendChild(cancelBtn);
+    footer.appendChild(okBtn);
+    // Assemble modal
+    modal.appendChild(header);
+    modal.appendChild(textarea);
+    modal.appendChild(footer);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    // Make modal fill parent (side panel)
+    backdrop.style.alignItems = 'stretch';
+    backdrop.style.justifyContent = 'stretch';
+    modal.style.margin = '0';
+    // Focus textarea
+    setTimeout(() => textarea.focus(), 50);
+    // Close logic
+    function close() {
+        document.body.removeChild(backdrop);
+    }
+    closeBtn.onclick = cancelBtn.onclick = () => close();
+    backdrop.onclick = (e) => {
+        if (e.target === backdrop)
+            close();
+    };
+    okBtn.onclick = () => {
+        onSave(textarea.value);
+        close();
+    };
+    textarea.onkeydown = (e) => {
+        if (e.key === 'Escape')
+            close();
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            onSave(textarea.value);
+            close();
+        }
+    };
+}
+
+
+/***/ }),
+
 /***/ "./src/Controllers/InferenceSettings.ts":
 /*!**********************************************!*\
   !*** ./src/Controllers/InferenceSettings.ts ***!
@@ -15,23 +121,36 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DEFAULT_INFERENCE_SETTINGS: () => (/* binding */ DEFAULT_INFERENCE_SETTINGS),
 /* harmony export */   INFERENCE_SETTINGS_SINGLETON_ID: () => (/* binding */ INFERENCE_SETTINGS_SINGLETON_ID),
 /* harmony export */   INFERENCE_SETTING_KEYS: () => (/* binding */ INFERENCE_SETTING_KEYS),
+/* harmony export */   SYSTEM_PROMPT_SETTING: () => (/* binding */ SYSTEM_PROMPT_SETTING),
 /* harmony export */   applySettings: () => (/* binding */ applySettings),
 /* harmony export */   getCurrentSettings: () => (/* binding */ getCurrentSettings),
 /* harmony export */   initInferenceSettingsUI: () => (/* binding */ initInferenceSettingsUI),
 /* harmony export */   keyToLabel: () => (/* binding */ keyToLabel),
 /* harmony export */   loadAndApplySettingsToUI: () => (/* binding */ loadAndApplySettingsToUI),
 /* harmony export */   reloadSettingsFromDB: () => (/* binding */ reloadSettingsFromDB),
+/* harmony export */   resetSettingsToDefault: () => (/* binding */ resetSettingsToDefault),
 /* harmony export */   saveCurrentSettingsToDBDebounced: () => (/* binding */ saveCurrentSettingsToDBDebounced),
 /* harmony export */   setupInferenceSettings: () => (/* binding */ setupInferenceSettings)
 /* harmony export */ });
 /* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
 /* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Components_SystemPromptPopup__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Components/SystemPromptPopup */ "./src/Components/SystemPromptPopup.ts");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../assets/icons/popup.png */ "./src/assets/icons/popup.png");
 // src/Controllers/InferenceSettings.ts
 
 
 
+
+
+const prefix = '[InferenceSettings]';
+const LOG_GENERAL = true;
+const LOG_DEBUG = true;
+const LOG_ERROR = true;
+const LOG_WARN = true;
 const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
+if (LOG_GENERAL)
+    console.log(prefix, 'popupIcon import resolves to:', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__);
 const INFERENCE_SETTING_KEYS = {
     temperature: 'temperature',
     max_length: 'max_length',
@@ -69,6 +188,54 @@ const INFERENCE_SETTING_KEYS = {
     return_dict_in_generate: 'return_dict_in_generate',
     suppress_tokens: 'suppress_tokens',
     use_cache: 'use_cache',
+    system_prompt: 'system_prompt',
+};
+const DEFAULT_INFERENCE_SETTINGS = {
+    temperature: 0.7,
+    max_length: 2048,
+    max_new_tokens: 512,
+    min_length: 0,
+    top_k: 50,
+    top_p: 0.9,
+    repetition_penalty: 1.1,
+    attention_mask: true,
+    batch_size: 1,
+    do_sample: true,
+    eos_token_id: null,
+    num_beams: 1,
+    num_return_sequences: 1,
+    pad_token_id: null,
+    diversity_penalty: 0.0,
+    early_stopping: false,
+    length_penalty: 1.0,
+    no_repeat_ngram_size: 0,
+    num_beam_groups: 1,
+    threads: 2,
+    bad_words_ids: null,
+    bos_token_id: null,
+    decoder_start_token_id: null,
+    forced_bos_token_id: null,
+    forced_eos_token_id: null,
+    max_time: null,
+    min_new_tokens: 0,
+    output_attentions: false,
+    output_hidden_states: false,
+    output_scores: false,
+    penalty_alpha: 0.0,
+    prefix: null,
+    remove_invalid_values: false,
+    return_dict_in_generate: false,
+    suppress_tokens: null,
+    use_cache: true,
+    system_prompt: `You are a helpful AI assistant.\nAlways provide clear, concise, and accurate answers.\nIf you are unsure, say so honestly.\nBe friendly, professional, and supportive.\nFormat lists and steps with bullet points when helpful.\nIf the user asks for code, provide well-commented examples.\nIf the user asks for advice, consider pros and cons.\nNever include harmful, unethical, or illegal content.\nIf the user asks for a summary, keep it brief and focused.\nIf the user asks for a translation, be accurate and note the language.\nIf the user asks for a joke, keep it light and appropriate.\n`,
+};
+const SYSTEM_PROMPT_SETTING = {
+    key: INFERENCE_SETTING_KEYS.system_prompt,
+    label: keyToLabel(INFERENCE_SETTING_KEYS.system_prompt),
+    type: 'textarea',
+    defaultValue: DEFAULT_INFERENCE_SETTINGS.system_prompt,
+    description: `The default system prompt sets the AI's behavior, personality, and rules for all conversations unless overridden. Use it to instruct the AI on tone, style, or special instructions. This prompt is always sent to the model before any user message, guiding its responses. You can expand or modify it to fit your needs.`,
+    example: `You are a helpful AI assistant.\n- Always provide clear, concise, and accurate answers.\n- If you are unsure, say so honestly.\n- Be friendly, professional, and supportive.\n- Format lists and steps with bullet points when helpful.\n- If the user asks for code, provide well-commented examples.\n- If the user asks for advice, consider pros and cons.\n- Never include harmful, unethical, or illegal content.\n- If the user asks for a summary, keep it brief and focused.\n- If the user asks for a translation, be accurate and note the language.\n- If the user asks for a joke, keep it light and appropriate.`
 };
 function keyToLabel(key) {
     return key
@@ -306,44 +473,6 @@ const ADVANCED_SETTINGS = [
         example: `1 = single answer, 3 = three options, 5+ = many choices.`
     }
 ];
-const DEFAULT_INFERENCE_SETTINGS = {
-    temperature: 0.7,
-    max_length: 2048,
-    max_new_tokens: 512,
-    min_length: 0,
-    top_k: 50,
-    top_p: 0.9,
-    repetition_penalty: 1.1,
-    attention_mask: true,
-    batch_size: 1,
-    do_sample: true,
-    eos_token_id: null,
-    num_beams: 1,
-    num_return_sequences: 1,
-    pad_token_id: null,
-    diversity_penalty: 0.0,
-    early_stopping: false,
-    length_penalty: 1.0,
-    no_repeat_ngram_size: 0,
-    num_beam_groups: 1,
-    threads: 2,
-    bad_words_ids: null,
-    bos_token_id: null,
-    decoder_start_token_id: null,
-    forced_bos_token_id: null,
-    forced_eos_token_id: null,
-    max_time: null,
-    min_new_tokens: 0,
-    output_attentions: false,
-    output_hidden_states: false,
-    output_scores: false,
-    penalty_alpha: 0.0,
-    prefix: null,
-    remove_invalid_values: false,
-    return_dict_in_generate: false,
-    suppress_tokens: null,
-    use_cache: true
-};
 function setupInferenceSettings() {
     const settingsContainer = document.getElementById('page-settings');
     if (!settingsContainer)
@@ -355,28 +484,50 @@ function setupInferenceSettings() {
     reloadBtn.className = 'ml-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600';
     reloadBtn.onclick = () => reloadSettingsFromDB();
     inferenceSection.appendChild(reloadBtn);
+    // Add Reset Settings button
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset Settings';
+    resetBtn.className = 'ml-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600';
+    resetBtn.onclick = () => resetSettingsToDefault();
+    inferenceSection.appendChild(resetBtn);
     initInferenceSettingsUI();
 }
 function createInferenceSettingsSection() {
     const section = document.createElement('div');
     section.className = 'inference-settings mb-6';
     section.innerHTML = `
-      <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
-          <button class="inference-foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
-              <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">Inference Settings</h3>
-              <span class="fold-icon transform transition-transform duration-200">▼</span>
-          </button>
-          <div class="inference-content p-3 space-y-1">
-              ${createCommonSettingsSection()}
-              ${createAdvancedSettingsSection()}
-          </div>
+    <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
+      <div class="inference-content p-3 space-y-1">
+        ${createSystemPromptSection()}
+        ${createCommonSettingsSection()}
+        ${createAdvancedSettingsSection()}
       </div>
+    </div>
   `;
-    setupFoldoutToggle(section, '.inference-foldout-toggle', '.inference-content');
     setupCommonSettingsToggle(section);
     setupAdvancedSettingsToggle(section);
     setupAllSettingsControls(section);
+    // System prompt info tooltip (handled by createSettingControl)
+    setupSettingControl(section, SYSTEM_PROMPT_SETTING);
     return section;
+}
+function createSystemPromptSection() {
+    return `
+      <div class="system-prompt-box border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800">
+        <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+          <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">System Prompt</span>
+          <div class="flex items-center gap-1">
+            <button id="setting-system_prompt-expand" class="ml-1 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full transition-colors" title="Expand">
+              <img src="${_assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__}" alt="Expand" class="w-4 h-4" />
+            </button>
+            <button id="setting-system_prompt-info" class="ml-1 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
+          </div>
+        </div>
+        <div>
+          <textarea id="setting-system_prompt" rows="8" style="min-height: 5rem; max-height: 16rem; overflow-y: auto;" class="w-full p-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-vertical border-0 rounded-b">${SYSTEM_PROMPT_SETTING.defaultValue}</textarea>
+        </div>
+      </div>
+    `;
 }
 function createCommonSettingsSection() {
     return `
@@ -408,43 +559,53 @@ function createSettingControl(setting) {
     const controlId = `setting-${setting.key}`;
     const valueId = `${controlId}-value`;
     const infoId = `${controlId}-info`;
+    // Special layout for system prompt
+    if (setting.key === INFERENCE_SETTING_KEYS.system_prompt) {
+        // Use the new box structure from createSystemPromptSection
+        return '';
+    }
     let controlHTML = '';
     switch (setting.type) {
         case 'slider':
             controlHTML = `
-              <input type="range" 
-                     id="${controlId}" 
-                     min="${setting.min}" 
-                     max="${setting.max}" 
-                     step="${setting.step}" 
-                     value="${setting.defaultValue}"
-                     class="flex-1 mx-2 accent-blue-500">
-              <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
-          `;
+        <input type="range" 
+               id="${controlId}" 
+               min="${setting.min}" 
+               max="${setting.max}" 
+               step="${setting.step}" 
+               value="${setting.defaultValue}"
+               class="flex-1 mx-2 accent-blue-500">
+        <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
+      `;
             break;
         case 'input':
             controlHTML = `
-              <input type="number" 
-                     id="${controlId}" 
-                     value="${setting.defaultValue}"
-                     class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-          `;
+        <input type="number" 
+               id="${controlId}" 
+               value="${setting.defaultValue}"
+               class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+      `;
             break;
         case 'checkbox':
             controlHTML = `
-              <input type="checkbox" 
-                     id="${controlId}" 
-                     ${setting.defaultValue ? 'checked' : ''}
-                     class="mx-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
-          `;
+        <input type="checkbox" 
+               id="${controlId}" 
+               ${setting.defaultValue ? 'checked' : ''}
+               class="mx-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+      `;
+            break;
+        case 'textarea':
+            controlHTML = `
+        <textarea id="${controlId}" rows="6" style="min-height: 3.5rem; max-height: 12rem; overflow-y: auto;" placeholder="You are a helpful AI assistant..." class="flex-1 mx-2 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm resize-vertical">${setting.defaultValue}</textarea>
+      `;
             break;
     }
     return `
-      <div class="setting-row flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-          <label for="${controlId}" class="min-w-[8rem] text-sm font-medium text-gray-700 dark:text-gray-300">${setting.label}</label>
-          ${controlHTML}
-          <button id="${infoId}" class="ml-2 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
-      </div>
+    <div class="setting-row flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+      <label for="${controlId}" class="min-w-[8rem] text-sm font-medium text-gray-700 dark:text-gray-300">${setting.label}</label>
+      ${controlHTML}
+      <button id="${infoId}" class="ml-2 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
+    </div>
   `;
 }
 function setupFoldoutToggle(container, toggleSelector, contentSelector) {
@@ -535,9 +696,18 @@ function getCurrentSettings() {
             settings[setting.key] = value;
         }
     });
+    // System prompt (handled generically)
+    const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`);
+    if (sysPrompt) {
+        settings.system_prompt = sysPrompt.value;
+    }
+    if (LOG_DEBUG)
+        console.log(prefix, 'getCurrentSettings() returning:', settings);
     return settings;
 }
 function applySettings(settings) {
+    if (LOG_DEBUG)
+        console.log(prefix, 'Applying settings to UI:', settings);
     Object.entries(settings).forEach(([key, value]) => {
         const control = document.querySelector(`#setting-${key}`);
         const valueSpan = document.querySelector(`#setting-${key}-value`);
@@ -553,16 +723,36 @@ function applySettings(settings) {
             }
         }
     });
+    // System prompt (textarea)
+    const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`);
+    if (sysPrompt && typeof settings.system_prompt === 'string') {
+        sysPrompt.value = settings.system_prompt;
+    }
 }
 let saveTimeout = null;
 const SAVE_DEBOUNCE_MS = 200;
 async function loadAndApplySettingsToUI() {
     try {
+        if (LOG_GENERAL)
+            console.log(prefix, 'Loading inference settings from DB...');
         const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getInferenceSettings)() || DEFAULT_INFERENCE_SETTINGS;
-        applySettings(settings);
+        if (!settings || Object.keys(settings).length === 0) {
+            if (LOG_WARN)
+                console.warn(prefix, 'No inference settings found in DB, applying defaults.');
+            applySettings(DEFAULT_INFERENCE_SETTINGS);
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(DEFAULT_INFERENCE_SETTINGS);
+            if (LOG_GENERAL)
+                console.log(prefix, 'Default inference settings saved to DB.');
+        }
+        else {
+            if (LOG_GENERAL)
+                console.log(prefix, 'Loaded inference settings from DB:', settings);
+            applySettings(settings);
+        }
     }
     catch (e) {
-        console.error('[InferenceSettings] Failed to load settings from DB:', e);
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to load settings from DB:', e);
         applySettings(DEFAULT_INFERENCE_SETTINGS);
     }
 }
@@ -572,11 +762,16 @@ function saveCurrentSettingsToDBDebounced() {
     saveTimeout = setTimeout(async () => {
         try {
             const settings = getCurrentSettings();
+            if (LOG_GENERAL)
+                console.log(prefix, 'Saving inference settings to DB:', settings);
             await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(settings);
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+            if (LOG_GENERAL)
+                console.log(prefix, 'Inference settings saved and update event posted.');
         }
         catch (e) {
-            console.error('[InferenceSettings] Failed to save settings to DB:', e);
+            if (LOG_ERROR)
+                console.error(prefix, 'Failed to save settings to DB:', e);
         }
     }, SAVE_DEBOUNCE_MS);
 }
@@ -585,13 +780,55 @@ function attachSettingsListeners() {
         input.addEventListener('change', saveCurrentSettingsToDBDebounced);
         input.addEventListener('input', saveCurrentSettingsToDBDebounced); // for sliders
     });
+    // System prompt textarea
+    const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`);
+    if (sysPrompt) {
+        sysPrompt.addEventListener('change', saveCurrentSettingsToDBDebounced);
+        sysPrompt.addEventListener('input', saveCurrentSettingsToDBDebounced);
+    }
 }
 async function reloadSettingsFromDB() {
+    if (LOG_GENERAL)
+        console.log(prefix, 'Reloading inference settings from DB...');
     await loadAndApplySettingsToUI();
 }
 async function initInferenceSettingsUI() {
+    if (LOG_GENERAL)
+        console.log(prefix, 'Initializing inference settings UI...');
     await loadAndApplySettingsToUI();
     attachSettingsListeners();
+    // Attach expand button handler for system prompt
+    const expandBtn = document.getElementById('setting-system_prompt-expand');
+    const textarea = document.getElementById('setting-system_prompt');
+    if (expandBtn && textarea) {
+        expandBtn.onclick = async () => {
+            const currentPrompt = textarea.value;
+            (0,_Components_SystemPromptPopup__WEBPACK_IMPORTED_MODULE_3__.showSystemPromptPopup)(currentPrompt, async (newPrompt) => {
+                // Save to DB and fire event
+                const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getInferenceSettings)() || DEFAULT_INFERENCE_SETTINGS;
+                const updatedSettings = { ...settings, system_prompt: newPrompt };
+                await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(updatedSettings);
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+                // Update textarea immediately
+                textarea.value = newPrompt;
+            });
+        };
+    }
+}
+async function resetSettingsToDefault() {
+    try {
+        if (LOG_GENERAL)
+            console.log(prefix, 'Resetting inference settings to default...');
+        await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(DEFAULT_INFERENCE_SETTINGS);
+        await reloadSettingsFromDB();
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+        if (LOG_GENERAL)
+            console.log(prefix, 'Inference settings reset to default and UI reloaded.');
+    }
+    catch (e) {
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to reset settings to default:', e);
+    }
 }
 
 
@@ -638,6 +875,7 @@ const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
+const LOG_INFERENCE_SETTINGS = true;
 // Canonical opener for model cache DB
 async function openModelCacheDB() {
     if (LOG_GENERAL)
@@ -884,7 +1122,8 @@ async function filterAndValidateFilesInternal(metadata, modelId, baseRepoUrl) {
             }
         }
         catch (e) {
-            console.warn('[ModelMetadata]', `HEAD request failed for ${url}:`, e);
+            if (LOG_WARN)
+                console.warn(prefix, `HEAD request failed for ${url}:`, e);
         }
         return null;
     }
@@ -932,10 +1171,26 @@ async function getAllManifestEntries() {
         const store = tx.objectStore('manifest');
         const req = store.getAll();
         req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getAllManifestEntries] result:', req.result);
             resolve(req.result || []);
         };
         req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getAllManifestEntries] error:', req.error);
             reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getAllManifestEntries] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getAllManifestEntries] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getAllManifestEntries] transaction aborted:', e);
         };
     });
 }
@@ -946,8 +1201,28 @@ async function saveInferenceSettings(settings) {
         const tx = db.transaction('inferenceSettings', 'readwrite');
         const store = tx.objectStore('inferenceSettings');
         const req = store.put({ id: _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__.INFERENCE_SETTINGS_SINGLETON_ID, ...settings });
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[saveInferenceSettings] success:', settings);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveInferenceSettings] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[saveInferenceSettings] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveInferenceSettings] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveInferenceSettings] transaction aborted:', e);
+        };
     });
 }
 // Get settings
@@ -957,8 +1232,28 @@ async function getInferenceSettings() {
         const tx = db.transaction('inferenceSettings', 'readonly');
         const store = tx.objectStore('inferenceSettings');
         const req = store.get(_Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__.INFERENCE_SETTINGS_SINGLETON_ID);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[getInferenceSettings] result:', req.result);
+            resolve(req.result || null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getInferenceSettings] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[getInferenceSettings] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getInferenceSettings] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getInferenceSettings] transaction aborted:', e);
+        };
     });
 }
 
@@ -1080,12 +1375,62 @@ const modelCacheSchema = {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   assertDbWorker: () => (/* binding */ assertDbWorker),
 /* harmony export */   llmChannel: () => (/* binding */ llmChannel),
 /* harmony export */   logChannel: () => (/* binding */ logChannel)
 /* harmony export */ });
 const llmChannel = new BroadcastChannel('tabagent-llm');
 const logChannel = new BroadcastChannel('tabagent-logs');
+function assertDbWorker(selfOrWorker, method, className) {
+    const stack = (new Error()).stack;
+    let callerInfo = '';
+    if (stack) {
+        const stackLines = stack.split('\n');
+        if (stackLines.length > 2) {
+            callerInfo = stackLines[2].trim();
+        }
+    }
+    const classInfo = className ? `[${className}]` : '';
+    if (typeof Worker !== 'undefined' && selfOrWorker instanceof Worker) {
+        if (!selfOrWorker) {
+            throw new Error(`dbWorker is required for ${method} ${classInfo} at ${callerInfo}`);
+        }
+        return;
+    }
+    if (!selfOrWorker.dbWorker) {
+        throw new Error(`dbWorker is required for ${method} ${classInfo} at ${callerInfo}`);
+    }
+}
 
+
+/***/ }),
+
+/***/ "./src/Utilities/eventConstants.ts":
+/*!*****************************************!*\
+  !*** ./src/Utilities/eventConstants.ts ***!
+  \*****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MESSAGE_EVENT: () => (/* binding */ MESSAGE_EVENT),
+/* harmony export */   UPDATE_EVENT: () => (/* binding */ UPDATE_EVENT)
+/* harmony export */ });
+// Event name constants for DOM/Worker events
+const MESSAGE_EVENT = 'message';
+const UPDATE_EVENT = 'update';
+// Add more as needed 
+
+
+/***/ }),
+
+/***/ "./src/assets/icons/popup.png":
+/*!************************************!*\
+  !*** ./src/assets/icons/popup.png ***!
+  \************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+module.exports = __webpack_require__.p + "icons/popup.png";
 
 /***/ }),
 
@@ -43191,6 +43536,18 @@ const TableNames = Object.freeze({
 /******/ 		};
 /******/ 	})();
 /******/ 	
+/******/ 	/* webpack/runtime/global */
+/******/ 	(() => {
+/******/ 		__webpack_require__.g = (function() {
+/******/ 			if (typeof globalThis === 'object') return globalThis;
+/******/ 			try {
+/******/ 				return this || new Function('return this')();
+/******/ 			} catch (e) {
+/******/ 				if (typeof window === 'object') return window;
+/******/ 			}
+/******/ 		})();
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/hasOwnProperty shorthand */
 /******/ 	(() => {
 /******/ 		__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
@@ -43207,6 +43564,29 @@ const TableNames = Object.freeze({
 /******/ 		};
 /******/ 	})();
 /******/ 	
+/******/ 	/* webpack/runtime/publicPath */
+/******/ 	(() => {
+/******/ 		var scriptUrl;
+/******/ 		if (__webpack_require__.g.importScripts) scriptUrl = __webpack_require__.g.location + "";
+/******/ 		var document = __webpack_require__.g.document;
+/******/ 		if (!scriptUrl && document) {
+/******/ 			if (document.currentScript && document.currentScript.tagName.toUpperCase() === 'SCRIPT')
+/******/ 				scriptUrl = document.currentScript.src;
+/******/ 			if (!scriptUrl) {
+/******/ 				var scripts = document.getElementsByTagName("script");
+/******/ 				if(scripts.length) {
+/******/ 					var i = scripts.length - 1;
+/******/ 					while (i > -1 && (!scriptUrl || !/^http(s?):/.test(scriptUrl))) scriptUrl = scripts[i--].src;
+/******/ 				}
+/******/ 			}
+/******/ 		}
+/******/ 		// When supporting browsers where an automatic publicPath is not supported you must specify an output.publicPath manually via configuration
+/******/ 		// or pass an empty string ("") and set the __webpack_public_path__ variable from your code to use your own logic.
+/******/ 		if (!scriptUrl) throw new Error("Automatic publicPath is not supported in this browser");
+/******/ 		scriptUrl = scriptUrl.replace(/^blob:/, "").replace(/#.*$/, "").replace(/\?.*$/, "").replace(/\/[^\/]+$/, "/");
+/******/ 		__webpack_require__.p = scriptUrl;
+/******/ 	})();
+/******/ 	
 /************************************************************************/
 var __webpack_exports__ = {};
 // This entry needs to be wrapped in an IIFE because it needs to be isolated against other modules in the chunk.
@@ -43219,6 +43599,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
 /* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
 /* harmony import */ var _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Controllers/InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
 let hasWebGPU = _isNavigatorGpuAvailable;
 let webgpuCheckPromise = Promise.resolve();
@@ -43228,6 +43609,7 @@ const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
 const LOG_SELF = false;
+const LOG_GENERATION = true;
 if (_isNavigatorGpuAvailable) {
     webgpuCheckPromise = (async () => {
         try {
@@ -43255,13 +43637,14 @@ if (LOG_GENERAL)
 
 
 
+
 _assets_onnxruntime_web_transformers__WEBPACK_IMPORTED_MODULE_0__.env.useBrowserCache = false;
 let EXT_BASE_URL = '';
 let extBaseUrlReadyResolve = null;
 const extBaseUrlReady = new Promise((resolve) => {
     extBaseUrlReadyResolve = resolve;
 });
-self.addEventListener('message', (event) => {
+self.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, (event) => {
     if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_BASE_URL) {
         EXT_BASE_URL = event.data.baseUrl || '';
         if (LOG_GENERAL)
@@ -43572,6 +43955,14 @@ async function loadPipeline(payload) {
     if (hasWebGPU && resolvedDevice === 'webgpu') {
         options.execution_providers = ['webgpu', 'wasm'];
     }
+    // Add relevant inferenceSettings to pipeline options if not already set
+    // Only add settings that are relevant for pipeline creation (e.g., threads, batch_size)
+    if (inferenceSettings.threads !== undefined && options.threads === undefined) {
+        options.threads = inferenceSettings.threads;
+    }
+    if (inferenceSettings.batch_size !== undefined && options.batch_size === undefined) {
+        options.batch_size = inferenceSettings.batch_size;
+    }
     if (LOG_GENERAL)
         console.log(prefix, `Using quant: ${options.quant || 'auto'}, dtype: ${options.dtype}, device: ${options.device || 'auto'}`);
     const pipelineTask = task || 'text-generation';
@@ -43789,6 +44180,32 @@ async function loadPipeline(payload) {
         }
     }
 }
+// Helper: Generate text using the pipeline instance
+async function generateText(payload) {
+    if (!isModelPipelineReady || !pipelineInstance) {
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
+        return;
+    }
+    try {
+        const generationParams = { ...inferenceSettings };
+        if (LOG_GENERATION)
+            console.log(prefix, 'Generation params:', generationParams);
+        const input = payload.messages || payload.message || payload.input;
+        const output = await pipelineInstance(input, generationParams);
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_COMPLETE,
+            payload: {
+                ...payload,
+                output,
+            },
+        });
+        if (LOG_GENERATION)
+            console.log(prefix, 'Generation complete:', output);
+    }
+    catch (err) {
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { error: err?.message || String(err), chatId: payload.chatId, messageId: payload.messageId } });
+    }
+}
 // Helper: Set quant status in manifest (add if missing)
 async function setManifestQuantStatus(repo, quant, status) {
     let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getManifestEntry)(repo);
@@ -43842,7 +44259,6 @@ self.onmessage = async (event) => {
                 loadedSuccessfully = true;
             }
             catch (e) {
-                // Detect unsupported pipeline error
                 if (typeof e?.message === 'string' && e.message.startsWith('Unsupported pipeline:')) {
                     await setManifestQuantStatus(modelId, quant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Unsupported);
                     self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `This model's task is not supported by the current runtime.` });
@@ -43851,7 +44267,6 @@ self.onmessage = async (event) => {
                 loadedSuccessfully = false;
             }
             if (loadedSuccessfully) {
-                // Set quant to downloaded
                 await setManifestQuantStatus(modelId, quant, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Downloaded);
                 return;
             }
@@ -43882,44 +44297,7 @@ self.onmessage = async (event) => {
             return;
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATE: {
-            if (!isModelPipelineReady || !pipelineInstance) {
-                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { error: 'Model pipeline is not ready.', chatId: payload.chatId, messageId: payload.messageId } });
-                return;
-            }
-            try {
-                const result = await pipelineInstance(payload.messages, {
-                    max_new_tokens: payload.max_new_tokens || 128,
-                    temperature: payload.temperature || 0.7,
-                });
-                let text = '';
-                if (Array.isArray(result) && result[0]?.generated_text) {
-                    text = result[0].generated_text;
-                }
-                else if (typeof result === 'object' && result.generated_text) {
-                    text = result.generated_text;
-                }
-                else {
-                    text = JSON.stringify(result);
-                }
-                self.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_COMPLETE,
-                    payload: {
-                        chatId: payload.chatId,
-                        messageId: payload.messageId,
-                        text
-                    }
-                });
-            }
-            catch (error) {
-                self.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR,
-                    payload: {
-                        error: error instanceof Error ? error.message : String(error),
-                        chatId: payload.chatId,
-                        messageId: payload.messageId
-                    }
-                });
-            }
+            await generateText(payload);
             break;
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET: {

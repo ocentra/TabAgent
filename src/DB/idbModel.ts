@@ -26,6 +26,7 @@ const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
+const LOG_INFERENCE_SETTINGS = true;
 
 // Canonical opener for model cache DB
 export async function openModelCacheDB(): Promise<IDBDatabase> {
@@ -239,7 +240,7 @@ export async function filterAndValidateFilesInternal(metadata: any, modelId: str
                 return len ? parseInt(len, 10) : null;
             }
         } catch (e) {
-            console.warn('[ModelMetadata]', `HEAD request failed for ${url}:`, e);
+            if (LOG_WARN) console.warn(prefix, `HEAD request failed for ${url}:`, e);
         }
         return null;
     }
@@ -289,34 +290,75 @@ export async function getAllManifestEntries(): Promise<ManifestEntry[]> {
         const store = tx.objectStore('manifest');
         const req = store.getAll();
         req.onsuccess = () => {
+            if (LOG_DEBUG) console.log(prefix, '[getAllManifestEntries] result:', req.result);
             resolve(req.result || []);
         };
         req.onerror = () => {
+            if (LOG_ERROR) console.error(prefix, '[getAllManifestEntries] error:', req.error);
             reject(req.error);
         };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG) console.log(prefix, '[getAllManifestEntries] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[getAllManifestEntries] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[getAllManifestEntries] transaction aborted:', e);
+        };
     });
-} 
+}
 
 // Save settings
 export async function saveInferenceSettings(settings: InferenceSettings) {
     const db = await openModelCacheDB();
     return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('inferenceSettings', 'readwrite');
-      const store = tx.objectStore('inferenceSettings');
-      const req = store.put({ id: INFERENCE_SETTINGS_SINGLETON_ID, ...settings });
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+        const tx = db.transaction('inferenceSettings', 'readwrite');
+        const store = tx.objectStore('inferenceSettings');
+        const req = store.put({ id: INFERENCE_SETTINGS_SINGLETON_ID, ...settings });
+        req.onsuccess = () => {
+            if (LOG_INFERENCE_SETTINGS) console.log(prefix, '[saveInferenceSettings] success:', settings);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR) console.error(prefix, '[saveInferenceSettings] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_INFERENCE_SETTINGS) console.log(prefix, '[saveInferenceSettings] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[saveInferenceSettings] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[saveInferenceSettings] transaction aborted:', e);
+        };
     });
-  }
-  
-  // Get settings
-  export async function getInferenceSettings(): Promise<InferenceSettings | null> {
+}
+
+// Get settings
+export async function getInferenceSettings(): Promise<InferenceSettings | null> {
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction('inferenceSettings', 'readonly');
-      const store = tx.objectStore('inferenceSettings');
-      const req = store.get(INFERENCE_SETTINGS_SINGLETON_ID);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
+        const tx = db.transaction('inferenceSettings', 'readonly');
+        const store = tx.objectStore('inferenceSettings');
+        const req = store.get(INFERENCE_SETTINGS_SINGLETON_ID);
+        req.onsuccess = () => {
+            if (LOG_INFERENCE_SETTINGS) console.log(prefix, '[getInferenceSettings] result:', req.result);
+            resolve(req.result || null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR) console.error(prefix, '[getInferenceSettings] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_INFERENCE_SETTINGS) console.log(prefix, '[getInferenceSettings] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[getInferenceSettings] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[getInferenceSettings] transaction aborted:', e);
+        };
     });
-  }
+}

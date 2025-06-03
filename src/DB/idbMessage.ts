@@ -6,8 +6,12 @@ import { Summary } from "./idbSummary";
 import { DBNames, NodeType } from "./idbSchema";
 import { DBActions } from "./dbActions";
 import { Embedding } from "./idbEmbedding";
+import { DB_ENTITY_TYPES } from "./idbBase";
+import { assertDbWorker } from '../Utilities/dbChannels';
+import { MESSAGE_EVENT } from '../Utilities/eventConstants';
 
 export class Message extends KnowledgeGraphNode {
+
   public chat_id: string;
   public timestamp: number;
   public sender: string;
@@ -25,7 +29,6 @@ export class Message extends KnowledgeGraphNode {
     chat_id: string,
     sender: string,
     content: string,
-    dbWorker: Worker,
     timestamp: number,
     kgn_created_at: number,
     kgn_updated_at: number,
@@ -39,18 +42,19 @@ export class Message extends KnowledgeGraphNode {
       kgn_properties?: Record<string, any>;
       kgn_embedding_id?: string;
       modelWorker?: Worker;
-    } = {}
+    } = {},
+    dbWorker?: Worker
   ) {
     super(
       id,
       NodeType.Message,
       content,
-              dbWorker,
       kgn_created_at,
       kgn_updated_at,
       options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined,
       options.kgn_embedding_id,
-      options.modelWorker
+      options.modelWorker,
+      dbWorker
     );
     this.chat_id = chat_id;
     this.timestamp = timestamp;
@@ -98,6 +102,7 @@ export class Message extends KnowledgeGraphNode {
       modelWorker?: Worker;
     } = {}
   ): Promise<string> {
+    assertDbWorker(dbWorker, Message.createMessage.name, Message.name);
     const messageId = options.id || crypto.randomUUID();
     const now = Date.now();
     const messageTimestamp = options.timestamp || now;
@@ -127,7 +132,7 @@ export class Message extends KnowledgeGraphNode {
     }
 
     const msg = new Message(
-      messageId, chat_id, sender, content, dbWorker, messageTimestamp, now, now,
+      messageId, chat_id, sender, content, messageTimestamp, now, now,
       {
         message_type: options.message_type,
         metadata: options.metadata,
@@ -138,13 +143,15 @@ export class Message extends KnowledgeGraphNode {
         kgn_properties: options.kgn_properties,
         kgn_embedding_id: kgn_embedding_id_to_set,
         modelWorker: options.modelWorker
-      }
+      },
+      dbWorker
     );
     await msg.saveToDB();
     return messageId;
   }
 
   async saveToDB(): Promise<string> {
+    assertDbWorker(this, 'saveToDB', this.constructor.name);
     const now = Date.now();
     this.updated_at = now;
     if (!this.created_at) {
@@ -180,7 +187,7 @@ export class Message extends KnowledgeGraphNode {
     return new Promise((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          this.dbWorker.removeEventListener('message', handleMessage);
+          this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success && typeof event.data.result === 'string') {
             resolve(event.data.result);
           } else if (event.data.success) {
@@ -190,21 +197,22 @@ export class Message extends KnowledgeGraphNode {
           }
         }
       };
-      this.dbWorker.addEventListener('message', handleMessage);
-      this.dbWorker.postMessage({ action: DBActions.PUT, payload: [DBNames.DB_USER_DATA, DBNames.DB_MESSAGES, messageDataForStore], requestId });
+      this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+      this.dbWorker!.postMessage({ action: DBActions.PUT, payload: [DBNames.DB_USER_DATA, DBNames.DB_MESSAGES, messageDataForStore], requestId });
       setTimeout(() => {
-        this.dbWorker.removeEventListener('message', handleMessage);
+        this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
         reject(new Error(`Timeout waiting for DB_MESSAGES save (id: ${this.id}) confirmation`));
       }, 5000);
     });
   }
 
   static async read(id: string, dbWorker: Worker, modelWorker?: Worker): Promise<Message | undefined> {
+    assertDbWorker(dbWorker, 'read', 'Message');
     const requestId = crypto.randomUUID();
     const messageData = await new Promise<any | undefined>((resolve, reject) => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data && event.data.requestId === requestId) {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
                 if (event.data.success) {
                     resolve(event.data.result);
                 } else {
@@ -212,14 +220,15 @@ export class Message extends KnowledgeGraphNode {
                 }
             }
         };
-        dbWorker.addEventListener('message', handleMessage);
+        dbWorker.addEventListener(MESSAGE_EVENT, handleMessage);
         dbWorker.postMessage({ action: DBActions.GET, payload: [DBNames.DB_USER_DATA, DBNames.DB_MESSAGES, id], requestId });
-        setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting message ${id}`)); }, 5000);
+        setTimeout(() => { dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout getting message ${id}`)); }, 5000);
     });
 
     if (messageData) {
         return new Message(
-            messageData.id, messageData.chat_id, messageData.sender, messageData.content, dbWorker, messageData.timestamp,
+            messageData.id, messageData.chat_id, messageData.sender, messageData.content,
+            messageData.timestamp,
             messageData.kgn_created_at, messageData.kgn_updated_at,
             {
                 message_type: messageData.message_type,
@@ -229,13 +238,15 @@ export class Message extends KnowledgeGraphNode {
                 kgn_properties: messageData.kgn_properties_json ? JSON.parse(messageData.kgn_properties_json) : undefined,
                 kgn_embedding_id: messageData.kgn_embedding_id,
                 modelWorker: modelWorker
-            }
+            },
+            dbWorker
         );
     }
     return undefined;
   }
 
   async update(updates: Partial<Omit<Message, 'dbWorker' | 'modelWorker' | 'id' | 'chat_id' | 'timestamp' | 'created_at' | 'type' | 'label' | 'edgesOut' | 'edgesIn' | '_embedding' >>): Promise<void> {
+    assertDbWorker(this, 'update', this.constructor.name);
     const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates as any;
     if (allowedUpdates.content !== undefined) {
         this.content = allowedUpdates.content;
@@ -259,10 +270,11 @@ export class Message extends KnowledgeGraphNode {
   }
 
   async delete(options: { deleteAttachments?: boolean, deleteKGNRels?: boolean, deleteOrphanedEmbedding?: boolean } = {}): Promise<void> {
+    assertDbWorker(this, 'delete', this.constructor.name);
     const { deleteAttachments = true, deleteKGNRels = true, deleteOrphanedEmbedding = false } = options;
     if (deleteAttachments) {
         for (const attId of this.attachment_ids) {
-            const attachment = await Attachment.read(attId, this.dbWorker);
+            const attachment = await Attachment.read(attId, this.dbWorker!);
             if (attachment) {
                 await attachment.delete().catch(e => console.warn(`Failed to delete attachment ${attId} for message ${this.id}: ${e.message}`));
             }
@@ -273,7 +285,7 @@ export class Message extends KnowledgeGraphNode {
     await new Promise<void>((resolve, reject) => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data && event.data.requestId === requestId) {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
                 if (event.data.success) {
                     resolve();
                 } else {
@@ -281,15 +293,16 @@ export class Message extends KnowledgeGraphNode {
                 }
             }
         };
-        this.dbWorker.addEventListener('message', handleMessage);
-        this.dbWorker.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_MESSAGES, this.id], requestId });
-        setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting message ${this.id} from DB_MESSAGES`)); }, 5000);
+        this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+        this.dbWorker!.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_MESSAGES, this.id], requestId });
+        setTimeout(() => { this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout deleting message ${this.id} from DB_MESSAGES`)); }, 5000);
     });
     await super.delete({ deleteOrphanedEmbedding, deleteEdges: deleteKGNRels });
   }
 
   async addAttachment(fileData: { file_name: string; mime_type: string; data: Blob; }): Promise<string> {
-    const newAttachmentId = await Attachment.create(this.id, fileData.file_name, fileData.mime_type, fileData.data, this.dbWorker);
+    assertDbWorker(this, 'addAttachment', this.constructor.name);
+    const newAttachmentId = await Attachment.create(this.id, fileData.file_name, fileData.mime_type, fileData.data, this.dbWorker!);
     if (!this.attachment_ids.includes(newAttachmentId)) {
         this.attachment_ids.push(newAttachmentId);
         await this.saveToDB();
@@ -298,14 +311,16 @@ export class Message extends KnowledgeGraphNode {
   }
 
   async getAttachments(): Promise<Attachment[]> {
+    assertDbWorker(this, 'getAttachments', this.constructor.name);
     if (!this.attachment_ids || this.attachment_ids.length === 0) {
         return [];
     }
-    return Attachment.getAllByMessageId(this.id, this.dbWorker);
+    return Attachment.getAllByMessageId(this.id, this.dbWorker!);
   }
 
   async deleteAttachment(attachmentIdToDelete: string): Promise<boolean> {
-    const att = await Attachment.read(attachmentIdToDelete, this.dbWorker);
+    assertDbWorker(this, 'deleteAttachment', this.constructor.name);
+    const att = await Attachment.read(attachmentIdToDelete, this.dbWorker!);
     if (att && att.message_id === this.id) {
       await att.delete();
       const initialLength = this.attachment_ids.length;
@@ -336,10 +351,11 @@ export class Message extends KnowledgeGraphNode {
       embedding_id?: string;
     }
   ): Promise<string> {
+    assertDbWorker(this, 'addSummary', this.constructor.name);
     const summaryId = await Summary.create(
       this.id, // message id as chat_id/parent_id
       summary_text,
-      this.dbWorker,
+      this.dbWorker!,
       {
         ...options,
         message_ids: [this.id],
@@ -352,9 +368,10 @@ export class Message extends KnowledgeGraphNode {
     return summaryId;
   }
 
-  toJSON() {
+  toJSON(): { [key: string]: any } {
     return {
-      id: this.id,
+      ...super.toJSON(),
+      __type: DB_ENTITY_TYPES.Message,
       chat_id: this.chat_id,
       timestamp: this.timestamp,
       sender: this.sender,
@@ -366,7 +383,32 @@ export class Message extends KnowledgeGraphNode {
       starred: this.starred,
       attachment_ids: this.attachment_ids,
       summary_id: this.summary_id,
-      attachments: (this as any).attachments,
+      attachments: (this as any).attachments
     };
+  }
+
+  static fromJSON(obj: any, dbWorker?: Worker, modelWorker?: Worker): Message {
+    if (!obj) throw new Error('Cannot hydrate Message from null/undefined');
+    return new Message(
+      obj.id,
+      obj.chat_id,
+      obj.sender,
+      obj.content,
+      obj.timestamp,
+      obj.kgn_created_at || obj.timestamp,
+      obj.kgn_updated_at || obj.timestamp,
+      {
+        message_type: obj.message_type,
+        metadata: obj.metadata_json ? JSON.parse(obj.metadata_json) : undefined,
+        attachment_ids: obj.attachment_ids || [],
+        upvotes: obj.upvotes,
+        downvotes: obj.downvotes,
+        starred: obj.starred,
+        kgn_properties: obj.kgn_properties_json ? JSON.parse(obj.kgn_properties_json) : undefined,
+        kgn_embedding_id: obj.kgn_embedding_id,
+        modelWorker: modelWorker
+      },
+      dbWorker
+    );
   }
 }

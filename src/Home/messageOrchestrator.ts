@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
-import { URL_REGEX,  showError } from '../Utilities/generalUtils';
-import { sendDbRequestSmart, sendToModelWorker } from '../sidepanel';
+import { URL_REGEX, showError } from '../Utilities/generalUtils';
+import { sendDbRequestSmart, sendToModelWorker, isModelLoaded } from '../sidepanel';
 import {
     DbCreateSessionRequest,
     DbAddMessageRequest,
@@ -10,356 +10,403 @@ import {
 } from '../DB/dbEvents';
 import { clearTemporaryMessages } from './chatRenderer';
 import { UIEventNames, RuntimeMessageTypes } from '../events/eventNames';
+import { Message } from '../DB/idbMessage';
+import { DB_ENTITY_TYPES } from '../DB/idbBase';
 
-let getActiveSessionIdFunc: (() => string | null) | null = null;
-let onSessionCreatedCallback: ((sessionId: string) => void) | null = null;
-let getCurrentTabIdFunc: (() => number | null) | null = null;
-let isSendingMessage = false; // TODO: Remove this and rely on status check via DB event
-
-
-
-function requestDbAndWait(requestEvent: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-        (async () => {
-            try {
-                const result = await sendDbRequestSmart(requestEvent);
-                console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
-                const response = Array.isArray(result) ? result[0] : result;
-                if (response && (response.success || response.error === undefined)) {
-                    resolve(response.data || response.payload);
-                } else {
-                    reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
-                }
-            } catch (error) {
-                reject(error);
-            }
-        })();
-    });
+// --- Types ---
+interface OrchestratorDependencies {
+    getActiveSessionIdFunc: () => string | null;
+    onSessionCreatedCallback: (sessionId: string) => void;
+    getCurrentTabIdFunc: () => number | null;
 }
 
-/**
- * Fetches the full chat history for a session and formats it for the model worker.
- * Only includes user and ai messages, mapping sender to role.
- * @param sessionId The chat session ID
- * @returns Promise<Array<{role: string, content: string}>>
- */
-async function getChatHistoryForModel(sessionId: string): Promise<Array<{role: string, content: string}>> {
-    const sessionData = await requestDbAndWait(new DbGetSessionRequest(sessionId));
-    if (!sessionData || !Array.isArray(sessionData.messages)) return [];
-    return sessionData.messages
-        .filter((m: any) => m.sender === 'user' || m.sender === 'ai')
-        .map((m: any) => ({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.text || m.content || ''
-        }));
-}
+class ChatOrchestrator {
+    private getActiveSessionId: (() => string | null) | null = null;
+    private onSessionCreated: ((sessionId: string) => void) | null = null;
+    private getCurrentTabId: (() => number | null) | null = null;
+    private isSendingMessage = false;
 
-async function handleQuerySubmit(data: any) {
-    const { text } = data;
-    console.log(`[Orchestrator: handleQuerySubmit] received event with text: "${text}"`);
-    if (isSendingMessage) {
-        console.warn("[Orchestrator handleQuerySubmit]: Already processing a previous submission.");
-        return;
+    private readonly prefix = '[Orchestrator]';
+    private readonly LOG_GENERAL = true;
+    private readonly LOG_DEBUG = true;
+    private readonly LOG_ERROR = true;
+    private readonly LOG_WARN = true;
+
+    public initialize(dependencies: OrchestratorDependencies) {
+        this.validateDependencies(dependencies);
+        this.setupDependencies(dependencies);
+        this.setupEventListeners();
+        if (this.LOG_GENERAL) console.log(this.prefix, 'Orchestrator initialized successfully');
     }
-    isSendingMessage = true;
 
-    let sessionId = getActiveSessionIdFunc ? getActiveSessionIdFunc() : null;
-    const currentTabId = getCurrentTabIdFunc ? getCurrentTabIdFunc() : null;
-    let placeholderMessageId = null;
+    private validateDependencies(dependencies: OrchestratorDependencies) {
+        const { getActiveSessionIdFunc, onSessionCreatedCallback, getCurrentTabIdFunc } = dependencies;
+        if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
+            if (this.LOG_ERROR) console.error(this.prefix, 'Missing required dependencies during initialization');
+            throw new Error('Missing required orchestrator dependencies');
+        }
+    }
 
-    console.log(`[Orchestrator: handleQuerySubmit] Processing submission. Text: "${text}". Session: ${sessionId}`);
-    const isURL = URL_REGEX.test(text);
+    private setupDependencies(dependencies: OrchestratorDependencies) {
+        this.getActiveSessionId = dependencies.getActiveSessionIdFunc;
+        this.getCurrentTabId = dependencies.getCurrentTabIdFunc;
+        this.onSessionCreated = (sessionId: string) => {
+            if (this.LOG_GENERAL) console.log(this.prefix, `Session created: ${sessionId}`);
+            dependencies.onSessionCreatedCallback(sessionId);
+        };
+    }
 
-    try {
-        clearTemporaryMessages();
-        const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
-        if (!sessionId) {
-            console.log("[Orchestrator: handleQuerySubmit] No active session, creating new one via event.");
-            const createRequest = new DbCreateSessionRequest(userMessage);
-            const createResponse = await requestDbAndWait(createRequest);
-            sessionId = (createResponse as any).newSessionId;
-            if (onSessionCreatedCallback) {
-                onSessionCreatedCallback(sessionId!);
+    private setupEventListeners() {
+        document.addEventListener(UIEventNames.QUERY_SUBMITTED, (e: Event) => this.handleQuerySubmit((e as CustomEvent).detail));
+        document.addEventListener(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e: Event) => this.handleBackgroundMsgResponse((e as CustomEvent).detail));
+        document.addEventListener(UIEventNames.BACKGROUND_ERROR_RECEIVED, (e: Event) => this.handleBackgroundMsgError((e as CustomEvent).detail));
+        document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, (e: Event) => this.handleBackgroundScrapeStage((e as CustomEvent).detail));
+        document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, (e: Event) => this.handleBackgroundDirectScrapeResult((e as CustomEvent).detail));
+    }
+
+    private showUiOnlyWarning(msg: string) {
+        let warningDiv = document.getElementById('ui-only-warning');
+        if (!warningDiv) {
+            warningDiv = document.createElement('div');
+            warningDiv.id = 'ui-only-warning';
+            warningDiv.style.background = '#fef3c7';
+            warningDiv.style.color = '#92400e';
+            warningDiv.style.border = '1px solid #fde68a';
+            warningDiv.style.borderRadius = '6px';
+            warningDiv.style.padding = '6px 12px';
+            warningDiv.style.margin = '8px 0';
+            warningDiv.style.fontSize = '0.95em';
+            warningDiv.style.textAlign = 'center';
+            warningDiv.style.zIndex = '100';
+            const inputArea = document.getElementById('input-area') || document.getElementById('chat-input-container');
+            if (inputArea && inputArea.parentNode) {
+                inputArea.parentNode.insertBefore(warningDiv, inputArea);
             } else {
-                 console.error("[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!");
-                 throw new Error("Configuration error: Cannot notify about new session.");
+                document.body.appendChild(warningDiv);
             }
-        } else {
-            console.log(`[Orchestrator: handleQuerySubmit] Adding user message to existing session ${sessionId} via event.`);
-            clearTemporaryMessages();
-            const addRequest = new DbAddMessageRequest(sessionId, userMessage);
-            await requestDbAndWait(addRequest);
         }
-        console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'processing' via event`);
-        const statusRequest = new DbUpdateStatusRequest(sessionId!, 'processing');
-        await requestDbAndWait(statusRequest);
-        let placeholder;
-        if (isURL) {
-            placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
-        } else {
-            placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
-        }
-        console.log(`[Orchestrator: handleQuerySubmit] Adding placeholder to session ${sessionId} via event.`);
-        const addPlaceholderRequest = new DbAddMessageRequest(sessionId!, placeholder);
-        const placeholderResponse = await requestDbAndWait(addPlaceholderRequest);
-        console.log(`[Orchestrator: handleQuerySubmit] Placeholder response:`, placeholderResponse);
-        placeholderMessageId = (placeholderResponse as any).newMessageId;
-        if (typeof placeholderMessageId !== 'string' && placeholderMessageId && placeholderMessageId.newMessageId) {
-            placeholderMessageId = placeholderMessageId.newMessageId;
-        }
-        // Log the type and value for debugging
-        if (typeof placeholderMessageId === 'string') {
-            console.log(`[Orchestrator: handleQuerySubmit] placeholderMessageId (string):`, placeholderMessageId);
-        } else {
-            console.warn(`[Orchestrator: handleQuerySubmit] placeholderMessageId is not a string! Full value:`, placeholderMessageId);
-        }
-        
-        if (isURL) {
-            // Always send scrape request to background, let background decide how to scrape
-            try {
-                const response = await browser.runtime.sendMessage({
-                    type: RuntimeMessageTypes.SCRAPE_REQUEST,
-                    payload: {
-                        url: text,
-                        chatId: sessionId,
-                        messageId: placeholderMessageId,
-                        tabId: currentTabId
+        warningDiv.textContent = msg;
+        warningDiv.style.display = '';
+        setTimeout(() => {
+            if (warningDiv) warningDiv.style.display = 'none';
+        }, 3500);
+    }
+
+    private async requestDbAndWait(requestEvent: any): Promise<any> {
+        return new Promise((resolve, reject) => {
+            (async () => {
+                try {
+                    const result = await sendDbRequestSmart(requestEvent);
+                    if (this.LOG_DEBUG) console.log(this.prefix, 'requestDbAndWait: Raw result', result);
+                    const response = Array.isArray(result) ? result[0] : result;
+                    if (response && (response.success || response.error === undefined)) {
+                        resolve(response.data || response.payload);
+                    } else {
+                        reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
                     }
-                });
-                console.log("[Orchestrator: handleQuerySubmit] SCRAPE_REQUEST sent to background.", response);
-            } catch (error: unknown) {
-                const errObj = error as Error;
-                console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_REQUEST:', errObj.message);
-                const errorUpdateRequest = new DbUpdateMessageRequest(sessionId!, placeholderMessageId, {
-                    isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${errObj.message}`
-                });
-                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                isSendingMessage = false;
-            }
-        } else {
-            // Instead of sending to background, send directly to model worker
-            console.log("[Orchestrator: handleQuerySubmit] Fetching full chat history for model worker.");
-            let history: Array<{role: string, content: string}> = [];
-            try {
-                history = await getChatHistoryForModel(sessionId!);
-            } catch (e) {
-                console.error('[Orchestrator: handleQuerySubmit] Failed to fetch chat history:', e);
-                history = [{ role: 'user', content: text }]; // fallback
-            }
-            const messagePayload = {
-                chatId: sessionId,
-                messages: history,
-                options: { /* model, temp, etc */ },
-                messageId: placeholderMessageId
-            };
-            try {
-                sendToModelWorker({ type: 'generate', payload: messagePayload });
-                // No need to await a response here; model worker will post back via events
-            } catch (error: unknown) {
-                const errObj = error as Error;
-                console.error('[Orchestrator: handleQuerySubmit] Error sending query to model worker:', errObj);
-                const errorText = errObj && typeof errObj.message === 'string' ? errObj.message : 'Unknown error during send/ack';
-                const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
-                const errorUpdateRequest = new DbUpdateMessageRequest(sessionId!, placeholderMessageId, errorPayload);
-                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error (within catch):", e));
-                requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error')).catch(e => console.error("Failed to set session status on send error (within catch):", e));
-                isSendingMessage = false; // Reset flag on send error
-            }
-        }
-    } catch (error: unknown) {
-        const errObj = error as Error;
-        console.error("[Orchestrator: handleQuerySubmit] Error processing query submission:", errObj);
-        showError(`Error: ${errObj.message || errObj}`);
-        if (sessionId) {
-            console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'error' due to processing failure via event`);
-            requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error')).catch(e => console.error("Failed to set session status on processing error:", e));
-        } else {
-            console.error("[Orchestrator: handleQuerySubmit] Error occurred before session ID was established.");
-        }
-        isSendingMessage = false;
+                } catch (error) {
+                    reject(error);
+                }
+            })();
+        });
     }
-}
 
-async function handleBackgroundMsgResponse(message: any) {
-    const { chatId, messageId, text } = message;
-    console.log(`[Orchestrator: handleBackgroundMsgResponse] for chat ${chatId}, placeholder ${messageId}`);
-    try {
-        const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
-        const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        console.log(`[Orchestrator: handleBackgroundMsgResponse] Setting session ${chatId} status to 'idle' after response via event`);
-        const statusRequest = new DbUpdateStatusRequest(chatId, 'idle');
-        await requestDbAndWait(statusRequest);
-    } catch (error: unknown) {
-        const errObj = error as Error;
-        console.error(`[Orchestrator: handleBackgroundMsgResponse] Error handling background response for chat ${chatId}:`, errObj);
-        showError(`Failed to update chat with response: ${errObj.message || errObj}`);
-        const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
-        requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on response processing error:", e));
-    } finally {
-         isSendingMessage = false; // TODO: Remove later
+    private async getChatHistoryForModel(sessionId: string): Promise<{role: string, content: string}[]> {
+        const sessionData = await this.requestDbAndWait(new DbGetSessionRequest(sessionId));
+        if (!sessionData || !Array.isArray(sessionData.messages)) return [];
+        return (sessionData.messages as any[])
+            // Hydrate Message for business logic only; dbWorker is not needed
+            .map((m: any) => m.__type === DB_ENTITY_TYPES.Message ? Message.fromJSON(m) : m)
+            .filter((m: Message) => m.sender === 'user' || m.sender === 'ai')
+            .map((m: Message) => ({
+                role: m.sender === 'user' ? 'user' : 'assistant',
+                content: m.content || ''
+            }));
     }
-}
 
-async function handleBackgroundMsgError(message: any) {
-    console.error(`[Orchestrator: handleBackgroundMsgError] Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
-    showError(`Error processing request: ${message.error}`); // Show global error regardless
+    private async handleQuerySubmit(data: any) {
+        const { text } = data;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
+        if (this.isSendingMessage) {
+            console.warn('[Orchestrator handleQuerySubmit]: Already processing a previous submission.');
+            return;
+        }
+        this.isSendingMessage = true;
 
-    const sessionId = getActiveSessionIdFunc ? getActiveSessionIdFunc() : null; // Get current session ID
+        let sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
+        const currentTabId = this.getCurrentTabId ? this.getCurrentTabId() : null;
+        let placeholderMessageId = null;
 
-    if (sessionId && message.chatId === sessionId && message.messageId) {
-        // Only update DB if the error belongs to the *active* session and has a message ID
-        console.log(`[Orchestrator: handleBackgroundMsgError] Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
-        const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
-        const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
-        const statusRequest = new DbUpdateStatusRequest(sessionId, 'error');
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: Processing submission. Text: "${text}". Session: ${sessionId}`);
+        const isURL = URL_REGEX.test(text);
+
+        if (!isURL && !isModelLoaded()) {
+            this.showUiOnlyWarning('Please load a model first.');
+            this.isSendingMessage = false;
+            return;
+        }
+
         try {
-            await requestDbAndWait(errorUpdateRequest);
-            console.log(`[Orchestrator: handleBackgroundMsgError] Error message update successful for session ${sessionId}.`);
-            await requestDbAndWait(statusRequest);
-            console.log(`[Orchestrator: handleBackgroundMsgError] Session ${sessionId} status set to 'error'.`);
+            clearTemporaryMessages();
+            const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
+            if (!sessionId) {
+                if (this.LOG_GENERAL) console.log(this.prefix, 'handleQuerySubmit: No active session, creating new one via event.');
+                const createRequest = new DbCreateSessionRequest(userMessage);
+                const createResponse = await this.requestDbAndWait(createRequest);
+                sessionId = (createResponse as any).newSessionId;
+                if (this.onSessionCreated) {
+                    this.onSessionCreated(sessionId!);
+                } else {
+                    console.error('[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!');
+                    throw new Error('Configuration error: Cannot notify about new session.');
+                }
+            } else {
+                if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: Adding user message to existing session ${sessionId} via event.`);
+                clearTemporaryMessages();
+                const addRequest = new DbAddMessageRequest(sessionId, userMessage);
+                await this.requestDbAndWait(addRequest);
+            }
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: Setting session ${sessionId} status to 'processing' via event`);
+            const statusRequest = new DbUpdateStatusRequest(sessionId!, 'processing');
+            await this.requestDbAndWait(statusRequest);
+            let placeholder;
+            if (isURL) {
+                placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
+            } else {
+                placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
+            }
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: Adding placeholder to session ${sessionId} via event.`);
+            const addPlaceholderRequest = new DbAddMessageRequest(sessionId!, placeholder);
+            const placeholderResponse = await this.requestDbAndWait(addPlaceholderRequest);
+            if (this.LOG_GENERAL) console.log(this.prefix, 'handleQuerySubmit: Placeholder response:', placeholderResponse);
+            placeholderMessageId = (placeholderResponse as any).newMessageId;
+            if (typeof placeholderMessageId !== 'string' && placeholderMessageId && placeholderMessageId.newMessageId) {
+                placeholderMessageId = placeholderMessageId.newMessageId;
+            }
+            if (typeof placeholderMessageId === 'string') {
+                if (this.LOG_GENERAL) console.log(this.prefix, 'handleQuerySubmit: placeholderMessageId (string):', placeholderMessageId);
+            } else {
+                if (this.LOG_WARN) console.warn(this.prefix, 'handleQuerySubmit: placeholderMessageId is not a string! Full value:', placeholderMessageId);
+            }
+
+            if (isURL) {
+                try {
+                    const response = await browser.runtime.sendMessage({
+                        type: RuntimeMessageTypes.SCRAPE_REQUEST,
+                        payload: {
+                            url: text,
+                            chatId: sessionId,
+                            messageId: placeholderMessageId,
+                            tabId: currentTabId
+                        }
+                    });
+                    if (this.LOG_GENERAL) console.log(this.prefix, 'handleQuerySubmit: SCRAPE_REQUEST sent to background.', response);
+                } catch (error: unknown) {
+                    const errObj = error as Error;
+                    if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Error sending SCRAPE_REQUEST:', errObj.message);
+                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId!, placeholderMessageId, {
+                        isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${errObj.message}`
+                    });
+                    this.requestDbAndWait(errorUpdateRequest).catch(e => {
+                        if (this.LOG_ERROR) console.error(this.prefix, 'Failed to update placeholder on send error:', e);
+                    });
+                    this.requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error')).catch(e => {
+                        if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on send error:', e);
+                    });
+                    this.isSendingMessage = false;
+                }
+            } else {
+                let history: {role: string, content: string}[] = [];
+                try {
+                    history = await this.getChatHistoryForModel(sessionId!);
+                } catch (e) {
+                    if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Failed to fetch chat history:', e);
+                    history = [{ role: 'user', content: text }];
+                }
+                const messagePayload = {
+                    chatId: sessionId,
+                    messages: history,
+                    options: {},
+                    messageId: placeholderMessageId
+                };
+                try {
+                    sendToModelWorker({ type: 'generate', payload: messagePayload });
+                } catch (error: unknown) {
+                    const errObj = error as Error;
+                    if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Error sending query to model worker:', errObj);
+                    const errorText = errObj && typeof errObj.message === 'string' ? errObj.message : 'Unknown error during send/ack';
+                    const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
+                    const errorUpdateRequest = new DbUpdateMessageRequest(sessionId!, placeholderMessageId, errorPayload);
+                    this.requestDbAndWait(errorUpdateRequest).catch(e => {
+                        if (this.LOG_ERROR) console.error(this.prefix, 'Failed to update placeholder on send error (within catch):', e);
+                    });
+                    this.requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error')).catch(e => {
+                        if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on send error (within catch):', e);
+                    });
+                    this.isSendingMessage = false;
+                }
+            }
+        } catch (error: unknown) {
+            const errObj = error as Error;
+            if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Error processing query submission:', errObj);
+            showError(`Error: ${errObj.message || errObj}`);
+            if (sessionId) {
+                if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: Setting session ${sessionId} status to 'error' due to processing failure via event`);
+                this.requestDbAndWait(new DbUpdateStatusRequest(sessionId!, 'error')).catch(e => {
+                    if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on processing error:', e);
+                });
+            } else {
+                if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Error occurred before session ID was established.');
+            }
+            this.isSendingMessage = false;
+        }
+    }
+
+    private async handleBackgroundMsgResponse(message: any) {
+        const { chatId, messageId, text } = message;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: for chat ${chatId}, placeholder ${messageId}`);
+        try {
+            const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
+            const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: Setting session ${chatId} status to 'idle' after response via event`);
+            const statusRequest = new DbUpdateStatusRequest(chatId, 'idle');
+            await this.requestDbAndWait(statusRequest);
+        } catch (error: unknown) {
+            const errObj = error as Error;
+            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgResponse: Error handling background response for chat ${chatId}:`, errObj);
+            showError(`Failed to update chat with response: ${errObj.message || errObj}`);
+            const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
+            this.requestDbAndWait(statusRequest).catch(e => {
+                if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on response processing error:', e);
+            });
+        } finally {
+            this.isSendingMessage = false;
+        }
+    }
+
+    private async handleBackgroundMsgError(message: any) {
+        if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
+        showError(`Error processing request: ${message.error}`);
+        const sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
+        if (sessionId && message.chatId === sessionId && message.messageId) {
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgError: Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
+            const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
+            const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
+            const statusRequest = new DbUpdateStatusRequest(sessionId, 'error');
+            try {
+                await this.requestDbAndWait(errorUpdateRequest);
+                if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgError: Error message update successful for session ${sessionId}.`);
+                await this.requestDbAndWait(statusRequest);
+                if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgError: Session ${sessionId} status set to 'error'.`);
+            } catch (dbError: unknown) {
+                const dbErr = dbError as Error;
+                if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Error updating chat/status on background error:`, dbErr);
+                showError(`Failed to update chat with error status: ${dbErr.message}`);
+                try {
+                    await this.requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error'));
+                } catch (statusError) {
+                    if (this.LOG_ERROR) console.error(this.prefix, 'handleBackgroundMsgError: Failed to set session status on error handling error:', statusError);
+                }
+            }
+        }
+        this.isSendingMessage = false;
+    }
+
+    private async handleBackgroundScrapeStage(payload: any) {
+        const { stage, success, chatId, messageId, error, ...rest } = payload;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
+        let updatePayload: any = {};
+        let finalStatus = 'idle';
+        if (success) {
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Scrape stage ${stage} succeeded for chat ${chatId}.`);
+            let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
+            updatePayload = {
+                isLoading: false,
+                sender: 'system',
+                text: mainContent,
+                content: mainContent,
+                metadata: {
+                    type: 'scrape_result_full',
+                    scrapeData: rest
+                }
+            };
+            finalStatus = 'idle';
+        } else {
+            const errorText = error || `Scraping failed (Stage ${stage}). Unknown error.`;
+            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundScrapeStage: Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
+            updatePayload = { isLoading: false, sender: 'error', text: `Scraping failed (Stage ${stage}): ${errorText}` };
+            finalStatus = 'error';
+        }
+        try {
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Updating message ${messageId} for stage ${stage} result.`);
+            const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Updated placeholder ${messageId} with stage ${stage} result.`);
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
+            const statusRequest = new DbUpdateStatusRequest(chatId, finalStatus);
+            await this.requestDbAndWait(statusRequest);
         } catch (dbError: unknown) {
             const dbErr = dbError as Error;
-            console.error('[Orchestrator: handleBackgroundMsgError] Error updating chat/status on background error:', dbErr);
-            // Show a more specific UI error if DB update fails
-            showError(`Failed to update chat with error status: ${dbErr.message}`);
-            // Attempt to set status to error even if message update failed
-            try {
-                 await requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error'));
-            } catch (statusError) {
-                 console.error('[Orchestrator: handleBackgroundMsgError] Failed to set session status on error handling error:', statusError);
+            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundScrapeStage: Failed to update DB after stage ${stage} result:`, dbErr);
+            showError(`Failed to update chat with scrape result: ${dbErr.message || dbErr}`);
+            if (finalStatus !== 'error') {
+                try {
+                    const fallbackStatusRequest = new DbUpdateStatusRequest(chatId, 'error');
+                    await this.requestDbAndWait(fallbackStatusRequest);
+                } catch (fallbackError) {
+                    if (this.LOG_ERROR) console.error(this.prefix, 'handleBackgroundScrapeStage: Failed to set fallback error status:', fallbackError);
+                }
             }
+        } finally {
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL) console.log(this.prefix, 'handleBackgroundScrapeStage: Resetting isSendingMessage after processing scrape stage result.');
         }
-    } else {
-         console.warn(`[Orchestrator: handleBackgroundMsgError] Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
-         // If the error is specifically a model load error (we might need a better way to signal this)
-         // ensure the UI controller knows. The direct worker:error event might be better.
     }
 
-    isSendingMessage = false; // Reset flag after handling error
-}
-
-async function handleBackgroundScrapeStage(payload: any) {
-    const { stage, success, chatId, messageId, error, ...rest } = payload;
-    console.log(`[Orchestrator: handleBackgroundScrapeStage] Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
-
-    let updatePayload: any = {};
-    let finalStatus = 'idle'; // Default to idle on success
-
-    if (success) {
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} succeeded for chat ${chatId}.`);
-        // Use the main extracted content if available
-        let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
-        updatePayload = { 
-            isLoading: false, 
-            sender: 'system', 
-            text: mainContent, // <-- Show main extracted content in UI
-            content: mainContent, // <-- Also update content for UI rendering
-            metadata: { 
-                type: 'scrape_result_full', 
-                scrapeData: rest // Put the full data here for the renderer
-            }
-        };
-        finalStatus = 'idle';
-
-    } else {
-        // If a stage fails, update the message immediately with the error
-        const errorText = error || `Scraping failed (Stage ${stage}). Unknown error.`;
-        console.error(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
-        updatePayload = { isLoading: false, sender: 'error', text: `Scraping failed (Stage ${stage}): ${errorText}` };
-        finalStatus = 'error';
-    }
-
-    // --- Update DB regardless of success/failure based on this stage result --- 
-    try {
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Updating message ${messageId} for stage ${stage} result.`);
-        const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Updated placeholder ${messageId} with stage ${stage} result.`);
-
-        // Also set final session status based on this stage outcome
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
-        const statusRequest = new DbUpdateStatusRequest(chatId, finalStatus);
-        await requestDbAndWait(statusRequest);
-
-    } catch (dbError: unknown) {
-        const dbErr = dbError as Error;
-        console.error(`[Orchestrator: handleBackgroundScrapeStage] Failed to update DB after stage ${stage} result:`, dbErr);
-        showError(`Failed to update chat with scrape result: ${dbErr.message || dbErr}`);
-        // If DB update fails, maybe try setting status to error anyway?
-        if (finalStatus !== 'error') {
-             try {
-                 const fallbackStatusRequest = new DbUpdateStatusRequest(chatId, 'error');
-                 await requestDbAndWait(fallbackStatusRequest);
-             } catch (fallbackError) {
-                 console.error("Failed to set fallback error status:", fallbackError);
-             }
+    private async handleBackgroundDirectScrapeResult(message: any) {
+        const { chatId, messageId, success, error, ...scrapeData } = message;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundDirectScrapeResult: for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
+        const updatePayload: any = { isLoading: false };
+        if (success) {
+            updatePayload.sender = 'system';
+            let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
+            updatePayload.text = mainContent;
+            updatePayload.content = mainContent;
+            updatePayload.metadata = {
+                type: 'scrape_result_full',
+                scrapeData: scrapeData
+            };
+        } else {
+            updatePayload.sender = 'error';
+            updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
         }
-    } finally {
-        // Reset sending flag only after processing a stage result
-        // This assumes the background script won't send more results for this specific scrape
-        // Might need adjustment if background sends a final DIRECT_SCRAPE_RESULT later
-         isSendingMessage = false; 
-         console.log("[Orchestrator: handleBackgroundScrapeStage] Resetting isSendingMessage after processing scrape stage result.");
+        try {
+            const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            const finalStatus = success ? 'idle' : 'error';
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundDirectScrapeResult: Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
+            const statusRequest = new DbUpdateStatusRequest(chatId, finalStatus);
+            await this.requestDbAndWait(statusRequest);
+        } catch (error: unknown) {
+            const errObj = error as Error;
+            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundDirectScrapeResult: Error handling direct scrape result for chat ${chatId}:`, errObj);
+            showError(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
+            const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
+            this.requestDbAndWait(statusRequest).catch(e => {
+                if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on direct scrape processing error:', e);
+            });
+        } finally {
+            this.isSendingMessage = false;
+        }
     }
 }
 
-async function handleBackgroundDirectScrapeResult(message: any) {
-    const { chatId, messageId, success, error, ...scrapeData } = message;
-    console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
-    const updatePayload: any = { isLoading: false };
-     if (success) {
-         updatePayload.sender = 'system';
-         // Use the main extracted content if available
-         let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
-         updatePayload.text = mainContent;
-         updatePayload.content = mainContent; // <-- Also update content for UI rendering
-         updatePayload.metadata = {
-             type: 'scrape_result_full', 
-             scrapeData: scrapeData
-         };
-     } else {
-         updatePayload.sender = 'error';
-         updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
-     }
-    try {
-        const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        const finalStatus = success ? 'idle' : 'error';
-        console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
-        const statusRequest = new DbUpdateStatusRequest(chatId, finalStatus);
-        await requestDbAndWait(statusRequest);
-    } catch (error: unknown) {
-        const errObj = error as Error;
-        console.error(`[Orchestrator: handleBackgroundDirectScrapeResult] Error handling direct scrape result for chat ${chatId}:`, errObj);
-        showError(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
-        const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
-        requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on direct scrape processing error:", e));
-    } finally {
-         isSendingMessage = false; // TODO: Remove later
+let orchestratorInstance: ChatOrchestrator | null = null;
+
+export function initializeOrchestrator(dependencies: OrchestratorDependencies) {
+    if (!orchestratorInstance) {
+        orchestratorInstance = new ChatOrchestrator();
+        orchestratorInstance.initialize(dependencies);
     }
-}
-
-document.addEventListener(UIEventNames.QUERY_SUBMITTED, (e: Event) => handleQuerySubmit((e as CustomEvent).detail));
-document.addEventListener(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e: Event) => handleBackgroundMsgResponse((e as CustomEvent).detail));
-document.addEventListener(UIEventNames.BACKGROUND_ERROR_RECEIVED, (e: Event) => handleBackgroundMsgError((e as CustomEvent).detail));
-document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
-document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
-
-export function initializeOrchestrator(dependencies: { getActiveSessionIdFunc: () => string | null; onSessionCreatedCallback: (sessionId: string) => void; getCurrentTabIdFunc: () => number | null }) {
-    getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    onSessionCreatedCallback = (sessionId: string) => {
-        console.log('[Orchestrator] onSessionCreatedCallback registered for sessionId:', sessionId);
-        dependencies.onSessionCreatedCallback(sessionId);
-    };
-    getCurrentTabIdFunc = dependencies.getCurrentTabIdFunc;
-
-    if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
-        console.error("Orchestrator: Missing one or more dependencies during initialization!");
-        return;
-    }
-
-    console.log("[Orchestrator] Initializing and subscribing to application events...");
-    console.log("[Orchestrator] Event subscriptions complete.");
 }

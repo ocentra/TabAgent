@@ -2,10 +2,12 @@
 
 // NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
 
-import { BaseCRUD } from "./idbBase";
+import { BaseCRUD, DB_ENTITY_TYPES } from "./idbBase";
 import { Embedding } from "./idbEmbedding";
 import { DBNames } from "./idbSchema";
 import { DBActions } from "./dbActions";
+import { assertDbWorker } from '../Utilities/dbChannels';
+import { MESSAGE_EVENT } from '../Utilities/eventConstants';
 
 export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
   public type: string;
@@ -23,12 +25,12 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
     id: string,
     type: string,
     label: string,
-    dbWorker: Worker,
     created_at: number,
     updated_at: number,
     properties_json?: string,
     embedding_id?: string,
-    modelWorker?: Worker
+    modelWorker?: Worker,
+    dbWorker?: Worker
   ) {
     super(id, label, dbWorker);
     this.type = type;
@@ -65,6 +67,7 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
       modelWorker?: Worker;
     } = {}
   ): Promise<string> {
+    assertDbWorker(dbWorker, KnowledgeGraphNode.create.name, KnowledgeGraphNode.name);
     const id = options.id || crypto.randomUUID();
     const now = Date.now();
     const properties_json = options.properties ? JSON.stringify(options.properties) : undefined;
@@ -92,11 +95,12 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
             embedding_id_to_set = await Embedding.create(options.embeddingInput, vectorToSave, options.embeddingModel, dbWorker);
         }
     }
-    const nodeInstance = new KnowledgeGraphNode(id, type, label, dbWorker, now, now, properties_json, embedding_id_to_set, options.modelWorker);
+    const nodeInstance = new KnowledgeGraphNode(id, type, label, now, now, properties_json, embedding_id_to_set, options.modelWorker, dbWorker);
     return nodeInstance.saveToDB();
   }
 
   static async read(id: string, dbWorker: Worker, modelWorker?: Worker): Promise<KnowledgeGraphNode | undefined> {
+    assertDbWorker(dbWorker, KnowledgeGraphNode.read.name, KnowledgeGraphNode.name);
     const nodeData = await KnowledgeGraphNode.getKGNNodeData(id, dbWorker);
     if (nodeData) {
         return KnowledgeGraphNode.fromKGNData(nodeData, dbWorker, modelWorker);
@@ -105,15 +109,16 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
   }
 
   static fromKGNData(data: any, dbWorker: Worker, modelWorker?: Worker): KnowledgeGraphNode {
-      return new KnowledgeGraphNode(data.id, data.type, data.label, dbWorker, data.created_at, data.updated_at, data.properties_json, data.embedding_id, modelWorker);
+      return new KnowledgeGraphNode(data.id, data.type, data.label, data.created_at, data.updated_at, data.properties_json, data.embedding_id, modelWorker, dbWorker);
   }
 
   static async getKGNNodeData(id: string, dbWorker: Worker): Promise<any | undefined> {
+    assertDbWorker(dbWorker, KnowledgeGraphNode.getKGNNodeData.name, KnowledgeGraphNode.name);
     const requestId = crypto.randomUUID();
     return new Promise<any | undefined>((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          dbWorker.removeEventListener('message', handleMessage);
+          dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success) {
             resolve(event.data.result);
           } else {
@@ -121,16 +126,17 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
           }
         }
       };
-      dbWorker.addEventListener('message', handleMessage);
+      dbWorker.addEventListener(MESSAGE_EVENT, handleMessage);
       dbWorker.postMessage({ action: DBActions.GET, payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_NODES, id], requestId });
       setTimeout(() => {
-        dbWorker.removeEventListener('message', handleMessage);
+        dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
         reject(new Error(`Timeout waiting for get KGN node data (id: ${id}) confirmation`));
       }, 5000);
     });
   }
 
   async update(updates: Partial<Omit<KnowledgeGraphNode, 'dbWorker' | 'modelWorker' | 'id' | 'created_at' | 'edgesOut' | 'edgesIn' | 'embedding' | 'type' >>): Promise<void> {
+    assertDbWorker(this, 'update', this.constructor.name);
     const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, embedding, type, ...allowedUpdates } = updates as any;
     if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
         this.properties = allowedUpdates.properties;
@@ -141,12 +147,13 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
   }
 
   async delete(options: { deleteOrphanedEmbedding?: boolean, deleteEdges?: boolean } = {}): Promise<void> {
+    assertDbWorker(this, 'delete', this.constructor.name);
     const { deleteOrphanedEmbedding = false, deleteEdges = true } = options;
     if (deleteEdges) {
         await this.deleteAllEdges();
     }
     if (deleteOrphanedEmbedding && this.embedding_id) {
-        const emb = await Embedding.get(this.embedding_id, this.dbWorker);
+        const emb = await Embedding.get(this.embedding_id, this.dbWorker!);
         if (emb) {
             await emb.delete().catch(e => console.warn(`Attempted to delete embedding ${this.embedding_id}, but failed: ${e.message}`));
         }
@@ -155,7 +162,7 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
     return new Promise<void>((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          this.dbWorker.removeEventListener('message', handleMessage);
+          this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success) {
             resolve();
           } else {
@@ -163,16 +170,17 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
           }
         }
       };
-      this.dbWorker.addEventListener('message', handleMessage);
-      this.dbWorker.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_NODES, this.id], requestId });
+      this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+      this.dbWorker!.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_NODES, this.id], requestId });
       setTimeout(() => {
-        this.dbWorker.removeEventListener('message', handleMessage);
+        this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
         reject(new Error(`Timeout waiting for delete KGN node data (id: ${this.id}) confirmation`));
       }, 5000);
     });
   }
 
   async saveToDB(): Promise<string> {
+    assertDbWorker(this, 'saveToDB', this.constructor.name);
     const requestId = crypto.randomUUID();
     const now = Date.now();
     this.updated_at = now;
@@ -194,7 +202,7 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
     return new Promise((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          this.dbWorker.removeEventListener('message', handleMessage);
+          this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success && typeof event.data.result === 'string') {
             resolve(event.data.result);
           } else if (event.data.success) {
@@ -204,39 +212,42 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
           }
         }
       };
-      this.dbWorker.addEventListener('message', handleMessage);
-      this.dbWorker.postMessage({
+      this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+      this.dbWorker!.postMessage({
         action: DBActions.PUT,
         payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_NODES, nodeDataForStore],
         requestId
       });
       setTimeout(() => {
-        this.dbWorker.removeEventListener('message', handleMessage);
+        this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
         reject(new Error(`Timeout waiting for node data (id: ${this.id}) save confirmation`));
       }, 5000);
     });
   }
 
   async getEmbedding(): Promise<Embedding | undefined> {
+    assertDbWorker(this, 'getEmbedding', this.constructor.name);
     if (this.embedding && this.embedding.id === this.embedding_id) {
       return this.embedding;
     }
     if (this.embedding_id) {
-      this.embedding = await Embedding.get(this.embedding_id, this.dbWorker);
+      this.embedding = await Embedding.get(this.embedding_id, this.dbWorker!);
       return this.embedding;
     }
     return undefined;
   }
 
   async addEdge(direction: 'out' | 'in', target_node_id: string, edge_type: string, metadata?: Record<string, any>): Promise<string> {
+    assertDbWorker(this, 'addEdge', this.constructor.name);
     const from_id = direction === 'out' ? this.id : target_node_id;
     const to_id = direction === 'out' ? target_node_id : this.id;
-    const edgeId = await KnowledgeGraphEdge.create(from_id, to_id, edge_type, this.dbWorker, { metadata });
+    const edgeId = await KnowledgeGraphEdge.create(from_id, to_id, edge_type, this.dbWorker!, { metadata });
     return edgeId;
   }
 
   async fetchEdges(direction: 'out' | 'in' | 'both' = 'both'): Promise<void> {
-    const fetchedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, direction, this.dbWorker);
+    assertDbWorker(this, 'fetchEdges', this.constructor.name);
+    const fetchedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, direction, this.dbWorker!);
     if (direction === 'out') {
         this.edgesOut = fetchedEdges;
     } else if (direction === 'in') {
@@ -258,7 +269,8 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
   }
 
   async deleteEdge(edgeId: string): Promise<boolean> {
-    const edge = await KnowledgeGraphEdge.read(edgeId, this.dbWorker);
+    assertDbWorker(this, 'deleteEdge', this.constructor.name);
+    const edge = await KnowledgeGraphEdge.read(edgeId, this.dbWorker!);
     if (edge && (edge.from_node_id === this.id || edge.to_node_id === this.id)) {
       await edge.delete();
       this.edgesOut = this.edgesOut.filter(e => e.id !== edgeId);
@@ -269,10 +281,11 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
   }
 
   async deleteAllEdges(): Promise<void> {
-    const allRelatedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, 'both', this.dbWorker);
+    assertDbWorker(this, 'deleteAllEdges', this.constructor.name);
+    const allRelatedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, 'both', this.dbWorker!);
     const uniqueEdgeIds = Array.from(new Set(allRelatedEdges.map(e => e.id)));
     for (const edgeId of uniqueEdgeIds) {
-        const edgeInstance = await KnowledgeGraphEdge.read(edgeId, this.dbWorker);
+        const edgeInstance = await KnowledgeGraphEdge.read(edgeId, this.dbWorker!);
         if(edgeInstance) {
             await edgeInstance.delete();
         }
@@ -289,6 +302,34 @@ export class KnowledgeGraphNode extends BaseCRUD<KnowledgeGraphNode> {
           if (view1[i] !== view2[i]) return false;
       }
       return true;
+  }
+
+  toJSON(): { [key: string]: any } {
+    return {
+      __type: DB_ENTITY_TYPES.KnowledgeGraphNode,
+      id: this.id,
+      type: this.type,
+      label: this.label,
+      properties_json: this.properties_json,
+      embedding_id: this.embedding_id,
+      created_at: this.created_at,
+      updated_at: this.updated_at
+    };
+  }
+
+  static fromJSON(obj: any, dbWorker: Worker, modelWorker?: Worker): KnowledgeGraphNode {
+    if (!obj) throw new Error('Cannot hydrate KnowledgeGraphNode from null/undefined');
+    return new KnowledgeGraphNode(
+      obj.id,
+      obj.type,
+      obj.label,
+      obj.created_at,
+      obj.updated_at,
+      obj.properties_json,
+      obj.embedding_id,
+      modelWorker,
+      dbWorker
+    );
   }
 }
 
@@ -308,10 +349,10 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
     to_node_id: string,
     edge_type: string,
     created_at: number,
-    dbWorker: Worker,
     metadata_json?: string,
     fromNode?: KnowledgeGraphNode,
-    toNode?: KnowledgeGraphNode
+    toNode?: KnowledgeGraphNode,
+    dbWorker?: Worker
   ) {
     super(id, edge_type, dbWorker); // use edge_type as label for now
     this.from_node_id = from_node_id;
@@ -343,14 +384,16 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
     dbWorker: Worker,
     options: { id?: string; metadata?: Record<string, any> } = {}
   ): Promise<string> {
+    assertDbWorker(dbWorker, KnowledgeGraphEdge.create.name, KnowledgeGraphEdge.name);
     const id = options.id || crypto.randomUUID();
     const now = Date.now();
     const metadata_json = options.metadata ? JSON.stringify(options.metadata) : undefined;
-    const edgeInstance = new KnowledgeGraphEdge(id, from_node_id, to_node_id, edge_type, now, dbWorker, metadata_json);
+    const edgeInstance = new KnowledgeGraphEdge(id, from_node_id, to_node_id, edge_type, now, metadata_json, undefined, undefined, dbWorker);
     return edgeInstance.saveToDB();
   }
 
   async saveToDB(): Promise<string> {
+    assertDbWorker(this, 'saveToDB', this.constructor.name);
     const requestId = crypto.randomUUID();
     if (!this.created_at) {
         this.created_at = Date.now();
@@ -359,7 +402,7 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
     return new Promise((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          this.dbWorker.removeEventListener('message', handleMessage);
+          this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success && typeof event.data.result === 'string') {
             resolve(event.data.result);
           } else if (event.data.success) {
@@ -369,20 +412,21 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
           }
         }
       };
-      this.dbWorker.addEventListener('message', handleMessage);
-      this.dbWorker.postMessage({
+      this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+      this.dbWorker!.postMessage({
         action: DBActions.PUT,
         payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_EDGES, edgeData],
         requestId
       });
       setTimeout(() => {
-        this.dbWorker.removeEventListener('message', handleMessage);
+        this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
         reject(new Error(`Timeout waiting for edge (id: ${this.id}) save confirmation`));
       }, 5000);
     });
   }
 
   async update(updates: Partial<Omit<KnowledgeGraphEdge, 'dbWorker' | 'id' | 'created_at' | 'from_node_id' | 'to_node_id' | 'fromNode' | 'toNode'>>): Promise<void> {
+    assertDbWorker(this, 'update', this.constructor.name);
     const { id, dbWorker, created_at, from_node_id, to_node_id, fromNode, toNode, ...allowedUpdates } = updates as any;
     if (allowedUpdates.metadata && typeof allowedUpdates.metadata === 'object') {
         this.metadata = allowedUpdates.metadata;
@@ -393,11 +437,12 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
   }
 
   async delete(): Promise<void> {
+    assertDbWorker(this, 'delete', this.constructor.name);
     const requestId = crypto.randomUUID();
     return new Promise<void>((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          this.dbWorker.removeEventListener('message', handleMessage);
+          this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success) {
             resolve();
           } else {
@@ -405,16 +450,17 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
           }
         }
       };
-      this.dbWorker.addEventListener('message', handleMessage);
-      this.dbWorker.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_EDGES, this.id], requestId });
+      this.dbWorker!.addEventListener(MESSAGE_EVENT, handleMessage);
+      this.dbWorker!.postMessage({ action: DBActions.DELETE, payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_EDGES, this.id], requestId });
       setTimeout(() => {
-        this.dbWorker.removeEventListener('message', handleMessage);
+        this.dbWorker!.removeEventListener(MESSAGE_EVENT, handleMessage);
         reject(new Error(`Timeout waiting for delete edge (id: ${this.id}) confirmation`));
       }, 5000);
     });
   }
 
   static async getEdgesByNodeId(nodeId: string, direction: 'out' | 'in' | 'both', dbWorker: Worker): Promise<KnowledgeGraphEdge[]> {
+    assertDbWorker(dbWorker, KnowledgeGraphEdge.getEdgesByNodeId.name, KnowledgeGraphEdge.name);
     const results: KnowledgeGraphEdge[] = [];
     const errors: Error[] = [];
     const fetchDirection = async (dir: 'out' | 'in') => {
@@ -424,10 +470,10 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
         return new Promise<void>((resolveQuery, rejectQuery) => {
             const handleMessage = (event: MessageEvent) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
                     if (event.data.success && Array.isArray(event.data.result)) {
                         event.data.result.forEach((edgeData: any) => {
-                            results.push(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, dbWorker, edgeData.metadata_json));
+                            results.push(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, edgeData.metadata_json, undefined, undefined, dbWorker));
                         });
                         resolveQuery();
                     } else if (event.data.success) {
@@ -439,10 +485,10 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: DBActions.QUERY, payload: [DBNames.DB_USER_DATA, queryObj], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
                 const err = new Error(`Timeout for getEdgesByNodeId (node: ${nodeId}, dir: ${dir})`);
                 errors.push(err);
                 rejectQuery(err);
@@ -469,11 +515,12 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
    * For fetching all or filtered logs, use getAll or the filtering methods.
    */
   static async read(id: string, dbWorker: Worker): Promise<KnowledgeGraphEdge | undefined> {
+    assertDbWorker(dbWorker, KnowledgeGraphEdge.read.name, KnowledgeGraphEdge.name);
     const requestId = crypto.randomUUID();
     return new Promise<KnowledgeGraphEdge | undefined>((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data && event.data.requestId === requestId) {
-          dbWorker.removeEventListener('message', handleMessage);
+          dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
           if (event.data.success && event.data.result) {
             const edgeData = event.data.result;
             resolve(new KnowledgeGraphEdge(
@@ -482,8 +529,10 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
               edgeData.to_node_id,
               edgeData.edge_type,
               edgeData.created_at,
-              dbWorker,
-              edgeData.metadata_json
+              edgeData.metadata_json,
+              undefined,
+              undefined,
+              dbWorker
             ));
           } else if (event.data.success && !event.data.result) {
             resolve(undefined);
@@ -492,12 +541,24 @@ export class KnowledgeGraphEdge extends BaseCRUD<KnowledgeGraphEdge> {
           }
         }
       };
-      dbWorker.addEventListener('message', handleMessage);
+      dbWorker.addEventListener(MESSAGE_EVENT, handleMessage);
       dbWorker.postMessage({ action: DBActions.GET, payload: [DBNames.DB_USER_DATA, DBNames.DB_KNOWLEDGE_GRAPH_EDGES, id], requestId });
       setTimeout(() => {
-        dbWorker.removeEventListener('message', handleMessage);
-        reject(new Error(`Timeout waiting for get edge (id: ${id}) confirmation`));
+        dbWorker.removeEventListener(MESSAGE_EVENT, handleMessage);
+        reject(new Error(`Timeout waiting for get edge (id: ${id})`));
       }, 5000);
     });
+  }
+
+  toJSON(): { [key: string]: any } {
+    return {
+      __type: DB_ENTITY_TYPES.KnowledgeGraphEdge,
+      id: this.id,
+      from_node_id: this.from_node_id,
+      to_node_id: this.to_node_id,
+      edge_type: this.edge_type,
+      metadata_json: this.metadata_json,
+      created_at: this.created_at
+    };
   }
 }

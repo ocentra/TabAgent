@@ -7,6 +7,8 @@ import {
 import { MessageSenderTypes } from '../events/eventNames';
 import { dbChannel } from '../DB/idbSchema';
 import browser from 'webextension-polyfill';
+import copyIcon from '../assets/icons/copy.svg';
+import downloadIcon from '../assets/icons/download.svg';
 
 let chatBodyElement: HTMLElement | null = null;
 let currentSessionId: string | null = null;
@@ -225,7 +227,7 @@ function renderSingleMessage(msg: any) {
     actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10';
 
     const copyButton = document.createElement('button');
-    copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
+    copyButton.innerHTML = `<img src="${copyIcon}" alt="Copy" class="w-4 h-4">`;
     copyButton.title = 'Copy message text';
     copyButton.onclick = () => {
         let textToCopy = displayContent;
@@ -240,7 +242,7 @@ function renderSingleMessage(msg: any) {
 
     if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
         const downloadButton = document.createElement('button');
-        downloadButton.innerHTML = '<img src="icons/download.svg" alt="Download" class="w-4 h-4">';
+        downloadButton.innerHTML = `<img src="${downloadIcon}" alt="Download" class="w-4 h-4">`;
         downloadButton.title = 'Download scrape data as JSON';
         downloadButton.onclick = () => {
             console.log('Download clicked for:', msg.metadata.scrapeData); // Placeholder
@@ -382,8 +384,8 @@ function renderSingleMessage(msg: any) {
                 let safeLanguage = escapeHtmlEntities(languageHint || 'plaintext');
                 let langClass = `language-${safeLanguage}`;
                 
-                const copyIcon = '<img src="icons/copy.svg" alt="Copy code" class="w-4 h-4">'; 
-                const downloadIcon = '<img src="icons/download.svg" alt="Download code" class="w-4 h-4">';
+                const copyIconHtml = `<img src="${copyIcon}" alt="Copy code" class="w-4 h-4">`; 
+                const downloadIconHtml = `<img src="${downloadIcon}" alt="Download code" class="w-4 h-4">`;
                 
                 const encodedCodeForAttr = encodeURIComponent(actualCodeString);
                 
@@ -426,10 +428,10 @@ function renderSingleMessage(msg: any) {
         <span class="code-language text-xs text-gray-300 dark:text-gray-400 font-semibold">${safeLanguage}</span>
         <div class="code-actions flex space-x-2">
             <button class="code-action-copy-snippet p-1 rounded text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700" title="Copy code" data-code="${encodedCodeForAttr}">
-                ${copyIcon}
+                ${copyIconHtml}
             </button>
             <button class="code-action-download-snippet p-1 rounded text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700" title="Download ${safeLanguage} snippet" data-code="${encodedCodeForAttr}" data-lang="${safeLanguage}">
-                ${downloadIcon}
+                ${downloadIconHtml}
             </button>
         </div>
     </div>

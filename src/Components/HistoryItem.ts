@@ -1,10 +1,15 @@
 // src/Components/HistoryItem.js
 
+import starFilledIcon from '../assets/icons/StarFilled.png';
+import starHollowIcon from '../assets/icons/StarHollow.png';
+import linkChainIcon from '../assets/icons/LinkChain.png';
+import loadIcon from '../assets/icons/Load.png';
+
 // --- SVG Icons ---
 const previewIconSvg = `<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`;
 const trashIconSvg = `<svg class="w-4 h-4 action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 17.8798 20.1818C17.1169 21 15.8356 21 13.2731 21H10.7269C8.16438 21 6.8831 21 6.12019 20.1818C5.35728 19.3671 5.27811 18.0864 5.11973 15.5251L4.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 5.5H21M16.5 5.5L16.1733 3.57923C16.0596 2.8469 15.9989 2.48073 15.8184 2.21449C15.638 1.94825 15.362 1.75019 15.039 1.67153C14.7158 1.59286 14.3501 1.59286 13.6186 1.59286H10.3814C9.64993 1.59286 9.28419 1.59286 8.96099 1.67153C8.63796 1.75019 8.36201 1.94825 8.18156 2.21449C8.00111 2.48073 7.9404 2.8469 7.82672 3.57923L7.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 action-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`;
-const shareIconSvg = `<img src="icons/LinkChain.png" alt="Share" class="w-4 h-4 action-icon-img">`;
+const shareIconSvg = `<img src="${linkChainIcon}" alt="Share" class="w-4 h-4 action-icon-img">`;
 
 // --- Helper functions for inline editing UI ---
 
@@ -68,7 +73,7 @@ export function renderHistoryItemComponent(props: any): HTMLElement | null {
         ? (entry.messages[0].text || '').substring(0, 50) + '...' 
         : 'Empty chat');
 
-    const starIconSrc = entry.isStarred ? 'icons/StarFilled.png' : 'icons/StarHollow.png';
+    const starIconSrc = entry.isStarred ? starFilledIcon : starHollowIcon;
     const starToggleClass = entry.isStarred ? 'starred' : 'unstarred';
 
     item.innerHTML = `
@@ -109,7 +114,7 @@ export function renderHistoryItemComponent(props: any): HTMLElement | null {
             <div class="card-footer mt-auto flex justify-between items-center">
                  <span class="history-item-date text-xs text-gray-500 dark:text-gray-400">${formattedDate}</span>
                  <button class="history-item-load-btn text-xs p-0.5 rounded" data-action="load-chat" title="Load Chat">
-                    <img src="icons/Load.png" alt="Load" class="h-6 w-auto">
+                    <img src="${loadIcon}" alt="Load" class="h-6 w-auto">
                  </button>
             </div>
         </div>

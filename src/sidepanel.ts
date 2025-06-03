@@ -47,6 +47,18 @@ import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
 import { getManifestEntry, addManifestEntry, fetchRepoFiles, parseQuantFromFilename, QuantStatus, getAllManifestEntries } from './DB/idbModel';
 
+import newChatIcon from './assets/icons/NewChat.png';
+import historyIcon from './assets/icons/history.png';
+import popupIcon from './assets/icons/popup.png';
+import googleDriveIcon from './assets/icons/googledrive.png';
+import attachIcon from './assets/icons/attach-svgrepo-com.svg';
+import closeCircleIcon from './assets/icons/close-circle-svgrepo-com.svg';
+import homeIcon from './assets/icons/home-svgrepo-com.svg';
+import rocketIcon from './assets/icons/rocket-2-svgrepo-com.svg';
+import myspaceIcon from './assets/icons/myspace-microsoft-svgrepo-com.svg';
+import libraryIcon from './assets/icons/library-svgrepo-com.svg';
+import settingsIcon from './assets/icons/settings-svgrepo-com.svg';
+
 // --- Constants ---
 const LOG_QUEUE_MAX = 1000;
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
@@ -794,6 +806,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const closeHistoryButtonElement = document.getElementById('close-history');
     const historyButton = document.getElementById('history-button');
     const detachButton = document.getElementById('detach-button');
+    const newChatButton = document.getElementById('new-chat-button');
 
     if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
       historyPopupController = initializeHistoryPopup(
@@ -818,6 +831,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn(`${prefix} History button or controller not available for listener.`);
     }
 
+    if (newChatButton) {
+      newChatButton.addEventListener('click', handleNewChat);
+    }
+    // Detach button is allowed in all contexts where present
     if (detachButton) {
       detachButton.addEventListener('click', handleDetach);
     } else {
@@ -965,6 +982,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     }
 
+    // Set icon srcs via imports
+    const iconMap = [
+      ['icon-new-chat', newChatIcon],
+      ['icon-history', historyIcon],
+      ['icon-popup', popupIcon],
+      ['icon-googledrive', googleDriveIcon],
+      ['icon-attach', attachIcon],
+      ['icon-close-history', closeCircleIcon],
+      ['icon-close-drive-viewer', closeCircleIcon],
+      ['icon-home', homeIcon],
+      ['icon-rocket', rocketIcon],
+      ['icon-myspace', myspaceIcon],
+      ['icon-library', libraryIcon],
+      ['icon-settings', settingsIcon],
+    ];
+    for (const [id, src] of iconMap) {
+      const el = document.getElementById(id) as HTMLImageElement | null;
+      if (el) el.src = src;
+    }
+
   } catch (error) {
     const err = error as Error;
     console.error(`${prefix} Initialization failed:`, err);
@@ -1057,5 +1094,8 @@ async function ensureManifestForDropdownRepos() {
   document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
 }
 
+export function isModelLoaded() {
+  return modelWorkerState === WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
+}
 
 export { sendDbRequestSmart, sendToModelWorker };

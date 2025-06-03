@@ -1243,12 +1243,20 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   renderHistoryItemComponent: () => (/* binding */ renderHistoryItemComponent)
 /* harmony export */ });
+/* harmony import */ var _assets_icons_StarFilled_png__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../assets/icons/StarFilled.png */ "./src/assets/icons/StarFilled.png");
+/* harmony import */ var _assets_icons_StarHollow_png__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../assets/icons/StarHollow.png */ "./src/assets/icons/StarHollow.png");
+/* harmony import */ var _assets_icons_LinkChain_png__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../assets/icons/LinkChain.png */ "./src/assets/icons/LinkChain.png");
+/* harmony import */ var _assets_icons_Load_png__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../assets/icons/Load.png */ "./src/assets/icons/Load.png");
 // src/Components/HistoryItem.js
+
+
+
+
 // --- SVG Icons ---
 const previewIconSvg = `<svg class="w-4 h-4 action-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>`;
 const trashIconSvg = `<svg class="w-4 h-4 action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 17.8798 20.1818C17.1169 21 15.8356 21 13.2731 21H10.7269C8.16438 21 6.8831 21 6.12019 20.1818C5.35728 19.3671 5.27811 18.0864 5.11973 15.5251L4.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 5.5H21M16.5 5.5L16.1733 3.57923C16.0596 2.8469 15.9989 2.48073 15.8184 2.21449C15.638 1.94825 15.362 1.75019 15.039 1.67153C14.7158 1.59286 14.3501 1.59286 13.6186 1.59286H10.3814C9.64993 1.59286 9.28419 1.59286 8.96099 1.67153C8.63796 1.75019 8.36201 1.94825 8.18156 2.21449C8.00111 2.48073 7.9404 2.8469 7.82672 3.57923L7.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 10.5V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 action-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`;
-const shareIconSvg = `<img src="icons/LinkChain.png" alt="Share" class="w-4 h-4 action-icon-img">`;
+const shareIconSvg = `<img src="${_assets_icons_LinkChain_png__WEBPACK_IMPORTED_MODULE_2__}" alt="Share" class="w-4 h-4 action-icon-img">`;
 // --- Helper functions for inline editing UI ---
 function startEditing(historyItemElement) {
     if (!historyItemElement)
@@ -1294,7 +1302,7 @@ function renderHistoryItemComponent(props) {
     const previewText = entry.title || (entry.messages && entry.messages.length > 0
         ? (entry.messages[0].text || '').substring(0, 50) + '...'
         : 'Empty chat');
-    const starIconSrc = entry.isStarred ? 'icons/StarFilled.png' : 'icons/StarHollow.png';
+    const starIconSrc = entry.isStarred ? _assets_icons_StarFilled_png__WEBPACK_IMPORTED_MODULE_0__ : _assets_icons_StarHollow_png__WEBPACK_IMPORTED_MODULE_1__;
     const starToggleClass = entry.isStarred ? 'starred' : 'unstarred';
     item.innerHTML = `
         <div class="chat-card bg-gray-100 dark:bg-gray-700 rounded-lg shadow p-3 flex flex-col justify-between min-h-[100px]">
@@ -1334,7 +1342,7 @@ function renderHistoryItemComponent(props) {
             <div class="card-footer mt-auto flex justify-between items-center">
                  <span class="history-item-date text-xs text-gray-500 dark:text-gray-400">${formattedDate}</span>
                  <button class="history-item-load-btn text-xs p-0.5 rounded" data-action="load-chat" title="Load Chat">
-                    <img src="icons/Load.png" alt="Load" class="h-6 w-auto">
+                    <img src="${_assets_icons_Load_png__WEBPACK_IMPORTED_MODULE_3__}" alt="Load" class="h-6 w-auto">
                  </button>
             </div>
         </div>
@@ -1486,6 +1494,113 @@ function renderHistoryItemComponent(props) {
     // const cardBody = item.querySelector('.card-body');
     // if (cardBody) cardBody.addEventListener('click', (e) => { e.stopPropagation(); onLoadClick(entry.id); });
     return item;
+}
+
+
+/***/ }),
+
+/***/ "./src/Components/SystemPromptPopup.ts":
+/*!*********************************************!*\
+  !*** ./src/Components/SystemPromptPopup.ts ***!
+  \*********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   showSystemPromptPopup: () => (/* binding */ showSystemPromptPopup)
+/* harmony export */ });
+function showSystemPromptPopup(currentPrompt, onSave) {
+    // Create backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center';
+    backdrop.style.position = 'fixed';
+    backdrop.style.top = '0';
+    backdrop.style.left = '0';
+    backdrop.style.width = '100vw';
+    backdrop.style.height = '100vh';
+    backdrop.style.display = 'flex';
+    backdrop.style.alignItems = 'center';
+    backdrop.style.justifyContent = 'center';
+    // Create modal (full size, flex column)
+    const modal = document.createElement('div');
+    modal.className = 'bg-gray-50 dark:bg-gray-800 rounded-lg shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.maxWidth = '100%';
+    modal.style.maxHeight = '100%';
+    modal.style.padding = '0';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    // Header (minimal)
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900';
+    header.style.flex = '0 0 auto';
+    header.innerHTML = `
+    <span class="text-base font-semibold text-gray-800 dark:text-gray-100">Edit System Prompt</span>
+    <button class="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 text-xl font-bold px-2" title="Close">&times;</button>
+  `;
+    const closeBtn = header.querySelector('button');
+    // Textarea (main focus, fills space)
+    const textarea = document.createElement('textarea');
+    textarea.value = currentPrompt;
+    textarea.className = 'flex-1 w-full px-4 py-3 bg-transparent text-gray-900 dark:text-gray-100 text-base resize-vertical border-0 outline-none';
+    textarea.style.height = '100%';
+    textarea.style.minHeight = '0';
+    textarea.style.maxHeight = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.boxSizing = 'border-box';
+    textarea.style.background = 'transparent';
+    textarea.style.fontFamily = 'inherit';
+    textarea.style.fontSize = '1rem';
+    textarea.style.margin = '0';
+    textarea.style.flex = '1 1 auto';
+    textarea.style.overflowY = 'auto';
+    // Footer (minimal)
+    const footer = document.createElement('div');
+    footer.className = 'flex justify-end gap-2 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900';
+    footer.style.flex = '0 0 auto';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'px-4 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 text-sm';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = 'OK';
+    okBtn.className = 'px-4 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm';
+    footer.appendChild(cancelBtn);
+    footer.appendChild(okBtn);
+    // Assemble modal
+    modal.appendChild(header);
+    modal.appendChild(textarea);
+    modal.appendChild(footer);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    // Make modal fill parent (side panel)
+    backdrop.style.alignItems = 'stretch';
+    backdrop.style.justifyContent = 'stretch';
+    modal.style.margin = '0';
+    // Focus textarea
+    setTimeout(() => textarea.focus(), 50);
+    // Close logic
+    function close() {
+        document.body.removeChild(backdrop);
+    }
+    closeBtn.onclick = cancelBtn.onclick = () => close();
+    backdrop.onclick = (e) => {
+        if (e.target === backdrop)
+            close();
+    };
+    okBtn.onclick = () => {
+        onSave(textarea.value);
+        close();
+    };
+    textarea.onkeydown = (e) => {
+        if (e.key === 'Escape')
+            close();
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            onSave(textarea.value);
+            close();
+        }
+    };
 }
 
 
@@ -2236,23 +2351,36 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DEFAULT_INFERENCE_SETTINGS: () => (/* binding */ DEFAULT_INFERENCE_SETTINGS),
 /* harmony export */   INFERENCE_SETTINGS_SINGLETON_ID: () => (/* binding */ INFERENCE_SETTINGS_SINGLETON_ID),
 /* harmony export */   INFERENCE_SETTING_KEYS: () => (/* binding */ INFERENCE_SETTING_KEYS),
+/* harmony export */   SYSTEM_PROMPT_SETTING: () => (/* binding */ SYSTEM_PROMPT_SETTING),
 /* harmony export */   applySettings: () => (/* binding */ applySettings),
 /* harmony export */   getCurrentSettings: () => (/* binding */ getCurrentSettings),
 /* harmony export */   initInferenceSettingsUI: () => (/* binding */ initInferenceSettingsUI),
 /* harmony export */   keyToLabel: () => (/* binding */ keyToLabel),
 /* harmony export */   loadAndApplySettingsToUI: () => (/* binding */ loadAndApplySettingsToUI),
 /* harmony export */   reloadSettingsFromDB: () => (/* binding */ reloadSettingsFromDB),
+/* harmony export */   resetSettingsToDefault: () => (/* binding */ resetSettingsToDefault),
 /* harmony export */   saveCurrentSettingsToDBDebounced: () => (/* binding */ saveCurrentSettingsToDBDebounced),
 /* harmony export */   setupInferenceSettings: () => (/* binding */ setupInferenceSettings)
 /* harmony export */ });
 /* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
 /* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Components_SystemPromptPopup__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Components/SystemPromptPopup */ "./src/Components/SystemPromptPopup.ts");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../assets/icons/popup.png */ "./src/assets/icons/popup.png");
 // src/Controllers/InferenceSettings.ts
 
 
 
+
+
+const prefix = '[InferenceSettings]';
+const LOG_GENERAL = true;
+const LOG_DEBUG = true;
+const LOG_ERROR = true;
+const LOG_WARN = true;
 const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
+if (LOG_GENERAL)
+    console.log(prefix, 'popupIcon import resolves to:', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__);
 const INFERENCE_SETTING_KEYS = {
     temperature: 'temperature',
     max_length: 'max_length',
@@ -2290,6 +2418,54 @@ const INFERENCE_SETTING_KEYS = {
     return_dict_in_generate: 'return_dict_in_generate',
     suppress_tokens: 'suppress_tokens',
     use_cache: 'use_cache',
+    system_prompt: 'system_prompt',
+};
+const DEFAULT_INFERENCE_SETTINGS = {
+    temperature: 0.7,
+    max_length: 2048,
+    max_new_tokens: 512,
+    min_length: 0,
+    top_k: 50,
+    top_p: 0.9,
+    repetition_penalty: 1.1,
+    attention_mask: true,
+    batch_size: 1,
+    do_sample: true,
+    eos_token_id: null,
+    num_beams: 1,
+    num_return_sequences: 1,
+    pad_token_id: null,
+    diversity_penalty: 0.0,
+    early_stopping: false,
+    length_penalty: 1.0,
+    no_repeat_ngram_size: 0,
+    num_beam_groups: 1,
+    threads: 2,
+    bad_words_ids: null,
+    bos_token_id: null,
+    decoder_start_token_id: null,
+    forced_bos_token_id: null,
+    forced_eos_token_id: null,
+    max_time: null,
+    min_new_tokens: 0,
+    output_attentions: false,
+    output_hidden_states: false,
+    output_scores: false,
+    penalty_alpha: 0.0,
+    prefix: null,
+    remove_invalid_values: false,
+    return_dict_in_generate: false,
+    suppress_tokens: null,
+    use_cache: true,
+    system_prompt: `You are a helpful AI assistant.\nAlways provide clear, concise, and accurate answers.\nIf you are unsure, say so honestly.\nBe friendly, professional, and supportive.\nFormat lists and steps with bullet points when helpful.\nIf the user asks for code, provide well-commented examples.\nIf the user asks for advice, consider pros and cons.\nNever include harmful, unethical, or illegal content.\nIf the user asks for a summary, keep it brief and focused.\nIf the user asks for a translation, be accurate and note the language.\nIf the user asks for a joke, keep it light and appropriate.\n`,
+};
+const SYSTEM_PROMPT_SETTING = {
+    key: INFERENCE_SETTING_KEYS.system_prompt,
+    label: keyToLabel(INFERENCE_SETTING_KEYS.system_prompt),
+    type: 'textarea',
+    defaultValue: DEFAULT_INFERENCE_SETTINGS.system_prompt,
+    description: `The default system prompt sets the AI's behavior, personality, and rules for all conversations unless overridden. Use it to instruct the AI on tone, style, or special instructions. This prompt is always sent to the model before any user message, guiding its responses. You can expand or modify it to fit your needs.`,
+    example: `You are a helpful AI assistant.\n- Always provide clear, concise, and accurate answers.\n- If you are unsure, say so honestly.\n- Be friendly, professional, and supportive.\n- Format lists and steps with bullet points when helpful.\n- If the user asks for code, provide well-commented examples.\n- If the user asks for advice, consider pros and cons.\n- Never include harmful, unethical, or illegal content.\n- If the user asks for a summary, keep it brief and focused.\n- If the user asks for a translation, be accurate and note the language.\n- If the user asks for a joke, keep it light and appropriate.`
 };
 function keyToLabel(key) {
     return key
@@ -2527,44 +2703,6 @@ const ADVANCED_SETTINGS = [
         example: `1 = single answer, 3 = three options, 5+ = many choices.`
     }
 ];
-const DEFAULT_INFERENCE_SETTINGS = {
-    temperature: 0.7,
-    max_length: 2048,
-    max_new_tokens: 512,
-    min_length: 0,
-    top_k: 50,
-    top_p: 0.9,
-    repetition_penalty: 1.1,
-    attention_mask: true,
-    batch_size: 1,
-    do_sample: true,
-    eos_token_id: null,
-    num_beams: 1,
-    num_return_sequences: 1,
-    pad_token_id: null,
-    diversity_penalty: 0.0,
-    early_stopping: false,
-    length_penalty: 1.0,
-    no_repeat_ngram_size: 0,
-    num_beam_groups: 1,
-    threads: 2,
-    bad_words_ids: null,
-    bos_token_id: null,
-    decoder_start_token_id: null,
-    forced_bos_token_id: null,
-    forced_eos_token_id: null,
-    max_time: null,
-    min_new_tokens: 0,
-    output_attentions: false,
-    output_hidden_states: false,
-    output_scores: false,
-    penalty_alpha: 0.0,
-    prefix: null,
-    remove_invalid_values: false,
-    return_dict_in_generate: false,
-    suppress_tokens: null,
-    use_cache: true
-};
 function setupInferenceSettings() {
     const settingsContainer = document.getElementById('page-settings');
     if (!settingsContainer)
@@ -2576,28 +2714,50 @@ function setupInferenceSettings() {
     reloadBtn.className = 'ml-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600';
     reloadBtn.onclick = () => reloadSettingsFromDB();
     inferenceSection.appendChild(reloadBtn);
+    // Add Reset Settings button
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset Settings';
+    resetBtn.className = 'ml-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600';
+    resetBtn.onclick = () => resetSettingsToDefault();
+    inferenceSection.appendChild(resetBtn);
     initInferenceSettingsUI();
 }
 function createInferenceSettingsSection() {
     const section = document.createElement('div');
     section.className = 'inference-settings mb-6';
     section.innerHTML = `
-      <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
-          <button class="inference-foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
-              <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">Inference Settings</h3>
-              <span class="fold-icon transform transition-transform duration-200">▼</span>
-          </button>
-          <div class="inference-content p-3 space-y-1">
-              ${createCommonSettingsSection()}
-              ${createAdvancedSettingsSection()}
-          </div>
+    <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
+      <div class="inference-content p-3 space-y-1">
+        ${createSystemPromptSection()}
+        ${createCommonSettingsSection()}
+        ${createAdvancedSettingsSection()}
       </div>
+    </div>
   `;
-    setupFoldoutToggle(section, '.inference-foldout-toggle', '.inference-content');
     setupCommonSettingsToggle(section);
     setupAdvancedSettingsToggle(section);
     setupAllSettingsControls(section);
+    // System prompt info tooltip (handled by createSettingControl)
+    setupSettingControl(section, SYSTEM_PROMPT_SETTING);
     return section;
+}
+function createSystemPromptSection() {
+    return `
+      <div class="system-prompt-box border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800">
+        <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+          <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">System Prompt</span>
+          <div class="flex items-center gap-1">
+            <button id="setting-system_prompt-expand" class="ml-1 w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full transition-colors" title="Expand">
+              <img src="${_assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__}" alt="Expand" class="w-4 h-4" />
+            </button>
+            <button id="setting-system_prompt-info" class="ml-1 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
+          </div>
+        </div>
+        <div>
+          <textarea id="setting-system_prompt" rows="8" style="min-height: 5rem; max-height: 16rem; overflow-y: auto;" class="w-full p-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-vertical border-0 rounded-b">${SYSTEM_PROMPT_SETTING.defaultValue}</textarea>
+        </div>
+      </div>
+    `;
 }
 function createCommonSettingsSection() {
     return `
@@ -2629,43 +2789,53 @@ function createSettingControl(setting) {
     const controlId = `setting-${setting.key}`;
     const valueId = `${controlId}-value`;
     const infoId = `${controlId}-info`;
+    // Special layout for system prompt
+    if (setting.key === INFERENCE_SETTING_KEYS.system_prompt) {
+        // Use the new box structure from createSystemPromptSection
+        return '';
+    }
     let controlHTML = '';
     switch (setting.type) {
         case 'slider':
             controlHTML = `
-              <input type="range" 
-                     id="${controlId}" 
-                     min="${setting.min}" 
-                     max="${setting.max}" 
-                     step="${setting.step}" 
-                     value="${setting.defaultValue}"
-                     class="flex-1 mx-2 accent-blue-500">
-              <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
-          `;
+        <input type="range" 
+               id="${controlId}" 
+               min="${setting.min}" 
+               max="${setting.max}" 
+               step="${setting.step}" 
+               value="${setting.defaultValue}"
+               class="flex-1 mx-2 accent-blue-500">
+        <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
+      `;
             break;
         case 'input':
             controlHTML = `
-              <input type="number" 
-                     id="${controlId}" 
-                     value="${setting.defaultValue}"
-                     class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
-          `;
+        <input type="number" 
+               id="${controlId}" 
+               value="${setting.defaultValue}"
+               class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+      `;
             break;
         case 'checkbox':
             controlHTML = `
-              <input type="checkbox" 
-                     id="${controlId}" 
-                     ${setting.defaultValue ? 'checked' : ''}
-                     class="mx-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
-          `;
+        <input type="checkbox" 
+               id="${controlId}" 
+               ${setting.defaultValue ? 'checked' : ''}
+               class="mx-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+      `;
+            break;
+        case 'textarea':
+            controlHTML = `
+        <textarea id="${controlId}" rows="6" style="min-height: 3.5rem; max-height: 12rem; overflow-y: auto;" placeholder="You are a helpful AI assistant..." class="flex-1 mx-2 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm resize-vertical">${setting.defaultValue}</textarea>
+      `;
             break;
     }
     return `
-      <div class="setting-row flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-          <label for="${controlId}" class="min-w-[8rem] text-sm font-medium text-gray-700 dark:text-gray-300">${setting.label}</label>
-          ${controlHTML}
-          <button id="${infoId}" class="ml-2 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
-      </div>
+    <div class="setting-row flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+      <label for="${controlId}" class="min-w-[8rem] text-sm font-medium text-gray-700 dark:text-gray-300">${setting.label}</label>
+      ${controlHTML}
+      <button id="${infoId}" class="ml-2 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
+    </div>
   `;
 }
 function setupFoldoutToggle(container, toggleSelector, contentSelector) {
@@ -2756,9 +2926,18 @@ function getCurrentSettings() {
             settings[setting.key] = value;
         }
     });
+    // System prompt (handled generically)
+    const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`);
+    if (sysPrompt) {
+        settings.system_prompt = sysPrompt.value;
+    }
+    if (LOG_DEBUG)
+        console.log(prefix, 'getCurrentSettings() returning:', settings);
     return settings;
 }
 function applySettings(settings) {
+    if (LOG_DEBUG)
+        console.log(prefix, 'Applying settings to UI:', settings);
     Object.entries(settings).forEach(([key, value]) => {
         const control = document.querySelector(`#setting-${key}`);
         const valueSpan = document.querySelector(`#setting-${key}-value`);
@@ -2774,16 +2953,36 @@ function applySettings(settings) {
             }
         }
     });
+    // System prompt (textarea)
+    const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`);
+    if (sysPrompt && typeof settings.system_prompt === 'string') {
+        sysPrompt.value = settings.system_prompt;
+    }
 }
 let saveTimeout = null;
 const SAVE_DEBOUNCE_MS = 200;
 async function loadAndApplySettingsToUI() {
     try {
+        if (LOG_GENERAL)
+            console.log(prefix, 'Loading inference settings from DB...');
         const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getInferenceSettings)() || DEFAULT_INFERENCE_SETTINGS;
-        applySettings(settings);
+        if (!settings || Object.keys(settings).length === 0) {
+            if (LOG_WARN)
+                console.warn(prefix, 'No inference settings found in DB, applying defaults.');
+            applySettings(DEFAULT_INFERENCE_SETTINGS);
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(DEFAULT_INFERENCE_SETTINGS);
+            if (LOG_GENERAL)
+                console.log(prefix, 'Default inference settings saved to DB.');
+        }
+        else {
+            if (LOG_GENERAL)
+                console.log(prefix, 'Loaded inference settings from DB:', settings);
+            applySettings(settings);
+        }
     }
     catch (e) {
-        console.error('[InferenceSettings] Failed to load settings from DB:', e);
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to load settings from DB:', e);
         applySettings(DEFAULT_INFERENCE_SETTINGS);
     }
 }
@@ -2793,11 +2992,16 @@ function saveCurrentSettingsToDBDebounced() {
     saveTimeout = setTimeout(async () => {
         try {
             const settings = getCurrentSettings();
+            if (LOG_GENERAL)
+                console.log(prefix, 'Saving inference settings to DB:', settings);
             await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(settings);
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+            if (LOG_GENERAL)
+                console.log(prefix, 'Inference settings saved and update event posted.');
         }
         catch (e) {
-            console.error('[InferenceSettings] Failed to save settings to DB:', e);
+            if (LOG_ERROR)
+                console.error(prefix, 'Failed to save settings to DB:', e);
         }
     }, SAVE_DEBOUNCE_MS);
 }
@@ -2806,13 +3010,55 @@ function attachSettingsListeners() {
         input.addEventListener('change', saveCurrentSettingsToDBDebounced);
         input.addEventListener('input', saveCurrentSettingsToDBDebounced); // for sliders
     });
+    // System prompt textarea
+    const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`);
+    if (sysPrompt) {
+        sysPrompt.addEventListener('change', saveCurrentSettingsToDBDebounced);
+        sysPrompt.addEventListener('input', saveCurrentSettingsToDBDebounced);
+    }
 }
 async function reloadSettingsFromDB() {
+    if (LOG_GENERAL)
+        console.log(prefix, 'Reloading inference settings from DB...');
     await loadAndApplySettingsToUI();
 }
 async function initInferenceSettingsUI() {
+    if (LOG_GENERAL)
+        console.log(prefix, 'Initializing inference settings UI...');
     await loadAndApplySettingsToUI();
     attachSettingsListeners();
+    // Attach expand button handler for system prompt
+    const expandBtn = document.getElementById('setting-system_prompt-expand');
+    const textarea = document.getElementById('setting-system_prompt');
+    if (expandBtn && textarea) {
+        expandBtn.onclick = async () => {
+            const currentPrompt = textarea.value;
+            (0,_Components_SystemPromptPopup__WEBPACK_IMPORTED_MODULE_3__.showSystemPromptPopup)(currentPrompt, async (newPrompt) => {
+                // Save to DB and fire event
+                const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getInferenceSettings)() || DEFAULT_INFERENCE_SETTINGS;
+                const updatedSettings = { ...settings, system_prompt: newPrompt };
+                await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(updatedSettings);
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+                // Update textarea immediately
+                textarea.value = newPrompt;
+            });
+        };
+    }
+}
+async function resetSettingsToDefault() {
+    try {
+        if (LOG_GENERAL)
+            console.log(prefix, 'Resetting inference settings to default...');
+        await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveInferenceSettings)(DEFAULT_INFERENCE_SETTINGS);
+        await reloadSettingsFromDB();
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_2__.llmChannel.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
+        if (LOG_GENERAL)
+            console.log(prefix, 'Inference settings reset to default and UI reloaded.');
+    }
+    catch (e) {
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to reset settings to default:', e);
+    }
 }
 
 
@@ -3456,6 +3702,7 @@ function createDbWorker() {
 }
 // Helper to ensure dbWorker is not null
 function getDbWorker() {
+    console.log('[DEBUG] getDbWorker called. dbWorker:', dbWorker);
     if (!dbWorker)
         throw new AppError('WORKER_NOT_INITIALIZED', 'DB Worker is not initialized');
     return dbWorker;
@@ -4574,7 +4821,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbAttachment.ts
+
+
 
 
 
@@ -4590,15 +4841,17 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         this.updated_at = options.updated_at || now;
     }
     static async create(message_id, file_name, mime_type, data, dbWorker, options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Attachment.create.name, Attachment.name);
         const tempAtt = new Attachment(message_id, file_name, mime_type, data, dbWorker, options);
         return tempAtt.saveToDB();
     }
     static async read(id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Attachment.read.name, Attachment.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && event.data.result) {
                         const attData = event.data.result;
                         resolve(new Attachment(attData.message_id, attData.file_name, attData.mime_type, attData.data, dbWorker, { id: attData.id, created_at: attData.created_at, updated_at: attData.updated_at }));
@@ -4611,25 +4864,27 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, id], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for get attachment (id: ${id}) confirmation`));
             }, 5000);
         });
     }
     async update(updates) {
-        const { id, dbWorker, created_at, message_id, ...allowedUpdates } = updates;
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'update', this.constructor.name);
+        const { id, dbWorker, created_at, ...allowedUpdates } = updates;
         Object.assign(this, allowedUpdates);
         await this.saveToDB();
     }
     async delete() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'delete', this.constructor.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -4638,15 +4893,16 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, this.id], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for delete attachment (id: ${this.id}) confirmation`));
             }, 5000);
         });
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const requestId = crypto.randomUUID();
         const now = Date.now();
         this.updated_at = now;
@@ -4657,7 +4913,7 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -4669,24 +4925,25 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({
                 action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT,
                 payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, attachmentData],
                 requestId
             });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for attachment (id: ${this.id}) save confirmation`));
             }, 5000);
         });
     }
     static async getAllByMessageId(message_id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Attachment.getAllByMessageId.name, Attachment.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && Array.isArray(event.data.result)) {
                         const attachments = event.data.result.map((attData) => new Attachment(attData.message_id, attData.file_name, attData.mime_type, attData.data, dbWorker, { id: attData.id, created_at: attData.created_at, updated_at: attData.updated_at }));
                         resolve(attachments);
@@ -4699,14 +4956,31 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             const queryObj = { from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_ATTACHMENTS, where: { message_id: message_id }, orderBy: [{ field: 'message_id', direction: 'asc' }] };
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, queryObj], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for getAllByMessageId (message_id: ${message_id}) confirmation`));
             }, 5000);
         });
+    }
+    toJSON() {
+        return {
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_0__.DB_ENTITY_TYPES.Attachment,
+            id: this.id,
+            message_id: this.message_id,
+            file_name: this.file_name,
+            mime_type: this.mime_type,
+            data: this.data,
+            created_at: this.created_at,
+            updated_at: this.updated_at
+        };
+    }
+    static fromJSON(obj, dbWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate Attachment from null/undefined');
+        return new Attachment(obj.message_id, obj.file_name, obj.mime_type, obj.data, dbWorker, { id: obj.id, created_at: obj.created_at, updated_at: obj.updated_at });
     }
 }
 
@@ -4722,7 +4996,8 @@ class Attachment extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   BaseCRUD: () => (/* binding */ BaseCRUD)
+/* harmony export */   BaseCRUD: () => (/* binding */ BaseCRUD),
+/* harmony export */   DB_ENTITY_TYPES: () => (/* binding */ DB_ENTITY_TYPES)
 /* harmony export */ });
 // idbBase.ts
 // NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
@@ -4746,7 +5021,21 @@ class BaseCRUD {
     static async delete(_id, ..._args) {
         throw new Error('Static delete() not implemented');
     }
+    static fromJSON(_obj, _dbWorker) {
+        throw new Error('fromJSON must be implemented by subclasses');
+    }
 }
+const DB_ENTITY_TYPES = {
+    Chat: 'Chat',
+    Message: 'Message',
+    Attachment: 'Attachment',
+    Summary: 'Summary',
+    LogEntry: 'LogEntry',
+    KnowledgeGraphNode: 'KnowledgeGraphNode',
+    KnowledgeGraphEdge: 'KnowledgeGraphEdge',
+    Embedding: 'Embedding',
+    // ...add more as needed
+};
 
 
 /***/ }),
@@ -4768,6 +5057,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
 /* harmony import */ var _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./idbEmbedding */ "./src/DB/idbEmbedding.ts");
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbChat.ts
 // NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
 
@@ -4776,9 +5068,12 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+
+
 class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode {
-    constructor(id, title, dbWorker, kgn_created_at, kgn_updated_at, options = {}) {
-        super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Chat, title, dbWorker, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker);
+    constructor(id, title, kgn_created_at, kgn_updated_at, options = {}, dbWorker) {
+        super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Chat, title, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker, dbWorker);
         this.isStarred = false;
         this.status = 'idle';
         this.message_ids = [];
@@ -4797,7 +5092,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
     }
     toJSON() {
         return {
-            id: this.id,
+            ...super.toJSON(),
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_6__.DB_ENTITY_TYPES.Chat,
             user_id: this.user_id,
             tabId: this.tabId,
             chat_timestamp: this.chat_timestamp,
@@ -4808,15 +5104,27 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
             summary_ids: this.summary_ids,
             chat_metadata_json: this.chat_metadata_json,
             topic: this.topic,
-            domain: this.domain,
-            kgn_type: this.type,
-            kgn_label: this.label,
-            kgn_properties_json: this.properties_json,
-            kgn_embedding_id: this.embedding_id,
-            kgn_created_at: this.created_at,
-            kgn_updated_at: this.updated_at
-            // dbWorker and modelWorker are intentionally omitted
+            domain: this.domain
         };
+    }
+    static fromJSON(obj, dbWorker, modelWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate Chat from null/undefined');
+        return new Chat(obj.id, obj.title, obj.kgn_created_at || obj.chat_timestamp, obj.kgn_updated_at || obj.chat_timestamp, {
+            user_id: obj.user_id,
+            tabId: obj.tabId,
+            chat_timestamp: obj.chat_timestamp,
+            isStarred: obj.isStarred,
+            status: obj.status,
+            message_ids: obj.message_ids || [],
+            summary_ids: obj.summary_ids || [],
+            chat_metadata: obj.chat_metadata_json ? JSON.parse(obj.chat_metadata_json) : undefined,
+            topic: obj.topic,
+            domain: obj.domain,
+            kgn_properties: obj.kgn_properties_json ? JSON.parse(obj.kgn_properties_json) : undefined,
+            kgn_embedding_id: obj.kgn_embedding_id,
+            modelWorker: modelWorker
+        }, dbWorker);
     }
     get chat_metadata() {
         try {
@@ -4831,6 +5139,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         this.chat_metadata_json = data ? JSON.stringify(data) : undefined;
     }
     static async createChat(initialTitleOrPrompt, dbWorker, options = {}) {
+        console.log('[DEBUG] Chat.createChat called with dbWorker:', dbWorker);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.createChat.name, Chat.name);
         const chatId = options.id || crypto.randomUUID();
         const now = Date.now();
         const title = initialTitleOrPrompt.length > 50 ? initialTitleOrPrompt.split(' ').slice(0, 7).join(' ') + '...' : initialTitleOrPrompt;
@@ -4860,11 +5170,11 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
                 kgn_embedding_id_to_set = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.create(options.kgn_embeddingInput, vectorToSave, options.kgn_embeddingModel, dbWorker);
             }
         }
-        const chat = new Chat(chatId, title, dbWorker, now, now, {
+        const chat = new Chat(chatId, title, now, now, {
             user_id: options.user_id, tabId: options.tabId, chat_timestamp: now,
             isStarred: options.isStarred, status: options.status, topic: options.topic, domain: options.domain,
             kgn_properties: options.kgn_properties, kgn_embedding_id: kgn_embedding_id_to_set, modelWorker: options.modelWorker
-        });
+        }, dbWorker);
         await chat.saveToDB();
         if (initialTitleOrPrompt.length > title.length || (initialTitleOrPrompt && options.initialMessageSender)) {
             await chat.addMessage({
@@ -4878,6 +5188,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return dbChat;
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const now = Date.now();
         this.updated_at = now;
         if (!this.created_at) {
@@ -4905,7 +5216,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -4917,17 +5228,21 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS, chatDataForStore], requestId });
-            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout for DB_CHATS save (id: ${this.id})`)); }, 5000);
+            setTimeout(() => { this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout for DB_CHATS save (id: ${this.id})`)); }, 5000);
         });
     }
     static async read(id, dbWorker, modelWorker) {
+        console.log('[DEBUG] Chat.read called with dbWorker:', dbWorker);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.read.name, Chat.name);
+        if (!dbWorker)
+            throw new Error('dbWorker is required for Chat.read');
         const requestId = crypto.randomUUID();
         const chatData = await new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve(event.data.result);
                     }
@@ -4936,12 +5251,12 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS, id], requestId });
-            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting chat ${id}`)); }, 5000);
+            setTimeout(() => { dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout getting chat ${id}`)); }, 5000);
         });
         if (chatData) {
-            return new Chat(chatData.id, chatData.title, dbWorker, chatData.kgn_created_at, chatData.kgn_updated_at, {
+            return new Chat(chatData.id, chatData.title, chatData.kgn_created_at, chatData.kgn_updated_at, {
                 user_id: chatData.user_id, tabId: chatData.tabId, chat_timestamp: chatData.chat_timestamp,
                 isStarred: chatData.isStarred, status: chatData.status, message_ids: chatData.message_ids || [],
                 summary_ids: chatData.summary_ids || [],
@@ -4949,11 +5264,12 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
                 topic: chatData.topic, domain: chatData.domain,
                 kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
                 kgn_embedding_id: chatData.kgn_embedding_id, modelWorker: modelWorker
-            });
+            }, dbWorker);
         }
         return undefined;
     }
     async update(updates) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'update', this.constructor.name);
         const { ...allowedUpdates } = updates;
         if (allowedUpdates.title !== undefined) {
             this.title = allowedUpdates.title;
@@ -4977,6 +5293,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         await this.saveToDB();
     }
     async delete(options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'delete', this.constructor.name);
         const { deleteMessages = true, deleteSummaries = true, deleteKGNRels = true, deleteOrphanedEmbedding = false } = options;
         if (deleteMessages) {
             for (const msgId of this.message_ids) {
@@ -5001,7 +5318,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         await new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -5010,13 +5327,14 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS, this.id], requestId });
-            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting chat ${this.id} from DB_CHATS`)); }, 5000);
+            setTimeout(() => { this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout deleting chat ${this.id} from DB_CHATS`)); }, 5000);
         });
         await super.delete({ deleteOrphanedEmbedding, deleteEdges: deleteKGNRels });
     }
     async addMessage(data) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'addMessage', this.constructor.name);
         const content = data.text || (data.attachment ? data.attachment.file_name : (data.attachmentsData && data.attachmentsData.length > 0 ? data.attachmentsData[0].file_name : 'Message with attachments'));
         if (!data.text && !data.attachment && (!data.attachmentsData || data.attachmentsData.length === 0)) {
             throw new Error("Cannot add an empty message without text or attachments.");
@@ -5045,9 +5363,11 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return messageId;
     }
     async getMessage(messageId) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'getMessage', this.constructor.name);
         return _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(messageId, this.dbWorker, this.modelWorker);
     }
     async getMessages() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'getMessages', this.constructor.name);
         const messages = [];
         for (const msgId of this.message_ids) {
             const msg = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(msgId, this.dbWorker, this.modelWorker);
@@ -5057,6 +5377,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return messages;
     }
     async deleteMessage(messageId, deleteOptions = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'deleteMessage', this.constructor.name);
         const msg = await _idbMessage__WEBPACK_IMPORTED_MODULE_1__.Message.read(messageId, this.dbWorker, this.modelWorker);
         if (msg && msg.chat_id === this.id) {
             await msg.delete(deleteOptions);
@@ -5070,6 +5391,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return false;
     }
     async addSummary(message_ids_for_summary, summary_text, options) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'addSummary', this.constructor.name);
         const summaryId = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.create(this.id, // chat_id
         summary_text, this.dbWorker, {
             ...options,
@@ -5084,9 +5406,11 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return summaryId;
     }
     async getSummary(summaryId) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'getSummary', this.constructor.name);
         return _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
     }
     async getSummaries() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'getSummaries', this.constructor.name);
         const summaries = [];
         for (const summaryId of this.summary_ids) {
             const summary = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
@@ -5096,6 +5420,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return summaries;
     }
     async deleteSummary(summaryId) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'deleteSummary', this.constructor.name);
         const summary = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.read(summaryId, this.dbWorker);
         if (summary && summary.chat_id === this.id) {
             await summary.delete();
@@ -5109,6 +5434,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return false;
     }
     static async updateChat(chatId, updates, dbWorker, modelWorker) {
+        console.log('[DEBUG] Chat.updateChat called with dbWorker:', dbWorker);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.updateChat.name, Chat.name);
         const chat = await Chat.read(chatId, dbWorker, modelWorker);
         if (!chat)
             return { success: false, error: 'Chat not found' };
@@ -5122,6 +5449,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         }
     }
     static async deleteChat(chatId, dbWorker, modelWorker, options = {}) {
+        console.log('[DEBUG] Chat.deleteChat called with dbWorker:', dbWorker);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.deleteChat.name, Chat.name);
         const chat = await Chat.read(chatId, dbWorker, modelWorker);
         if (!chat)
             return { success: false, error: 'Chat not found' };
@@ -5134,6 +5463,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         }
     }
     static async addMessageToChat(chatId, data, dbWorker, modelWorker) {
+        console.log('[DEBUG] Chat.addMessageToChat called with dbWorker:', dbWorker);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.addMessageToChat.name, Chat.name);
         const chat = await Chat.read(chatId, dbWorker, modelWorker);
         if (!chat)
             return { success: false, error: 'Chat not found' };
@@ -5146,11 +5477,13 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         }
     }
     static async getAllChats(dbWorker) {
+        console.log('[DEBUG] Chat.getAllChats called with dbWorker:', dbWorker);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.getAllChats.name, Chat.name);
         const requestId = crypto.randomUUID();
         const chatDatas = await new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve(event.data.result);
                     }
@@ -5159,11 +5492,11 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.GET_ALL, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_CHATS], requestId });
-            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error('Timeout getting all chats')); }, 5000);
+            setTimeout(() => { dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage); reject(new Error('Timeout getting all chats')); }, 5000);
         });
-        return (chatDatas || []).map(chatData => new Chat(chatData.id, chatData.title, dbWorker, chatData.kgn_created_at, chatData.kgn_updated_at, {
+        return (chatDatas || []).map(chatData => new Chat(chatData.id, chatData.title, chatData.kgn_created_at, chatData.kgn_updated_at, {
             user_id: chatData.user_id, tabId: chatData.tabId, chat_timestamp: chatData.chat_timestamp,
             isStarred: chatData.isStarred, status: chatData.status, message_ids: chatData.message_ids || [],
             summary_ids: chatData.summary_ids || [],
@@ -5171,7 +5504,7 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
             topic: chatData.topic, domain: chatData.domain,
             kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
             kgn_embedding_id: chatData.kgn_embedding_id
-        }));
+        }, dbWorker));
     }
 }
 
@@ -5192,8 +5525,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbEmbedding.ts
 // NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
+
+
 
 
 
@@ -5218,6 +5555,7 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return new Float32Array(buf);
     }
     static async create(input, vectorData, model, dbWorker, options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Embedding.create.name, Embedding.name);
         const id = options.id || crypto.randomUUID();
         const now = Date.now();
         const vector = Embedding.toArrayBuffer(vectorData);
@@ -5225,6 +5563,7 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return embeddingInstance.saveToDB();
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const requestId = crypto.randomUUID();
         const now = Date.now();
         this.updated_at = now;
@@ -5237,7 +5576,7 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -5249,20 +5588,21 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, embeddingData], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for embedding (id: ${this.id}) save confirmation`));
             }, 5000);
         });
     }
     static async get(id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Embedding.get.name, Embedding.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && event.data.result) {
                         const embData = event.data.result;
                         resolve(new Embedding(embData.id, embData.input, embData.vector, embData.model, embData.created_at, embData.updated_at, dbWorker, embData.label));
@@ -5275,20 +5615,21 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, id], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for get embedding (id: ${id}) confirmation`));
             }, 5000);
         });
     }
     static async getByInputAndModel(input, model, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Embedding.getByInputAndModel.name, Embedding.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && Array.isArray(event.data.result)) {
                         const results = event.data.result;
                         if (results.length > 0) {
@@ -5307,11 +5648,11 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             const queryObj = { from: _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, where: { input: input, model: model }, limit: 1, orderBy: [{ field: 'input', direction: 'asc' }] };
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, queryObj], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for getByInputAndModel confirmation for input: "${input.substring(0, 30)}..."`));
             }, 5000);
         });
@@ -5325,11 +5666,12 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         await this.saveToDB();
     }
     async delete() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'delete', this.constructor.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -5338,20 +5680,21 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_EMBEDDINGS, this.id], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for delete embedding (id: ${this.id}) confirmation`));
             }, 5000);
         });
     }
     static async generateVectorWithModelWorker(input, model, modelWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(modelWorker, Embedding.generateVectorWithModelWorker.name, Embedding.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleModelResponse = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    modelWorker.removeEventListener('message', handleModelResponse);
+                    modelWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleModelResponse);
                     if (event.data.success && event.data.vector instanceof ArrayBuffer) {
                         resolve(event.data.vector);
                     }
@@ -5363,13 +5706,30 @@ class Embedding extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            modelWorker.addEventListener('message', handleModelResponse);
+            modelWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleModelResponse);
             modelWorker.postMessage({ action: 'generateEmbeddingVector', input, model, requestId });
             setTimeout(() => {
-                modelWorker.removeEventListener('message', handleModelResponse);
+                modelWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleModelResponse);
                 reject(new Error(`Timeout waiting for model worker to generate vector for input: "${input.substring(0, 30)}..."`));
             }, 15000);
         });
+    }
+    toJSON() {
+        return {
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_0__.DB_ENTITY_TYPES.Embedding,
+            id: this.id,
+            input: this.input,
+            vector: this.vector,
+            model: this.model,
+            created_at: this.created_at,
+            updated_at: this.updated_at,
+            label: this.label
+        };
+    }
+    static fromJSON(obj, dbWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate Embedding from null/undefined');
+        return new Embedding(obj.id, obj.input, obj.vector, obj.model, obj.created_at, obj.updated_at, dbWorker, obj.label);
     }
 }
 
@@ -5392,14 +5752,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbEmbedding */ "./src/DB/idbEmbedding.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbKnowledgeGraph.ts
 // NOTE: All DB worker messages should use { action: ... } not { type: ... } for action property.
 
 
 
 
+
+
 class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
-    constructor(id, type, label, dbWorker, created_at, updated_at, properties_json, embedding_id, modelWorker) {
+    constructor(id, type, label, created_at, updated_at, properties_json, embedding_id, modelWorker, dbWorker) {
         super(id, label, dbWorker);
         this.edgesOut = [];
         this.edgesIn = [];
@@ -5423,6 +5787,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         this.properties_json = data ? JSON.stringify(data) : undefined;
     }
     static async create(type, label, dbWorker, options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(dbWorker, KnowledgeGraphNode.create.name, KnowledgeGraphNode.name);
         const id = options.id || crypto.randomUUID();
         const now = Date.now();
         const properties_json = options.properties ? JSON.stringify(options.properties) : undefined;
@@ -5452,10 +5817,11 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                 embedding_id_to_set = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_1__.Embedding.create(options.embeddingInput, vectorToSave, options.embeddingModel, dbWorker);
             }
         }
-        const nodeInstance = new KnowledgeGraphNode(id, type, label, dbWorker, now, now, properties_json, embedding_id_to_set, options.modelWorker);
+        const nodeInstance = new KnowledgeGraphNode(id, type, label, now, now, properties_json, embedding_id_to_set, options.modelWorker, dbWorker);
         return nodeInstance.saveToDB();
     }
     static async read(id, dbWorker, modelWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(dbWorker, KnowledgeGraphNode.read.name, KnowledgeGraphNode.name);
         const nodeData = await KnowledgeGraphNode.getKGNNodeData(id, dbWorker);
         if (nodeData) {
             return KnowledgeGraphNode.fromKGNData(nodeData, dbWorker, modelWorker);
@@ -5463,14 +5829,15 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         return undefined;
     }
     static fromKGNData(data, dbWorker, modelWorker) {
-        return new KnowledgeGraphNode(data.id, data.type, data.label, dbWorker, data.created_at, data.updated_at, data.properties_json, data.embedding_id, modelWorker);
+        return new KnowledgeGraphNode(data.id, data.type, data.label, data.created_at, data.updated_at, data.properties_json, data.embedding_id, modelWorker, dbWorker);
     }
     static async getKGNNodeData(id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(dbWorker, KnowledgeGraphNode.getKGNNodeData.name, KnowledgeGraphNode.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve(event.data.result);
                     }
@@ -5479,15 +5846,16 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_NODES, id], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for get KGN node data (id: ${id}) confirmation`));
             }, 5000);
         });
     }
     async update(updates) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'update', this.constructor.name);
         const { id, dbWorker, modelWorker, created_at, edgesOut, edgesIn, embedding, type, ...allowedUpdates } = updates;
         if (allowedUpdates.properties && typeof allowedUpdates.properties === 'object') {
             this.properties = allowedUpdates.properties;
@@ -5497,6 +5865,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         await this.saveToDB();
     }
     async delete(options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'delete', this.constructor.name);
         const { deleteOrphanedEmbedding = false, deleteEdges = true } = options;
         if (deleteEdges) {
             await this.deleteAllEdges();
@@ -5511,7 +5880,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -5520,15 +5889,16 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_NODES, this.id], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for delete KGN node data (id: ${this.id}) confirmation`));
             }, 5000);
         });
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const requestId = crypto.randomUUID();
         const now = Date.now();
         this.updated_at = now;
@@ -5548,7 +5918,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -5560,19 +5930,20 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({
                 action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.PUT,
                 payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_NODES, nodeDataForStore],
                 requestId
             });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for node data (id: ${this.id}) save confirmation`));
             }, 5000);
         });
     }
     async getEmbedding() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'getEmbedding', this.constructor.name);
         if (this.embedding && this.embedding.id === this.embedding_id) {
             return this.embedding;
         }
@@ -5583,12 +5954,14 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         return undefined;
     }
     async addEdge(direction, target_node_id, edge_type, metadata) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'addEdge', this.constructor.name);
         const from_id = direction === 'out' ? this.id : target_node_id;
         const to_id = direction === 'out' ? target_node_id : this.id;
         const edgeId = await KnowledgeGraphEdge.create(from_id, to_id, edge_type, this.dbWorker, { metadata });
         return edgeId;
     }
     async fetchEdges(direction = 'both') {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'fetchEdges', this.constructor.name);
         const fetchedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, direction, this.dbWorker);
         if (direction === 'out') {
             this.edgesOut = fetchedEdges;
@@ -5614,6 +5987,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         }
     }
     async deleteEdge(edgeId) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'deleteEdge', this.constructor.name);
         const edge = await KnowledgeGraphEdge.read(edgeId, this.dbWorker);
         if (edge && (edge.from_node_id === this.id || edge.to_node_id === this.id)) {
             await edge.delete();
@@ -5624,6 +5998,7 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         return false;
     }
     async deleteAllEdges() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'deleteAllEdges', this.constructor.name);
         const allRelatedEdges = await KnowledgeGraphEdge.getEdgesByNodeId(this.id, 'both', this.dbWorker);
         const uniqueEdgeIds = Array.from(new Set(allRelatedEdges.map(e => e.id)));
         for (const edgeId of uniqueEdgeIds) {
@@ -5646,9 +6021,26 @@ class KnowledgeGraphNode extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         }
         return true;
     }
+    toJSON() {
+        return {
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_0__.DB_ENTITY_TYPES.KnowledgeGraphNode,
+            id: this.id,
+            type: this.type,
+            label: this.label,
+            properties_json: this.properties_json,
+            embedding_id: this.embedding_id,
+            created_at: this.created_at,
+            updated_at: this.updated_at
+        };
+    }
+    static fromJSON(obj, dbWorker, modelWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate KnowledgeGraphNode from null/undefined');
+        return new KnowledgeGraphNode(obj.id, obj.type, obj.label, obj.created_at, obj.updated_at, obj.properties_json, obj.embedding_id, modelWorker, dbWorker);
+    }
 }
 class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
-    constructor(id, from_node_id, to_node_id, edge_type, created_at, dbWorker, metadata_json, fromNode, toNode) {
+    constructor(id, from_node_id, to_node_id, edge_type, created_at, metadata_json, fromNode, toNode, dbWorker) {
         super(id, edge_type, dbWorker); // use edge_type as label for now
         this.from_node_id = from_node_id;
         this.to_node_id = to_node_id;
@@ -5673,13 +6065,15 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         this.metadata_json = data ? JSON.stringify(data) : undefined;
     }
     static async create(from_node_id, to_node_id, edge_type, dbWorker, options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(dbWorker, KnowledgeGraphEdge.create.name, KnowledgeGraphEdge.name);
         const id = options.id || crypto.randomUUID();
         const now = Date.now();
         const metadata_json = options.metadata ? JSON.stringify(options.metadata) : undefined;
-        const edgeInstance = new KnowledgeGraphEdge(id, from_node_id, to_node_id, edge_type, now, dbWorker, metadata_json);
+        const edgeInstance = new KnowledgeGraphEdge(id, from_node_id, to_node_id, edge_type, now, metadata_json, undefined, undefined, dbWorker);
         return edgeInstance.saveToDB();
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const requestId = crypto.randomUUID();
         if (!this.created_at) {
             this.created_at = Date.now();
@@ -5688,7 +6082,7 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -5700,19 +6094,20 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({
                 action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.PUT,
                 payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, edgeData],
                 requestId
             });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for edge (id: ${this.id}) save confirmation`));
             }, 5000);
         });
     }
     async update(updates) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'update', this.constructor.name);
         const { id, dbWorker, created_at, from_node_id, to_node_id, fromNode, toNode, ...allowedUpdates } = updates;
         if (allowedUpdates.metadata && typeof allowedUpdates.metadata === 'object') {
             this.metadata = allowedUpdates.metadata;
@@ -5722,11 +6117,12 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
         await this.saveToDB();
     }
     async delete() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(this, 'delete', this.constructor.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -5735,15 +6131,16 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, this.id], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for delete edge (id: ${this.id}) confirmation`));
             }, 5000);
         });
     }
     static async getEdgesByNodeId(nodeId, direction, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(dbWorker, KnowledgeGraphEdge.getEdgesByNodeId.name, KnowledgeGraphEdge.name);
         const results = [];
         const errors = [];
         const fetchDirection = async (dir) => {
@@ -5753,10 +6150,10 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
             return new Promise((resolveQuery, rejectQuery) => {
                 const handleMessage = (event) => {
                     if (event.data && event.data.requestId === requestId) {
-                        dbWorker.removeEventListener('message', handleMessage);
+                        dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                         if (event.data.success && Array.isArray(event.data.result)) {
                             event.data.result.forEach((edgeData) => {
-                                results.push(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, dbWorker, edgeData.metadata_json));
+                                results.push(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, edgeData.metadata_json, undefined, undefined, dbWorker));
                             });
                             resolveQuery();
                         }
@@ -5770,10 +6167,10 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                         }
                     }
                 };
-                dbWorker.addEventListener('message', handleMessage);
+                dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                 dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.QUERY, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, queryObj], requestId });
                 setTimeout(() => {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     const err = new Error(`Timeout for getEdgesByNodeId (node: ${nodeId}, dir: ${dir})`);
                     errors.push(err);
                     rejectQuery(err);
@@ -5799,14 +6196,15 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
      * For fetching all or filtered logs, use getAll or the filtering methods.
      */
     static async read(id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_4__.assertDbWorker)(dbWorker, KnowledgeGraphEdge.read.name, KnowledgeGraphEdge.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && event.data.result) {
                         const edgeData = event.data.result;
-                        resolve(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, dbWorker, edgeData.metadata_json));
+                        resolve(new KnowledgeGraphEdge(edgeData.id, edgeData.from_node_id, edgeData.to_node_id, edgeData.edge_type, edgeData.created_at, edgeData.metadata_json, undefined, undefined, dbWorker));
                     }
                     else if (event.data.success && !event.data.result) {
                         resolve(undefined);
@@ -5816,13 +6214,24 @@ class KnowledgeGraphEdge extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD 
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_2__.DBNames.DB_KNOWLEDGE_GRAPH_EDGES, id], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
-                reject(new Error(`Timeout waiting for get edge (id: ${id}) confirmation`));
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_5__.MESSAGE_EVENT, handleMessage);
+                reject(new Error(`Timeout waiting for get edge (id: ${id})`));
             }, 5000);
         });
+    }
+    toJSON() {
+        return {
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_0__.DB_ENTITY_TYPES.KnowledgeGraphEdge,
+            id: this.id,
+            from_node_id: this.from_node_id,
+            to_node_id: this.to_node_id,
+            edge_type: this.edge_type,
+            metadata_json: this.metadata_json,
+            created_at: this.created_at
+        };
     }
 }
 
@@ -5843,7 +6252,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbLog.ts
+
+
 
 
 
@@ -5858,13 +6271,14 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         this.chatSessionId = chatSessionId;
     }
     static async create(data, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.create.name, LogEntry.name);
         const id = crypto.randomUUID();
         const record = { id, ...data };
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -5873,10 +6287,10 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, record], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error('Timeout waiting for create log entry confirmation'));
             }, 5000);
         });
@@ -5886,11 +6300,12 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
      * For fetching all or filtered logs, use getAll or the filtering methods.
      */
     static async read(id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.read.name, LogEntry.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && event.data.result) {
                         const l = event.data.result;
                         resolve(new LogEntry(l.id, l.timestamp, l.level, l.message, l.component, l.extensionSessionId, dbWorker, l.chatSessionId));
@@ -5903,10 +6318,10 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, id], requestId });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for get log entry (id: ${id}) confirmation`));
             }, 5000);
         });
@@ -5916,11 +6331,12 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         await this.saveToDB();
     }
     async delete() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'delete', this.constructor.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -5929,15 +6345,16 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, this.id], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for delete log entry (id: ${this.id}) confirmation`));
             }, 5000);
         });
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const requestId = crypto.randomUUID();
         const record = {
             id: this.id,
@@ -5951,7 +6368,7 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -5960,15 +6377,16 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, record], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error('Timeout waiting for save log entry confirmation'));
             }, 5000);
         });
     }
     static async getAll(dbWorker, filters) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.getAll.name, LogEntry.name);
         const requestId = crypto.randomUUID();
         // Build where clause for queryObj
         let where = {};
@@ -5994,7 +6412,7 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && Array.isArray(event.data.result)) {
                         resolve(event.data.result.map((l) => new LogEntry(l.id, l.timestamp, l.level, l.message, l.component, l.extensionSessionId, dbWorker, l.chatSessionId)));
                     }
@@ -6006,29 +6424,50 @@ class LogEntry extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({
                 action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.QUERY,
                 payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_LOGS, queryObj],
                 requestId
             });
             setTimeout(() => {
-                dbWorker.removeEventListener('message', handleMessage);
+                dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                 reject(new Error('Timeout waiting for log query confirmation'));
             }, 5000);
         });
     }
     static async getByLevel(level, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.getByLevel.name, LogEntry.name);
         return LogEntry.getAll(dbWorker, { levels: [level] });
     }
     static async getByLevels(levels, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.getByLevels.name, LogEntry.name);
         return LogEntry.getAll(dbWorker, { levels });
     }
     static async getByComponent(component, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.getByComponent.name, LogEntry.name);
         return LogEntry.getAll(dbWorker, { component });
     }
     static async getByComponentAndLevels(component, levels, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, LogEntry.getByComponentAndLevels.name, LogEntry.name);
         return LogEntry.getAll(dbWorker, { component, levels });
+    }
+    toJSON() {
+        return {
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_0__.DB_ENTITY_TYPES.LogEntry,
+            id: this.id,
+            timestamp: this.timestamp,
+            level: this.level,
+            message: this.message,
+            component: this.component,
+            extensionSessionId: this.extensionSessionId,
+            chatSessionId: this.chatSessionId
+        };
+    }
+    static fromJSON(obj, dbWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate LogEntry from null/undefined');
+        return new LogEntry(obj.id, obj.timestamp, obj.level, obj.message, obj.component, obj.extensionSessionId, dbWorker, obj.chatSessionId);
     }
 }
 
@@ -6052,6 +6491,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
 /* harmony import */ var _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./idbEmbedding */ "./src/DB/idbEmbedding.ts");
+/* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbMessage.ts
 
 
@@ -6059,9 +6501,12 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+
+
 class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode {
-    constructor(id, chat_id, sender, content, dbWorker, timestamp, kgn_created_at, kgn_updated_at, options = {}) {
-        super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Message, content, dbWorker, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker);
+    constructor(id, chat_id, sender, content, timestamp, kgn_created_at, kgn_updated_at, options = {}, dbWorker) {
+        super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Message, content, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker, dbWorker);
         this.upvotes = 0;
         this.downvotes = 0;
         this.starred = false;
@@ -6090,6 +6535,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         this.metadata_json = data ? JSON.stringify(data) : undefined;
     }
     static async createMessage(chat_id, sender, content, dbWorker, options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Message.createMessage.name, Message.name);
         const messageId = options.id || crypto.randomUUID();
         const now = Date.now();
         const messageTimestamp = options.timestamp || now;
@@ -6119,7 +6565,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
                 kgn_embedding_id_to_set = await _idbEmbedding__WEBPACK_IMPORTED_MODULE_5__.Embedding.create(options.kgn_embeddingInput, vectorToSave, options.kgn_embeddingModel, dbWorker);
             }
         }
-        const msg = new Message(messageId, chat_id, sender, content, dbWorker, messageTimestamp, now, now, {
+        const msg = new Message(messageId, chat_id, sender, content, messageTimestamp, now, now, {
             message_type: options.message_type,
             metadata: options.metadata,
             attachment_ids: options.attachment_ids,
@@ -6129,11 +6575,12 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
             kgn_properties: options.kgn_properties,
             kgn_embedding_id: kgn_embedding_id_to_set,
             modelWorker: options.modelWorker
-        });
+        }, dbWorker);
         await msg.saveToDB();
         return messageId;
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const now = Date.now();
         this.updated_at = now;
         if (!this.created_at) {
@@ -6166,7 +6613,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -6178,20 +6625,21 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.PUT, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_MESSAGES, messageDataForStore], requestId });
             setTimeout(() => {
-                this.dbWorker.removeEventListener('message', handleMessage);
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                 reject(new Error(`Timeout waiting for DB_MESSAGES save (id: ${this.id}) confirmation`));
             }, 5000);
         });
     }
     static async read(id, dbWorker, modelWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, 'read', 'Message');
         const requestId = crypto.randomUUID();
         const messageData = await new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve(event.data.result);
                     }
@@ -6200,12 +6648,12 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_MESSAGES, id], requestId });
-            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting message ${id}`)); }, 5000);
+            setTimeout(() => { dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout getting message ${id}`)); }, 5000);
         });
         if (messageData) {
-            return new Message(messageData.id, messageData.chat_id, messageData.sender, messageData.content, dbWorker, messageData.timestamp, messageData.kgn_created_at, messageData.kgn_updated_at, {
+            return new Message(messageData.id, messageData.chat_id, messageData.sender, messageData.content, messageData.timestamp, messageData.kgn_created_at, messageData.kgn_updated_at, {
                 message_type: messageData.message_type,
                 metadata: messageData.metadata_json ? JSON.parse(messageData.metadata_json) : undefined,
                 attachment_ids: messageData.attachment_ids || [],
@@ -6213,11 +6661,12 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
                 kgn_properties: messageData.kgn_properties_json ? JSON.parse(messageData.kgn_properties_json) : undefined,
                 kgn_embedding_id: messageData.kgn_embedding_id,
                 modelWorker: modelWorker
-            });
+            }, dbWorker);
         }
         return undefined;
     }
     async update(updates) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'update', this.constructor.name);
         const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates;
         if (allowedUpdates.content !== undefined) {
             this.content = allowedUpdates.content;
@@ -6241,6 +6690,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         await this.saveToDB();
     }
     async delete(options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'delete', this.constructor.name);
         const { deleteAttachments = true, deleteKGNRels = true, deleteOrphanedEmbedding = false } = options;
         if (deleteAttachments) {
             for (const attId of this.attachment_ids) {
@@ -6255,7 +6705,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         await new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -6264,13 +6714,14 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_4__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.DBNames.DB_MESSAGES, this.id], requestId });
-            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting message ${this.id} from DB_MESSAGES`)); }, 5000);
+            setTimeout(() => { this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_8__.MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout deleting message ${this.id} from DB_MESSAGES`)); }, 5000);
         });
         await super.delete({ deleteOrphanedEmbedding, deleteEdges: deleteKGNRels });
     }
     async addAttachment(fileData) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'addAttachment', this.constructor.name);
         const newAttachmentId = await _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.create(this.id, fileData.file_name, fileData.mime_type, fileData.data, this.dbWorker);
         if (!this.attachment_ids.includes(newAttachmentId)) {
             this.attachment_ids.push(newAttachmentId);
@@ -6279,12 +6730,14 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
         return newAttachmentId;
     }
     async getAttachments() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'getAttachments', this.constructor.name);
         if (!this.attachment_ids || this.attachment_ids.length === 0) {
             return [];
         }
         return _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.getAllByMessageId(this.id, this.dbWorker);
     }
     async deleteAttachment(attachmentIdToDelete) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'deleteAttachment', this.constructor.name);
         const att = await _idbAttachment__WEBPACK_IMPORTED_MODULE_1__.Attachment.read(attachmentIdToDelete, this.dbWorker);
         if (att && att.message_id === this.id) {
             await att.delete();
@@ -6301,6 +6754,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
     async downvote() { this.downvotes++; await this.update({ downvotes: this.downvotes }); }
     async toggleStarred() { this.starred = !this.starred; await this.update({ starred: this.starred }); }
     async addSummary(summary_text, options) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'addSummary', this.constructor.name);
         const summaryId = await _idbSummary__WEBPACK_IMPORTED_MODULE_2__.Summary.create(this.id, // message id as chat_id/parent_id
         summary_text, this.dbWorker, {
             ...options,
@@ -6314,7 +6768,8 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
     }
     toJSON() {
         return {
-            id: this.id,
+            ...super.toJSON(),
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_6__.DB_ENTITY_TYPES.Message,
             chat_id: this.chat_id,
             timestamp: this.timestamp,
             sender: this.sender,
@@ -6326,8 +6781,23 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
             starred: this.starred,
             attachment_ids: this.attachment_ids,
             summary_id: this.summary_id,
-            attachments: this.attachments,
+            attachments: this.attachments
         };
+    }
+    static fromJSON(obj, dbWorker, modelWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate Message from null/undefined');
+        return new Message(obj.id, obj.chat_id, obj.sender, obj.content, obj.timestamp, obj.kgn_created_at || obj.timestamp, obj.kgn_updated_at || obj.timestamp, {
+            message_type: obj.message_type,
+            metadata: obj.metadata_json ? JSON.parse(obj.metadata_json) : undefined,
+            attachment_ids: obj.attachment_ids || [],
+            upvotes: obj.upvotes,
+            downvotes: obj.downvotes,
+            starred: obj.starred,
+            kgn_properties: obj.kgn_properties_json ? JSON.parse(obj.kgn_properties_json) : undefined,
+            kgn_embedding_id: obj.kgn_embedding_id,
+            modelWorker: modelWorker
+        }, dbWorker);
     }
 }
 
@@ -6376,6 +6846,7 @@ const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
+const LOG_INFERENCE_SETTINGS = true;
 // Canonical opener for model cache DB
 async function openModelCacheDB() {
     if (LOG_GENERAL)
@@ -6622,7 +7093,8 @@ async function filterAndValidateFilesInternal(metadata, modelId, baseRepoUrl) {
             }
         }
         catch (e) {
-            console.warn('[ModelMetadata]', `HEAD request failed for ${url}:`, e);
+            if (LOG_WARN)
+                console.warn(prefix, `HEAD request failed for ${url}:`, e);
         }
         return null;
     }
@@ -6670,10 +7142,26 @@ async function getAllManifestEntries() {
         const store = tx.objectStore('manifest');
         const req = store.getAll();
         req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getAllManifestEntries] result:', req.result);
             resolve(req.result || []);
         };
         req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getAllManifestEntries] error:', req.error);
             reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[getAllManifestEntries] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getAllManifestEntries] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getAllManifestEntries] transaction aborted:', e);
         };
     });
 }
@@ -6684,8 +7172,28 @@ async function saveInferenceSettings(settings) {
         const tx = db.transaction('inferenceSettings', 'readwrite');
         const store = tx.objectStore('inferenceSettings');
         const req = store.put({ id: _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__.INFERENCE_SETTINGS_SINGLETON_ID, ...settings });
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[saveInferenceSettings] success:', settings);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveInferenceSettings] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[saveInferenceSettings] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveInferenceSettings] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveInferenceSettings] transaction aborted:', e);
+        };
     });
 }
 // Get settings
@@ -6695,8 +7203,28 @@ async function getInferenceSettings() {
         const tx = db.transaction('inferenceSettings', 'readonly');
         const store = tx.objectStore('inferenceSettings');
         const req = store.get(_Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__.INFERENCE_SETTINGS_SINGLETON_ID);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[getInferenceSettings] result:', req.result);
+            resolve(req.result || null);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getInferenceSettings] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_INFERENCE_SETTINGS)
+                console.log(prefix, '[getInferenceSettings] transaction complete');
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getInferenceSettings] transaction error:', e);
+        };
+        tx.onabort = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[getInferenceSettings] transaction aborted:', e);
+        };
     });
 }
 
@@ -6825,7 +7353,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _idbBase__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./idbBase */ "./src/DB/idbBase.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _dbActions__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./dbActions */ "./src/DB/dbActions.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 // idbSummary.ts
+
+
 
 
 
@@ -6850,6 +7382,7 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         this.embedding_id = options.embedding_id;
     }
     static async create(chat_id, summary_text, dbWorker, options = {}) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Summary.create.name, Summary.name);
         const id = options.id || crypto.randomUUID();
         const now = Date.now();
         const summaryInstance = new Summary(id, chat_id, summary_text, dbWorker, now, now, options);
@@ -6868,11 +7401,12 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         this.metadata_json = data ? JSON.stringify(data) : undefined;
     }
     static async read(id, dbWorker) {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(dbWorker, Summary.read.name, Summary.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    dbWorker.removeEventListener('message', handleMessage);
+                    dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && event.data.result) {
                         const sd = event.data.result;
                         resolve(new Summary(sd.id, sd.chat_id, sd.summary_text, dbWorker, sd.created_at, sd.updated_at, { message_ids: sd.message_ids, parent_summary_id: sd.parent_summary_id, start_message_id: sd.start_message_id, end_message_id: sd.end_message_id, start_timestamp: sd.start_timestamp, end_timestamp: sd.end_timestamp, token_count: sd.token_count, metadata: sd.metadata_json ? JSON.parse(sd.metadata_json) : undefined, embedding_id: sd.embedding_id }));
@@ -6885,9 +7419,9 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            dbWorker.addEventListener('message', handleMessage);
+            dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.GET, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_CHAT_SUMMARIES, id], requestId });
-            setTimeout(() => { dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout getting summary ${id}`)); }, 5000);
+            setTimeout(() => { dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage); reject(new Error(`Timeout getting summary ${id}`)); }, 5000);
         });
     }
     async update(updates) {
@@ -6897,14 +7431,16 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
             delete allowedUpdates.metadata;
         }
         Object.assign(this, allowedUpdates);
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'update', this.constructor.name);
         await this.saveToDB();
     }
     async delete() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'delete', this.constructor.name);
         const requestId = crypto.randomUUID();
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success) {
                         resolve();
                     }
@@ -6913,12 +7449,16 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.DELETE, payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_CHAT_SUMMARIES, this.id], requestId });
-            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout deleting summary ${this.id}`)); }, 5000);
+            setTimeout(() => {
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
+                reject(new Error(`Timeout deleting summary ${this.id}`));
+            }, 5000);
         });
     }
     async saveToDB() {
+        (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_3__.assertDbWorker)(this, 'saveToDB', this.constructor.name);
         const requestId = crypto.randomUUID();
         const now = Date.now();
         this.updated_at = now;
@@ -6929,7 +7469,7 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
-                    this.dbWorker.removeEventListener('message', handleMessage);
+                    this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
                     if (event.data.success && typeof event.data.result === 'string') {
                         resolve(event.data.result);
                     }
@@ -6941,13 +7481,50 @@ class Summary extends _idbBase__WEBPACK_IMPORTED_MODULE_0__.BaseCRUD {
                     }
                 }
             };
-            this.dbWorker.addEventListener('message', handleMessage);
+            this.dbWorker.addEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
             this.dbWorker.postMessage({
                 action: _dbActions__WEBPACK_IMPORTED_MODULE_2__.DBActions.PUT,
                 payload: [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_USER_DATA, _idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_CHAT_SUMMARIES, summaryData],
                 requestId
             });
-            setTimeout(() => { this.dbWorker.removeEventListener('message', handleMessage); reject(new Error(`Timeout saving summary ${this.id}`)); }, 5000);
+            setTimeout(() => {
+                this.dbWorker.removeEventListener(_Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__.MESSAGE_EVENT, handleMessage);
+                reject(new Error(`Timeout saving summary ${this.id}`));
+            }, 5000);
+        });
+    }
+    toJSON() {
+        return {
+            __type: _idbBase__WEBPACK_IMPORTED_MODULE_0__.DB_ENTITY_TYPES.Summary,
+            id: this.id,
+            chat_id: this.chat_id,
+            summary_text: this.summary_text,
+            message_ids: this.message_ids,
+            parent_summary_id: this.parent_summary_id,
+            start_message_id: this.start_message_id,
+            end_message_id: this.end_message_id,
+            start_timestamp: this.start_timestamp,
+            end_timestamp: this.end_timestamp,
+            token_count: this.token_count,
+            metadata_json: this.metadata_json,
+            created_at: this.created_at,
+            updated_at: this.updated_at,
+            embedding_id: this.embedding_id
+        };
+    }
+    static fromJSON(obj, dbWorker) {
+        if (!obj)
+            throw new Error('Cannot hydrate Summary from null/undefined');
+        return new Summary(obj.id, obj.chat_id, obj.summary_text, dbWorker, obj.created_at, obj.updated_at, {
+            message_ids: obj.message_ids || [],
+            parent_summary_id: obj.parent_summary_id,
+            start_message_id: obj.start_message_id,
+            end_message_id: obj.end_message_id,
+            start_timestamp: obj.start_timestamp,
+            end_timestamp: obj.end_timestamp,
+            token_count: obj.token_count,
+            metadata: obj.metadata_json ? JSON.parse(obj.metadata_json) : undefined,
+            embedding_id: obj.embedding_id
         });
     }
 }
@@ -6977,6 +7554,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../DB/idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _assets_icons_copy_svg__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../assets/icons/copy.svg */ "./src/assets/icons/copy.svg");
+/* harmony import */ var _assets_icons_download_svg__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../assets/icons/download.svg */ "./src/assets/icons/download.svg");
+
+
 
 
 
@@ -7187,7 +7768,7 @@ function renderSingleMessage(msg) {
     const actionsContainer = document.createElement('div');
     actionsContainer.className = 'actions-container absolute top-1 right-1 transition-opacity flex space-x-1 z-10';
     const copyButton = document.createElement('button');
-    copyButton.innerHTML = '<img src="icons/copy.svg" alt="Copy" class="w-4 h-4">';
+    copyButton.innerHTML = `<img src="${_assets_icons_copy_svg__WEBPACK_IMPORTED_MODULE_5__}" alt="Copy" class="w-4 h-4">`;
     copyButton.title = 'Copy message text';
     copyButton.onclick = () => {
         let textToCopy = displayContent;
@@ -7201,7 +7782,7 @@ function renderSingleMessage(msg) {
     actionsContainer.appendChild(copyButton);
     if (msg.metadata?.type === 'scrape_result_full' && msg.metadata.scrapeData) {
         const downloadButton = document.createElement('button');
-        downloadButton.innerHTML = '<img src="icons/download.svg" alt="Download" class="w-4 h-4">';
+        downloadButton.innerHTML = `<img src="${_assets_icons_download_svg__WEBPACK_IMPORTED_MODULE_6__}" alt="Download" class="w-4 h-4">`;
         downloadButton.title = 'Download scrape data as JSON';
         downloadButton.onclick = () => {
             console.log('Download clicked for:', msg.metadata.scrapeData); // Placeholder
@@ -7317,8 +7898,8 @@ function renderSingleMessage(msg) {
                 let languageHint = actualLanguageString.trim();
                 let safeLanguage = escapeHtmlEntities(languageHint || 'plaintext');
                 let langClass = `language-${safeLanguage}`;
-                const copyIcon = '<img src="icons/copy.svg" alt="Copy code" class="w-4 h-4">';
-                const downloadIcon = '<img src="icons/download.svg" alt="Download code" class="w-4 h-4">';
+                const copyIconHtml = `<img src="${_assets_icons_copy_svg__WEBPACK_IMPORTED_MODULE_5__}" alt="Copy code" class="w-4 h-4">`;
+                const downloadIconHtml = `<img src="${_assets_icons_download_svg__WEBPACK_IMPORTED_MODULE_6__}" alt="Download code" class="w-4 h-4">`;
                 const encodedCodeForAttr = encodeURIComponent(actualCodeString);
                 let highlightedCodeForDisplay = '';
                 if (window.hljs) {
@@ -7361,10 +7942,10 @@ function renderSingleMessage(msg) {
         <span class="code-language text-xs text-gray-300 dark:text-gray-400 font-semibold">${safeLanguage}</span>
         <div class="code-actions flex space-x-2">
             <button class="code-action-copy-snippet p-1 rounded text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700" title="Copy code" data-code="${encodedCodeForAttr}">
-                ${copyIcon}
+                ${copyIconHtml}
             </button>
             <button class="code-action-download-snippet p-1 rounded text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700" title="Download ${safeLanguage} snippet" data-code="${encodedCodeForAttr}" data-lang="${safeLanguage}">
-                ${downloadIcon}
+                ${downloadIconHtml}
             </button>
         </div>
     </div>
@@ -7669,362 +8250,461 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
 /* harmony import */ var _chatRenderer__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./chatRenderer */ "./src/Home/chatRenderer.ts");
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _DB_idbMessage__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../DB/idbMessage */ "./src/DB/idbMessage.ts");
+/* harmony import */ var _DB_idbBase__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../DB/idbBase */ "./src/DB/idbBase.ts");
 
 
 
 
 
 
-let getActiveSessionIdFunc = null;
-let onSessionCreatedCallback = null;
-let getCurrentTabIdFunc = null;
-let isSendingMessage = false; // TODO: Remove this and rely on status check via DB event
-function requestDbAndWait(requestEvent) {
-    return new Promise((resolve, reject) => {
-        (async () => {
-            try {
-                const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(requestEvent);
-                console.log('[Trace][sidepanel] requestDbAndWait: Raw result', result);
-                const response = Array.isArray(result) ? result[0] : result;
-                if (response && (response.success || response.error === undefined)) {
-                    resolve(response.data || response.payload);
-                }
-                else {
-                    reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
-                }
-            }
-            catch (error) {
-                reject(error);
-            }
-        })();
-    });
-}
-/**
- * Fetches the full chat history for a session and formats it for the model worker.
- * Only includes user and ai messages, mapping sender to role.
- * @param sessionId The chat session ID
- * @returns Promise<Array<{role: string, content: string}>>
- */
-async function getChatHistoryForModel(sessionId) {
-    const sessionData = await requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbGetSessionRequest(sessionId));
-    if (!sessionData || !Array.isArray(sessionData.messages))
-        return [];
-    return sessionData.messages
-        .filter((m) => m.sender === 'user' || m.sender === 'ai')
-        .map((m) => ({
-        role: m.sender === 'user' ? 'user' : 'assistant',
-        content: m.text || m.content || ''
-    }));
-}
-async function handleQuerySubmit(data) {
-    const { text } = data;
-    console.log(`[Orchestrator: handleQuerySubmit] received event with text: "${text}"`);
-    if (isSendingMessage) {
-        console.warn("[Orchestrator handleQuerySubmit]: Already processing a previous submission.");
-        return;
+
+
+class ChatOrchestrator {
+    constructor() {
+        this.getActiveSessionId = null;
+        this.onSessionCreated = null;
+        this.getCurrentTabId = null;
+        this.isSendingMessage = false;
+        this.prefix = '[Orchestrator]';
+        this.LOG_GENERAL = true;
+        this.LOG_DEBUG = true;
+        this.LOG_ERROR = true;
+        this.LOG_WARN = true;
     }
-    isSendingMessage = true;
-    let sessionId = getActiveSessionIdFunc ? getActiveSessionIdFunc() : null;
-    const currentTabId = getCurrentTabIdFunc ? getCurrentTabIdFunc() : null;
-    let placeholderMessageId = null;
-    console.log(`[Orchestrator: handleQuerySubmit] Processing submission. Text: "${text}". Session: ${sessionId}`);
-    const isURL = _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.URL_REGEX.test(text);
-    try {
-        (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
-        const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
-        if (!sessionId) {
-            console.log("[Orchestrator: handleQuerySubmit] No active session, creating new one via event.");
-            const createRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCreateSessionRequest(userMessage);
-            const createResponse = await requestDbAndWait(createRequest);
-            sessionId = createResponse.newSessionId;
-            if (onSessionCreatedCallback) {
-                onSessionCreatedCallback(sessionId);
+    initialize(dependencies) {
+        this.validateDependencies(dependencies);
+        this.setupDependencies(dependencies);
+        this.setupEventListeners();
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, 'Orchestrator initialized successfully');
+    }
+    validateDependencies(dependencies) {
+        const { getActiveSessionIdFunc, onSessionCreatedCallback, getCurrentTabIdFunc } = dependencies;
+        if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
+            if (this.LOG_ERROR)
+                console.error(this.prefix, 'Missing required dependencies during initialization');
+            throw new Error('Missing required orchestrator dependencies');
+        }
+    }
+    setupDependencies(dependencies) {
+        this.getActiveSessionId = dependencies.getActiveSessionIdFunc;
+        this.getCurrentTabId = dependencies.getCurrentTabIdFunc;
+        this.onSessionCreated = (sessionId) => {
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `Session created: ${sessionId}`);
+            dependencies.onSessionCreatedCallback(sessionId);
+        };
+    }
+    setupEventListeners() {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.QUERY_SUBMITTED, (e) => this.handleQuerySubmit(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => this.handleBackgroundMsgResponse(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => this.handleBackgroundMsgError(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, (e) => this.handleBackgroundScrapeStage(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, (e) => this.handleBackgroundDirectScrapeResult(e.detail));
+    }
+    showUiOnlyWarning(msg) {
+        let warningDiv = document.getElementById('ui-only-warning');
+        if (!warningDiv) {
+            warningDiv = document.createElement('div');
+            warningDiv.id = 'ui-only-warning';
+            warningDiv.style.background = '#fef3c7';
+            warningDiv.style.color = '#92400e';
+            warningDiv.style.border = '1px solid #fde68a';
+            warningDiv.style.borderRadius = '6px';
+            warningDiv.style.padding = '6px 12px';
+            warningDiv.style.margin = '8px 0';
+            warningDiv.style.fontSize = '0.95em';
+            warningDiv.style.textAlign = 'center';
+            warningDiv.style.zIndex = '100';
+            const inputArea = document.getElementById('input-area') || document.getElementById('chat-input-container');
+            if (inputArea && inputArea.parentNode) {
+                inputArea.parentNode.insertBefore(warningDiv, inputArea);
             }
             else {
-                console.error("[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!");
-                throw new Error("Configuration error: Cannot notify about new session.");
+                document.body.appendChild(warningDiv);
             }
         }
-        else {
-            console.log(`[Orchestrator: handleQuerySubmit] Adding user message to existing session ${sessionId} via event.`);
-            (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
-            const addRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, userMessage);
-            await requestDbAndWait(addRequest);
-        }
-        console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'processing' via event`);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'processing');
-        await requestDbAndWait(statusRequest);
-        let placeholder;
-        if (isURL) {
-            placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
-        }
-        else {
-            placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
-        }
-        console.log(`[Orchestrator: handleQuerySubmit] Adding placeholder to session ${sessionId} via event.`);
-        const addPlaceholderRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, placeholder);
-        const placeholderResponse = await requestDbAndWait(addPlaceholderRequest);
-        console.log(`[Orchestrator: handleQuerySubmit] Placeholder response:`, placeholderResponse);
-        placeholderMessageId = placeholderResponse.newMessageId;
-        if (typeof placeholderMessageId !== 'string' && placeholderMessageId && placeholderMessageId.newMessageId) {
-            placeholderMessageId = placeholderMessageId.newMessageId;
-        }
-        // Log the type and value for debugging
-        if (typeof placeholderMessageId === 'string') {
-            console.log(`[Orchestrator: handleQuerySubmit] placeholderMessageId (string):`, placeholderMessageId);
-        }
-        else {
-            console.warn(`[Orchestrator: handleQuerySubmit] placeholderMessageId is not a string! Full value:`, placeholderMessageId);
-        }
-        if (isURL) {
-            // Always send scrape request to background, let background decide how to scrape
-            try {
-                const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SCRAPE_REQUEST,
-                    payload: {
-                        url: text,
-                        chatId: sessionId,
-                        messageId: placeholderMessageId,
-                        tabId: currentTabId
+        warningDiv.textContent = msg;
+        warningDiv.style.display = '';
+        setTimeout(() => {
+            if (warningDiv)
+                warningDiv.style.display = 'none';
+        }, 3500);
+    }
+    async requestDbAndWait(requestEvent) {
+        return new Promise((resolve, reject) => {
+            (async () => {
+                try {
+                    const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendDbRequestSmart)(requestEvent);
+                    if (this.LOG_DEBUG)
+                        console.log(this.prefix, 'requestDbAndWait: Raw result', result);
+                    const response = Array.isArray(result) ? result[0] : result;
+                    if (response && (response.success || response.error === undefined)) {
+                        resolve(response.data || response.payload);
                     }
-                });
-                console.log("[Orchestrator: handleQuerySubmit] SCRAPE_REQUEST sent to background.", response);
-            }
-            catch (error) {
-                const errObj = error;
-                console.error('[Orchestrator: handleQuerySubmit] Error sending SCRAPE_REQUEST:', errObj.message);
-                const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
-                    isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${errObj.message}`
-                });
-                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error:", e));
-                requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error:", e));
-                isSendingMessage = false;
-            }
+                    else {
+                        reject(new Error(response?.error || `DB operation ${requestEvent.type} failed`));
+                    }
+                }
+                catch (error) {
+                    reject(error);
+                }
+            })();
+        });
+    }
+    async getChatHistoryForModel(sessionId) {
+        const sessionData = await this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbGetSessionRequest(sessionId));
+        if (!sessionData || !Array.isArray(sessionData.messages))
+            return [];
+        return sessionData.messages
+            // Hydrate Message for business logic only; dbWorker is not needed
+            .map((m) => m.__type === _DB_idbBase__WEBPACK_IMPORTED_MODULE_7__.DB_ENTITY_TYPES.Message ? _DB_idbMessage__WEBPACK_IMPORTED_MODULE_6__.Message.fromJSON(m) : m)
+            .filter((m) => m.sender === 'user' || m.sender === 'ai')
+            .map((m) => ({
+            role: m.sender === 'user' ? 'user' : 'assistant',
+            content: m.content || ''
+        }));
+    }
+    async handleQuerySubmit(data) {
+        const { text } = data;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
+        if (this.isSendingMessage) {
+            console.warn('[Orchestrator handleQuerySubmit]: Already processing a previous submission.');
+            return;
         }
-        else {
-            // Instead of sending to background, send directly to model worker
-            console.log("[Orchestrator: handleQuerySubmit] Fetching full chat history for model worker.");
-            let history = [];
-            try {
-                history = await getChatHistoryForModel(sessionId);
-            }
-            catch (e) {
-                console.error('[Orchestrator: handleQuerySubmit] Failed to fetch chat history:', e);
-                history = [{ role: 'user', content: text }]; // fallback
-            }
-            const messagePayload = {
-                chatId: sessionId,
-                messages: history,
-                options: { /* model, temp, etc */},
-                messageId: placeholderMessageId
-            };
-            try {
-                (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendToModelWorker)({ type: 'generate', payload: messagePayload });
-                // No need to await a response here; model worker will post back via events
-            }
-            catch (error) {
-                const errObj = error;
-                console.error('[Orchestrator: handleQuerySubmit] Error sending query to model worker:', errObj);
-                const errorText = errObj && typeof errObj.message === 'string' ? errObj.message : 'Unknown error during send/ack';
-                const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
-                const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
-                requestDbAndWait(errorUpdateRequest).catch(e => console.error("Failed to update placeholder on send error (within catch):", e));
-                requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on send error (within catch):", e));
-                isSendingMessage = false; // Reset flag on send error
-            }
+        this.isSendingMessage = true;
+        let sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
+        const currentTabId = this.getCurrentTabId ? this.getCurrentTabId() : null;
+        let placeholderMessageId = null;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleQuerySubmit: Processing submission. Text: "${text}". Session: ${sessionId}`);
+        const isURL = _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.URL_REGEX.test(text);
+        if (!isURL && !(0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.isModelLoaded)()) {
+            this.showUiOnlyWarning('Please load a model first.');
+            this.isSendingMessage = false;
+            return;
         }
-    }
-    catch (error) {
-        const errObj = error;
-        console.error("[Orchestrator: handleQuerySubmit] Error processing query submission:", errObj);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error: ${errObj.message || errObj}`);
-        if (sessionId) {
-            console.log(`[Orchestrator: handleQuerySubmit] Setting session ${sessionId} status to 'error' due to processing failure via event`);
-            requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => console.error("Failed to set session status on processing error:", e));
-        }
-        else {
-            console.error("[Orchestrator: handleQuerySubmit] Error occurred before session ID was established.");
-        }
-        isSendingMessage = false;
-    }
-}
-async function handleBackgroundMsgResponse(message) {
-    const { chatId, messageId, text } = message;
-    console.log(`[Orchestrator: handleBackgroundMsgResponse] for chat ${chatId}, placeholder ${messageId}`);
-    try {
-        const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
-        const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        console.log(`[Orchestrator: handleBackgroundMsgResponse] Setting session ${chatId} status to 'idle' after response via event`);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'idle');
-        await requestDbAndWait(statusRequest);
-    }
-    catch (error) {
-        const errObj = error;
-        console.error(`[Orchestrator: handleBackgroundMsgResponse] Error handling background response for chat ${chatId}:`, errObj);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with response: ${errObj.message || errObj}`);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
-        requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on response processing error:", e));
-    }
-    finally {
-        isSendingMessage = false; // TODO: Remove later
-    }
-}
-async function handleBackgroundMsgError(message) {
-    console.error(`[Orchestrator: handleBackgroundMsgError] Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
-    (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`); // Show global error regardless
-    const sessionId = getActiveSessionIdFunc ? getActiveSessionIdFunc() : null; // Get current session ID
-    if (sessionId && message.chatId === sessionId && message.messageId) {
-        // Only update DB if the error belongs to the *active* session and has a message ID
-        console.log(`[Orchestrator: handleBackgroundMsgError] Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
-        const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
-        const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error');
         try {
-            await requestDbAndWait(errorUpdateRequest);
-            console.log(`[Orchestrator: handleBackgroundMsgError] Error message update successful for session ${sessionId}.`);
-            await requestDbAndWait(statusRequest);
-            console.log(`[Orchestrator: handleBackgroundMsgError] Session ${sessionId} status set to 'error'.`);
+            (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
+            const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
+            if (!sessionId) {
+                if (this.LOG_GENERAL)
+                    console.log(this.prefix, 'handleQuerySubmit: No active session, creating new one via event.');
+                const createRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbCreateSessionRequest(userMessage);
+                const createResponse = await this.requestDbAndWait(createRequest);
+                sessionId = createResponse.newSessionId;
+                if (this.onSessionCreated) {
+                    this.onSessionCreated(sessionId);
+                }
+                else {
+                    console.error('[Orchestrator: handleQuerySubmit] onSessionCreatedCallback is missing!');
+                    throw new Error('Configuration error: Cannot notify about new session.');
+                }
+            }
+            else {
+                if (this.LOG_GENERAL)
+                    console.log(this.prefix, `handleQuerySubmit: Adding user message to existing session ${sessionId} via event.`);
+                (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
+                const addRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, userMessage);
+                await this.requestDbAndWait(addRequest);
+            }
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleQuerySubmit: Setting session ${sessionId} status to 'processing' via event`);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'processing');
+            await this.requestDbAndWait(statusRequest);
+            let placeholder;
+            if (isURL) {
+                placeholder = { sender: 'system', text: `⏳ Scraping ${text}...`, timestamp: Date.now(), isLoading: true };
+            }
+            else {
+                placeholder = { sender: 'ai', text: 'Thinking...', timestamp: Date.now(), isLoading: true };
+            }
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleQuerySubmit: Adding placeholder to session ${sessionId} via event.`);
+            const addPlaceholderRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbAddMessageRequest(sessionId, placeholder);
+            const placeholderResponse = await this.requestDbAndWait(addPlaceholderRequest);
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, 'handleQuerySubmit: Placeholder response:', placeholderResponse);
+            placeholderMessageId = placeholderResponse.newMessageId;
+            if (typeof placeholderMessageId !== 'string' && placeholderMessageId && placeholderMessageId.newMessageId) {
+                placeholderMessageId = placeholderMessageId.newMessageId;
+            }
+            if (typeof placeholderMessageId === 'string') {
+                if (this.LOG_GENERAL)
+                    console.log(this.prefix, 'handleQuerySubmit: placeholderMessageId (string):', placeholderMessageId);
+            }
+            else {
+                if (this.LOG_WARN)
+                    console.warn(this.prefix, 'handleQuerySubmit: placeholderMessageId is not a string! Full value:', placeholderMessageId);
+            }
+            if (isURL) {
+                try {
+                    const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_5__.RuntimeMessageTypes.SCRAPE_REQUEST,
+                        payload: {
+                            url: text,
+                            chatId: sessionId,
+                            messageId: placeholderMessageId,
+                            tabId: currentTabId
+                        }
+                    });
+                    if (this.LOG_GENERAL)
+                        console.log(this.prefix, 'handleQuerySubmit: SCRAPE_REQUEST sent to background.', response);
+                }
+                catch (error) {
+                    const errObj = error;
+                    if (this.LOG_ERROR)
+                        console.error(this.prefix, 'handleQuerySubmit: Error sending SCRAPE_REQUEST:', errObj.message);
+                    const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, {
+                        isLoading: false, sender: 'error', text: `Failed to initiate scrape: ${errObj.message}`
+                    });
+                    this.requestDbAndWait(errorUpdateRequest).catch(e => {
+                        if (this.LOG_ERROR)
+                            console.error(this.prefix, 'Failed to update placeholder on send error:', e);
+                    });
+                    this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => {
+                        if (this.LOG_ERROR)
+                            console.error(this.prefix, 'Failed to set session status on send error:', e);
+                    });
+                    this.isSendingMessage = false;
+                }
+            }
+            else {
+                let history = [];
+                try {
+                    history = await this.getChatHistoryForModel(sessionId);
+                }
+                catch (e) {
+                    if (this.LOG_ERROR)
+                        console.error(this.prefix, 'handleQuerySubmit: Failed to fetch chat history:', e);
+                    history = [{ role: 'user', content: text }];
+                }
+                const messagePayload = {
+                    chatId: sessionId,
+                    messages: history,
+                    options: {},
+                    messageId: placeholderMessageId
+                };
+                try {
+                    (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendToModelWorker)({ type: 'generate', payload: messagePayload });
+                }
+                catch (error) {
+                    const errObj = error;
+                    if (this.LOG_ERROR)
+                        console.error(this.prefix, 'handleQuerySubmit: Error sending query to model worker:', errObj);
+                    const errorText = errObj && typeof errObj.message === 'string' ? errObj.message : 'Unknown error during send/ack';
+                    const errorPayload = { isLoading: false, sender: 'error', text: `Failed to send query: ${errorText}` };
+                    const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, placeholderMessageId, errorPayload);
+                    this.requestDbAndWait(errorUpdateRequest).catch(e => {
+                        if (this.LOG_ERROR)
+                            console.error(this.prefix, 'Failed to update placeholder on send error (within catch):', e);
+                    });
+                    this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => {
+                        if (this.LOG_ERROR)
+                            console.error(this.prefix, 'Failed to set session status on send error (within catch):', e);
+                    });
+                    this.isSendingMessage = false;
+                }
+            }
+        }
+        catch (error) {
+            const errObj = error;
+            if (this.LOG_ERROR)
+                console.error(this.prefix, 'handleQuerySubmit: Error processing query submission:', errObj);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error: ${errObj.message || errObj}`);
+            if (sessionId) {
+                if (this.LOG_GENERAL)
+                    console.log(this.prefix, `handleQuerySubmit: Setting session ${sessionId} status to 'error' due to processing failure via event`);
+                this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error')).catch(e => {
+                    if (this.LOG_ERROR)
+                        console.error(this.prefix, 'Failed to set session status on processing error:', e);
+                });
+            }
+            else {
+                if (this.LOG_ERROR)
+                    console.error(this.prefix, 'handleQuerySubmit: Error occurred before session ID was established.');
+            }
+            this.isSendingMessage = false;
+        }
+    }
+    async handleBackgroundMsgResponse(message) {
+        const { chatId, messageId, text } = message;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleBackgroundMsgResponse: for chat ${chatId}, placeholder ${messageId}`);
+        try {
+            const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
+            const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundMsgResponse: Setting session ${chatId} status to 'idle' after response via event`);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'idle');
+            await this.requestDbAndWait(statusRequest);
+        }
+        catch (error) {
+            const errObj = error;
+            if (this.LOG_ERROR)
+                console.error(this.prefix, `handleBackgroundMsgResponse: Error handling background response for chat ${chatId}:`, errObj);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with response: ${errObj.message || errObj}`);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
+            this.requestDbAndWait(statusRequest).catch(e => {
+                if (this.LOG_ERROR)
+                    console.error(this.prefix, 'Failed to set session status on response processing error:', e);
+            });
+        }
+        finally {
+            this.isSendingMessage = false;
+        }
+    }
+    async handleBackgroundMsgError(message) {
+        if (this.LOG_ERROR)
+            console.error(this.prefix, `handleBackgroundMsgError: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`);
+        const sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
+        if (sessionId && message.chatId === sessionId && message.messageId) {
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundMsgError: Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
+            const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
+            const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error');
+            try {
+                await this.requestDbAndWait(errorUpdateRequest);
+                if (this.LOG_GENERAL)
+                    console.log(this.prefix, `handleBackgroundMsgError: Error message update successful for session ${sessionId}.`);
+                await this.requestDbAndWait(statusRequest);
+                if (this.LOG_GENERAL)
+                    console.log(this.prefix, `handleBackgroundMsgError: Session ${sessionId} status set to 'error'.`);
+            }
+            catch (dbError) {
+                const dbErr = dbError;
+                if (this.LOG_ERROR)
+                    console.error(this.prefix, `handleBackgroundMsgError: Error updating chat/status on background error:`, dbErr);
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with error status: ${dbErr.message}`);
+                try {
+                    await this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
+                }
+                catch (statusError) {
+                    if (this.LOG_ERROR)
+                        console.error(this.prefix, 'handleBackgroundMsgError: Failed to set session status on error handling error:', statusError);
+                }
+            }
+        }
+        this.isSendingMessage = false;
+    }
+    async handleBackgroundScrapeStage(payload) {
+        const { stage, success, chatId, messageId, error, ...rest } = payload;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleBackgroundScrapeStage: Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
+        let updatePayload = {};
+        let finalStatus = 'idle';
+        if (success) {
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundScrapeStage: Scrape stage ${stage} succeeded for chat ${chatId}.`);
+            let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
+            updatePayload = {
+                isLoading: false,
+                sender: 'system',
+                text: mainContent,
+                content: mainContent,
+                metadata: {
+                    type: 'scrape_result_full',
+                    scrapeData: rest
+                }
+            };
+            finalStatus = 'idle';
+        }
+        else {
+            const errorText = error || `Scraping failed (Stage ${stage}). Unknown error.`;
+            if (this.LOG_ERROR)
+                console.error(this.prefix, `handleBackgroundScrapeStage: Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
+            updatePayload = { isLoading: false, sender: 'error', text: `Scraping failed (Stage ${stage}): ${errorText}` };
+            finalStatus = 'error';
+        }
+        try {
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundScrapeStage: Updating message ${messageId} for stage ${stage} result.`);
+            const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundScrapeStage: Updated placeholder ${messageId} with stage ${stage} result.`);
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundScrapeStage: Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
+            await this.requestDbAndWait(statusRequest);
         }
         catch (dbError) {
             const dbErr = dbError;
-            console.error('[Orchestrator: handleBackgroundMsgError] Error updating chat/status on background error:', dbErr);
-            // Show a more specific UI error if DB update fails
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with error status: ${dbErr.message}`);
-            // Attempt to set status to error even if message update failed
-            try {
-                await requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
-            }
-            catch (statusError) {
-                console.error('[Orchestrator: handleBackgroundMsgError] Failed to set session status on error handling error:', statusError);
+            if (this.LOG_ERROR)
+                console.error(this.prefix, `handleBackgroundScrapeStage: Failed to update DB after stage ${stage} result:`, dbErr);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with scrape result: ${dbErr.message || dbErr}`);
+            if (finalStatus !== 'error') {
+                try {
+                    const fallbackStatusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
+                    await this.requestDbAndWait(fallbackStatusRequest);
+                }
+                catch (fallbackError) {
+                    if (this.LOG_ERROR)
+                        console.error(this.prefix, 'handleBackgroundScrapeStage: Failed to set fallback error status:', fallbackError);
+                }
             }
         }
+        finally {
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, 'handleBackgroundScrapeStage: Resetting isSendingMessage after processing scrape stage result.');
+        }
     }
-    else {
-        console.warn(`[Orchestrator: handleBackgroundMsgError] Received error, but no active session ID (${sessionId}) or message ID (${message.messageId}) matches the error context (${message.chatId}). Not updating DB.`);
-        // If the error is specifically a model load error (we might need a better way to signal this)
-        // ensure the UI controller knows. The direct worker:error event might be better.
-    }
-    isSendingMessage = false; // Reset flag after handling error
-}
-async function handleBackgroundScrapeStage(payload) {
-    const { stage, success, chatId, messageId, error, ...rest } = payload;
-    console.log(`[Orchestrator: handleBackgroundScrapeStage] Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
-    let updatePayload = {};
-    let finalStatus = 'idle'; // Default to idle on success
-    if (success) {
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} succeeded for chat ${chatId}.`);
-        // Use the main extracted content if available
-        let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
-        updatePayload = {
-            isLoading: false,
-            sender: 'system',
-            text: mainContent, // <-- Show main extracted content in UI
-            content: mainContent, // <-- Also update content for UI rendering
-            metadata: {
+    async handleBackgroundDirectScrapeResult(message) {
+        const { chatId, messageId, success, error, ...scrapeData } = message;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleBackgroundDirectScrapeResult: for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
+        const updatePayload = { isLoading: false };
+        if (success) {
+            updatePayload.sender = 'system';
+            let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
+            updatePayload.text = mainContent;
+            updatePayload.content = mainContent;
+            updatePayload.metadata = {
                 type: 'scrape_result_full',
-                scrapeData: rest // Put the full data here for the renderer
-            }
-        };
-        finalStatus = 'idle';
-    }
-    else {
-        // If a stage fails, update the message immediately with the error
-        const errorText = error || `Scraping failed (Stage ${stage}). Unknown error.`;
-        console.error(`[Orchestrator: handleBackgroundScrapeStage] Scrape stage ${stage} failed for chat ${chatId}. Error: ${errorText}`);
-        updatePayload = { isLoading: false, sender: 'error', text: `Scraping failed (Stage ${stage}): ${errorText}` };
-        finalStatus = 'error';
-    }
-    // --- Update DB regardless of success/failure based on this stage result --- 
-    try {
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Updating message ${messageId} for stage ${stage} result.`);
-        const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Updated placeholder ${messageId} with stage ${stage} result.`);
-        // Also set final session status based on this stage outcome
-        console.log(`[Orchestrator: handleBackgroundScrapeStage] Setting session ${chatId} status to '${finalStatus}' after stage ${stage} result via event`);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
-        await requestDbAndWait(statusRequest);
-    }
-    catch (dbError) {
-        const dbErr = dbError;
-        console.error(`[Orchestrator: handleBackgroundScrapeStage] Failed to update DB after stage ${stage} result:`, dbErr);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with scrape result: ${dbErr.message || dbErr}`);
-        // If DB update fails, maybe try setting status to error anyway?
-        if (finalStatus !== 'error') {
-            try {
-                const fallbackStatusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
-                await requestDbAndWait(fallbackStatusRequest);
-            }
-            catch (fallbackError) {
-                console.error("Failed to set fallback error status:", fallbackError);
-            }
+                scrapeData: scrapeData
+            };
+        }
+        else {
+            updatePayload.sender = 'error';
+            updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
+        }
+        try {
+            const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            const finalStatus = success ? 'idle' : 'error';
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundDirectScrapeResult: Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
+            await this.requestDbAndWait(statusRequest);
+        }
+        catch (error) {
+            const errObj = error;
+            if (this.LOG_ERROR)
+                console.error(this.prefix, `handleBackgroundDirectScrapeResult: Error handling direct scrape result for chat ${chatId}:`, errObj);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
+            this.requestDbAndWait(statusRequest).catch(e => {
+                if (this.LOG_ERROR)
+                    console.error(this.prefix, 'Failed to set session status on direct scrape processing error:', e);
+            });
+        }
+        finally {
+            this.isSendingMessage = false;
         }
     }
-    finally {
-        // Reset sending flag only after processing a stage result
-        // This assumes the background script won't send more results for this specific scrape
-        // Might need adjustment if background sends a final DIRECT_SCRAPE_RESULT later
-        isSendingMessage = false;
-        console.log("[Orchestrator: handleBackgroundScrapeStage] Resetting isSendingMessage after processing scrape stage result.");
-    }
 }
-async function handleBackgroundDirectScrapeResult(message) {
-    const { chatId, messageId, success, error, ...scrapeData } = message;
-    console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
-    const updatePayload = { isLoading: false };
-    if (success) {
-        updatePayload.sender = 'system';
-        // Use the main extracted content if available
-        let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
-        updatePayload.text = mainContent;
-        updatePayload.content = mainContent; // <-- Also update content for UI rendering
-        updatePayload.metadata = {
-            type: 'scrape_result_full',
-            scrapeData: scrapeData
-        };
-    }
-    else {
-        updatePayload.sender = 'error';
-        updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
-    }
-    try {
-        const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
-        await requestDbAndWait(updateRequest);
-        const finalStatus = success ? 'idle' : 'error';
-        console.log(`[Orchestrator: handleBackgroundDirectScrapeResult] Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
-        await requestDbAndWait(statusRequest);
-    }
-    catch (error) {
-        const errObj = error;
-        console.error(`[Orchestrator: handleBackgroundDirectScrapeResult] Error handling direct scrape result for chat ${chatId}:`, errObj);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
-        const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
-        requestDbAndWait(statusRequest).catch(e => console.error("Failed to set session status on direct scrape processing error:", e));
-    }
-    finally {
-        isSendingMessage = false; // TODO: Remove later
-    }
-}
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.QUERY_SUBMITTED, (e) => handleQuerySubmit(e.detail));
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => handleBackgroundMsgResponse(e.detail));
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => handleBackgroundMsgError(e.detail));
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, handleBackgroundScrapeStage);
-document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, handleBackgroundDirectScrapeResult);
+let orchestratorInstance = null;
 function initializeOrchestrator(dependencies) {
-    getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    onSessionCreatedCallback = (sessionId) => {
-        console.log('[Orchestrator] onSessionCreatedCallback registered for sessionId:', sessionId);
-        dependencies.onSessionCreatedCallback(sessionId);
-    };
-    getCurrentTabIdFunc = dependencies.getCurrentTabIdFunc;
-    if (!getActiveSessionIdFunc || !onSessionCreatedCallback || !getCurrentTabIdFunc) {
-        console.error("Orchestrator: Missing one or more dependencies during initialization!");
-        return;
+    if (!orchestratorInstance) {
+        orchestratorInstance = new ChatOrchestrator();
+        orchestratorInstance.initialize(dependencies);
     }
-    console.log("[Orchestrator] Initializing and subscribing to application events...");
-    console.log("[Orchestrator] Event subscriptions complete.");
 }
 
 
@@ -8627,11 +9307,32 @@ function setLoadModelButtonText(text) {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   assertDbWorker: () => (/* binding */ assertDbWorker),
 /* harmony export */   llmChannel: () => (/* binding */ llmChannel),
 /* harmony export */   logChannel: () => (/* binding */ logChannel)
 /* harmony export */ });
 const llmChannel = new BroadcastChannel('tabagent-llm');
 const logChannel = new BroadcastChannel('tabagent-logs');
+function assertDbWorker(selfOrWorker, method, className) {
+    const stack = (new Error()).stack;
+    let callerInfo = '';
+    if (stack) {
+        const stackLines = stack.split('\n');
+        if (stackLines.length > 2) {
+            callerInfo = stackLines[2].trim();
+        }
+    }
+    const classInfo = className ? `[${className}]` : '';
+    if (typeof Worker !== 'undefined' && selfOrWorker instanceof Worker) {
+        if (!selfOrWorker) {
+            throw new Error(`dbWorker is required for ${method} ${classInfo} at ${callerInfo}`);
+        }
+        return;
+    }
+    if (!selfOrWorker.dbWorker) {
+        throw new Error(`dbWorker is required for ${method} ${classInfo} at ${callerInfo}`);
+    }
+}
 
 
 /***/ }),
@@ -8827,6 +9528,26 @@ async function initiateChatDownload(sessionId, requestDbAndWaitFunc, showNotific
 
 /***/ }),
 
+/***/ "./src/Utilities/eventConstants.ts":
+/*!*****************************************!*\
+  !*** ./src/Utilities/eventConstants.ts ***!
+  \*****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MESSAGE_EVENT: () => (/* binding */ MESSAGE_EVENT),
+/* harmony export */   UPDATE_EVENT: () => (/* binding */ UPDATE_EVENT)
+/* harmony export */ });
+// Event name constants for DOM/Worker events
+const MESSAGE_EVENT = 'message';
+const UPDATE_EVENT = 'update';
+// Add more as needed 
+
+
+/***/ }),
+
 /***/ "./src/Utilities/generalUtils.ts":
 /*!***************************************!*\
   !*** ./src/Utilities/generalUtils.ts ***!
@@ -8935,6 +9656,193 @@ function getActiveTabUrl() {
     });
 }
 
+
+/***/ }),
+
+/***/ "./src/assets/icons/LinkChain.png":
+/*!****************************************!*\
+  !*** ./src/assets/icons/LinkChain.png ***!
+  \****************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/LinkChain.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/Load.png":
+/*!***********************************!*\
+  !*** ./src/assets/icons/Load.png ***!
+  \***********************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/Load.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/NewChat.png":
+/*!**************************************!*\
+  !*** ./src/assets/icons/NewChat.png ***!
+  \**************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/NewChat.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/StarFilled.png":
+/*!*****************************************!*\
+  !*** ./src/assets/icons/StarFilled.png ***!
+  \*****************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/StarFilled.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/StarHollow.png":
+/*!*****************************************!*\
+  !*** ./src/assets/icons/StarHollow.png ***!
+  \*****************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/StarHollow.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/attach-svgrepo-com.svg":
+/*!*************************************************!*\
+  !*** ./src/assets/icons/attach-svgrepo-com.svg ***!
+  \*************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/attach-svgrepo-com.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/close-circle-svgrepo-com.svg":
+/*!*******************************************************!*\
+  !*** ./src/assets/icons/close-circle-svgrepo-com.svg ***!
+  \*******************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/close-circle-svgrepo-com.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/copy.svg":
+/*!***********************************!*\
+  !*** ./src/assets/icons/copy.svg ***!
+  \***********************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/copy.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/download.svg":
+/*!***************************************!*\
+  !*** ./src/assets/icons/download.svg ***!
+  \***************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/download.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/googledrive.png":
+/*!******************************************!*\
+  !*** ./src/assets/icons/googledrive.png ***!
+  \******************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/googledrive.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/history.png":
+/*!**************************************!*\
+  !*** ./src/assets/icons/history.png ***!
+  \**************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/history.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/home-svgrepo-com.svg":
+/*!***********************************************!*\
+  !*** ./src/assets/icons/home-svgrepo-com.svg ***!
+  \***********************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/home-svgrepo-com.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/library-svgrepo-com.svg":
+/*!**************************************************!*\
+  !*** ./src/assets/icons/library-svgrepo-com.svg ***!
+  \**************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/library-svgrepo-com.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg":
+/*!************************************************************!*\
+  !*** ./src/assets/icons/myspace-microsoft-svgrepo-com.svg ***!
+  \************************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/myspace-microsoft-svgrepo-com.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/popup.png":
+/*!************************************!*\
+  !*** ./src/assets/icons/popup.png ***!
+  \************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/popup.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/rocket-2-svgrepo-com.svg":
+/*!***************************************************!*\
+  !*** ./src/assets/icons/rocket-2-svgrepo-com.svg ***!
+  \***************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/rocket-2-svgrepo-com.svg";
+
+/***/ }),
+
+/***/ "./src/assets/icons/settings-svgrepo-com.svg":
+/*!***************************************************!*\
+  !*** ./src/assets/icons/settings-svgrepo-com.svg ***!
+  \***************************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/settings-svgrepo-com.svg";
 
 /***/ }),
 
@@ -9110,6 +10018,8 @@ window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.Conte
 let pageContainers = document.querySelectorAll('.page-container');
 let navButtons = document.querySelectorAll('.nav-button');
 let mainHeaderTitle = document.querySelector('#header h1');
+const newChatButton = document.getElementById('new-chat-button');
+const historyButton = document.getElementById('history-button');
 const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles = {
     'page-home': 'Tab Agent',
@@ -9142,6 +10052,17 @@ async function navigateTo(pageId) {
     }
     else if (mainHeaderTitle) {
         mainHeaderTitle.textContent = 'Tab Agent';
+    }
+    // Show/hide new chat and history buttons based on page
+    if (newChatButton && historyButton) {
+        if (pageId === 'page-home') {
+            newChatButton.style.display = '';
+            historyButton.style.display = '';
+        }
+        else {
+            newChatButton.style.display = 'none';
+            historyButton.style.display = 'none';
+        }
     }
     navButtons.forEach(button => {
         const btn = button;
@@ -9228,6 +10149,7 @@ function hideNotification() {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   isModelLoaded: () => (/* binding */ isModelLoaded),
 /* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart),
 /* harmony export */   sendToModelWorker: () => (/* binding */ sendToModelWorker)
 /* harmony export */ });
@@ -9252,7 +10174,29 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
 /* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
+/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
+/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
+/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
 // --- Imports ---
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9999,6 +10943,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const closeHistoryButtonElement = document.getElementById('close-history');
         const historyButton = document.getElementById('history-button');
         const detachButton = document.getElementById('detach-button');
+        const newChatButton = document.getElementById('new-chat-button');
         if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
             historyPopupController = (0,_Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_10__.initializeHistoryPopup)({
                 popupContainer: historyPopupElement,
@@ -10019,6 +10964,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         else {
             console.warn(`${prefix} History button or controller not available for listener.`);
         }
+        if (newChatButton) {
+            newChatButton.addEventListener('click', handleNewChat);
+        }
+        // Detach button is allowed in all contexts where present
         if (detachButton) {
             detachButton.addEventListener('click', handleDetach);
         }
@@ -10152,6 +11101,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             };
         }
+        // Set icon srcs via imports
+        const iconMap = [
+            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_20__],
+            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_21__],
+            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_22__],
+            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_23__],
+            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_24__],
+            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__],
+            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__],
+            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__],
+            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
+            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
+            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
+        ];
+        for (const [id, src] of iconMap) {
+            const el = document.getElementById(id);
+            if (el)
+                el.src = src;
+        }
     }
     catch (error) {
         const err = error;
@@ -10239,6 +11208,9 @@ async function ensureManifestForDropdownRepos() {
     }
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED));
 }
+function isModelLoaded() {
+    return modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
+}
 
 
 
@@ -10316,7 +11288,7 @@ async function ensureManifestForDropdownRepos() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "94b2a155d436bf940581" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "afeb47726fc0ea562fc8" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

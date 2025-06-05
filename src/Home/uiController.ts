@@ -1,11 +1,10 @@
 import {  UIEventNames, WorkerEventNames } from '../events/eventNames';
 import {  DBEventNames } from '../DB/dbEvents';
-import {  clearTemporaryMessages } from './chatRenderer';
+import {  clearTemporaryMessages, renderTemporaryMessage } from './chatRenderer';
 import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
-import { DbStatusUpdatedNotification } from '../DB/dbEvents';
+import { DbStatusUpdatedNotification, DbMessagesUpdatedNotification } from '../DB/dbEvents';
 import {  QuantStatus, getAllManifestEntries, QuantInfo } from '../DB/idbModel';
-import { MESSAGE_EVENT } from '../Utilities/eventConstants';
 
 
 let queryInput: HTMLTextAreaElement | null,
@@ -25,15 +24,14 @@ let quantSelectorDropdown: HTMLSelectElement | null = null;
 
 let loadModelButton: HTMLButtonElement | null = null;    
 
-let isLoadingModel = false; // Track loading state
+let isLoadingModel = false; 
 let currentLoadId: string | null = null;
 let lastSeenLoadId: string | null = null;
 
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
-    // Model ID (value) : Display Name
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
-    "onnx-models/all-MiniLM-L6-v2-onnx": "MiniLM-L6-v2",
+    "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     // Add more models here as needed
 };
 
@@ -43,7 +41,6 @@ document.addEventListener(DbStatusUpdatedNotification.type, (e: Event) => {
     handleStatusUpdate(customEvent.detail);
   });
 
-// Add this at the top level to ensure UI progress bar updates
 browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
     const type = message?.type;
     console.log('[UIController] browser.runtime.onMessage Received progress update: ', message.type, message.payload);
@@ -63,8 +60,18 @@ dbChannel.onmessage = (event) => {
     if (type === DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
-    // Add other notification types as needed
 };
+
+document.addEventListener(DbMessagesUpdatedNotification.type, (e: Event) => {
+    const customEvent = e as CustomEvent;
+    const messages = customEvent.detail?.payload?.messages;
+    if (Array.isArray(messages) && messages.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.sender === 'ai' && !lastMsg.isLoading) {
+            setInputStateInternal('ready');
+        }
+    }
+});
 
 function selectElements() {
     queryInput = document.getElementById('query-input') as HTMLTextAreaElement | null;
@@ -138,7 +145,6 @@ function handleAttachClick() {
     }
 }
 
-// In uiController.ts, add this new exported function:
 export function getModelSelectorOptions(): string[] {
     if (!modelSelectorDropdown) return [];
     return Array.from(modelSelectorDropdown.options).map(opt => opt.value).filter(Boolean); 
@@ -187,7 +193,6 @@ document.addEventListener(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e: Event)
 });
 function handleModelWorkerLoadingProgress(payload: any) {
     if (!payload) return;
-    // Double progress trigger detection
     if (payload.loadId !== lastSeenLoadId) {
         console.warn('[UIController] New loadId detected in progress:', payload.loadId);
         if (lastSeenLoadId) {
@@ -208,10 +213,9 @@ function handleModelWorkerLoadingProgress(payload: any) {
     statusDiv.style.display = 'block';
     progressBar.style.width = '100%';
 
-    // Handle error
     if (payload.status === 'error' || payload.error) {
         statusText.textContent = payload.error || 'Error loading model';
-        progressInner.style.background = '#f44336'; // red
+        progressInner.style.background = '#f44336'; 
         progressInner.style.width = '100%';
         isLoadingModel = false;
         if (loadModelButton) {
@@ -278,32 +282,15 @@ function handleModelWorkerLoadingProgress(payload: any) {
 }
 
 
-export function getCurrentlySelectedModel(): { modelId: string | null; quant: string | null } {
-    if (!modelSelectorDropdown || !quantSelectorDropdown) return { modelId: null, quant: null };
+export function getCurrentlySelectedModel(): { modelId: string | null; modelPath: string | null } {
+    if (!modelSelectorDropdown || !quantSelectorDropdown) return { modelId: null, modelPath: null };
     return {
         modelId: modelSelectorDropdown.value || null,
-        quant: quantSelectorDropdown.value || null,
+        modelPath: quantSelectorDropdown.value || null,
     };
 }
 
 
-
-export function normalizeQuant(quantDisplay: string): string {
-  // Remove emoji and non-alphanumeric characters (except underscore)
-  const cleaned = quantDisplay.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-  const map: Record<string, string> = {
-    'auto': 'auto',
-    'fp32': 'fp32',
-    'fp16': 'fp16',
-    'int8': 'int8',
-    'uint8': 'uint8',
-    'q4': 'q4',
-    'q4f16': 'q4f16',
-    'bnb4': 'bnb4',
-    'nf4': 'nf4',
-  };
-  return map[cleaned] || cleaned;
-}
 
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
     console.log("[UIController] Initializing...");
@@ -444,12 +431,26 @@ function enableInput() {
 function _handleModelOrVariantChange() { 
     if (!modelSelectorDropdown || !quantSelectorDropdown) return;
     const modelId = modelSelectorDropdown.value;
-    const quant = quantSelectorDropdown.value;
-    console.log(`[UIController] Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, quant });
+    const modelPath = quantSelectorDropdown.value;
+    console.log(`[UIController] Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
-        detail: { modelId, quant } 
+        detail: { modelId, modelPath } 
     }));
 
+}
+
+// Stub for native app detection
+function isNativeAppAvailable(): boolean {
+    // TODO: Implement real detection logic
+    return false;
+}
+
+// Placeholder for future native app/server integration
+function handleServerOnlyModelLoad(modelId: string, modelPath: string) {
+    // TODO: Implement native app/server-side model loading logic here
+    console.log(`[UIController] handleServerOnlyModelLoad called for modelId: ${modelId}, modelPath: ${modelPath}`);
+    // For now, just show the temporary chat message
+    renderTemporaryMessage('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
 
 function _handleLoadModelButtonClick() {
@@ -460,6 +461,14 @@ function _handleLoadModelButtonClick() {
         return;
     }
     if (isLoadingModel) return; 
+    // Check for ServerOnly status
+    const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    const modelPath = quantDropdown ? quantDropdown.value : '';
+    const manifestEntry = repoQuantsCache[modelId];
+    if (manifestEntry && manifestEntry.quants[modelPath] && manifestEntry.quants[modelPath].status === QuantStatus.ServerOnly) {
+        handleServerOnlyModelLoad(modelId, modelPath);
+        return;
+    }
     isLoadingModel = true;
     currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
     const statusDiv = document.getElementById('model-load-status');
@@ -469,10 +478,10 @@ function _handleLoadModelButtonClick() {
     setLoadModelButtonText('Loading...');
     const badge = document.getElementById('device-badge');
     if (badge) badge.style.display = 'none';
-    const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
-    const quant = quantDropdown ? quantDropdown.value : '';
+    const modelPathDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    const modelPathFinal = modelPathDropdown ? modelPathDropdown.value : '';
     document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
-        detail: { modelId, quant, loadId: currentLoadId }
+        detail: { modelId, modelPath: modelPathFinal, loadId: currentLoadId }
     }));
 }
 
@@ -484,20 +493,16 @@ export async function updateQuantDropdown() {
   
   if (!modelDropdown || !quantDropdown) return;
   
-  // Get all manifest entries in one call
   const allManifests = await getAllManifestEntries();
   const modelRepos = getModelSelectorOptions();
   
-  // Build the cache dictionary: repo → manifest data
   repoQuantsCache = {};
   for (const repo of modelRepos) {
     const manifestEntry = allManifests.find(entry => entry.repo === repo);
     if (manifestEntry) {
       repoQuantsCache[repo] = manifestEntry;
     }
-  }
-  
-  // Now populate the quant dropdown based on currently selected repo
+  }  
   populateQuantDropdownForSelectedRepo();
 }
 
@@ -517,41 +522,26 @@ function populateQuantDropdownForSelectedRepo() {
     return;
   }
   
-  const manifestEntry = repoQuantsCache[selectedRepo];
-  
-  // --- Save current selection ---
-  const prevSelectedQuant = quantDropdown.value;
-
-  // Clear the dropdown
-  quantDropdown.innerHTML = '';
-  
-  // Check if any quant is unsupported
+  const manifestEntry = repoQuantsCache[selectedRepo];  
+  const prevSelectedModelPath = quantDropdown.value;
+  quantDropdown.innerHTML = '';  
   const unsupported = Object.values(manifestEntry.quants).some(q => (q as QuantInfo).status === QuantStatus.Unsupported);
   
   if (unsupported) {
-    // Show error message in status area
-    if (statusDiv && statusText) {
-      statusDiv.style.display = 'block';
-      statusText.textContent = "This model's task is not supported by the current runtime.";
-    }
-    // Disable load button
+    if (statusDiv) statusDiv.style.display = 'block';
+    if (statusText) statusText.textContent = "This model's task is not supported by the current runtime.";
     if (loadModelButton) {
       loadModelButton.disabled = true;
       setLoadModelButtonText('Unsupported');
       loadModelButton.style.opacity = '0.5';
       loadModelButton.style.cursor = 'not-allowed';
     }
-    // Disable quant dropdown
-    quantDropdown.disabled = true;
+    if (quantDropdown) quantDropdown.disabled = true;
     return;
   } else {
-    // Hide error if previously shown
-    if (statusDiv && statusText) {
-      statusDiv.style.display = 'none';
-      statusText.textContent = '';
-    }
-    // Enable controls
-    quantDropdown.disabled = false;
+    if (statusDiv) statusDiv.style.display = 'none';
+    if (statusText) statusText.textContent = '';
+    if (quantDropdown) quantDropdown.disabled = false;
     if (loadModelButton) {
       loadModelButton.disabled = false;
       setLoadModelButtonText('Load Model');
@@ -560,32 +550,33 @@ function populateQuantDropdownForSelectedRepo() {
     }
   }
   
-  // Populate quant dropdown with options for selected repo
-  for (const quant in manifestEntry.quants) {
+  for (const modelPath in manifestEntry.quants) {
     const option = document.createElement('option');
-    option.value = quant;
-    
-    // Set status indicator
+    option.value = modelPath;
+    let label = quantKeyToLabel(modelPath);
     let dot = '⚪'; // default gray
-    switch (manifestEntry.quants[quant].status) {
+    let statusLabel = '';
+    switch (manifestEntry.quants[modelPath].status) {
       case QuantStatus.Downloaded: dot = '🟢'; break;
       case QuantStatus.Available: dot = '🟡'; break;
-      case QuantStatus.Failed: dot = '🔴'; break;
-      case QuantStatus.NotFound:
-      case QuantStatus.Unavailable: dot = '⚪'; break;
+      case QuantStatus.Failed: dot = '⛔'; break;
+      case QuantStatus.NotFound: dot = '❌'; break;
+      case QuantStatus.Unavailable: dot = '🚫'; break;
+      case QuantStatus.ServerOnly: dot = '🖥️'; statusLabel = ' (Requires Server)'; break;
     }
-    
-    option.textContent = `${quant} ${dot}`;
+    option.textContent = `${label} ${dot}${statusLabel}`;
+    if (manifestEntry.quants[modelPath].status === QuantStatus.ServerOnly) {
+      option.disabled = false; // allow selection, but block load
+      option.classList.add('server-only-quant');
+    }
     quantDropdown.appendChild(option);
   }
 
-  // --- Restore previous selection if possible ---
-  if (prevSelectedQuant && manifestEntry.quants[prevSelectedQuant]) {
-    quantDropdown.value = prevSelectedQuant;
+  if (prevSelectedModelPath && manifestEntry.quants[prevSelectedModelPath]) {
+    quantDropdown.value = prevSelectedModelPath;
   }
 }
 document.getElementById('model-selector')?.addEventListener('change', onModelDropdownChange);
-// Call this when model dropdown changes
 export function onModelDropdownChange() {
   populateQuantDropdownForSelectedRepo();
 }
@@ -603,8 +594,51 @@ document.addEventListener(WorkerEventNames.MANIFEST_UPDATED, () => {
     updateQuantDropdown();
   });
 
-// Add this helper near the top, after loadModelButton is defined
 function setLoadModelButtonText(text: string) {
     if (loadModelButton) loadModelButton.textContent = text;
+}
+
+export function quantKeyToLabel(modelPath: string): string {
+    if (!modelPath || typeof modelPath !== 'string') return String(modelPath);
+
+    if (modelPath === 'model.onnx' || modelPath.toLowerCase() === 'onnx') {
+        return 'FP32';
+    }
+
+    const pathParts = modelPath.split('/');
+    let last = pathParts[pathParts.length - 1].toLowerCase();
+    let parent = pathParts.length > 1 ? pathParts[pathParts.length - 2].toLowerCase() : '';
+
+    let device = '';
+    if (parent.includes('cpu')) device = 'CPU';
+    else if (parent.includes('gpu')) device = 'GPU';
+    else if (modelPath.toLowerCase().includes('cpu')) device = 'CPU';
+    else if (modelPath.toLowerCase().includes('gpu')) device = 'GPU';
+
+    let quant = '';
+    let match;
+    if ((match = parent.match(/fp(16|32)/))) quant = 'FP' + match[1];
+    else if ((match = parent.match(/int(4|8)/))) quant = 'INT' + match[1];
+    else if ((match = parent.match(/q4f16/))) quant = 'Q4F16';
+    else if ((match = parent.match(/bnb4/))) quant = 'BNB4';
+    else if ((match = parent.match(/q4/))) quant = 'Q4';
+    else if ((match = parent.match(/uint8/))) quant = 'UINT8';
+    else if ((match = parent.match(/quant/))) quant = 'QUANTIZED';
+    else if ((match = last.match(/fp(16|32)/))) quant = 'FP' + match[1];
+    else if ((match = last.match(/int(4|8)/))) quant = 'INT' + match[1];
+    else if ((match = last.match(/q4f16/))) quant = 'Q4F16';
+    else if ((match = last.match(/bnb4/))) quant = 'BNB4';
+    else if ((match = last.match(/q4/))) quant = 'Q4';
+    else if ((match = last.match(/uint8/))) quant = 'UINT8';
+    else if ((match = last.match(/quant/))) quant = 'QUANTIZED';
+    else if ((match = last.match(/onnx/))) quant = 'FP32';
+
+    let label = '';
+    if (device && quant) label = `${device} ${quant}`;
+    else if (device) label = device;
+    else if (quant) label = quant;
+    else label = 'FP32';
+
+    return label;
 }
 

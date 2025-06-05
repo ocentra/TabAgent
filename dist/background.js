@@ -1784,6 +1784,8 @@ const WorkerEventNames = Object.freeze({
     SET_ENV_CONFIG: 'setEnvConfig',
     MANIFEST_UPDATED: 'manifestUpdated',
     INFERENCE_SETTINGS_UPDATE: 'inferenceSettingsUpdate',
+    MEMORY_STATS: 'memoryStats',
+    REQUEST_MEMORY_STATS: 'requestMemoryStats',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

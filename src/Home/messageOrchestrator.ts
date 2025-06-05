@@ -7,6 +7,7 @@ import {
     DbUpdateMessageRequest,
     DbUpdateStatusRequest,
     DbGetSessionRequest,
+    DbMessagesUpdatedNotification,
 } from '../DB/dbEvents';
 import { clearTemporaryMessages } from './chatRenderer';
 import { UIEventNames, RuntimeMessageTypes } from '../events/eventNames';
@@ -36,6 +37,16 @@ class ChatOrchestrator {
         this.validateDependencies(dependencies);
         this.setupDependencies(dependencies);
         this.setupEventListeners();
+        document.addEventListener(DbMessagesUpdatedNotification.type, (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const messages = customEvent.detail?.payload?.messages;
+            if (Array.isArray(messages) && messages.length > 0) {
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg.sender === 'ai' && !lastMsg.isLoading) {
+                    this.isSendingMessage = false;
+                }
+            }
+        });
         if (this.LOG_GENERAL) console.log(this.prefix, 'Orchestrator initialized successfully');
     }
 
@@ -111,13 +122,13 @@ class ChatOrchestrator {
         });
     }
 
-    private async getChatHistoryForModel(sessionId: string): Promise<{role: string, content: string}[]> {
+    private async getChatHistoryForModel(sessionId: string, placeholderMessageId?: string): Promise<{role: string, content: string}[]> {
         const sessionData = await this.requestDbAndWait(new DbGetSessionRequest(sessionId));
         if (!sessionData || !Array.isArray(sessionData.messages)) return [];
         return (sessionData.messages as any[])
             // Hydrate Message for business logic only; dbWorker is not needed
             .map((m: any) => m.__type === DB_ENTITY_TYPES.Message ? Message.fromJSON(m) : m)
-            .filter((m: Message) => m.sender === 'user' || m.sender === 'ai')
+            .filter((m: Message) => (m.sender === 'user' || m.sender === 'ai') && (!placeholderMessageId || m.id !== placeholderMessageId) && !(m as any)?.isLoading)
             .map((m: Message) => ({
                 role: m.sender === 'user' ? 'user' : 'assistant',
                 content: m.content || ''
@@ -218,7 +229,7 @@ class ChatOrchestrator {
             } else {
                 let history: {role: string, content: string}[] = [];
                 try {
-                    history = await this.getChatHistoryForModel(sessionId!);
+                    history = await this.getChatHistoryForModel(sessionId!, placeholderMessageId);
                 } catch (e) {
                     if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Failed to fetch chat history:', e);
                     history = [{ role: 'user', content: text }];

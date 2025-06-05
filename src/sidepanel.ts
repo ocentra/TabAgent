@@ -17,10 +17,7 @@ import {
   initializeUI,
   clearInput,
   focusInput,
-  setActiveSession,
-  getCurrentlySelectedModel,
-  normalizeQuant,
-  getModelSelectorOptions,
+  setActiveSession,  
 } from './Home/uiController';
 import { getActiveTab, showError as utilShowError, debounce, showWarning as utilShowWarning } from './Utilities/generalUtils';
 import { showNotification } from './notifications';
@@ -45,7 +42,8 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { getManifestEntry, addManifestEntry, fetchRepoFiles, parseQuantFromFilename, QuantStatus, getAllManifestEntries } from './DB/idbModel';
+import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantInfo, QuantStatus, addManifestEntry, getChunkedFileInfoMap, CHUNK_SIZE } from './DB/idbModel';
+import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
 import historyIcon from './assets/icons/history.png';
@@ -60,6 +58,12 @@ import libraryIcon from './assets/icons/library-svgrepo-com.svg';
 import settingsIcon from './assets/icons/settings-svgrepo-com.svg';
 
 // --- Constants ---
+const LOG_MANIFEST_GENERATION = true;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFERENCE_SETTINGS = true;
 const LOG_QUEUE_MAX = 1000;
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 
@@ -74,13 +78,22 @@ let logQueue: any[] = [];
 
 const prefix = '[Sidepanel]';
 
-let modelWorker: Worker | null = null;
+let modelWorker: Worker | undefined = undefined;
 let currentModelIdInWorker: string | null = null;
 let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady: boolean = false;
 
 // Track the currently loaded model and quant (onnx variant)
 let currentLoadedModel: { modelId: string | null, quant: string | null } = { modelId: null, quant: null };
+
+// Define getModelSelectorOptions locally if not exported
+function getModelSelectorOptions(): string[] {
+  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
+  if (!modelSelector) return [];
+  return Array.from(modelSelector.options).map(opt => opt.value).filter(Boolean);
+}
+
+
 
 function syncToggleLoadButton() {
   const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
@@ -264,8 +277,8 @@ function hideDeviceBadge() {
 }
 
 function handleModelWorkerMessage(event: MessageEvent) {
-  const { type, payload } = event.data;
- // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
+  const { type, label, payload } = event.data || {};
+  // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
 
   // For use in WORKER_READY case
   const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
@@ -286,26 +299,27 @@ function handleModelWorkerMessage(event: MessageEvent) {
           console.log(`${prefix} Worker loading status:`, payload);
           break;
       case WorkerEventNames.WORKER_READY: {
+          const { modelId, modelPath, task, fallback, executionProvider, warning } = payload;
           modelWorkerState = WorkerEventNames.MODEL_READY;
-          currentModelIdInWorker = payload.modelId;
+          currentModelIdInWorker = modelId;
           currentLoadedModel = {
-            modelId: payload.modelId,
-            quant: payload.quant || (quantDropdown ? quantDropdown.value : null)
+            modelId: modelId,
+            quant: modelPath
           };
           syncToggleLoadButton();
           if (loadBtn) loadBtn.style.display = 'none';
-          showDeviceBadge(payload.executionProvider, payload.warning);
+          showDeviceBadge(executionProvider, warning);
           // Always show what quantization was actually loaded
-          let quantMsg = `Model loaded with quantization: '${payload.quant}'.`;
-          if (payload.fallback) {
-            quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${payload.quant}' was used.`;
+          let quantMsg = `Model loaded with quantization: '${modelPath}'.`;
+          if (fallback) {
+            quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${modelPath}' was used.`;
           }
           utilShowWarning(quantMsg);
-          if (payload.warning) {
-            utilShowWarning(payload.warning);
+          if (warning) {
+            utilShowWarning(warning);
           }
-          console.log(`${prefix} Model ${payload.modelId} loaded successfully!`);
-          console.log(`${prefix} Model worker is ready with model: ${payload.modelId}, quant: ${payload.quant}, fallback: ${payload.fallback}, executionProvider: ${payload.executionProvider}, warning: ${payload.warning}`);
+          console.log(`${prefix} Model ${modelId} loaded successfully!`);
+          console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
           break;
       }
       case WorkerEventNames.ERROR:
@@ -328,22 +342,15 @@ function handleModelWorkerMessage(event: MessageEvent) {
           break;
       case WorkerEventNames.GENERATION_COMPLETE: {
           console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
-          let aiReply = '';
-          if (Array.isArray(payload.text)) {
-              const assistantMsg = payload.text.find((m: any) => m.role === 'assistant');
-              aiReply = assistantMsg ? assistantMsg.content : JSON.stringify(payload.text);
-          } else if (typeof payload.text === 'string') {
-              aiReply = payload.text;
-          } else {
-              aiReply = JSON.stringify(payload.text);
+          // Use only the clean generatedText from the worker
+          if (payload.messageId && activeSessionId) {
+              sendDbRequestSmart(new DbUpdateMessageRequest(activeSessionId, payload.messageId, {
+                  isLoading: false,
+                  sender: 'ai',
+                  text: payload.generatedText,
+                  content: payload.generatedText,
+              }));
           }
-          document.dispatchEvent(new CustomEvent(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
-              detail: {
-                  chatId: payload.chatId,
-                  messageId: payload.messageId,
-                  text: aiReply
-              }
-          }));
           break;
       }
       case WorkerEventNames.GENERATION_ERROR:
@@ -358,6 +365,20 @@ function handleModelWorkerMessage(event: MessageEvent) {
       case WorkerEventNames.MANIFEST_UPDATED:
           document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
           break;
+      case WorkerEventNames.REQUEST_MEMORY_STATS:
+        if (performance && (performance as any).memory && modelWorker) {
+          const mem = (performance as any).memory;
+          (modelWorker as Worker).postMessage({
+            type: WorkerEventNames.MEMORY_STATS,
+            label,
+            payload: {
+              usedJSHeapSize: mem.usedJSHeapSize,
+              totalJSHeapSize: mem.totalJSHeapSize,
+              jsHeapSizeLimit: mem.jsHeapSizeLimit
+            }
+          });
+        }
+        break;
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
   }
@@ -380,7 +401,7 @@ function handleModelWorkerError(error: Event | string) {
   utilShowError(`Critical Worker Failure: ${errorMessage}`);
   if (modelWorker) {
       modelWorker.terminate();
-      modelWorker = null;
+      modelWorker = undefined;
   }
 }
 
@@ -393,7 +414,7 @@ function initializeModelWorker() {
   if (modelWorker) { 
       console.log(`${prefix} Terminating existing model worker before creating a new one.`);
       modelWorker.terminate();
-      modelWorker = null;
+      modelWorker = undefined;
   }
 
   isModelWorkerEnvReady = false;
@@ -423,7 +444,7 @@ function terminateModelWorker() {
   if (modelWorker) {
       console.log(`${prefix} Terminating model worker.`);
       modelWorker.terminate();
-      modelWorker = null;
+      modelWorker = undefined;
   }
   currentModelIdInWorker = null;
   modelWorkerState = WorkerEventNames.UNINITIALIZED;
@@ -851,7 +872,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
     document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
-      const { modelId, quant, loadId } = (e as CustomEvent).detail;
+      const { modelId, modelPath, loadId } = (e as CustomEvent).detail;
       if (!modelId) {
           utilShowError('No model selected.');
           return;
@@ -887,17 +908,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         utilShowError(err.message || "Model worker failed to initialize.");
         return;
       }
-      // Normalize quantization value before sending INIT
-      const normQuant = normalizeQuant(quant || '');
       // Get the task from the manifest
       const manifestEntry = await getManifestEntry(modelId);
       const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
-      console.log(`${prefix} UI would show: Initializing worker for ${modelId} with quant: ${normQuant}, task: ${task}...`);
+
+      
+      console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
       modelWorkerState = WorkerEventNames.LOADING_MODEL;
       currentModelIdInWorker = modelId;
       modelWorker.postMessage({
           type: WorkerEventNames.INIT,
-          payload: { modelId, quant: normQuant, task, loadId }
+          payload: { modelId, modelPath, task, loadId }
       });
     });
 
@@ -1048,54 +1069,165 @@ async function initializeDatabase(): Promise<boolean> {
   }
 }
 
-async function ensureManifestForDropdownRepos() {
-  const dropdownRepos = getModelSelectorOptions();
-  const allManifests = await getAllManifestEntries();
-  const haveRepos = new Set(allManifests.map(entry => entry.repo));
+export async function ensureManifestForDropdownRepos() {
+  if (typeof document === 'undefined') return;
 
-  console.log(`${prefix} [Manifest] Have repos:`, haveRepos);
-  console.log(`${prefix} [Manifest] Dropdown repos:`, dropdownRepos);
+  const dropdownRepos = getModelSelectorOptions(); 
+  if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Dropdown repos to check/update:`, dropdownRepos);
+
+  const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model)$/i;
+
+  const processedRepos: string[] = [];
+  const skippedRepos: string[] = [];
+  const errorRepos: string[] = [];
 
   for (const repo of dropdownRepos) {
-    if (haveRepos.has(repo)) {
-      console.log(`${prefix} [Manifest] Repo ${repo} already in manifest, skipping fetch.`);
+    // --- Check if manifest already exists for this repo ---
+    const manifest = await getManifestEntry(repo);
+    if (manifest) {
+      if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
+      processedRepos.push(repo);
       continue;
     }
+
+    let oldManifest: ManifestEntry | null = null;
     try {
-      const { siblings, task } = await fetchRepoFiles(repo);
-      const files = siblings;
-      const quantMap: Record<string, { files: string[], status: QuantStatus }> = {};
-      for (const file of files) {
-        const fname = file.rfilename ? file.rfilename.split('/').pop() : '';
-        if (file.rfilename && file.rfilename.endsWith('.onnx')) {
-          let quant = parseQuantFromFilename(file.rfilename);
-          if (!quant) {
-            quant = fname === 'model.onnx' ? 'fp32' : fname || 'unknown_quant';
-          }
-          quant = '' + quant;
-          if (!quantMap[quant]) quantMap[quant] = { files: [], status: QuantStatus.Available };
-          quantMap[quant].files.push(file.rfilename);
-        }
+      oldManifest = await getManifestEntry(repo);
+      if (oldManifest && oldManifest.manifestVersion !== CURRENT_MANIFEST_VERSION) {
+        if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${CURRENT_MANIFEST_VERSION}. Will re-create.`);
+        oldManifest = null; // Force re-creation
       }
-      for (const file of files) {
-        if (file.rfilename && file.rfilename.endsWith('.json')) {
-          for (const quant in quantMap) {
-            quantMap[quant].files.push(file.rfilename);
-          }
-        }
-      }
-      const entry = { repo, quants: quantMap, task };
-      await addManifestEntry(repo, entry);
-      console.log(`${prefix}[Manifest] Added entry for repo: ${repo}`, entry);
     } catch (e) {
-      console.warn(`${prefix} [Manifest] Failed to fetch/add entry for repo: ${repo}`, e);
+      if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Error fetching existing manifest for ${repo}, will create anew if possible.`, e);
+    }
+
+    try {
+      const { siblings, task, chunkedFiles } = await fetchRepoFiles(repo);
+      if (!siblings || siblings.length === 0) {
+        if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
+        skippedRepos.push(repo);
+        continue;
+      }
+
+      const allFileNamesInRepo = new Set(siblings.map(f => f.rfilename));
+      if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] All files in repo ${repo}:`, allFileNamesInRepo);
+
+      const quantMap: Record<string, any> = {};
+
+      for (const file of siblings) {
+        if (file.rfilename && file.rfilename.endsWith('.onnx')) {
+          const quantKey = file.rfilename; 
+          if (!allFileNamesInRepo.has(quantKey)) {
+            if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant ONNX file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
+            continue;
+          }
+          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Found ONNX file (quantKey): ${quantKey} in repo ${repo}`);
+
+          const currentQuantRequiredFiles = new Set<string>();
+          currentQuantRequiredFiles.add(quantKey); 
+
+          const quantDir = quantKey.includes('/') ? quantKey.substring(0, quantKey.lastIndexOf('/')) : '';
+
+          // Add all subfolder files matching the pattern
+          for (const sibling of siblings) {
+            if (sibling.rfilename === quantKey) continue;
+            if (SUPPORTING_FILE_REGEX.test(sibling.rfilename) && quantDir && sibling.rfilename.startsWith(quantDir + '/')) {
+              currentQuantRequiredFiles.add(sibling.rfilename);
+            }
+          }
+
+          // Add root-level files matching the pattern only if not already present
+          for (const sibling of siblings) {
+            if (sibling.rfilename === quantKey) continue;
+            if (SUPPORTING_FILE_REGEX.test(sibling.rfilename) && !sibling.rfilename.includes('/')) {
+              const fileName = sibling.rfilename;
+              if (quantDir) {
+                const subfolderVersion = `${quantDir}/${fileName}`;
+                if (!currentQuantRequiredFiles.has(subfolderVersion)) {
+                  currentQuantRequiredFiles.add(fileName);
+                }
+              } else {
+                currentQuantRequiredFiles.add(fileName);
+              }
+            }
+          }
+
+          // Determine if any required file is serverOnly
+          let isServerOnly = false;
+          for (const fname of currentQuantRequiredFiles) {
+            if (chunkedFiles && chunkedFiles[fname] && chunkedFiles[fname].serverOnly) {
+              isServerOnly = true;
+              break;
+            }
+          }
+          const status = isServerOnly ? QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || QuantStatus.Available);
+          // Build fileSizes and chunkedFiles info
+          const fileSizes: Record<string, number> = {};
+          const chunkedFilesInfo: Record<string, { size: number, totalChunks: number, chunkSizeUsed: number }> = {};
+          for (const fname of currentQuantRequiredFiles) {
+            let size: number | undefined = undefined;
+            if (chunkedFiles && chunkedFiles[fname]) {
+              quantMap[quantKey] = quantMap[quantKey] || {};
+              quantMap[quantKey].chunkedFiles = quantMap[quantKey].chunkedFiles || {};
+              quantMap[quantKey].chunkedFiles[fname] = chunkedFiles[fname];
+              size = chunkedFiles[fname].size;
+            } else {
+              const entry = siblings.find(f => f.rfilename === fname);
+              if (entry && typeof entry.size === 'number' && entry.size > 0) {
+                size = entry.size;
+              }
+            }
+            if (typeof size === 'number' && size > 0) {
+              fileSizes[fname] = size;
+            }
+          }
+          quantMap[quantKey] = {
+            files: Array.from(currentQuantRequiredFiles).sort(),
+            status,
+            fileSizes,
+            chunkedFiles: Object.keys(chunkedFilesInfo).length > 0 ? chunkedFilesInfo : undefined
+          };
+          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] For quantKey ${quantKey}, required files:`, quantMap[quantKey].files, `Status: ${status}`, `fileSizes:`, fileSizes, `chunkedFiles:`, chunkedFilesInfo);
+        }
+      }
+
+      if (Object.keys(quantMap).length === 0) {
+        if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] No .onnx models found for repo ${repo}. Skipping manifest creation/update for this repo.`);
+        skippedRepos.push(repo);
+        continue; 
+      }
+
+      const newManifestEntry: ManifestEntry = { 
+        repo, 
+        quants: quantMap, 
+        task,
+        manifestVersion: CURRENT_MANIFEST_VERSION 
+      };
+      await addManifestEntry(repo, newManifestEntry);
+      processedRepos.push(repo);
+      if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Successfully created/updated manifest for repo: ${repo}`, newManifestEntry);
+
+    } catch (e) {
+      if (LOG_ERROR) console.error(`${prefix} [ensureManifestForDropdownRepos] Failed to fetch repo files or process manifest for repo: ${repo}`, e);
+      errorRepos.push(repo);
     }
   }
+  if (LOG_MANIFEST_GENERATION) {
+    console.log(`${prefix} [ensureManifestForDropdownRepos] Finished processing all dropdown repos.`);
+    console.log(`${prefix} [ensureManifestForDropdownRepos] Processed repos:`, processedRepos);
+    if (skippedRepos.length > 0) console.warn(`${prefix} [ensureManifestForDropdownRepos] Skipped repos (no models or missing files):`, skippedRepos);
+    if (errorRepos.length > 0) console.error(`${prefix} [ensureManifestForDropdownRepos] Repos with errors:`, errorRepos);
+  }
+
   document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
 }
+
 
 export function isModelLoaded() {
   return modelWorkerState === WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
 }
 
 export { sendDbRequestSmart, sendToModelWorker };
+
+
+

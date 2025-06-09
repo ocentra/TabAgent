@@ -18,7 +18,7 @@ export type QuantInfo = {
 };
 
 export const CURRENT_MANIFEST_VERSION = 1;
-
+export const SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
 export type ManifestEntry = {
   repo: string; // e.g., "microsoft/Phi-3-mini-4k-instruct-onnx"
   quants: Record<string, QuantInfo>; // Key is the full rfilename of the .onnx file
@@ -262,7 +262,7 @@ export async function fetchRepoFiles(repo: string): Promise<{ siblings: { rfilen
         }));
         // Build chunkedFiles for .onnx/.onnx.data/.onnx_data files
         const chunkedFiles: Record<string, { size: number, totalChunks: number, chunkSizeUsed: number, serverOnly?: boolean }> = {};
-        const SERVER_ONLY_SIZE = 1.5 * 1024 * 1024 * 1024; // 1.5GB
+      
         for (const entry of siblings) {
             if ((entry.rfilename.endsWith('.onnx') || entry.rfilename.endsWith('.onnx.data') || entry.rfilename.endsWith('.onnx_data')) && typeof entry.size === 'number' && entry.size > 0) {
                 chunkedFiles[entry.rfilename] = {

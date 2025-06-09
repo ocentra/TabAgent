@@ -23,10 +23,15 @@ let requestDbAndWaitFunc: any = null;
 
 let currentHistoryItems: any[] = [];
 let currentSearchTerm: string = '';
-
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[HistoryPopupController]';
 function handleSessionUpdate(notification: any): void {
     if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
-        console.warn("[HistoryPopupController] Invalid session update notification received.", notification);
+        if (LOG_WARN) console.warn(prefix, "Invalid session update notification received.", notification);
         return;
     }
 
@@ -35,11 +40,11 @@ function handleSessionUpdate(notification: any): void {
     const updateType = notification.payload.updateType || 'update'; 
 
     if (!updatedSessionData) {
-        console.warn(`[HistoryPopupController] Session update notification for ${sessionId} missing session data.`, notification);
+        if (LOG_WARN) console.warn(prefix, `Session update notification for ${sessionId} missing session data.`, notification);
         return;
     }
 
-    console.log(`[HistoryPopupController] Received session update for ${sessionId}. Type: ${updateType}, New starred: ${updatedSessionData.isStarred}`);
+    if (LOG_INFO) console.log(prefix, `Received session update for ${sessionId}. Type: ${updateType}, New starred: ${updatedSessionData.isStarred}`);
 
     const itemIndex = currentHistoryItems.findIndex(item => item.id === sessionId); 
 
@@ -47,36 +52,36 @@ function handleSessionUpdate(notification: any): void {
 
     if (updateType === 'delete') {
         if (itemIndex !== -1) {
-            console.log(`[HistoryPopupController] Removing deleted session ${sessionId} from local list.`);
+            if (LOG_INFO) console.log(prefix, `Removing deleted session ${sessionId} from local list.`);
             currentHistoryItems.splice(itemIndex, 1);
             listChanged = true;
         }
     } else {
         if (itemIndex !== -1) {
-            console.log(`[HistoryPopupController] Updating session ${sessionId} in local list.`);
+            if (LOG_INFO) console.log(prefix, `Updating session ${sessionId} in local list.`);
             currentHistoryItems[itemIndex] = { 
                 ...currentHistoryItems[itemIndex], 
                 ...updatedSessionData
             };
             listChanged = true; 
         } else {
-            console.log(`[HistoryPopupController] Adding new/updated session ${sessionId} to local list.`);
+            if (LOG_INFO) console.log(prefix, `Adding new/updated session ${sessionId} to local list.`);
             currentHistoryItems.push(updatedSessionData); 
             listChanged = true;
         }
     }
 
     if (listChanged && historyPopupElement && !historyPopupElement.classList.contains('hidden')) {
-        console.log(`[HistoryPopupController] Popup visible and list changed, calling renderHistoryList()`);
+        if (LOG_INFO) console.log(prefix, `Popup visible and list changed, calling renderHistoryList()`);
         renderHistoryList(); 
     } else {
-        console.log(`[HistoryPopupController] Popup not visible or list unchanged, skipping renderHistoryList()`);
+        if (LOG_INFO) console.log(prefix, `Popup not visible or list unchanged, skipping renderHistoryList()`);
     }
 }
 
 function renderHistoryList(): void {
     if (!isInitialized || !historyListElement) return;
-    console.log(`[HistoryPopupController] Rendering history list (Search: "${currentSearchTerm}")...`);
+    if (LOG_INFO) console.log(prefix, `Rendering history list (Search: "${currentSearchTerm}")...`);
 
     let filteredItems = currentHistoryItems;
     if (currentSearchTerm) {
@@ -84,9 +89,9 @@ function renderHistoryList(): void {
         filteredItems = currentHistoryItems.filter(entry => 
             (entry.name || '').toLowerCase().includes(lowerCaseTerm)
         );
-        console.log(`[HistoryPopupController] Filtered down to ${filteredItems.length} sessions.`);
+        if (LOG_INFO) console.log(prefix, `Filtered down to ${filteredItems.length} sessions.`);
     } else {
-        console.log(`[HistoryPopupController] Rendering all ${filteredItems.length} sessions (no search term).`);
+        if (LOG_INFO) console.log(prefix, `Rendering all ${filteredItems.length} sessions (no search term).`);
     }
 
     historyListElement.innerHTML = ''; 
@@ -121,28 +126,28 @@ function renderHistoryList(): void {
             }
         });
     }
-    console.log("[HistoryPopupController] History list rendered.");
+    if (LOG_INFO) console.log(prefix, "History list rendered.");
 }
 
 async function showPopup(): Promise<void> { 
     if (!isInitialized || !historyPopupElement || !requestDbAndWaitFunc) return;
-    console.log("[Trace][HistoryPopupController] showPopup: Requesting all sessions...");
+    if (LOG_INFO) console.log(prefix, "showPopup: Requesting all sessions...");
     try {
         const sessionsArray = await requestDbAndWaitFunc(new DbGetAllSessionsRequest());
-        console.log("[Trace][HistoryPopupController] showPopup: Received sessionsArray:", sessionsArray);
+        if (LOG_INFO) console.log(prefix, "showPopup: Received sessionsArray:", sessionsArray);
         if (Array.isArray(sessionsArray) && sessionsArray.length > 0) {
-             console.log("[Trace][HistoryPopupController] showPopup: First session item sample:", sessionsArray[0]);
+             if (LOG_INFO) console.log(prefix, "showPopup: First session item sample:", sessionsArray[0]);
         } else if (sessionsArray === null || sessionsArray === undefined) {
-             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is null or undefined.");
+             if (LOG_INFO) console.log(prefix, "showPopup: sessionsArray is null or undefined.");
         } else {
-             console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
+             if (LOG_INFO) console.log(prefix, "showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
         }
         currentHistoryItems = sessionsArray || []; 
-        console.log(`[Trace][HistoryPopupController] showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
+        if (LOG_INFO) console.log(prefix, `showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
         renderHistoryList(); 
         historyPopupElement.classList.remove('hidden');
     } catch (error) {
-        console.error("[Trace][HistoryPopupController] showPopup: Error fetching history list:", error);
+        if (LOG_ERROR) console.error(prefix, "showPopup: Error fetching history list:", error);
         showNotification("Failed to load history.", 'error');
         if (historyListElement) {
             historyListElement.innerHTML = '<p class="p-4 text-center text-red-500 dark:text-red-400">Error loading history. Please try again.</p>';
@@ -153,7 +158,7 @@ async function showPopup(): Promise<void> {
 
 function hidePopup(): void {
     if (!isInitialized || !historyPopupElement) return;
-    console.log("[HistoryPopupController] Hiding popup.");
+    if (LOG_INFO) console.log(prefix, "Hiding popup.");
     historyPopupElement.classList.add('hidden');
 }
 
@@ -165,34 +170,34 @@ function handleSearchInput(event: any): void {
 
 
 async function handleLoadClick(sessionId: string): Promise<void> {
-    console.log(`[HistoryPopupController] Load clicked: ${sessionId}`);
+    if (LOG_INFO) console.log(prefix, `Load clicked: ${sessionId}`);
     if (!sessionId) return;
     try {
         await browser.storage.local.set({ lastSessionId: sessionId });
         navigateTo('page-home');
         hidePopup();
     } catch (error) {
-        console.error("[HistoryPopupController] Error setting storage or navigating:", error);
+        if (LOG_ERROR) console.error(prefix, "Error setting storage or navigating:", error);
         showNotification("Failed to load chat.", 'error');
     }
 }
 
 async function handleStarClick(sessionId: string): Promise<void> {
     if (!sessionId || !requestDbAndWaitFunc) return;
-    console.log(`[HistoryPopupController] Star clicked: ${sessionId}`);
+    if (LOG_INFO) console.log(prefix, `Star clicked: ${sessionId}`);
     try {
         await requestDbAndWaitFunc(new DbToggleStarRequest(sessionId));
         showNotification("Star toggled", 'success');
     } catch (error) {
         const err = error as Error;
-        console.error("[HistoryPopupController] Error toggling star:", err);
+        if (LOG_ERROR) console.error(prefix, "Error toggling star:", err);
         showNotification(`Failed to toggle star: ${err.message}`, 'error');
     }
 }
 
 async function handleDeleteClick(sessionId: string, itemElement: HTMLElement): Promise<void> {
     if (!sessionId || !itemElement || !requestDbAndWaitFunc) return;
-    console.log(`[HistoryPopupController] Delete confirmed inline for: ${sessionId}. Applying deleting state.`);
+    if (LOG_INFO) console.log(prefix, `Delete confirmed inline for: ${sessionId}. Applying deleting state.`);
     
     itemElement.classList.add('is-deleting'); 
     itemElement.querySelectorAll('button').forEach(btn => btn.disabled = true);
@@ -211,7 +216,7 @@ async function handleDeleteClick(sessionId: string, itemElement: HTMLElement): P
         showNotification("Chat deletion initiated...", 'info'); 
     } catch (error) {
         const err = error as Error;
-        console.error("[HistoryPopupController] Error deleting chat:", err);
+        if (LOG_ERROR) console.error(prefix, "Error deleting chat:", err);
         showNotification(`Failed to delete chat: ${err.message}`, 'error');
         itemElement.classList.remove('is-deleting'); 
         itemElement.querySelectorAll('button').forEach(btn => btn.disabled = false);
@@ -225,13 +230,13 @@ async function handleDeleteClick(sessionId: string, itemElement: HTMLElement): P
 
 async function handleRenameSubmit(sessionId: string, newName: string): Promise<void> {
     if (!sessionId || !newName || !requestDbAndWaitFunc) return;
-    console.log(`[HistoryPopupController] Rename submitted: ${sessionId} to "${newName}"`);
+    if (LOG_INFO) console.log(prefix, `Rename submitted: ${sessionId} to "${newName}"`);
     try {
         await requestDbAndWaitFunc(new DbRenameSessionRequest(sessionId, newName));
         showNotification("Rename successful", 'success');
     } catch (error) {
         const err = error as Error;
-        console.error("[HistoryPopupController] Error submitting rename:", err);
+        if (LOG_ERROR) console.error(prefix, "Error submitting rename:", err);
         showNotification(`Failed to rename chat: ${err.message}`, 'error');
     }
 }
@@ -240,22 +245,22 @@ async function handleDownloadClick(sessionId: string): Promise<void> {
     if (requestDbAndWaitFunc) {
         initiateChatDownload(sessionId, requestDbAndWaitFunc, (msg, type) => showNotification(msg, type as 'info' | 'success' | 'error'));
     } else {
-        console.error("[HistoryPopupController] Cannot download: requestDbAndWaitFunc not available.");
+        if (LOG_ERROR) console.error(prefix, "Cannot download: requestDbAndWaitFunc not available.");
         showNotification("Download failed: Internal setup error.", 'error');
     }
 }
 
 function handleShareClick(sessionId: string): void {
-    console.log(`[HistoryPopupController] Share clicked: ${sessionId}`);
+    if (LOG_INFO) console.log(prefix, `Share clicked: ${sessionId}`);
 }
 
 async function handlePreviewClick(sessionId: string, contentElement: HTMLElement): Promise<void> {
     if (!sessionId || !contentElement || !requestDbAndWaitFunc) {
-        console.error("[HistoryPopupController] Preview failed: Missing sessionId, contentElement, or requestDbAndWaitFunc.");
+        if (LOG_ERROR) console.error(prefix, "Preview failed: Missing sessionId, contentElement, or requestDbAndWaitFunc.");
         return;
     }
     
-    console.log(`[HistoryPopupController] Handling preview click for: ${sessionId}`);
+    if (LOG_INFO) console.log(prefix, `Handling preview click for: ${sessionId}`);
     contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 italic text-xs">Loading preview...</span>'; 
 
     try {
@@ -281,17 +286,17 @@ async function handlePreviewClick(sessionId: string, contentElement: HTMLElement
 
     } catch (error) {
         const err = error as Error;
-        console.error(`[HistoryPopupController] Error fetching preview for ${sessionId}:`, err);
+        if (LOG_ERROR) console.error(prefix, `Error fetching preview for ${sessionId}:`, err);
         contentElement.innerHTML = `<span class="text-red-500 text-xs">Error loading preview: ${err.message}</span>`;
     }
 }
 
 document.addEventListener(DbSessionUpdatedNotification.type, (e) => handleSessionUpdate((e as CustomEvent).detail));
 export function initializeHistoryPopup(elements: any, requestFunc: any): any {
-    console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
+    if (LOG_INFO) console.log(prefix, "Entering initializeHistoryPopup...");
 
     if (!elements || !elements.popupContainer || !elements.listContainer || !elements.searchInput || !elements.closeButton || !requestFunc) {
-        console.error("[HistoryPopupController] Initialization failed: Missing required elements or request function.", { elements, requestFunc });
+        if (LOG_ERROR) console.error(prefix, "Initialization failed: Missing required elements or request function.", { elements, requestFunc });
         return null;
     }
 
@@ -300,7 +305,7 @@ export function initializeHistoryPopup(elements: any, requestFunc: any): any {
     historySearchElement = elements.searchInput;
     closeHistoryButtonElement = elements.closeButton;
     requestDbAndWaitFunc = requestFunc;
-    console.log("[HistoryPopupController] Elements and request function assigned.");
+    if (LOG_INFO) console.log(prefix, "Elements and request function assigned.");
 
     try {
         if (closeHistoryButtonElement) closeHistoryButtonElement.addEventListener('click', hidePopup);
@@ -308,14 +313,14 @@ export function initializeHistoryPopup(elements: any, requestFunc: any): any {
         if (historySearchElement) historySearchElement.addEventListener('input', debouncedSearchHandler);
         
         isInitialized = true;
-        console.log("[HistoryPopupController] Initialization successful. History will be rendered when popup is shown.");
+        if (LOG_INFO) console.log(prefix, "Initialization successful. History will be rendered when popup is shown.");
 
         return {
             show: showPopup,
             hide: hidePopup
         };
     } catch (error) {
-        console.error("[HistoryPopupController] Error during initialization listeners/subscriptions:", error);
+        if (LOG_ERROR) console.error(prefix, "Error during initialization listeners/subscriptions:", error);
         isInitialized = false;
         return null; 
     }

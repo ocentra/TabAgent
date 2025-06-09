@@ -42,7 +42,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantInfo, QuantStatus, addManifestEntry, getChunkedFileInfoMap, CHUNK_SIZE } from './DB/idbModel';
+import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantInfo, QuantStatus, addManifestEntry, getChunkedFileInfoMap, CHUNK_SIZE, SERVER_ONLY_SIZE } from './DB/idbModel';
 import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
@@ -126,7 +126,7 @@ function syncToggleLoadButton() {
         : Contexts.MAIN_UI;
   } catch (e) {
     window.EXTENSION_CONTEXT = Contexts.UNKNOWN;
-    console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
+    if (LOG_ERROR) console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
   }
 })();
 
@@ -138,13 +138,13 @@ if (window.marked) {
         try {
           return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
         } catch (e) {
-          console.error(`${prefix} hljs error:`, e);
+          if (LOG_ERROR) console.error(`${prefix} hljs error:`, e);
         }
       } else if (window.hljs) {
         try {
           return window.hljs.highlightAuto(code).value;
         } catch (e) {
-          console.error(`${prefix} hljs auto error:`, e);
+          if (LOG_ERROR) console.error(`${prefix} hljs auto error:`, e);
         }
       }
       const escapeHtml = (htmlStr: string) =>
@@ -160,9 +160,9 @@ if (window.marked) {
     gfm: true,
     breaks: true,
   });
-  console.log(`${prefix} Marked globally configured to use highlight.`);
+  if (LOG_DEBUG) console.log(`${prefix} Marked globally configured to use highlight.`);
 } else {
-  console.error(`${prefix} Marked library (window.marked) not found.`);
+  if (LOG_ERROR) console.error(`${prefix} Marked library (window.marked) not found.`);
 }
 
 
@@ -175,14 +175,14 @@ function isDbLocalContext() {
 }
 
 async function sendDbRequestSmart(request: any) {
-  console.log(`${prefix} sendDbRequestSmart called`, { request });
+  if (LOG_DEBUG) console.log(`${prefix} sendDbRequestSmart called`, { request });
   let response;
   if (isDbLocalContext()) {
     response = await forwardDbRequest(request);
-    console.log(`${prefix} sendDbRequestSmart got local response`, { response });
+    if (LOG_DEBUG) console.log(`${prefix} sendDbRequestSmart got local response`, { response });
   } else {
     response = await browser.runtime.sendMessage(request);
-    console.log(`${prefix} sendDbRequestSmart got remote response`, { response });
+    if (LOG_DEBUG) console.log(`${prefix} sendDbRequestSmart got remote response`, { response });
   }
   return response;
 }
@@ -197,7 +197,7 @@ function requestDbAndWait(requestEvent: any) {
     (async () => {
       try {
         const result = await sendDbRequestSmart(requestEvent);
-        console.log(`${prefix} requestDbAndWait: Raw result`, result);
+        if (LOG_DEBUG) console.log(`${prefix} requestDbAndWait: Raw result`, result);
         const response = Array.isArray(result) ? result[0] : result;
         if (response && (response.success || response.error === undefined)) {
           resolve(response.data || response.payload);
@@ -288,15 +288,15 @@ function handleModelWorkerMessage(event: MessageEvent) {
   switch (type) {
       case WorkerEventNames.WORKER_SCRIPT_READY:
           modelWorkerState = WorkerEventNames.WORKER_SCRIPT_READY;
-          console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
+          if (LOG_DEBUG) console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
           break;
       case WorkerEventNames.WORKER_ENV_READY:
           isModelWorkerEnvReady = true;
-          console.log(`${prefix} Model worker environment is ready.`);
+          if (LOG_DEBUG) console.log(`${prefix} Model worker environment is ready.`);
           break;
       case WorkerEventNames.LOADING_STATUS:
           modelWorkerState = WorkerEventNames.LOADING_MODEL;
-          console.log(`${prefix} Worker loading status:`, payload);
+          if (LOG_DEBUG) console.log(`${prefix} Worker loading status:`, payload);
           break;
       case WorkerEventNames.WORKER_READY: {
           const { modelId, modelPath, task, fallback, executionProvider, warning } = payload;
@@ -318,15 +318,15 @@ function handleModelWorkerMessage(event: MessageEvent) {
           if (warning) {
             utilShowWarning(warning);
           }
-          console.log(`${prefix} Model ${modelId} loaded successfully!`);
-          console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
+          if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} loaded successfully!`);
+          if (LOG_DEBUG) console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
           break;
       }
       case WorkerEventNames.ERROR:
           modelWorkerState = WorkerEventNames.ERROR;
           isModelWorkerEnvReady = false;
           hideDeviceBadge();
-          console.error(`${prefix} Model worker reported an error:`, payload);
+          if (LOG_ERROR) console.error(`${prefix} Model worker reported an error:`, payload);
           utilShowError(`Worker Error: ${payload}`);
           currentModelIdInWorker = null; 
           break;
@@ -335,13 +335,13 @@ function handleModelWorkerMessage(event: MessageEvent) {
           isModelWorkerEnvReady = false;
           currentModelIdInWorker = null;
           hideDeviceBadge();
-          console.log(`${prefix} Model worker reset complete.`);
+          if (LOG_DEBUG) console.log(`${prefix} Model worker reset complete.`);
           break;
       case UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
           document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
           break;
       case WorkerEventNames.GENERATION_COMPLETE: {
-          console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
+          if (LOG_DEBUG) console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
           // Use only the clean generatedText from the worker
           if (payload.messageId && activeSessionId) {
               sendDbRequestSmart(new DbUpdateMessageRequest(activeSessionId, payload.messageId, {
@@ -379,6 +379,20 @@ function handleModelWorkerMessage(event: MessageEvent) {
           });
         }
         break;
+      case WorkerEventNames.GENERATION_UPDATE: {
+          // Streaming token update from worker
+          if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
+              // Fetch the current message from the DB (optional, or just append)
+              // For now, just append the token to the message text/content
+              sendDbRequestSmart(new DbUpdateMessageRequest(payload.chatId, payload.messageId, {
+                  isLoading: true,
+                  sender: 'ai',
+                  appendText: payload.token,
+                  appendContent: payload.token
+              }));
+          }
+          break;
+      }
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
   }
@@ -388,13 +402,13 @@ function handleModelWorkerError(error: Event | string) {
   let errorMessage: string;
   if (error instanceof ErrorEvent) {
     errorMessage = error.message;
-    console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
+    if (LOG_ERROR) console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
   } else if (error instanceof Event && 'message' in error) {
     errorMessage = (error as any).message;
-    console.error(`${prefix} Uncaught error in model worker:`, error);
+    if (LOG_ERROR) console.error(`${prefix} Uncaught error in model worker:`, error);
   } else {
     errorMessage = String(error);
-    console.error(`${prefix} Uncaught error in model worker:`, error);
+    if (LOG_ERROR) console.error(`${prefix} Uncaught error in model worker:`, error);
   }
   modelWorkerState = WorkerEventNames.ERROR;
   currentModelIdInWorker = null;
@@ -407,18 +421,18 @@ function handleModelWorkerError(error: Event | string) {
 
 function initializeModelWorker() {
   if (modelWorker && modelWorkerState !== WorkerEventNames.ERROR && modelWorkerState !== WorkerEventNames.UNINITIALIZED) {
-      console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
+      if (LOG_DEBUG) console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
       return; 
   }
 
   if (modelWorker) { 
-      console.log(`${prefix} Terminating existing model worker before creating a new one.`);
+      if (LOG_DEBUG) console.log(`${prefix} Terminating existing model worker before creating a new one.`);
       modelWorker.terminate();
       modelWorker = undefined;
   }
 
   isModelWorkerEnvReady = false;
-  console.log(`${prefix} Initializing model worker...`);
+  if (LOG_DEBUG) console.log(`${prefix} Initializing model worker...`);
   try {
       const workerUrl = browser.runtime.getURL('modelworker.js');
       modelWorker = new Worker(workerUrl, { type: 'module' });
@@ -427,9 +441,9 @@ function initializeModelWorker() {
       modelWorker.onmessage = handleModelWorkerMessage;
       modelWorker.onerror = handleModelWorkerError;
 
-      console.log(`${prefix} Model worker instance created and listeners attached.`);
+      if (LOG_DEBUG) console.log(`${prefix} Model worker instance created and listeners attached.`);
   } catch (error) {
-      console.error(`${prefix} Failed to create model worker:`, error);
+      if (LOG_ERROR) console.error(`${prefix} Failed to create model worker:`, error);
       modelWorkerState = WorkerEventNames.ERROR;
       utilShowError(`Failed to initialize model worker: ${(error as Error).message}`);
   }
@@ -442,7 +456,7 @@ function initializeModelWorker() {
 
 function terminateModelWorker() {
   if (modelWorker) {
-      console.log(`${prefix} Terminating model worker.`);
+      if (LOG_DEBUG) console.log(`${prefix} Terminating model worker.`);
       modelWorker.terminate();
       modelWorker = undefined;
   }
@@ -450,7 +464,7 @@ function terminateModelWorker() {
   modelWorkerState = WorkerEventNames.UNINITIALIZED;
   isModelWorkerEnvReady = false;
   hideDeviceBadge();
-  console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
+  if (LOG_DEBUG) console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
 }
 
 function sendToModelWorker(message: any) {
@@ -463,7 +477,7 @@ function sendToModelWorker(message: any) {
   try {
       modelWorker.postMessage(message);
   } catch (error) {
-      console.error(`${prefix} Error posting message to model worker:`, error, message);
+      if (LOG_ERROR) console.error(`${prefix} Error posting message to model worker:`, error, message);
       utilShowError(`Error communicating with model worker: ${(error as Error).message}`);
   }
 }
@@ -478,7 +492,7 @@ function getActiveChatSessionId(): string | null {
 }
 
 async function setActiveChatSessionId(newSessionId: string | null) {
-  console.log(`${prefix} Setting active session ID to: ${newSessionId}`);
+  if (LOG_DEBUG) console.log(`${prefix} Setting active session ID to: ${newSessionId}`);
   activeSessionId = newSessionId;
   if (newSessionId) {
     await browser.storage.local.set({ lastSessionId: newSessionId });
@@ -519,7 +533,7 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
 
 
     if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
-        console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
+        if (LOG_DEBUG) console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
         return;
     }
 
@@ -531,13 +545,13 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
     }
 
     if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
-        console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
+        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
         sendToModelWorker({ type: 'generate', payload });
     } else if (type === RuntimeMessageTypes.INTERRUPT_GENERATION) {
-        console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
+        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
         sendToModelWorker({ type: 'interrupt', payload });
     } else if (type === RuntimeMessageTypes.RESET_WORKER) {
-        console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
+        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
         terminateModelWorker();
         llmChannel.postMessage({ // Acknowledge the reset request
             type: RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
@@ -547,7 +561,7 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
             timestamp: Date.now(),
         });
     } else if (type === RuntimeMessageTypes.LOAD_MODEL) {
-        console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
+        if (LOG_WARN) console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
         const modelToLoad = payload.modelId || payload.model;
         const onnxToLoad = payload.quant; 
         if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
@@ -556,7 +570,7 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
             }));
         } else {
             const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
-            console.error(`${prefix} ${errorMsg}`);
+            if (LOG_ERROR) console.error(`${prefix} ${errorMsg}`);
             llmChannel.postMessage({
                 type: RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
                 payload: { success: false, error: errorMsg },
@@ -572,10 +586,10 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
             timestamp: Date.now(),
         });
     } else {
-        console.log(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
+        if (LOG_WARN) console.warn(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
     }
 
-    console.log(`${prefix} onmessage END`, { type, requestId, payload, msgSenderId, timestamp: Date.now() });
+    if (LOG_DEBUG) console.log(`${prefix} onmessage END`, { type, requestId, payload, msgSenderId, timestamp: Date.now() });
   };
 }
 
@@ -610,30 +624,30 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
   ) {
     // No action needed
   } else {
-    console.warn(`${prefix} Received unknown message type from background:`, type, message);
+    if (LOG_WARN) console.warn(`${prefix} Received unknown message type from background:`, type, message);
   }
 
 }
 
 async function handleSessionCreated(newSessionId: string) {
-  console.log(`${prefix} Orchestrator reported new session created: ${newSessionId}`);
-  console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
+  if (LOG_DEBUG) console.log(`${prefix} Orchestrator reported new session created: ${newSessionId}`);
+  if (LOG_DEBUG) console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
   await setActiveChatSessionId(newSessionId);
   try {
     const request = new DbGetSessionRequest(newSessionId);
     const sessionData = await requestDbAndWait(request);
     if (!(sessionData as any)?.messages) {
-      console.warn(`${prefix} No messages found in session data for new session ${newSessionId}.`, sessionData);
+      if (LOG_WARN) console.warn(`${prefix} No messages found in session data for new session ${newSessionId}.`, sessionData);
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`${prefix} Failed to fetch messages for new session ${newSessionId}:`, err);
+    if (LOG_ERROR) console.error(`${prefix} Failed to fetch messages for new session ${newSessionId}:`, err);
     utilShowError(`Failed to load initial messages for new chat: ${err.message}`);
   }
 }
 
 async function handleNewChat() {
-  console.log(`${prefix} New Chat button clicked.`);
+  if (LOG_DEBUG) console.log(`${prefix} New Chat button clicked.`);
   await setActiveChatSessionId(null);
   clearInput();
   focusInput();
@@ -641,22 +655,22 @@ async function handleNewChat() {
 
 async function loadAndDisplaySession(sessionId: string | null) {
   if (!sessionId) {
-    console.log(`${prefix} No session ID to load, setting renderer to null.`);
+    if (LOG_DEBUG) console.log(`${prefix} No session ID to load, setting renderer to null.`);
     await setActiveChatSessionId(null);
     return;
   }
-  console.log(`${prefix} Loading session data for: ${sessionId}`);
+  if (LOG_DEBUG) console.log(`${prefix} Loading session data for: ${sessionId}`);
   try {
     const request = new DbGetSessionRequest(sessionId);
     const sessionData = await requestDbAndWait(request);
-    console.log(`${prefix} Session data successfully loaded for ${sessionId}.`);
+    if (LOG_DEBUG) console.log(`${prefix} Session data successfully loaded for ${sessionId}.`);
     await setActiveChatSessionId(sessionId);
     if (!(sessionData as any)?.messages) {
-      console.warn(`${prefix} No messages found in loaded session data for ${sessionId}.`);
+      if (LOG_WARN) console.warn(`${prefix} No messages found in loaded session data for ${sessionId}.`);
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`${prefix} Failed to load session ${sessionId}:`, err);
+    if (LOG_ERROR) console.error(`${prefix} Failed to load session ${sessionId}:`, err);
     utilShowError(`Failed to load chat: ${err.message}`);
     await setActiveChatSessionId(null);
   }
@@ -664,7 +678,7 @@ async function loadAndDisplaySession(sessionId: string | null) {
 
 async function handleDetach() {
   if (!currentTabId) {
-    console.error('Cannot detach: Missing tab ID');
+    if (LOG_ERROR) console.error('Cannot detach: Missing tab ID');
     utilShowError('Cannot detach: Missing tab ID');
     return;
   }
@@ -680,7 +694,7 @@ async function handleDetach() {
     }
     const storageKey = `detachedSessionId_${currentTabId}`;
     await browser.storage.local.set({ [storageKey]: currentSessionId });
-    console.log(`${prefix} Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+    if (LOG_DEBUG) console.log(`${prefix} Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
     const popup = await browser.windows.create({
       url: browser.runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
       type: 'popup',
@@ -698,33 +712,33 @@ async function handleDetach() {
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`${prefix} Error during detach:`, err);
+    if (LOG_ERROR) console.error(`${prefix} Error during detach:`, err);
     utilShowError(`Error detaching chat: ${err.message}`);
   }
 }
 
 async function handlePageChange(event: any) {
   if (!event?.pageId) return;
-  console.log(`${prefix} Navigation changed to: ${event.pageId}`);
+  if (LOG_DEBUG) console.log(`${prefix} Navigation changed to: ${event.pageId}`);
   if (!isDbReady) {
-    console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
+    if (LOG_DEBUG) console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
     return;
   }
   if (event.pageId === 'page-home') {
-    console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
+    if (LOG_DEBUG) console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
     try {
       const { lastSessionId } = await browser.storage.local.get(['lastSessionId']);
       if (lastSessionId) {
-        console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+        if (LOG_DEBUG) console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
         await loadAndDisplaySession(lastSessionId);
         await browser.storage.local.remove('lastSessionId');
       } else {
-        console.log(`${prefix} No load signal found. Resetting to welcome state.`);
+        if (LOG_DEBUG) console.log(`${prefix} No load signal found. Resetting to welcome state.`);
         await loadAndDisplaySession(null);
       }
     } catch (error) {
       const err = error as Error;
-      console.error(`${prefix} Error checking/loading session based on signal:`, err);
+      if (LOG_ERROR) console.error(`${prefix} Error checking/loading session based on signal:`, err);
       utilShowError('Failed to load session state.');
       await loadAndDisplaySession(null);
     }
@@ -733,13 +747,13 @@ async function handlePageChange(event: any) {
 
 // --- Main Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log(`${prefix} DOM Content Loaded.`);
+  if (LOG_DEBUG) console.log(`${prefix} DOM Content Loaded.`);
   const urlParams = new URLSearchParams(window.location.search);
   const requestedView = urlParams.get('view');
 
   // Log Viewer Mode
   if (requestedView === 'logs') {
-    console.log(`${prefix} Initializing in Log Viewer Mode.`);
+    if (LOG_DEBUG) console.log(`${prefix} Initializing in Log Viewer Mode.`);
     document.body.classList.add('log-viewer-mode');
     document.getElementById('header')?.classList.add('hidden');
     document.getElementById('bottom-nav')?.classList.add('hidden');
@@ -750,7 +764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logViewerPage) {
       logViewerPage.classList.remove('hidden');
     } else {
-      console.error(`${prefix} CRITICAL: #page-log-viewer element not found!`);
+      if (LOG_ERROR) console.error(`${prefix} CRITICAL: #page-log-viewer element not found!`);
       document.body.innerHTML =
         "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>";
       return;
@@ -758,10 +772,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const logViewerModule = await import('./Controllers/LogViewerController');
       await logViewerModule.initializeLogViewerController();
-      console.log(`${prefix} Log Viewer Controller initialized.`);
+      if (LOG_DEBUG) console.log(`${prefix} Log Viewer Controller initialized.`);
     } catch (err) {
       const error = err as Error;
-      console.error(`${prefix} Failed to load or initialize LogViewerController:`, error);
+      if (LOG_ERROR) console.error(`${prefix} Failed to load or initialize LogViewerController:`, error);
       if (logViewerPage) {
         logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${error.message}</div>`;
       }
@@ -770,7 +784,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Standard Mode
-    console.log(`${prefix} Initializing in Standard Mode.`);
+    if (LOG_DEBUG) console.log(`${prefix} Initializing in Standard Mode.`);
   document.getElementById('page-log-viewer')?.classList.add('hidden');
 
   // Initialize UI and Core Components
@@ -781,44 +795,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     if (!uiInitResult) throw new Error('UI initialization failed');
     const { chatBody, fileInput } = uiInitResult;
-    console.log(`${prefix} UI Controller Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} UI Controller Initialized.`);
 
     if (!chatBody) {
-      console.error(`${prefix} CRITICAL: chatBody is null before initializeRenderer!`);
+      if (LOG_ERROR) console.error(`${prefix} CRITICAL: chatBody is null before initializeRenderer!`);
       throw new Error('chatBody is null');
     }
     initializeRenderer(chatBody, requestDbAndWait);
-    console.log(`${prefix} Chat Renderer Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Chat Renderer Initialized.`);
 
     initializeNavigation();
-    console.log(`${prefix} Navigation Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Navigation Initialized.`);
 
     document.addEventListener(UIEventNames.NAVIGATION_PAGE_CHANGED, (e: Event) => handlePageChange((e as CustomEvent).detail));
 
     initializeFileHandling({
       getActiveSessionIdFunc: getActiveChatSessionId,
     });
-    console.log(`${prefix} File Handler Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} File Handler Initialized.`);
 
     if (fileInput) {
       fileInput.addEventListener('change', handleFileSelected);
     } else {
-      console.warn(`${prefix} File input element not found before adding listener.`);
+      if (LOG_WARN) console.warn(`${prefix} File input element not found before adding listener.`);
     }
 
     const activeTab = await getActiveTab();
     currentTabId = activeTab?.id;
-    console.log(`${prefix} Current Tab ID: ${currentTabId}`);
+    if (LOG_DEBUG)  console.log(`${prefix} Current Tab ID: ${currentTabId}`);
 
     initializeOrchestrator({
       getActiveSessionIdFunc: getActiveChatSessionId,
       onSessionCreatedCallback: handleSessionCreated,
       getCurrentTabIdFunc: () => currentTabId,
     });
-    console.log(`${prefix} Message Orchestrator Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Message Orchestrator Initialized.`);
 
     browser.runtime.onMessage.addListener(handleMessage);
-    console.log(`${prefix} Background message listener added.`);
+    if (LOG_DEBUG) console.log(`${prefix} Background message listener added.`);
 
     // Initialize Controllers
     const historyPopupElement = document.getElementById('history-popup');
@@ -840,16 +854,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         requestDbAndWait
       );
       if (!historyPopupController) {
-        console.error(`${prefix} History Popup Controller initialization failed.`);
+        if (LOG_ERROR) console.error(`${prefix} History Popup Controller initialization failed.`);
       }
     } else {
-      console.warn(`${prefix} Could not find all required elements for History Popup Controller.`);
+      if (LOG_WARN) console.warn(`${prefix} Could not find all required elements for History Popup Controller.`);
     }
 
     if (historyButton && historyPopupController) {
       historyButton.addEventListener('click', () => historyPopupController.show());
     } else {
-      console.warn(`${prefix} History button or controller not available for listener.`);
+      if (LOG_WARN) console.warn(`${prefix} History button or controller not available for listener.`);
     }
 
     if (newChatButton) {
@@ -859,15 +873,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (detachButton) {
       detachButton.addEventListener('click', handleDetach);
     } else {
-      console.warn(`${prefix} Detach button not found.`);
+      if (LOG_WARN) console.warn(`${prefix} Detach button not found.`);
     }
 
     const libraryListElement = document.getElementById('starred-list');
     if (libraryListElement) {
       initializeLibraryController({ listContainer: libraryListElement }, requestDbAndWait);
-      console.log(`${prefix} Library Controller Initialized.`);
+      if (LOG_DEBUG) console.log(`${prefix} Library Controller Initialized.`);
     } else {
-      console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
+      if (LOG_WARN) console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
     }
 
 
@@ -878,7 +892,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
       }
       if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === WorkerEventNames.ERROR)) {
-          console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
+          if (LOG_DEBUG) console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
           terminateModelWorker();
       }
       if (!modelWorker) {
@@ -891,7 +905,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       const waitForEnvReady = async (timeoutMs = 5000) => {
         if (isModelWorkerEnvReady) return;
-        console.log(`${prefix} Waiting for model worker environment to be ready...`);
+        if (LOG_DEBUG) console.log(`${prefix} Waiting for model worker environment to be ready...`);
         const start = Date.now();
         while (!isModelWorkerEnvReady) {
           if (Date.now() - start > timeoutMs) {
@@ -899,7 +913,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
           await new Promise(res => setTimeout(res, 50));
         }
-        console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
+        if (LOG_DEBUG)  console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
       };
       try {
         await waitForEnvReady();
@@ -913,7 +927,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
 
       
-      console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
+      if (LOG_DEBUG) console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
       modelWorkerState = WorkerEventNames.LOADING_MODEL;
       currentModelIdInWorker = modelId;
       modelWorker.postMessage({
@@ -924,13 +938,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
     initializeDiscoverController();
-    console.log(`${prefix} Discover Controller Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Discover Controller Initialized.`);
 
     initializeSettingsController();
-    console.log(`${prefix} Settings Controller Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Settings Controller Initialized.`);
 
     initializeSpacesController();
-    console.log(`${prefix} Spaces Controller Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Spaces Controller Initialized.`);
 
     initializeDriveController({
       requestDbAndWaitFunc: requestDbAndWait,
@@ -939,12 +953,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       showNotification,
       debounce,
     });
-    console.log(`${prefix} Drive Controller Initialized.`);
+    if (LOG_DEBUG) console.log(`${prefix} Drive Controller Initialized.`);
 
     const popupContext = urlParams.get('context');
     originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
     isPopup = popupContext === 'popup';
-    console.log(
+    if (LOG_DEBUG) console.log(
       `${prefix} Context: ${isPopup ? 'Popup' : 'Sidepanel'}${
         isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''
       }`
@@ -955,14 +969,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const result = await browser.storage.local.get(storageKey);
       const detachedSessionId = result[storageKey];
       if (detachedSessionId) {
-        console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
+        if (LOG_DEBUG) console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
         await loadAndDisplaySession(detachedSessionId);
       } else {
-        console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
+        if (LOG_DEBUG) console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
         await setActiveChatSessionId(null);
       }
     } else {
-      console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
+      if (LOG_DEBUG) console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
       await loadAndDisplaySession(null);
     }
 
@@ -972,7 +986,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!dbInitSuccess) return;
    
 
-    console.log(`${prefix} Initialization complete.`);
+    if (LOG_DEBUG) console.log(`${prefix} Initialization complete.`);
 
     const modelDropdownEl = document.getElementById('model-selector');
     const quantDropdownEl = document.getElementById('onnx-variant-selector');
@@ -1025,7 +1039,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   } catch (error) {
     const err = error as Error;
-    console.error(`${prefix} Initialization failed:`, err);
+    if (LOG_ERROR) console.error(`${prefix} Initialization failed:`, err);
     utilShowError(`Initialization failed: ${err.message}. Please try reloading.`);
     const chatBody = document.getElementById('chat-body');
     if (chatBody) {
@@ -1037,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 document.addEventListener(DbInitializationCompleteNotification.type, async (e: any) => {
-  console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
+  if (LOG_DEBUG) console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
 
 });
 
@@ -1046,7 +1060,7 @@ async function initializeDatabase(): Promise<boolean> {
   try {
     const result = await autoEnsureDbInitialized();
     if (result?.success) {
-      console.log(`${prefix} DB initialized directly.`);
+      if (LOG_DEBUG) console.log(`${prefix} DB initialized directly.`);
       isDbReady = true;
       for (const logPayload of logQueue) {
         const req = new DbAddLogRequest(logPayload);
@@ -1059,7 +1073,7 @@ async function initializeDatabase(): Promise<boolean> {
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`${prefix} DB Initialization failed:`, err);
+    if (LOG_ERROR) console.error(`${prefix} DB Initialization failed:`, err);
     utilShowError(`Initialization failed: ${err.message}. Please try reloading.`);
     const chatBody = document.getElementById('chat-body');
     if (chatBody) {
@@ -1152,12 +1166,22 @@ export async function ensureManifestForDropdownRepos() {
             }
           }
 
-          // Determine if any required file is serverOnly
+          // Determine serverOnly status based on quant type and associated data file
           let isServerOnly = false;
-          for (const fname of currentQuantRequiredFiles) {
-            if (chunkedFiles && chunkedFiles[fname] && chunkedFiles[fname].serverOnly) {
+          if (quantKey === 'onnx/model.onnx') {
+            // Check for .onnx_data or .onnx.data file associated with model.onnx
+            const dataFile = siblings.find(f =>
+              f.rfilename === 'onnx/model.onnx_data' || f.rfilename === 'onnx/model.onnx.data'
+            );
+            if (dataFile && typeof dataFile.size === 'number' && dataFile.size > SERVER_ONLY_SIZE) {
               isServerOnly = true;
-              break;
+            } else if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > SERVER_ONLY_SIZE) {
+              isServerOnly = true;
+            }
+          } else {
+            // For other quants, only check their own ONNX file size
+            if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > SERVER_ONLY_SIZE) {
+              isServerOnly = true;
             }
           }
           const status = isServerOnly ? QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || QuantStatus.Available);

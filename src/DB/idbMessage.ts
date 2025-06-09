@@ -182,7 +182,7 @@ export class Message extends KnowledgeGraphNode {
         kgn_created_at: this.created_at,
         kgn_updated_at: this.updated_at,
     };
-    console.log('[DB][TRACE] Message.saveToDB: messageDataForStore:', messageDataForStore);
+    // console.log('[DB][TRACE] Message.saveToDB: messageDataForStore:', messageDataForStore);
 
     return new Promise((resolve, reject) => {
       const handleMessage = (event: MessageEvent) => {
@@ -248,6 +248,11 @@ export class Message extends KnowledgeGraphNode {
   async update(updates: Partial<Omit<Message, 'dbWorker' | 'modelWorker' | 'id' | 'chat_id' | 'timestamp' | 'created_at' | 'type' | 'label' | 'edgesOut' | 'edgesIn' | '_embedding' >>): Promise<void> {
     assertDbWorker(this, 'update', this.constructor.name);
     const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates as any;
+    if (allowedUpdates.appendContent !== undefined) {
+      this.content = (this.content || '') + allowedUpdates.appendContent;
+      this.label = this.content;
+      delete allowedUpdates.appendContent;
+    }
     if (allowedUpdates.content !== undefined) {
         this.content = allowedUpdates.content;
         this.label = allowedUpdates.content;

@@ -27,23 +27,29 @@ let loadModelButton: HTMLButtonElement | null = null;
 let isLoadingModel = false; 
 let currentLoadId: string | null = null;
 let lastSeenLoadId: string | null = null;
-
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
+    "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     // Add more models here as needed
 };
 
 document.addEventListener(DbStatusUpdatedNotification.type, (e: Event) => {
     const customEvent = e as CustomEvent;
-    console.log('[UIController] Received DbStatusUpdatedNotification: ', customEvent.detail);
+    if (LOG_INFO) console.log(prefix, 'Received DbStatusUpdatedNotification: ', customEvent.detail);
     handleStatusUpdate(customEvent.detail);
   });
 
 browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
     const type = message?.type;
-    console.log('[UIController] browser.runtime.onMessage Received progress update: ', message.type, message.payload);
+    if (LOG_INFO) console.log(prefix, 'browser.runtime.onMessage Received progress update: ', message.type, message.payload);
     if (message.type === DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
@@ -131,11 +137,11 @@ function handleEnterKey(event: KeyboardEvent) {
 function handleSendButtonClick() {
     const messageText = getInputValue();
     if (messageText && !queryInput!.disabled) {
-        console.log("[UIController] Send button clicked. Publishing ui:querySubmitted");
+        if (LOG_INFO) console.log(prefix, "Send button clicked. Publishing ui:querySubmitted");
         document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
         clearInput();
     } else {
-        console.log("[UIController] Send button clicked, but input is empty or disabled.");
+        if (LOG_INFO) console.log(prefix, "Send button clicked, but input is empty or disabled.");
     }
 }
 
@@ -161,7 +167,7 @@ export function adjustTextareaHeight() {
 }
 
 function setInputStateInternal(status: string) {
-    console.log(`[UIController] setInputStateInternal called with status: ${status}`);
+    if (LOG_INFO) console.log(prefix, `setInputStateInternal called with status: ${status}`);
     if (!isInitialized || !queryInput || !sendButton) return;
     switch (status) {
         case 'processing':
@@ -176,7 +182,7 @@ function setInputStateInternal(status: string) {
             adjustTextareaHeight();
             break;
     }
-    console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
+    if (LOG_INFO) console.log(prefix, `Input disabled state: ${queryInput.disabled}`);
 }
 
 
@@ -194,9 +200,9 @@ document.addEventListener(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e: Event)
 function handleModelWorkerLoadingProgress(payload: any) {
     if (!payload) return;
     if (payload.loadId !== lastSeenLoadId) {
-        console.warn('[UIController] New loadId detected in progress:', payload.loadId);
+        if (LOG_WARN) console.warn(prefix, 'New loadId detected in progress:', payload.loadId);
         if (lastSeenLoadId) {
-            console.error('[UIController] DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
+            if (LOG_ERROR) console.error(prefix, 'DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
         }
         lastSeenLoadId = payload.loadId;
     }
@@ -206,7 +212,7 @@ function handleModelWorkerLoadingProgress(payload: any) {
     const progressInner = document.getElementById('model-load-progress-inner');
 
     if (!statusDiv || !statusText || !progressBar || !progressInner) {
-        console.warn('[UIController] Model load progress bar not found.');
+        if (LOG_WARN) console.warn(prefix, 'Model load progress bar not found.');
         return;
     }
 
@@ -293,7 +299,7 @@ export function getCurrentlySelectedModel(): { modelId: string | null; modelPath
 
 
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
-    console.log("[UIController] Initializing...");
+    if (LOG_INFO) console.log(prefix, "Initializing...");
     if (isInitialized) {
         removeListeners();
     }
@@ -313,26 +319,26 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     isInitialized = true;
     setInputStateInternal('idle');
     adjustTextareaHeight();
-    console.log("[UIController] Initialized successfully.");
+    if (LOG_INFO) console.log(prefix, "Initialized successfully.");
 
-    console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
+    if (LOG_INFO) console.log(prefix, `Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
 
     clearTemporaryMessages();
 
 
     disableInput("Download or load a model from dropdown to begin.");
 
-    console.log("[UIController] Initializing UI elements...");
+    if (LOG_INFO) console.log(prefix, "Initializing UI elements...");
 
-    console.log("[UIController] Attempting to find model selector...");
+    if (LOG_INFO) console.log(prefix, "Attempting to find model selector...");
     const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
-    console.log(modelSelector ? "[UIController] Model selector found." : "[UIController] WARNING: Model selector NOT found!");
+    if (LOG_INFO) console.log(prefix, modelSelector ? "Model selector found." : "WARNING: Model selector NOT found!");
     if (modelSelector) {
         modelSelector.innerHTML = ''; // Clear existing options
-        console.log("[UIController] Populating model selector. Available models:", AVAILABLE_MODELS);
+        if (LOG_INFO) console.log(prefix, "Populating model selector. Available models:", AVAILABLE_MODELS);
         let hasModel = false;
         for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
-            console.log(`[UIController] Adding option: ${displayName} (${modelId})`);
+            if (LOG_INFO) console.log(prefix, `Adding option: ${displayName} (${modelId})`);
             const option = document.createElement('option');
             option.value = modelId;
             option.textContent = displayName;
@@ -371,16 +377,16 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
             });
         }
     } else {
-        console.warn("[UIController] Model selector dropdown not found.");
+        if (LOG_WARN) console.warn(prefix, "Model selector dropdown not found.");
         if (loadModelButton) (loadModelButton as HTMLButtonElement).style.display = 'none';
     }
 
-    console.log("[UIController] UI Initialization complete.");
+    if (LOG_INFO) console.log(prefix, "UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
 }
 
 export function setActiveSession(sessionId: string | null) {
-    console.log(`[UIController] Setting active session for UI state: ${sessionId}`);
+    if (LOG_INFO) console.log(prefix, `Setting active session for UI state: ${sessionId}`);
     currentSessionId = sessionId;
     if (!sessionId) {
         setInputStateInternal('idle'); 
@@ -396,7 +402,7 @@ export function getInputValue() {
 }
 
 export function clearInput() {
-    console.log("[UIController] Entering clearInput function.");
+    if (LOG_INFO) console.log(prefix, "Entering clearInput function.");
     if (queryInput) {
         queryInput.value = '';
         adjustTextareaHeight();
@@ -432,7 +438,7 @@ function _handleModelOrVariantChange() {
     if (!modelSelectorDropdown || !quantSelectorDropdown) return;
     const modelId = modelSelectorDropdown.value;
     const modelPath = quantSelectorDropdown.value;
-    console.log(`[UIController] Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
+    if (LOG_INFO) console.log(prefix, `Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
         detail: { modelId, modelPath } 
     }));
@@ -448,7 +454,7 @@ function isNativeAppAvailable(): boolean {
 // Placeholder for future native app/server integration
 function handleServerOnlyModelLoad(modelId: string, modelPath: string) {
     // TODO: Implement native app/server-side model loading logic here
-    console.log(`[UIController] handleServerOnlyModelLoad called for modelId: ${modelId}, modelPath: ${modelPath}`);
+    if (LOG_INFO) console.log(prefix, `handleServerOnlyModelLoad called for modelId: ${modelId}, modelPath: ${modelPath}`);
     // For now, just show the temporary chat message
     renderTemporaryMessage('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
@@ -457,7 +463,7 @@ function _handleLoadModelButtonClick() {
     if (!modelSelectorDropdown || !loadModelButton) return;
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
-        console.warn("[UIController] Load Model button clicked, but no model selected.");
+        if (LOG_WARN) console.warn(prefix, "Load Model button clicked, but no model selected.");
         return;
     }
     if (isLoadingModel) return; 
@@ -584,13 +590,13 @@ export function onModelDropdownChange() {
 
 window.addEventListener('message', (event: MessageEvent) => {
   if (event.data && event.data.type === WorkerEventNames.MANIFEST_UPDATED) {
-    console.log(`[UIController] Received MANIFEST_UPDATED event. Updating quant dropdown.`);
+    if (LOG_INFO) console.log(prefix, "Received MANIFEST_UPDATED event. Updating quant dropdown.");
     updateQuantDropdown();
   }
 });
 
 document.addEventListener(WorkerEventNames.MANIFEST_UPDATED, () => {
-    console.log(`[UIController] Received DOM MANIFEST_UPDATED event. Updating quant dropdown.`);
+    if (LOG_INFO) console.log(prefix, "Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
     updateQuantDropdown();
   });
 

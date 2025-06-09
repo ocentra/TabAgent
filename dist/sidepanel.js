@@ -2050,31 +2050,42 @@ let closeHistoryButtonElement = null;
 let requestDbAndWaitFunc = null;
 let currentHistoryItems = [];
 let currentSearchTerm = '';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[HistoryPopupController]';
 function handleSessionUpdate(notification) {
     if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
-        console.warn("[HistoryPopupController] Invalid session update notification received.", notification);
+        if (LOG_WARN)
+            console.warn(prefix, "Invalid session update notification received.", notification);
         return;
     }
     const updatedSessionData = notification.payload.session;
     const sessionId = updatedSessionData.id;
     const updateType = notification.payload.updateType || 'update';
     if (!updatedSessionData) {
-        console.warn(`[HistoryPopupController] Session update notification for ${sessionId} missing session data.`, notification);
+        if (LOG_WARN)
+            console.warn(prefix, `Session update notification for ${sessionId} missing session data.`, notification);
         return;
     }
-    console.log(`[HistoryPopupController] Received session update for ${sessionId}. Type: ${updateType}, New starred: ${updatedSessionData.isStarred}`);
+    if (LOG_INFO)
+        console.log(prefix, `Received session update for ${sessionId}. Type: ${updateType}, New starred: ${updatedSessionData.isStarred}`);
     const itemIndex = currentHistoryItems.findIndex(item => item.id === sessionId);
     let listChanged = false;
     if (updateType === 'delete') {
         if (itemIndex !== -1) {
-            console.log(`[HistoryPopupController] Removing deleted session ${sessionId} from local list.`);
+            if (LOG_INFO)
+                console.log(prefix, `Removing deleted session ${sessionId} from local list.`);
             currentHistoryItems.splice(itemIndex, 1);
             listChanged = true;
         }
     }
     else {
         if (itemIndex !== -1) {
-            console.log(`[HistoryPopupController] Updating session ${sessionId} in local list.`);
+            if (LOG_INFO)
+                console.log(prefix, `Updating session ${sessionId} in local list.`);
             currentHistoryItems[itemIndex] = {
                 ...currentHistoryItems[itemIndex],
                 ...updatedSessionData
@@ -2082,31 +2093,37 @@ function handleSessionUpdate(notification) {
             listChanged = true;
         }
         else {
-            console.log(`[HistoryPopupController] Adding new/updated session ${sessionId} to local list.`);
+            if (LOG_INFO)
+                console.log(prefix, `Adding new/updated session ${sessionId} to local list.`);
             currentHistoryItems.push(updatedSessionData);
             listChanged = true;
         }
     }
     if (listChanged && historyPopupElement && !historyPopupElement.classList.contains('hidden')) {
-        console.log(`[HistoryPopupController] Popup visible and list changed, calling renderHistoryList()`);
+        if (LOG_INFO)
+            console.log(prefix, `Popup visible and list changed, calling renderHistoryList()`);
         renderHistoryList();
     }
     else {
-        console.log(`[HistoryPopupController] Popup not visible or list unchanged, skipping renderHistoryList()`);
+        if (LOG_INFO)
+            console.log(prefix, `Popup not visible or list unchanged, skipping renderHistoryList()`);
     }
 }
 function renderHistoryList() {
     if (!isInitialized || !historyListElement)
         return;
-    console.log(`[HistoryPopupController] Rendering history list (Search: "${currentSearchTerm}")...`);
+    if (LOG_INFO)
+        console.log(prefix, `Rendering history list (Search: "${currentSearchTerm}")...`);
     let filteredItems = currentHistoryItems;
     if (currentSearchTerm) {
         const lowerCaseTerm = currentSearchTerm.toLowerCase();
         filteredItems = currentHistoryItems.filter(entry => (entry.name || '').toLowerCase().includes(lowerCaseTerm));
-        console.log(`[HistoryPopupController] Filtered down to ${filteredItems.length} sessions.`);
+        if (LOG_INFO)
+            console.log(prefix, `Filtered down to ${filteredItems.length} sessions.`);
     }
     else {
-        console.log(`[HistoryPopupController] Rendering all ${filteredItems.length} sessions (no search term).`);
+        if (LOG_INFO)
+            console.log(prefix, `Rendering all ${filteredItems.length} sessions (no search term).`);
     }
     historyListElement.innerHTML = '';
     if (filteredItems.length === 0) {
@@ -2140,31 +2157,39 @@ function renderHistoryList() {
             }
         });
     }
-    console.log("[HistoryPopupController] History list rendered.");
+    if (LOG_INFO)
+        console.log(prefix, "History list rendered.");
 }
 async function showPopup() {
     if (!isInitialized || !historyPopupElement || !requestDbAndWaitFunc)
         return;
-    console.log("[Trace][HistoryPopupController] showPopup: Requesting all sessions...");
+    if (LOG_INFO)
+        console.log(prefix, "showPopup: Requesting all sessions...");
     try {
         const sessionsArray = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetAllSessionsRequest());
-        console.log("[Trace][HistoryPopupController] showPopup: Received sessionsArray:", sessionsArray);
+        if (LOG_INFO)
+            console.log(prefix, "showPopup: Received sessionsArray:", sessionsArray);
         if (Array.isArray(sessionsArray) && sessionsArray.length > 0) {
-            console.log("[Trace][HistoryPopupController] showPopup: First session item sample:", sessionsArray[0]);
+            if (LOG_INFO)
+                console.log(prefix, "showPopup: First session item sample:", sessionsArray[0]);
         }
         else if (sessionsArray === null || sessionsArray === undefined) {
-            console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is null or undefined.");
+            if (LOG_INFO)
+                console.log(prefix, "showPopup: sessionsArray is null or undefined.");
         }
         else {
-            console.log("[Trace][HistoryPopupController] showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
+            if (LOG_INFO)
+                console.log(prefix, "showPopup: sessionsArray is empty or not an array:", typeof sessionsArray);
         }
         currentHistoryItems = sessionsArray || [];
-        console.log(`[Trace][HistoryPopupController] showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
+        if (LOG_INFO)
+            console.log(prefix, `showPopup: Assigned ${currentHistoryItems.length} sessions to currentHistoryItems.`);
         renderHistoryList();
         historyPopupElement.classList.remove('hidden');
     }
     catch (error) {
-        console.error("[Trace][HistoryPopupController] showPopup: Error fetching history list:", error);
+        if (LOG_ERROR)
+            console.error(prefix, "showPopup: Error fetching history list:", error);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load history.", 'error');
         if (historyListElement) {
             historyListElement.innerHTML = '<p class="p-4 text-center text-red-500 dark:text-red-400">Error loading history. Please try again.</p>';
@@ -2175,7 +2200,8 @@ async function showPopup() {
 function hidePopup() {
     if (!isInitialized || !historyPopupElement)
         return;
-    console.log("[HistoryPopupController] Hiding popup.");
+    if (LOG_INFO)
+        console.log(prefix, "Hiding popup.");
     historyPopupElement.classList.add('hidden');
 }
 function handleSearchInput(event) {
@@ -2185,7 +2211,8 @@ function handleSearchInput(event) {
     renderHistoryList();
 }
 async function handleLoadClick(sessionId) {
-    console.log(`[HistoryPopupController] Load clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Load clicked: ${sessionId}`);
     if (!sessionId)
         return;
     try {
@@ -2194,28 +2221,32 @@ async function handleLoadClick(sessionId) {
         hidePopup();
     }
     catch (error) {
-        console.error("[HistoryPopupController] Error setting storage or navigating:", error);
+        if (LOG_ERROR)
+            console.error(prefix, "Error setting storage or navigating:", error);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Failed to load chat.", 'error');
     }
 }
 async function handleStarClick(sessionId) {
     if (!sessionId || !requestDbAndWaitFunc)
         return;
-    console.log(`[HistoryPopupController] Star clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Star clicked: ${sessionId}`);
     try {
         await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbToggleStarRequest(sessionId));
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Star toggled", 'success');
     }
     catch (error) {
         const err = error;
-        console.error("[HistoryPopupController] Error toggling star:", err);
+        if (LOG_ERROR)
+            console.error(prefix, "Error toggling star:", err);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to toggle star: ${err.message}`, 'error');
     }
 }
 async function handleDeleteClick(sessionId, itemElement) {
     if (!sessionId || !itemElement || !requestDbAndWaitFunc)
         return;
-    console.log(`[HistoryPopupController] Delete confirmed inline for: ${sessionId}. Applying deleting state.`);
+    if (LOG_INFO)
+        console.log(prefix, `Delete confirmed inline for: ${sessionId}. Applying deleting state.`);
     itemElement.classList.add('is-deleting');
     itemElement.querySelectorAll('button').forEach(btn => btn.disabled = true);
     const footer = itemElement.querySelector('.card-footer');
@@ -2232,7 +2263,8 @@ async function handleDeleteClick(sessionId, itemElement) {
     }
     catch (error) {
         const err = error;
-        console.error("[HistoryPopupController] Error deleting chat:", err);
+        if (LOG_ERROR)
+            console.error(prefix, "Error deleting chat:", err);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to delete chat: ${err.message}`, 'error');
         itemElement.classList.remove('is-deleting');
         itemElement.querySelectorAll('button').forEach(btn => btn.disabled = false);
@@ -2248,14 +2280,16 @@ async function handleDeleteClick(sessionId, itemElement) {
 async function handleRenameSubmit(sessionId, newName) {
     if (!sessionId || !newName || !requestDbAndWaitFunc)
         return;
-    console.log(`[HistoryPopupController] Rename submitted: ${sessionId} to "${newName}"`);
+    if (LOG_INFO)
+        console.log(prefix, `Rename submitted: ${sessionId} to "${newName}"`);
     try {
         await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbRenameSessionRequest(sessionId, newName));
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Rename successful", 'success');
     }
     catch (error) {
         const err = error;
-        console.error("[HistoryPopupController] Error submitting rename:", err);
+        if (LOG_ERROR)
+            console.error(prefix, "Error submitting rename:", err);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(`Failed to rename chat: ${err.message}`, 'error');
     }
 }
@@ -2264,19 +2298,23 @@ async function handleDownloadClick(sessionId) {
         (0,_Utilities_downloadUtils__WEBPACK_IMPORTED_MODULE_6__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, (msg, type) => (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)(msg, type));
     }
     else {
-        console.error("[HistoryPopupController] Cannot download: requestDbAndWaitFunc not available.");
+        if (LOG_ERROR)
+            console.error(prefix, "Cannot download: requestDbAndWaitFunc not available.");
         (0,_notifications__WEBPACK_IMPORTED_MODULE_4__.showNotification)("Download failed: Internal setup error.", 'error');
     }
 }
 function handleShareClick(sessionId) {
-    console.log(`[HistoryPopupController] Share clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Share clicked: ${sessionId}`);
 }
 async function handlePreviewClick(sessionId, contentElement) {
     if (!sessionId || !contentElement || !requestDbAndWaitFunc) {
-        console.error("[HistoryPopupController] Preview failed: Missing sessionId, contentElement, or requestDbAndWaitFunc.");
+        if (LOG_ERROR)
+            console.error(prefix, "Preview failed: Missing sessionId, contentElement, or requestDbAndWaitFunc.");
         return;
     }
-    console.log(`[HistoryPopupController] Handling preview click for: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Handling preview click for: ${sessionId}`);
     contentElement.innerHTML = '<span class="text-gray-500 dark:text-gray-400 italic text-xs">Loading preview...</span>';
     try {
         const sessionData = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest(sessionId));
@@ -2297,15 +2335,18 @@ async function handlePreviewClick(sessionId, contentElement) {
     }
     catch (error) {
         const err = error;
-        console.error(`[HistoryPopupController] Error fetching preview for ${sessionId}:`, err);
+        if (LOG_ERROR)
+            console.error(prefix, `Error fetching preview for ${sessionId}:`, err);
         contentElement.innerHTML = `<span class="text-red-500 text-xs">Error loading preview: ${err.message}</span>`;
     }
 }
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
 function initializeHistoryPopup(elements, requestFunc) {
-    console.log("[HistoryPopupController] Entering initializeHistoryPopup...");
+    if (LOG_INFO)
+        console.log(prefix, "Entering initializeHistoryPopup...");
     if (!elements || !elements.popupContainer || !elements.listContainer || !elements.searchInput || !elements.closeButton || !requestFunc) {
-        console.error("[HistoryPopupController] Initialization failed: Missing required elements or request function.", { elements, requestFunc });
+        if (LOG_ERROR)
+            console.error(prefix, "Initialization failed: Missing required elements or request function.", { elements, requestFunc });
         return null;
     }
     historyPopupElement = elements.popupContainer;
@@ -2313,7 +2354,8 @@ function initializeHistoryPopup(elements, requestFunc) {
     historySearchElement = elements.searchInput;
     closeHistoryButtonElement = elements.closeButton;
     requestDbAndWaitFunc = requestFunc;
-    console.log("[HistoryPopupController] Elements and request function assigned.");
+    if (LOG_INFO)
+        console.log(prefix, "Elements and request function assigned.");
     try {
         if (closeHistoryButtonElement)
             closeHistoryButtonElement.addEventListener('click', hidePopup);
@@ -2321,14 +2363,16 @@ function initializeHistoryPopup(elements, requestFunc) {
         if (historySearchElement)
             historySearchElement.addEventListener('input', debouncedSearchHandler);
         isInitialized = true;
-        console.log("[HistoryPopupController] Initialization successful. History will be rendered when popup is shown.");
+        if (LOG_INFO)
+            console.log(prefix, "Initialization successful. History will be rendered when popup is shown.");
         return {
             show: showPopup,
             hide: hidePopup
         };
     }
     catch (error) {
-        console.error("[HistoryPopupController] Error during initialization listeners/subscriptions:", error);
+        if (LOG_ERROR)
+            console.error(prefix, "Error during initialization listeners/subscriptions:", error);
         isInitialized = false;
         return null;
     }
@@ -3099,8 +3143,15 @@ let requestDbAndWaitFunc = null;
 let currentStarredItems = [];
 let currentSearchFilter = '';
 let searchListenerAttached = false;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[LibraryController]';
 async function handleStarClick(sessionId) {
-    console.log(`[LibraryController] Star clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Star clicked: ${sessionId}`);
     if (!requestDbAndWaitFunc)
         return;
     try {
@@ -3109,12 +3160,14 @@ async function handleStarClick(sessionId) {
     }
     catch (error) {
         const err = error;
-        console.error("[LibraryController] Error toggling star:", err);
+        if (LOG_ERROR)
+            console.error(prefix, "Error toggling star:", err);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to toggle star: ${err.message}`, 'error');
     }
 }
 async function handleDeleteClick(sessionId) {
-    console.log(`[LibraryController] Delete clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Delete clicked: ${sessionId}`);
     if (!requestDbAndWaitFunc)
         return;
     if (confirm('Are you sure you want to delete this chat history item? This cannot be undone.')) {
@@ -3124,13 +3177,15 @@ async function handleDeleteClick(sessionId) {
         }
         catch (error) {
             const err = error;
-            console.error("[LibraryController] Error deleting chat:", err);
+            if (LOG_ERROR)
+                console.error(prefix, "Error deleting chat:", err);
             (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to delete chat: ${err.message}`, 'error');
         }
     }
 }
 async function handleRenameSubmit(sessionId, newName) {
-    console.log(`[LibraryController] Rename submitted: ${sessionId} to "${newName}"`);
+    if (LOG_INFO)
+        console.log(prefix, `Rename submitted: ${sessionId} to "${newName}"`);
     if (!requestDbAndWaitFunc)
         return;
     try {
@@ -3139,7 +3194,8 @@ async function handleRenameSubmit(sessionId, newName) {
     }
     catch (error) {
         const err = error;
-        console.error("[LibraryController] Error submitting rename:", err);
+        if (LOG_ERROR)
+            console.error(prefix, "Error submitting rename:", err);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(`Failed to rename chat: ${err.message}`, 'error');
     }
 }
@@ -3148,29 +3204,34 @@ async function handleDownloadClick(sessionId) {
         (0,_Utilities_downloadUtils__WEBPACK_IMPORTED_MODULE_2__.initiateChatDownload)(sessionId, requestDbAndWaitFunc, (msg, type) => (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)(msg, type));
     }
     else {
-        console.error("[LibraryController] Cannot download: requestDbAndWaitFunc not available.");
+        if (LOG_ERROR)
+            console.error(prefix, "Cannot download: requestDbAndWaitFunc not available.");
         (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Download failed: Internal setup error.", 'error');
     }
 }
 async function handleLoadClick(sessionId) {
-    console.log(`[LibraryController] Load clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Load clicked: ${sessionId}`);
     try {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_7___default().storage.local.set({ lastSessionId: sessionId });
         (0,_navigation__WEBPACK_IMPORTED_MODULE_5__.navigateTo)('page-home');
     }
     catch (error) {
         const err = error;
-        console.error("[LibraryController] Error setting storage or navigating:", err);
+        if (LOG_ERROR)
+            console.error(prefix, "Error setting storage or navigating:", err);
         (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Failed to load chat.", 'error');
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_7___default().storage.local.remove('lastSessionId');
     }
 }
 function handleShareClick(sessionId) {
-    console.log(`[LibraryController] Share clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Share clicked: ${sessionId}`);
     (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Share functionality not yet implemented.", 'info');
 }
 function handlePreviewClick(sessionId, contentElement) {
-    console.log(`[LibraryController] Preview clicked: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Preview clicked: ${sessionId}`);
     (0,_notifications__WEBPACK_IMPORTED_MODULE_3__.showNotification)("Preview functionality not yet implemented.", 'info');
     if (contentElement) {
         contentElement.innerHTML = 'Preview loading...';
@@ -3181,55 +3242,66 @@ function handleNavigationChange(event) {
     if (!isInitialized || event?.pageId !== 'page-library') {
         return;
     }
-    console.log("[LibraryController] Library page activated.");
+    if (LOG_INFO)
+        console.log(prefix, "Library page activated.");
     if (!searchListenerAttached) {
         librarySearchInput = document.getElementById('library-search');
         if (librarySearchInput) {
             librarySearchInput.addEventListener('input', handleSearchInput);
             searchListenerAttached = true;
-            console.log("[LibraryController] Search input listener attached.");
+            if (LOG_INFO)
+                console.log(prefix, "Search input listener attached.");
         }
         else {
-            console.warn("[LibraryController] Library search input (#library-search) still not found even when page is active.");
+            if (LOG_WARN)
+                console.warn(prefix, "Library search input (#library-search) still not found even when page is active.");
         }
     }
     fetchAndRenderLibrary();
 }
 async function fetchAndRenderLibrary() {
     if (!isInitialized || !starredListElement || !requestDbAndWaitFunc) {
-        console.error("[LibraryController] Cannot fetch/render - not initialized or missing elements/functions.");
+        if (LOG_ERROR)
+            console.error(prefix, "Cannot fetch/render - not initialized or missing elements/functions.");
         return;
     }
-    console.log("[LibraryController] Fetching starred items...");
+    if (LOG_INFO)
+        console.log(prefix, "Fetching starred items...");
     starredListElement.innerHTML = '<p class="p-4 text-center text-gray-500 dark:text-gray-400 italic">Loading starred items...</p>';
     currentSearchFilter = librarySearchInput?.value.trim() || '';
     try {
         const responsePayload = await requestDbAndWaitFunc(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbGetStarredSessionsRequest());
         currentStarredItems = Array.isArray(responsePayload) ? responsePayload : (responsePayload?.sessions || []);
-        console.log(`[LibraryController] Received ${currentStarredItems.length} starred items.`);
+        if (LOG_INFO)
+            console.log(prefix, `Received ${currentStarredItems.length} starred items.`);
         renderLibraryList(currentSearchFilter);
     }
     catch (error) {
-        console.error("[LibraryController] Error fetching starred items:", error);
+        if (LOG_ERROR)
+            console.error(prefix, "Error fetching starred items:", error);
         starredListElement.innerHTML = '<div class="p-4 text-red-500">Error loading starred items.</div>';
     }
 }
 function handleSessionUpdate(notification) {
     if (!isInitialized || !notification || !notification.payload || !notification.payload.session) {
-        console.warn("[LibraryController] Invalid session update notification received.", notification);
+        if (LOG_WARN)
+            console.warn(prefix, "Invalid session update notification received.", notification);
         return;
     }
     const updatedSessionData = notification.payload.session;
     const sessionId = updatedSessionData.id;
     if (!updatedSessionData) {
-        console.warn(`[LibraryController] Session update notification for ${sessionId} missing session data in payload.session.`, notification);
+        if (LOG_WARN)
+            console.warn(prefix, `Session update notification for ${sessionId} missing session data in payload.session.`, notification);
         return;
     }
-    console.log(`[LibraryController] Received session update for ${sessionId}. New starred status: ${updatedSessionData.isStarred}`);
+    if (LOG_INFO)
+        console.log(prefix, `Received session update for ${sessionId}. New starred status: ${updatedSessionData.isStarred}`);
     const itemIndex = currentStarredItems.findIndex(item => item.sessionId === sessionId);
     if (updatedSessionData.isStarred) {
         if (itemIndex === -1) {
-            console.log(`[LibraryController] Session ${sessionId} is newly starred. Adding to list.`);
+            if (LOG_INFO)
+                console.log(prefix, `Session ${sessionId} is newly starred. Adding to list.`);
             const newItem = {
                 sessionId: sessionId,
                 name: updatedSessionData.title || 'Untitled',
@@ -3239,7 +3311,8 @@ function handleSessionUpdate(notification) {
             currentStarredItems.push(newItem);
         }
         else {
-            console.log(`[LibraryController] Session ${sessionId} was already starred. Updating data.`);
+            if (LOG_INFO)
+                console.log(prefix, `Session ${sessionId} was already starred. Updating data.`);
             currentStarredItems[itemIndex] = {
                 ...currentStarredItems[itemIndex],
                 name: updatedSessionData.title || currentStarredItems[itemIndex].name,
@@ -3250,28 +3323,33 @@ function handleSessionUpdate(notification) {
     }
     else {
         if (itemIndex !== -1) {
-            console.log(`[LibraryController] Session ${sessionId} is no longer starred. Removing from list.`);
+            if (LOG_INFO)
+                console.log(prefix, `Session ${sessionId} is no longer starred. Removing from list.`);
             currentStarredItems.splice(itemIndex, 1);
         }
         else {
-            console.log(`[LibraryController] Session ${sessionId} is not starred and was not in the list.`);
+            if (LOG_INFO)
+                console.log(prefix, `Session ${sessionId} is not starred and was not in the list.`);
         }
     }
     const libraryPage = document.getElementById('page-library');
     if (libraryPage && !libraryPage.classList.contains('hidden')) {
-        console.log("[LibraryController] Library page is active, re-rendering list with filter.");
+        if (LOG_INFO)
+            console.log(prefix, "Library page is active, re-rendering list with filter.");
         currentSearchFilter = librarySearchInput?.value.trim() || '';
         renderLibraryList(currentSearchFilter);
     }
     else {
-        console.log("[LibraryController] Library page not active, internal list updated passively.");
+        if (LOG_INFO)
+            console.log(prefix, "Library page not active, internal list updated passively.");
     }
 }
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_6__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handleNavigationChange(e.detail));
 function renderLibraryList(filter = '') {
     if (!isInitialized || !starredListElement)
         return;
-    console.log(`[LibraryController] Rendering with filter "${filter}"`);
+    if (LOG_INFO)
+        console.log(prefix, `Rendering with filter "${filter}"`);
     let itemsToRender = [...currentStarredItems];
     if (filter) {
         const searchTerm = filter.toLowerCase();
@@ -3310,26 +3388,32 @@ function renderLibraryList(filter = '') {
             }
         });
     }
-    console.log(`[LibraryController] Rendered ${itemsToRender.length} items.`);
+    if (LOG_INFO)
+        console.log(prefix, `Rendered ${itemsToRender.length} items.`);
 }
 const handleSearchInput = (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_4__.debounce)((event) => {
     if (!isInitialized)
         return;
     currentSearchFilter = event.target.value.trim();
-    console.log(`[LibraryController] Search input changed: "${currentSearchFilter}"`);
+    if (LOG_INFO)
+        console.log(prefix, `Search input changed: "${currentSearchFilter}"`);
     renderLibraryList(currentSearchFilter);
 }, 300);
 function initializeLibraryController(elements, requestFunc) {
-    console.log("[LibraryController] Initializing...");
+    if (LOG_INFO)
+        console.log(prefix, "Initializing...");
     if (!elements || !elements.listContainer || !requestFunc) { // Removed searchInput from mandatory checks here, handled in navigation
-        console.error("[LibraryController] Initialization failed: Missing required elements (listContainer) or request function.", { elements, requestFunc });
+        if (LOG_ERROR)
+            console.error(prefix, "Initialization failed: Missing required elements (listContainer) or request function.", { elements, requestFunc });
         return null;
     }
     starredListElement = elements.listContainer;
     requestDbAndWaitFunc = requestFunc;
-    console.log("[LibraryController] Elements and request function assigned.");
+    if (LOG_INFO)
+        console.log(prefix, "Elements and request function assigned.");
     isInitialized = true;
-    console.log("[LibraryController] Initialization successful. Library will render when activated.");
+    if (LOG_INFO)
+        console.log(prefix, "Initialization successful. Library will render when activated.");
     // --- Add event listener for session updates ---
     document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_0__.DbSessionUpdatedNotification.type, (e) => handleSessionUpdate(e.detail));
     return {};
@@ -3588,10 +3672,12 @@ let lastDbInitStatus = null;
 let currentChat = null;
 let dbReadyResolve = null;
 // Logging flags for manifest batch fetch and general DB operations
-const LOG_GENERAL = true;
+const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[DB]';
 function resetDbReadyPromise() {
     dbReadyResolve = () => { };
 }
@@ -3619,14 +3705,16 @@ async function withTimeout(promise, ms, errorMessage = `Operation timed out afte
 function createDbWorker() {
     if (!dbWorker) {
         const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.getURL('DB/indexedDBBackendWorker.js');
-        console.log('[DB] Creating new DB Worker with URL:', workerUrl);
+        if (LOG_INFO)
+            console.log(prefix, 'Creating new DB Worker with URL:', workerUrl);
         let workerCreated = false;
         try {
             dbWorker = new Worker(workerUrl, { type: 'module' });
             workerCreated = true;
         }
         catch (workerErr) {
-            console.error('[DB] Failed to create DB Worker:', workerErr);
+            if (LOG_ERROR)
+                console.error(prefix, 'Failed to create DB Worker:', workerErr);
             dbWorker = null;
             dbWorkerReady = false;
             // Optionally, you could throw or handle this error further here
@@ -3636,9 +3724,11 @@ function createDbWorker() {
             dbWorker.onmessage = (event) => {
                 const { requestId, type, result, error, stack } = event.data;
                 const { type: evtType, requestId: evtReqId, error: evtError } = event.data || {};
-                console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
+                if (LOG_INFO)
+                    console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
                 if (evtType === 'query' && evtReqId && result) {
-                    console.log('[DB][TEST] Worker onmessage for requestId:', evtReqId, 'result:', result);
+                    if (LOG_INFO)
+                        console.log('[DB][TEST] Worker onmessage for requestId:', evtReqId, 'result:', result);
                 }
                 if (requestId && dbWorkerCallbacks[requestId]) {
                     const callback = dbWorkerCallbacks[requestId];
@@ -3656,25 +3746,30 @@ function createDbWorker() {
                             if (stack)
                                 errObj.stack = stack;
                         }
-                        console.error('[DB] Worker callback.reject:', errObj, 'for requestId:', requestId);
+                        if (LOG_ERROR)
+                            console.error(prefix, 'Worker callback.reject:', errObj, 'for requestId:', requestId);
                         callback.reject(errObj);
                     }
                     else {
-                        console.log('[DB] Worker callback.resolve:', result, 'for requestId:', requestId);
+                        if (LOG_INFO)
+                            console.log('[DB] Worker callback.resolve:', result, 'for requestId:', requestId);
                         callback.resolve(result);
                     }
                 }
                 else if (type === 'debug') {
-                    console.log(`[DB Worker Debug] ${event.data.message}`);
+                    if (LOG_INFO)
+                        console.log(`[DB Worker Debug] ${event.data.message}`);
                 }
                 else if (type === 'fatal') {
-                    console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
+                    if (LOG_ERROR)
+                        console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
                     Object.values(dbWorkerCallbacks).forEach((cb) => cb.reject(new Error('DB Worker encountered a fatal error')));
                     Object.keys(dbWorkerCallbacks).forEach(key => delete dbWorkerCallbacks[key]);
                 }
                 else if (type === _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.WORKER_READY) {
                     dbWorkerReady = true;
-                    console.log('[DB] DB Worker signaled script ready.');
+                    if (LOG_INFO)
+                        console.log('[DB] DB Worker signaled script ready.');
                 }
                 else if (requestId) {
                     // This is a normal response to a request, no warning needed.
@@ -3686,30 +3781,35 @@ function createDbWorker() {
                 }
             };
             dbWorker.onerror = (errEvent) => {
-                console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
+                if (LOG_ERROR)
+                    console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
                 Object.values(dbWorkerCallbacks).forEach((cb) => cb.reject(new Error(`DB Worker crashed: ${errEvent.message || 'Unknown worker error'}`)));
                 Object.keys(dbWorkerCallbacks).forEach(key => delete dbWorkerCallbacks[key]);
                 dbWorker = null;
                 dbWorkerReady = false;
             };
-            console.log('[DB] DB Worker created and event handlers attached.');
+            if (LOG_INFO)
+                console.log(prefix, 'DB Worker created and event handlers attached.');
         }
     }
     else {
-        console.log('[DB] Returning existing DB Worker instance.');
+        if (LOG_INFO)
+            console.log(prefix, 'Returning existing DB Worker instance.');
     }
     return dbWorker;
 }
 // Helper to ensure dbWorker is not null
 function getDbWorker() {
-    console.log('[DEBUG] getDbWorker called. dbWorker:', dbWorker);
+    if (LOG_INFO)
+        console.log(prefix, '[DEBUG] getDbWorker called. dbWorker:', dbWorker);
     if (!dbWorker)
         throw new AppError('WORKER_NOT_INITIALIZED', 'DB Worker is not initialized');
     return dbWorker;
 }
 function checkDbAndStoreReadiness(result) {
     if (!result || typeof result !== 'object') {
-        console.warn('[DB] checkDbAndStoreReadiness received invalid result:', result);
+        if (LOG_WARN)
+            console.warn(prefix, 'checkDbAndStoreReadiness received invalid result:', result);
         return { allSuccess: false, failures: ['Invalid result object'] };
     }
     let allSuccess = true;
@@ -3743,7 +3843,8 @@ async function autoEnsureDbInitialized() {
     isDbInitInProgress = true;
     dbInitPromise = (async () => {
         try {
-            console.log('[DB] autoEnsureDbInitialized: Initializing databases and backend.');
+            if (LOG_INFO)
+                console.log(prefix, 'autoEnsureDbInitialized: Initializing databases and backend.');
             let ids = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
             if (!ids.currentLogSessionId) {
                 ids.currentLogSessionId = crypto.randomUUID();
@@ -3754,7 +3855,8 @@ async function autoEnsureDbInitialized() {
             const worker = createDbWorker();
             if (!worker) {
                 const errorMsg = '[DB] Failed to initialize DB Worker. Aborting DB initialization.';
-                console.error(errorMsg);
+                if (LOG_ERROR)
+                    console.error(prefix, errorMsg);
                 isDbReadyFlag = false;
                 if (typeof dbReadyResolve === 'function')
                     dbReadyResolve(false);
@@ -3764,7 +3866,8 @@ async function autoEnsureDbInitialized() {
                 throw new AppError('WORKER_NOT_INITIALIZED', errorMsg);
             }
             if (!dbWorkerReady) {
-                console.log('[DB] Waiting for DB worker to become ready...');
+                if (LOG_INFO)
+                    console.log(prefix, 'Waiting for DB worker to become ready...');
                 await new Promise((resolveWorkerReady, rejectWorkerReady) => {
                     const timeout = setTimeout(() => rejectWorkerReady(new Error(`Worker '${_dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.WORKER_READY}' signal timeout after 10s`)), 10000);
                     const checkWorker = () => {
@@ -3778,11 +3881,13 @@ async function autoEnsureDbInitialized() {
                     };
                     checkWorker();
                 });
-                console.log('[DB] DB Worker is ready.');
+                if (LOG_INFO)
+                    console.log(prefix, 'DB Worker is ready.');
             }
             const payloadForWorker = { schemaConfig: _idbSchema__WEBPACK_IMPORTED_MODULE_2__.schema }; // Make sure 'schema' is defined and imported
             const requestId = (++dbWorkerRequestId).toString();
-            console.log('[DB] Sending INIT_CUSTOM_IDBS to worker:', { requestId, type: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.INIT_CUSTOM_IDBS, payload: payloadForWorker });
+            if (LOG_INFO)
+                console.log(prefix, 'Sending INIT_CUSTOM_IDBS to worker:', { requestId, type: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.INIT_CUSTOM_IDBS, payload: payloadForWorker });
             const initOpPromise = new Promise((resolve, reject) => {
                 dbWorkerCallbacks[requestId] = { resolve, reject };
             });
@@ -3798,7 +3903,8 @@ async function autoEnsureDbInitialized() {
             const responsePayload = { success: allSuccess, dbStatus: resultFromWorker, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
             if (!allSuccess) {
                 const errorMsg = `One or more databases/stores failed to initialize: ${failures.join(', ')}.`;
-                console.error('[DB]', errorMsg, 'Details:', resultFromWorker);
+                if (LOG_ERROR)
+                    console.error(prefix, errorMsg, 'Details:', resultFromWorker);
                 responsePayload.error = new AppError('DB_INIT_FAILED', errorMsg, { failures, dbStatus: resultFromWorker });
             }
             smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbInitializationCompleteNotification(responsePayload));
@@ -3807,7 +3913,8 @@ async function autoEnsureDbInitialized() {
             return responsePayload;
         }
         catch (err) {
-            console.error('[DB] autoEnsureDbInitialized -> CRITICAL Initialization failed:', err.message);
+            if (LOG_ERROR)
+                console.error(prefix, 'autoEnsureDbInitialized -> CRITICAL Initialization failed:', err.message);
             isDbReadyFlag = false;
             if (typeof dbReadyResolve === 'function')
                 dbReadyResolve(false);
@@ -3847,7 +3954,8 @@ async function handleRequest(event, internalHandler, ResponseClass, timeout = 10
     }
     catch (error) {
         const errObj = error;
-        console.error(`[DB] Error in handleRequest for ${event?.type} (reqId: ${requestId}):`, errObj.message, errObj.details || errObj);
+        if (LOG_ERROR)
+            console.error(prefix, `Error in handleRequest for ${event?.type} (reqId: ${requestId}):`, errObj.message, errObj.details || errObj);
         const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack, details: errObj.details });
         return new ResponseClass(requestId, false, null, appError);
     }
@@ -3903,7 +4011,8 @@ async function handleDbGetSessionRequest(event) {
 }
 async function handleDbAddMessageRequest(event) {
     return handleRequest(event, async (payload) => {
-        console.log('[DB][TRACE] handleDbAddMessageRequest: sessionId:', payload?.sessionId, 'messageObject:', payload?.messageObject);
+        if (LOG_INFO)
+            console.log(prefix, '[TRACE] handleDbAddMessageRequest: sessionId:', payload?.sessionId, 'messageObject:', payload?.messageObject);
         if (!payload?.sessionId || !payload.messageObject?.text)
             throw new AppError('INVALID_INPUT', 'Session ID and message text are required');
         const worker = getDbWorker();
@@ -3921,12 +4030,14 @@ async function handleDbAddMessageRequest(event) {
 }
 async function handleDbUpdateMessageRequest(event) {
     return handleRequest(event, async (payload) => {
-        console.log('[DB][TRACE] handleDbUpdateMessageRequest: sessionId:', payload?.sessionId, 'messageId:', payload?.messageId, 'updates:', payload?.updates);
+        if (LOG_INFO)
+            console.log(prefix, '[TRACE] handleDbUpdateMessageRequest: sessionId:', payload?.sessionId, 'messageId:', payload?.messageId, 'updates:', payload?.updates);
         if (!payload?.sessionId || !payload.messageId || !payload.updates || (payload.updates.text === undefined && payload.updates.isLoading === undefined && payload.updates.content === undefined /* Added content */)) {
             throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates (text, content or isLoading) are required');
         }
         if (typeof payload.messageId !== 'string') {
-            console.error('[DB] handleDbUpdateMessageRequest: messageId is not a string:', payload.messageId);
+            if (LOG_ERROR)
+                console.error(prefix, 'handleDbUpdateMessageRequest: messageId is not a string:', payload.messageId);
             throw new AppError('INVALID_INPUT', 'messageId must be a string');
         }
         const worker = getDbWorker();
@@ -4092,7 +4203,8 @@ async function handleDbGetCurrentAndLastLogSessionIdsRequest(event) {
 }
 async function handleDbResetDatabaseRequest(event) {
     return handleRequest(event, async () => {
-        console.log("[DB] Attempting database reset via DBActions.RESET worker command.");
+        if (LOG_INFO)
+            console.log(prefix, "Attempting database reset via DBActions.RESET worker command.");
         const worker = getDbWorker(); // Get the current worker (throws if not available)
         await new Promise((resolve, reject) => {
             const reqId = crypto.randomUUID();
@@ -4100,7 +4212,8 @@ async function handleDbResetDatabaseRequest(event) {
             worker.postMessage({ action: _dbActions__WEBPACK_IMPORTED_MODULE_3__.DBActions.RESET, payload: null, requestId: reqId });
         });
         currentChat = null;
-        console.log("[DB] Database reset complete. Re-initializing DB state.");
+        if (LOG_INFO)
+            console.log(prefix, "Database reset complete. Re-initializing DB state.");
         isDbReadyFlag = false;
         lastDbInitStatus = null;
         dbInitPromise = null; // Clear any pending init
@@ -4139,15 +4252,16 @@ function smartNotify(notification) {
         }
         catch (e) {
             const errObj = e;
-            console.warn(`[DB] Failed to call browser.runtime.sendMessage (maybe not in extension context): ${errObj.message}`);
+            if (LOG_WARN)
+                console.warn(prefix, `Failed to call browser.runtime.sendMessage (maybe not in extension context): ${errObj.message}`);
         }
     }
     else {
         document.dispatchEvent(new CustomEvent(notification.type, { detail: notification }));
         if (_idbSchema__WEBPACK_IMPORTED_MODULE_2__.dbChannel)
             _idbSchema__WEBPACK_IMPORTED_MODULE_2__.dbChannel.postMessage(notification);
-        else
-            console.warn("[DB] dbChannel not initialized for smartNotify.");
+        else if (LOG_WARN)
+            console.warn(prefix, "dbChannel not initialized for smartNotify.");
     }
 }
 async function publishSessionUpdate(sessionId, updateType = 'update', sessionDataOverride = null) {
@@ -4168,7 +4282,8 @@ async function publishSessionUpdate(sessionId, updateType = 'update', sessionDat
                 else if (updateType === 'delete')
                     sessionData = { id: sessionId };
                 else {
-                    console.warn(`[DB] publishSessionUpdate: Session ${sessionId} not found for ${updateType}.`);
+                    if (LOG_WARN)
+                        console.warn(prefix, `publishSessionUpdate: Session ${sessionId} not found for ${updateType}.`);
                     return;
                 }
             }
@@ -4191,13 +4306,15 @@ async function publishSessionUpdate(sessionId, updateType = 'update', sessionDat
         smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpdatedNotification(sessionId, plainSession, updateType));
     }
     catch (e) {
-        console.error('[DB] Failed to publish session update:', e, { sessionId, updateType });
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to publish session update:', e, { sessionId, updateType });
     }
 }
 async function publishMessagesUpdate(sessionId, messages) {
     try {
         if (!Array.isArray(messages)) {
-            console.error('[DB] publishMessagesUpdate: messages not an array:', messages);
+            if (LOG_ERROR)
+                console.error(prefix, 'publishMessagesUpdate: messages not an array:', messages);
             return;
         }
         // Use toJSON and filter out any unserializable fields as a safety net
@@ -4211,7 +4328,8 @@ async function publishMessagesUpdate(sessionId, messages) {
         smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification(sessionId, plainMessages));
     }
     catch (e) {
-        console.error('[DB] Failed to publish messages update:', e, { sessionId });
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to publish messages update:', e, { sessionId });
     }
 }
 async function publishStatusUpdate(sessionId, status) {
@@ -4219,7 +4337,8 @@ async function publishStatusUpdate(sessionId, status) {
         smartNotify(new _dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification(sessionId, status));
     }
     catch (e) {
-        console.error('[DB] Failed to publish status update:', e, { sessionId });
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to publish status update:', e, { sessionId });
     }
 }
 // --- Message Listener for External Requests ---
@@ -4230,14 +4349,16 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         }
         return false;
     }
-    console.log(`[DB] Received message for DB: ${message.type}, ReqID: ${message.requestId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Received message for DB: ${message.type}, ReqID: ${message.requestId}`);
     forwardDbRequest(message)
         .then(responseObject => {
         // console.log(`[DB] Sending response for ${message.type} (ReqID: ${message.requestId}):`, responseObject);
         sendResponse(responseObject);
     })
         .catch(err => {
-        console.error(`[DB] Error processing request ${message.type} (ReqID: ${message.requestId}):`, err);
+        if (LOG_ERROR)
+            console.error(prefix, `Error processing request ${message.type} (ReqID: ${message.requestId}):`, err);
         // Construct a generic error response if one isn't already formed by forwardDbRequest
         const errorResponse = {
             success: false,
@@ -4256,7 +4377,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
 async function forwardDbRequest(request) {
     const handler = dbHandlerMap[request?.type];
     if (!handler) { // Should have been caught by listener, but defensive check
-        console.error(`[DB] CRITICAL: No handler found in forwardDbRequest for type: ${request?.type}`);
+        if (LOG_ERROR)
+            console.error(prefix, `CRITICAL: No handler found in forwardDbRequest for type: ${request?.type}`);
         const NoHandlerErrorResponse = globalThis[request.type.replace("Request", "Response")];
         if (NoHandlerErrorResponse && typeof NoHandlerErrorResponse === 'function') {
             return new NoHandlerErrorResponse(request.requestId, false, null, new AppError('NO_HANDLER', `No handler for ${request.type}`));
@@ -4267,7 +4389,8 @@ async function forwardDbRequest(request) {
         return await handler(request);
     }
     catch (err) {
-        console.error(`[DB] Synchronous or unhandled promise error in handler for ${request.type}:`, err);
+        if (LOG_ERROR)
+            console.error(prefix, `Synchronous or unhandled promise error in handler for ${request.type}:`, err);
         const appError = (err instanceof AppError) ? err : new AppError('HANDLER_EXECUTION_ERROR', err.message || `Error executing handler for ${request.type}`, { originalError: err });
         const ResponseClass = globalThis[request.type.replace("Request", "Response")];
         if (ResponseClass && typeof ResponseClass === 'function') {
@@ -6609,7 +6732,7 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
             kgn_created_at: this.created_at,
             kgn_updated_at: this.updated_at,
         };
-        console.log('[DB][TRACE] Message.saveToDB: messageDataForStore:', messageDataForStore);
+        // console.log('[DB][TRACE] Message.saveToDB: messageDataForStore:', messageDataForStore);
         return new Promise((resolve, reject) => {
             const handleMessage = (event) => {
                 if (event.data && event.data.requestId === requestId) {
@@ -6668,6 +6791,11 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
     async update(updates) {
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'update', this.constructor.name);
         const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates;
+        if (allowedUpdates.appendContent !== undefined) {
+            this.content = (this.content || '') + allowedUpdates.appendContent;
+            this.label = this.content;
+            delete allowedUpdates.appendContent;
+        }
         if (allowedUpdates.content !== undefined) {
             this.content = allowedUpdates.content;
             this.label = allowedUpdates.content;
@@ -6816,6 +6944,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   CHUNK_SIZE: () => (/* binding */ CHUNK_SIZE),
 /* harmony export */   CURRENT_MANIFEST_VERSION: () => (/* binding */ CURRENT_MANIFEST_VERSION),
 /* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
+/* harmony export */   SERVER_ONLY_SIZE: () => (/* binding */ SERVER_ONLY_SIZE),
 /* harmony export */   addManifestEntry: () => (/* binding */ addManifestEntry),
 /* harmony export */   addQuantToManifest: () => (/* binding */ addQuantToManifest),
 /* harmony export */   fetchModelMetadataInternal: () => (/* binding */ fetchModelMetadataInternal),
@@ -6851,6 +6980,7 @@ var QuantStatus;
     QuantStatus["ServerOnly"] = "server_only";
 })(QuantStatus || (QuantStatus = {}));
 const CURRENT_MANIFEST_VERSION = 1;
+const SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
 const prefix = '[IDBModel]';
 const LOG_GENERAL = true;
 const LOG_DEBUG = true;
@@ -7122,7 +7252,6 @@ async function fetchRepoFiles(repo) {
         }));
         // Build chunkedFiles for .onnx/.onnx.data/.onnx_data files
         const chunkedFiles = {};
-        const SERVER_ONLY_SIZE = 1.5 * 1024 * 1024 * 1024; // 1.5GB
         for (const entry of siblings) {
             if ((entry.rfilename.endsWith('.onnx') || entry.rfilename.endsWith('.onnx.data') || entry.rfilename.endsWith('.onnx_data')) && typeof entry.size === 'number' && entry.size > 0) {
                 chunkedFiles[entry.rfilename] = {
@@ -7789,25 +7918,37 @@ let currentSessionId = null;
 let requestDbAndWaitFunc = null;
 let observer = null; // MutationObserver
 const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[ChatRenderer]';
 function handleMessagesUpdate(notification) {
-    console.log('[ChatRenderer handleMessagesUpdate] handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
+    if (LOG_INFO)
+        console.log(prefix, 'handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
     if (!notification || !notification.sessionId || !notification.payload) {
-        console.warn('[ChatRenderer][DEBUG] handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
+        if (LOG_WARN)
+            console.warn(prefix, 'handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
         return;
     }
     if (notification.sessionId === currentSessionId) {
-        console.log(`[ChatRenderer handleMessagesUpdate] Received message update notification for active session ${currentSessionId}. Rendering.`);
+        if (LOG_INFO)
+            console.log(prefix, `Received message update notification for active session ${currentSessionId}. Rendering.`);
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
-            console.error('[ChatRenderer handleMessagesUpdate] ERROR: notification.payload.messages is not an array! Got:', notification.payload);
+            if (LOG_ERROR)
+                console.error(prefix, 'ERROR: notification.payload.messages is not an array! Got:', notification.payload);
             return;
         }
-        console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
+        if (LOG_INFO)
+            console.log(prefix, `Messages array received:`, JSON.stringify(messages));
         if (!chatBodyElement)
             return;
         chatBodyElement.innerHTML = '';
         if (messages.length === 0) {
-            console.log(`[ChatRenderer handleMessagesUpdate] Active session ${currentSessionId} has no messages. Displaying welcome.`);
+            if (LOG_INFO)
+                console.log(prefix, `Active session ${currentSessionId} has no messages. Displaying welcome.`);
             displayWelcomeMessage();
         }
         else {
@@ -7821,7 +7962,8 @@ function handleSessionMetadataUpdate(notification) {
         return;
     if (notification.sessionId === currentSessionId) {
         const updatedSessionData = notification.payload.session;
-        console.log(`[ChatRenderer] Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
+        if (LOG_INFO)
+            console.log(prefix, `Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
         updateChatHeader(updatedSessionData);
     }
 }
@@ -7834,11 +7976,13 @@ document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbSessionUpd
     handleSessionMetadataUpdate(customEvent.detail);
 });
 _DB_idbSchema__WEBPACK_IMPORTED_MODULE_3__.dbChannel.onmessage = (event) => {
-    console.log('[ChatRenderer] dbChannel event received:', event.data);
+    if (LOG_INFO)
+        console.log(prefix, 'dbChannel event received:', event.data);
     const message = event.data;
     const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
     const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
-    console.log(`[ChatRenderer] dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+    if (LOG_INFO)
+        console.log(prefix, `dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
     const type = message?.type;
     if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification.type) {
         handleMessagesUpdate(message.payload);
@@ -7852,7 +7996,8 @@ if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default()) !== 'u
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default().runtime.onMessage.addListener((message) => {
         const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
         const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
-        console.log(`[ChatRenderer] browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+        if (LOG_INFO)
+            console.log(prefix, `browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
         const type = message?.type;
         if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUpdatedNotification.type) {
             handleMessagesUpdate(message.payload);
@@ -7864,20 +8009,24 @@ if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_4___default()) !== 'u
 }
 function initializeRenderer(chatBody, requestDbFunc) {
     if (!chatBody) {
-        console.error("[ChatRenderer] chatBody element is required for initialization.");
+        if (LOG_ERROR)
+            console.error(prefix, "chatBody element is required for initialization.");
         return;
     }
     if (!requestDbFunc) {
-        console.error("[ChatRenderer] requestDbAndWait function is required for initialization.");
+        if (LOG_ERROR)
+            console.error(prefix, "requestDbAndWait function is required for initialization.");
         return;
     }
     chatBodyElement = chatBody;
     requestDbAndWaitFunc = requestDbFunc;
-    console.log("[ChatRenderer] Initialized with chat body element and DB request function.");
+    if (LOG_INFO)
+        console.log(prefix, "Initialized with chat body element and DB request function.");
     initializeObserver();
 }
 function setActiveSessionId(sessionId) {
-    console.log(`[ChatRenderer] Setting active session ID to: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Setting active session ID to: ${sessionId}`);
     currentSessionId = sessionId;
     if (chatBodyElement) {
         chatBodyElement.innerHTML = '';
@@ -7886,7 +8035,8 @@ function setActiveSessionId(sessionId) {
         displayWelcomeMessage();
     }
     else {
-        console.log(`[ChatRenderer] Proactively loading messages for new session: ${sessionId}`);
+        if (LOG_INFO)
+            console.log(prefix, `Proactively loading messages for new session: ${sessionId}`);
         loadAndRenderMessages(sessionId);
     }
 }
@@ -7914,22 +8064,26 @@ function scrollToBottom() {
 }
 async function loadAndRenderMessages(sessionId) {
     if (!requestDbAndWaitFunc) {
-        console.error("[ChatRenderer] Cannot load messages: requestDbAndWait function not available.");
+        if (LOG_ERROR)
+            console.error("[ChatRenderer] Cannot load messages: requestDbAndWait function not available.");
         if (chatBodyElement)
             chatBodyElement.innerHTML = '<div class="p-4 text-red-500">Error: Cannot load chat messages.</div>';
         return;
     }
     if (!sessionId) {
-        console.warn("[ChatRenderer] loadAndRenderMessages called with null sessionId. Displaying welcome.");
+        if (LOG_WARN)
+            console.warn(prefix, "loadAndRenderMessages called with null sessionId. Displaying welcome.");
         displayWelcomeMessage();
         return;
     }
-    console.log(`[ChatRenderer] Requesting messages for session ${sessionId}...`);
+    if (LOG_INFO)
+        console.log(prefix, `Requesting messages for session ${sessionId}...`);
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWaitFunc(request);
         if (sessionData && sessionData.messages) {
-            console.log(`[ChatRenderer] Received ${sessionData.messages.length} messages for ${sessionId}. Rendering.`);
+            if (LOG_INFO)
+                console.log(prefix, `Received ${sessionData.messages.length} messages for ${sessionId}. Rendering.`);
             if (chatBodyElement)
                 chatBodyElement.innerHTML = '';
             if (sessionData.messages.length === 0) {
@@ -7941,7 +8095,8 @@ async function loadAndRenderMessages(sessionId) {
             }
         }
         else {
-            console.warn(`[ChatRenderer] No messages found in session data for ${sessionId}. Displaying welcome.`, sessionData);
+            if (LOG_WARN)
+                console.warn(prefix, `No messages found in session data for ${sessionId}. Displaying welcome.`, sessionData);
             displayWelcomeMessage();
         }
     }
@@ -7954,26 +8109,31 @@ async function loadAndRenderMessages(sessionId) {
 }
 function updateChatHeader(sessionData) {
     if (!sessionData) {
-        console.log('[ChatRenderer] Clearing chat header (no active session).');
+        if (LOG_INFO)
+            console.log(prefix, 'Clearing chat header (no active session).');
     }
     else {
-        console.log(`[ChatRenderer] Updating chat header for ${sessionData.id}. Title: ${sessionData.title}, Starred: ${sessionData.isStarred}`);
+        if (LOG_INFO)
+            console.log(prefix, `Updating chat header for ${sessionData.id}. Title: ${sessionData.title}, Starred: ${sessionData.isStarred}`);
     }
 }
 function renderSingleMessage(msg) {
     if (!chatBodyElement)
         return;
-    console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
+    if (LOG_INFO)
+        console.log(prefix, 'renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
     // Prefer content over text for display
     let displayContent = (typeof msg.content === 'string' && msg.content.trim() !== '') ? msg.content : msg.text;
-    console.log(`[ChatRenderer] renderSingleMessage: Using displayContent:`, displayContent, ' (from', (msg.content ? 'content' : 'text'), ')');
+    if (LOG_INFO)
+        console.log(prefix, `renderSingleMessage: Using displayContent:`, displayContent, ' (from', (msg.content ? 'content' : 'text'), ')');
     // Parse metadata for type detection
     let meta = {};
     try {
         meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {});
     }
     catch {
-        console.error('[ChatRenderer] Error parsing metadata for message:', msg.messageId);
+        if (LOG_ERROR)
+            console.error(prefix, 'Error parsing metadata for message:', msg.messageId);
     }
     const extraction = meta.extraction;
     const isPageExtractor = (meta.extractionType === 'PageExtractor') || (extraction && extraction.__type === 'PageExtractor');
@@ -8006,7 +8166,8 @@ function renderSingleMessage(msg) {
         downloadButton.innerHTML = `<img src="${_assets_icons_download_svg__WEBPACK_IMPORTED_MODULE_6__}" alt="Download" class="w-4 h-4">`;
         downloadButton.title = 'Download scrape data as JSON';
         downloadButton.onclick = () => {
-            console.log('Download clicked for:', msg.metadata.scrapeData); // Placeholder
+            if (LOG_INFO)
+                console.log(prefix, 'Download clicked for:', msg.metadata.scrapeData); // Placeholder
             window.originalUITooltipController?.showTooltip(downloadButton, 'Download (placeholder)');
         };
         actionsContainer.appendChild(downloadButton);
@@ -8019,12 +8180,15 @@ function renderSingleMessage(msg) {
     if (isPageExtractor && extraction) {
         specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Page Extraction</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${extraction.url || 'N/A'}</p></div>`;
         contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
-        console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
+        if (LOG_INFO)
+            console.log(prefix, 'Rendering PageExtractor JSON:', contentToParse);
     }
     else if (displayContent) {
-        console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
+        if (LOG_INFO)
+            console.log(prefix, 'Preparing to parse regular message. Input to marked:', contentToParse);
     }
-    console.log(`[ChatRenderer] Before style application: msg.sender = ${msg.sender}`);
+    if (LOG_INFO)
+        console.log(prefix, `Before style application: msg.sender = ${msg.sender}`);
     // Apply sender-specific alignment and base bubble styling
     if (msg.isLoading) {
         messageDiv.classList.add('justify-start');
@@ -8052,8 +8216,10 @@ function renderSingleMessage(msg) {
         messageDiv.classList.add('justify-start');
         bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-900', 'dark:text-gray-100', 'border', 'border-gray-300', 'dark:border-gray-600');
     }
-    console.log('[ChatRenderer] messageDiv classes:', messageDiv.className);
-    console.log('[ChatRenderer] bubbleDiv classes:', bubbleDiv.className);
+    if (LOG_INFO)
+        console.log(prefix, 'messageDiv classes:', messageDiv.className);
+    if (LOG_INFO)
+        console.log(prefix, 'bubbleDiv classes:', bubbleDiv.className);
     // --- HEADER BAR WITH FOLDOUT AND ACTIONS ---
     const headerBar = document.createElement('div');
     headerBar.className = 'bubble-header flex items-center justify-between px-2 py-0.5 min-w-[300px] w-full bg-[rgba(200,200,200,0.18)] dark:bg-[rgba(50,50,50,0.28)] rounded-t-lg border-b border-gray-200 dark:border-gray-700 transition-all duration-150 group';
@@ -8091,13 +8257,14 @@ function renderSingleMessage(msg) {
             // ONLY override the .code() method for now
             localRenderer.code = (tokenOrCode, languageInfoString, isEscaped) => {
                 // Log what we receive
-                console.log('[ChatRenderer Custom Code] Received arguments:', {
-                    tokenOrCode_type: typeof tokenOrCode,
-                    tokenOrCode_value: JSON.parse(JSON.stringify(tokenOrCode)), // Deep copy for logging
-                    languageInfoString_type: typeof languageInfoString,
-                    languageInfoString_value: languageInfoString,
-                    isEscaped_value: isEscaped
-                });
+                if (LOG_INFO)
+                    console.log(prefix, 'Received arguments:', {
+                        tokenOrCode_type: typeof tokenOrCode,
+                        tokenOrCode_value: JSON.parse(JSON.stringify(tokenOrCode)), // Deep copy for logging
+                        languageInfoString_type: typeof languageInfoString,
+                        languageInfoString_value: languageInfoString,
+                        isEscaped_value: isEscaped
+                    });
                 let actualCodeString = '';
                 let actualLanguageString = languageInfoString || '';
                 // let actuallyEscaped = isEscaped; // Not directly used with hljs which expects raw code
@@ -8105,14 +8272,17 @@ function renderSingleMessage(msg) {
                     actualCodeString = tokenOrCode.text;
                     actualLanguageString = tokenOrCode.lang || actualLanguageString;
                     // actuallyEscaped = typeof tokenOrCode.escaped === 'boolean' ? tokenOrCode.escaped : isEscaped;
-                    console.log('[ChatRenderer Custom Code] Interpreted as token object. Using token.text and token.lang.');
+                    if (LOG_INFO)
+                        console.log(prefix, 'Interpreted as token object. Using token.text and token.lang.');
                 }
                 else if (typeof tokenOrCode === 'string') {
                     actualCodeString = tokenOrCode;
-                    console.log('[ChatRenderer Custom Code] Interpreted as direct code string.');
+                    if (LOG_INFO)
+                        console.log(prefix, 'Interpreted as direct code string.');
                 }
                 else {
-                    console.warn('[ChatRenderer Custom Code] Received unexpected type for code argument:', tokenOrCode);
+                    if (LOG_WARN)
+                        console.warn(prefix, 'Received unexpected type for code argument:', tokenOrCode);
                     actualCodeString = '[Error: Unexpected code content type]';
                 }
                 // Initialize safeLanguage and langClass based on the *provided* language hint
@@ -8129,10 +8299,12 @@ function renderSingleMessage(msg) {
                     if (actualLanguageString && window.hljs.getLanguage(actualLanguageString)) {
                         try {
                             highlightedCodeForDisplay = window.hljs.highlight(actualCodeString, { language: actualLanguageString, ignoreIllegals: true }).value;
-                            console.log('[ChatRenderer Custom Code] Highlighted with specified language:', actualLanguageString);
+                            if (LOG_INFO)
+                                console.log(prefix, 'Highlighted with specified language:', actualLanguageString);
                         }
                         catch (e) {
-                            console.error('[ChatRenderer Custom Code] hljs.highlight error:', e);
+                            if (LOG_ERROR)
+                                console.error(prefix, 'hljs.highlight error:', e);
                             highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                         }
                     }
@@ -8141,20 +8313,23 @@ function renderSingleMessage(msg) {
                             const autoResult = window.hljs.highlightAuto(actualCodeString);
                             highlightedCodeForDisplay = autoResult.value;
                             const detectedLang = autoResult.language;
-                            console.log('[ChatRenderer Custom Code] Highlighted with auto-detection. Detected:', detectedLang);
+                            if (LOG_INFO)
+                                console.log(prefix, 'Highlighted with auto-detection. Detected:', detectedLang);
                             if (detectedLang) { // If auto-detection was successful
                                 safeLanguage = escapeHtmlEntities(detectedLang);
                                 langClass = `language-${safeLanguage}`; // Update based on detected language
                             }
                         }
                         catch (e) {
-                            console.error('[ChatRenderer Custom Code] hljs.highlightAuto error:', e);
+                            if (LOG_ERROR)
+                                console.error(prefix, 'hljs.highlightAuto error:', e);
                             highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                         }
                     }
                 }
                 else {
-                    console.warn('[ChatRenderer Custom Code] window.hljs not found. Falling back to escaped code.');
+                    if (LOG_WARN)
+                        console.warn(prefix, 'window.hljs not found. Falling back to escaped code.');
                     highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                 }
                 return `
@@ -8180,19 +8355,23 @@ function renderSingleMessage(msg) {
                 gfm: true,
                 breaks: true
             });
-            console.log('[ChatRenderer Minimal Custom Marked.parse() output:]', parsedContent);
+            if (LOG_INFO)
+                console.log(prefix, '[ChatRenderer Minimal Custom Marked.parse() output:]', parsedContent);
             mainContentDiv.innerHTML = parsedContent;
             if (window.hljs) {
-                console.log('[ChatRenderer] Content set. highlight should have processed via Marked config.');
+                if (LOG_INFO)
+                    console.log(prefix, '[ChatRenderer] Content set. highlight should have processed via Marked config.');
             }
         }
         catch (e) {
-            console.error('Error during marked.parse:', e);
+            if (LOG_ERROR)
+                console.error(prefix, 'Error during marked.parse:', e);
             mainContentDiv.textContent = contentToParse || '';
         }
     }
     else {
-        console.warn('Marked not available. Falling back to textContent.');
+        if (LOG_WARN)
+            console.warn(prefix, 'Marked not available. Falling back to textContent.');
         mainContentDiv.textContent = contentToParse || '';
     }
     // FOLDOUT LOGIC
@@ -8234,7 +8413,8 @@ function renderTemporaryMessage(type, text) {
         return;
     // Only log non-system temporary messages to reduce noise
     if (type !== 'system') {
-        console.log(`[ChatRenderer] Rendering temporary message (${type}): ${text}`);
+        if (LOG_INFO)
+            console.log(prefix, `Rendering temporary message (${type}): ${text}`);
     }
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', `message-${type}`, TEMP_MESSAGE_CLASS);
@@ -8261,7 +8441,8 @@ function renderTemporaryMessage(type, text) {
 function clearTemporaryMessages() {
     if (!chatBodyElement)
         return;
-    console.log("[ChatRenderer] Clearing temporary status messages.");
+    if (LOG_INFO)
+        console.log(prefix, "Clearing temporary status messages.");
     const tempMessages = chatBodyElement.querySelectorAll(`.${TEMP_MESSAGE_CLASS}`);
     tempMessages.forEach((msg) => msg.remove());
 }
@@ -8291,7 +8472,8 @@ function initializeObserver() {
     });
     if (chatBodyElement) {
         observer.observe(chatBodyElement, { childList: true, subtree: true });
-        console.log("[ChatRenderer] MutationObserver initialized and observing chat body.");
+        if (LOG_INFO)
+            console.log(prefix, "MutationObserver initialized and observing chat body.");
         // Event delegation for code block actions
         chatBodyElement.addEventListener('click', async (event) => {
             const target = event.target.closest('button');
@@ -8305,7 +8487,8 @@ function initializeObserver() {
                         window.originalUITooltipController?.showTooltip(target, 'Code Copied!');
                     }
                     catch (err) {
-                        console.error('Failed to copy code snippet:', err);
+                        if (LOG_ERROR)
+                            console.error(prefix, 'Failed to copy code snippet:', err);
                         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)('Failed to copy code snippet.');
                     }
                 }
@@ -8320,16 +8503,19 @@ function initializeObserver() {
                         window.originalUITooltipController?.showTooltip(target, 'Downloading...');
                     }
                     catch (err) {
-                        console.error('Failed to download code snippet:', err);
+                        if (LOG_ERROR)
+                            console.error(prefix, 'Failed to download code snippet:', err);
                         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)('Failed to download code snippet.');
                     }
                 }
             }
         });
-        console.log("[ChatRenderer] Event listeners for code block actions (copy/download) added to chatBody.");
+        if (LOG_INFO)
+            console.log(prefix, "[ChatRenderer] Event listeners for code block actions (copy/download) added to chatBody.");
     }
     else {
-        console.error("[ChatRenderer] Cannot initialize MutationObserver or event listeners: chatBody is null.");
+        if (LOG_ERROR)
+            console.error(prefix, "[ChatRenderer] Cannot initialize MutationObserver or event listeners: chatBody is null.");
     }
 }
 // Helper function to get MIME type from language
@@ -8989,20 +9175,29 @@ let loadModelButton = null;
 let isLoadingModel = false;
 let currentLoadId = null;
 let lastSeenLoadId = null;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
+    "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     // Add more models here as needed
 };
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
     const customEvent = e;
-    console.log('[UIController] Received DbStatusUpdatedNotification: ', customEvent.detail);
+    if (LOG_INFO)
+        console.log(prefix, 'Received DbStatusUpdatedNotification: ', customEvent.detail);
     handleStatusUpdate(customEvent.detail);
 });
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
     const type = message?.type;
-    console.log('[UIController] browser.runtime.onMessage Received progress update: ', message.type, message.payload);
+    if (LOG_INFO)
+        console.log(prefix, 'browser.runtime.onMessage Received progress update: ', message.type, message.payload);
     if (message.type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
@@ -9080,12 +9275,14 @@ function handleEnterKey(event) {
 function handleSendButtonClick() {
     const messageText = getInputValue();
     if (messageText && !queryInput.disabled) {
-        console.log("[UIController] Send button clicked. Publishing ui:querySubmitted");
+        if (LOG_INFO)
+            console.log(prefix, "Send button clicked. Publishing ui:querySubmitted");
         document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
         clearInput();
     }
     else {
-        console.log("[UIController] Send button clicked, but input is empty or disabled.");
+        if (LOG_INFO)
+            console.log(prefix, "Send button clicked, but input is empty or disabled.");
     }
 }
 function handleAttachClick() {
@@ -9110,7 +9307,8 @@ function adjustTextareaHeight() {
     }
 }
 function setInputStateInternal(status) {
-    console.log(`[UIController] setInputStateInternal called with status: ${status}`);
+    if (LOG_INFO)
+        console.log(prefix, `setInputStateInternal called with status: ${status}`);
     if (!isInitialized || !queryInput || !sendButton)
         return;
     switch (status) {
@@ -9126,7 +9324,8 @@ function setInputStateInternal(status) {
             adjustTextareaHeight();
             break;
     }
-    console.log(`[UIController] Input disabled state: ${queryInput.disabled}`);
+    if (LOG_INFO)
+        console.log(prefix, `Input disabled state: ${queryInput.disabled}`);
 }
 function handleStatusUpdate(notification) {
     if (!isInitialized || !notification || !notification.sessionId || !notification.payload)
@@ -9142,9 +9341,11 @@ function handleModelWorkerLoadingProgress(payload) {
     if (!payload)
         return;
     if (payload.loadId !== lastSeenLoadId) {
-        console.warn('[UIController] New loadId detected in progress:', payload.loadId);
+        if (LOG_WARN)
+            console.warn(prefix, 'New loadId detected in progress:', payload.loadId);
         if (lastSeenLoadId) {
-            console.error('[UIController] DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
+            if (LOG_ERROR)
+                console.error(prefix, 'DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
         }
         lastSeenLoadId = payload.loadId;
     }
@@ -9153,7 +9354,8 @@ function handleModelWorkerLoadingProgress(payload) {
     const progressBar = document.getElementById('model-load-progress-bar');
     const progressInner = document.getElementById('model-load-progress-inner');
     if (!statusDiv || !statusText || !progressBar || !progressInner) {
-        console.warn('[UIController] Model load progress bar not found.');
+        if (LOG_WARN)
+            console.warn(prefix, 'Model load progress bar not found.');
         return;
     }
     statusDiv.style.display = 'block';
@@ -9235,7 +9437,8 @@ function getCurrentlySelectedModel() {
     };
 }
 async function initializeUI(callbacks) {
-    console.log("[UIController] Initializing...");
+    if (LOG_INFO)
+        console.log(prefix, "Initializing...");
     if (isInitialized) {
         removeListeners();
     }
@@ -9252,20 +9455,27 @@ async function initializeUI(callbacks) {
     isInitialized = true;
     setInputStateInternal('idle');
     adjustTextareaHeight();
-    console.log("[UIController] Initialized successfully.");
-    console.log(`[UIController] Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
+    if (LOG_INFO)
+        console.log(prefix, "Initialized successfully.");
+    if (LOG_INFO)
+        console.log(prefix, `Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
     disableInput("Download or load a model from dropdown to begin.");
-    console.log("[UIController] Initializing UI elements...");
-    console.log("[UIController] Attempting to find model selector...");
+    if (LOG_INFO)
+        console.log(prefix, "Initializing UI elements...");
+    if (LOG_INFO)
+        console.log(prefix, "Attempting to find model selector...");
     const modelSelector = document.getElementById('model-selector');
-    console.log(modelSelector ? "[UIController] Model selector found." : "[UIController] WARNING: Model selector NOT found!");
+    if (LOG_INFO)
+        console.log(prefix, modelSelector ? "Model selector found." : "WARNING: Model selector NOT found!");
     if (modelSelector) {
         modelSelector.innerHTML = ''; // Clear existing options
-        console.log("[UIController] Populating model selector. Available models:", AVAILABLE_MODELS);
+        if (LOG_INFO)
+            console.log(prefix, "Populating model selector. Available models:", AVAILABLE_MODELS);
         let hasModel = false;
         for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
-            console.log(`[UIController] Adding option: ${displayName} (${modelId})`);
+            if (LOG_INFO)
+                console.log(prefix, `Adding option: ${displayName} (${modelId})`);
             const option = document.createElement('option');
             option.value = modelId;
             option.textContent = displayName;
@@ -9307,15 +9517,18 @@ async function initializeUI(callbacks) {
         }
     }
     else {
-        console.warn("[UIController] Model selector dropdown not found.");
+        if (LOG_WARN)
+            console.warn(prefix, "Model selector dropdown not found.");
         if (loadModelButton)
             loadModelButton.style.display = 'none';
     }
-    console.log("[UIController] UI Initialization complete.");
+    if (LOG_INFO)
+        console.log(prefix, "UI Initialization complete.");
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
 }
 function setActiveSession(sessionId) {
-    console.log(`[UIController] Setting active session for UI state: ${sessionId}`);
+    if (LOG_INFO)
+        console.log(prefix, `Setting active session for UI state: ${sessionId}`);
     currentSessionId = sessionId;
     if (!sessionId) {
         setInputStateInternal('idle');
@@ -9328,7 +9541,8 @@ function getInputValue() {
     return queryInput?.value.trim() || '';
 }
 function clearInput() {
-    console.log("[UIController] Entering clearInput function.");
+    if (LOG_INFO)
+        console.log(prefix, "Entering clearInput function.");
     if (queryInput) {
         queryInput.value = '';
         adjustTextareaHeight();
@@ -9359,7 +9573,8 @@ function _handleModelOrVariantChange() {
         return;
     const modelId = modelSelectorDropdown.value;
     const modelPath = quantSelectorDropdown.value;
-    console.log(`[UIController] Model or variant changed by user. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
+    if (LOG_INFO)
+        console.log(prefix, `Model or variant changed by user. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED, {
         detail: { modelId, modelPath }
     }));
@@ -9372,7 +9587,8 @@ function isNativeAppAvailable() {
 // Placeholder for future native app/server integration
 function handleServerOnlyModelLoad(modelId, modelPath) {
     // TODO: Implement native app/server-side model loading logic here
-    console.log(`[UIController] handleServerOnlyModelLoad called for modelId: ${modelId}, modelPath: ${modelPath}`);
+    if (LOG_INFO)
+        console.log(prefix, `handleServerOnlyModelLoad called for modelId: ${modelId}, modelPath: ${modelPath}`);
     // For now, just show the temporary chat message
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
@@ -9381,7 +9597,8 @@ function _handleLoadModelButtonClick() {
         return;
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
-        console.warn("[UIController] Load Model button clicked, but no model selected.");
+        if (LOG_WARN)
+            console.warn(prefix, "Load Model button clicked, but no model selected.");
         return;
     }
     if (isLoadingModel)
@@ -9519,12 +9736,14 @@ function onModelDropdownChange() {
 }
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.WorkerEventNames.MANIFEST_UPDATED) {
-        console.log(`[UIController] Received MANIFEST_UPDATED event. Updating quant dropdown.`);
+        if (LOG_INFO)
+            console.log(prefix, "Received MANIFEST_UPDATED event. Updating quant dropdown.");
         updateQuantDropdown();
     }
 });
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.WorkerEventNames.MANIFEST_UPDATED, () => {
-    console.log(`[UIController] Received DOM MANIFEST_UPDATED event. Updating quant dropdown.`);
+    if (LOG_INFO)
+        console.log(prefix, "Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
     updateQuantDropdown();
 });
 function setLoadModelButtonText(text) {
@@ -10583,7 +10802,8 @@ function syncToggleLoadButton() {
     }
     catch (e) {
         window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.Contexts.UNKNOWN;
-        console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
+        if (LOG_ERROR)
+            console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
     }
 })();
 // Marked Setup
@@ -10595,7 +10815,8 @@ if (window.marked) {
                     return window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
                 }
                 catch (e) {
-                    console.error(`${prefix} hljs error:`, e);
+                    if (LOG_ERROR)
+                        console.error(`${prefix} hljs error:`, e);
                 }
             }
             else if (window.hljs) {
@@ -10603,7 +10824,8 @@ if (window.marked) {
                     return window.hljs.highlightAuto(code).value;
                 }
                 catch (e) {
-                    console.error(`${prefix} hljs auto error:`, e);
+                    if (LOG_ERROR)
+                        console.error(`${prefix} hljs auto error:`, e);
                 }
             }
             const escapeHtml = (htmlStr) => htmlStr
@@ -10618,10 +10840,12 @@ if (window.marked) {
         gfm: true,
         breaks: true,
     });
-    console.log(`${prefix} Marked globally configured to use highlight.`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Marked globally configured to use highlight.`);
 }
 else {
-    console.error(`${prefix} Marked library (window.marked) not found.`);
+    if (LOG_ERROR)
+        console.error(`${prefix} Marked library (window.marked) not found.`);
 }
 function isDbRequest(type) {
     return typeof type === 'string' && type.endsWith('_REQUEST');
@@ -10630,15 +10854,18 @@ function isDbLocalContext() {
     return typeof _DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest === 'function';
 }
 async function sendDbRequestSmart(request) {
-    console.log(`${prefix} sendDbRequestSmart called`, { request });
+    if (LOG_DEBUG)
+        console.log(`${prefix} sendDbRequestSmart called`, { request });
     let response;
     if (isDbLocalContext()) {
         response = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.forwardDbRequest)(request);
-        console.log(`${prefix} sendDbRequestSmart got local response`, { response });
+        if (LOG_DEBUG)
+            console.log(`${prefix} sendDbRequestSmart got local response`, { response });
     }
     else {
         response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage(request);
-        console.log(`${prefix} sendDbRequestSmart got remote response`, { response });
+        if (LOG_DEBUG)
+            console.log(`${prefix} sendDbRequestSmart got remote response`, { response });
     }
     return response;
 }
@@ -10650,7 +10877,8 @@ function requestDbAndWait(requestEvent) {
         (async () => {
             try {
                 const result = await sendDbRequestSmart(requestEvent);
-                console.log(`${prefix} requestDbAndWait: Raw result`, result);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} requestDbAndWait: Raw result`, result);
                 const response = Array.isArray(result) ? result[0] : result;
                 if (response && (response.success || response.error === undefined)) {
                     resolve(response.data || response.payload);
@@ -10738,15 +10966,18 @@ function handleModelWorkerMessage(event) {
     switch (type) {
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.WORKER_SCRIPT_READY:
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.WORKER_SCRIPT_READY;
-            console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.WORKER_ENV_READY:
             isModelWorkerEnvReady = true;
-            console.log(`${prefix} Model worker environment is ready.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Model worker environment is ready.`);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.LOADING_STATUS:
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.LOADING_MODEL;
-            console.log(`${prefix} Worker loading status:`, payload);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Worker loading status:`, payload);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.WORKER_READY: {
             const { modelId, modelPath, task, fallback, executionProvider, warning } = payload;
@@ -10769,15 +11000,18 @@ function handleModelWorkerMessage(event) {
             if (warning) {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showWarning)(warning);
             }
-            console.log(`${prefix} Model ${modelId} loaded successfully!`);
-            console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Model ${modelId} loaded successfully!`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
             break;
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR:
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR;
             isModelWorkerEnvReady = false;
             hideDeviceBadge();
-            console.error(`${prefix} Model worker reported an error:`, payload);
+            if (LOG_ERROR)
+                console.error(`${prefix} Model worker reported an error:`, payload);
             (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Worker Error: ${payload}`);
             currentModelIdInWorker = null;
             break;
@@ -10786,13 +11020,15 @@ function handleModelWorkerMessage(event) {
             isModelWorkerEnvReady = false;
             currentModelIdInWorker = null;
             hideDeviceBadge();
-            console.log(`${prefix} Model worker reset complete.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Model worker reset complete.`);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_COMPLETE: {
-            console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
+            if (LOG_DEBUG)
+                console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
             // Use only the clean generatedText from the worker
             if (payload.messageId && activeSessionId) {
                 sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
@@ -10830,6 +11066,20 @@ function handleModelWorkerMessage(event) {
                 });
             }
             break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_UPDATE: {
+            // Streaming token update from worker
+            if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
+                // Fetch the current message from the DB (optional, or just append)
+                // For now, just append the token to the message text/content
+                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(payload.chatId, payload.messageId, {
+                    isLoading: true,
+                    sender: 'ai',
+                    appendText: payload.token,
+                    appendContent: payload.token
+                }));
+            }
+            break;
+        }
         default:
             console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
     }
@@ -10838,15 +11088,18 @@ function handleModelWorkerError(error) {
     let errorMessage;
     if (error instanceof ErrorEvent) {
         errorMessage = error.message;
-        console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
+        if (LOG_ERROR)
+            console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
     }
     else if (error instanceof Event && 'message' in error) {
         errorMessage = error.message;
-        console.error(`${prefix} Uncaught error in model worker:`, error);
+        if (LOG_ERROR)
+            console.error(`${prefix} Uncaught error in model worker:`, error);
     }
     else {
         errorMessage = String(error);
-        console.error(`${prefix} Uncaught error in model worker:`, error);
+        if (LOG_ERROR)
+            console.error(`${prefix} Uncaught error in model worker:`, error);
     }
     modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR;
     currentModelIdInWorker = null;
@@ -10858,26 +11111,31 @@ function handleModelWorkerError(error) {
 }
 function initializeModelWorker() {
     if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.UNINITIALIZED) {
-        console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
         return;
     }
     if (modelWorker) {
-        console.log(`${prefix} Terminating existing model worker before creating a new one.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Terminating existing model worker before creating a new one.`);
         modelWorker.terminate();
         modelWorker = undefined;
     }
     isModelWorkerEnvReady = false;
-    console.log(`${prefix} Initializing model worker...`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing model worker...`);
     try {
         const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.getURL('modelworker.js');
         modelWorker = new Worker(workerUrl, { type: 'module' });
         modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.CREATING_WORKER;
         modelWorker.onmessage = handleModelWorkerMessage;
         modelWorker.onerror = handleModelWorkerError;
-        console.log(`${prefix} Model worker instance created and listeners attached.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Model worker instance created and listeners attached.`);
     }
     catch (error) {
-        console.error(`${prefix} Failed to create model worker:`, error);
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to create model worker:`, error);
         modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR;
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to initialize model worker: ${error.message}`);
     }
@@ -10888,7 +11146,8 @@ function initializeModelWorker() {
 }
 function terminateModelWorker() {
     if (modelWorker) {
-        console.log(`${prefix} Terminating model worker.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Terminating model worker.`);
         modelWorker.terminate();
         modelWorker = undefined;
     }
@@ -10896,7 +11155,8 @@ function terminateModelWorker() {
     modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.UNINITIALIZED;
     isModelWorkerEnvReady = false;
     hideDeviceBadge();
-    console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
 }
 function sendToModelWorker(message) {
     if (!modelWorker || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.CREATING_WORKER && message.type !== _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.INIT) {
@@ -10908,7 +11168,8 @@ function sendToModelWorker(message) {
         modelWorker.postMessage(message);
     }
     catch (error) {
-        console.error(`${prefix} Error posting message to model worker:`, error, message);
+        if (LOG_ERROR)
+            console.error(`${prefix} Error posting message to model worker:`, error, message);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error communicating with model worker: ${error.message}`);
     }
 }
@@ -10919,7 +11180,8 @@ function getActiveChatSessionId() {
     return activeSessionId;
 }
 async function setActiveChatSessionId(newSessionId) {
-    console.log(`${prefix} Setting active session ID to: ${newSessionId}`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Setting active session ID to: ${newSessionId}`);
     activeSessionId = newSessionId;
     if (newSessionId) {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.set({ lastSessionId: newSessionId });
@@ -10959,7 +11221,8 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_16_
     _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_17__.llmChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: msgSenderId } = event.data;
         if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
-            console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
             return;
         }
         if ([
@@ -10969,15 +11232,18 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_16_
             return;
         }
         if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
-            console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
             sendToModelWorker({ type: 'generate', payload });
         }
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
-            console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
             sendToModelWorker({ type: 'interrupt', payload });
         }
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.RESET_WORKER) {
-            console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
             terminateModelWorker();
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_17__.llmChannel.postMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
@@ -10988,7 +11254,8 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_16_
             });
         }
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.LOAD_MODEL) {
-            console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
+            if (LOG_WARN)
+                console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
             const modelToLoad = payload.modelId || payload.model;
             const onnxToLoad = payload.quant;
             if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
@@ -10998,7 +11265,8 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_16_
             }
             else {
                 const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
-                console.error(`${prefix} ${errorMsg}`);
+                if (LOG_ERROR)
+                    console.error(`${prefix} ${errorMsg}`);
                 _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_17__.llmChannel.postMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
                     payload: { success: false, error: errorMsg },
@@ -11016,9 +11284,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_16_
             });
         }
         else {
-            console.log(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
+            if (LOG_WARN)
+                console.warn(`${prefix} llmChannel: Received unhandled message type for sidepanel: ${type}`, payload);
         }
-        console.log(`${prefix} onmessage END`, { type, requestId, payload, msgSenderId, timestamp: Date.now() });
+        if (LOG_DEBUG)
+            console.log(`${prefix} onmessage END`, { type, requestId, payload, msgSenderId, timestamp: Date.now() });
     };
 }
 // --- Event Handlers ---
@@ -11055,58 +11325,70 @@ function handleMessage(message, sender, sendResponse) {
         // No action needed
     }
     else {
-        console.warn(`${prefix} Received unknown message type from background:`, type, message);
+        if (LOG_WARN)
+            console.warn(`${prefix} Received unknown message type from background:`, type, message);
     }
 }
 async function handleSessionCreated(newSessionId) {
-    console.log(`${prefix} Orchestrator reported new session created: ${newSessionId}`);
-    console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Orchestrator reported new session created: ${newSessionId}`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
     await setActiveChatSessionId(newSessionId);
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
         if (!sessionData?.messages) {
-            console.warn(`${prefix} No messages found in session data for new session ${newSessionId}.`, sessionData);
+            if (LOG_WARN)
+                console.warn(`${prefix} No messages found in session data for new session ${newSessionId}.`, sessionData);
         }
     }
     catch (error) {
         const err = error;
-        console.error(`${prefix} Failed to fetch messages for new session ${newSessionId}:`, err);
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to fetch messages for new session ${newSessionId}:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to load initial messages for new chat: ${err.message}`);
     }
 }
 async function handleNewChat() {
-    console.log(`${prefix} New Chat button clicked.`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} New Chat button clicked.`);
     await setActiveChatSessionId(null);
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.clearInput)();
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.focusInput)();
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
-        console.log(`${prefix} No session ID to load, setting renderer to null.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} No session ID to load, setting renderer to null.`);
         await setActiveChatSessionId(null);
         return;
     }
-    console.log(`${prefix} Loading session data for: ${sessionId}`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Loading session data for: ${sessionId}`);
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWait(request);
-        console.log(`${prefix} Session data successfully loaded for ${sessionId}.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Session data successfully loaded for ${sessionId}.`);
         await setActiveChatSessionId(sessionId);
         if (!sessionData?.messages) {
-            console.warn(`${prefix} No messages found in loaded session data for ${sessionId}.`);
+            if (LOG_WARN)
+                console.warn(`${prefix} No messages found in loaded session data for ${sessionId}.`);
         }
     }
     catch (error) {
         const err = error;
-        console.error(`${prefix} Failed to load session ${sessionId}:`, err);
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to load session ${sessionId}:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to load chat: ${err.message}`);
         await setActiveChatSessionId(null);
     }
 }
 async function handleDetach() {
     if (!currentTabId) {
-        console.error('Cannot detach: Missing tab ID');
+        if (LOG_ERROR)
+            console.error('Cannot detach: Missing tab ID');
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Cannot detach: Missing tab ID');
         return;
     }
@@ -11122,7 +11404,8 @@ async function handleDetach() {
         }
         const storageKey = `detachedSessionId_${currentTabId}`;
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.set({ [storageKey]: currentSessionId });
-        console.log(`${prefix} Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
         const popup = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().windows.create({
             url: webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
             type: 'popup',
@@ -11142,35 +11425,42 @@ async function handleDetach() {
     }
     catch (error) {
         const err = error;
-        console.error(`${prefix} Error during detach:`, err);
+        if (LOG_ERROR)
+            console.error(`${prefix} Error during detach:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error detaching chat: ${err.message}`);
     }
 }
 async function handlePageChange(event) {
     if (!event?.pageId)
         return;
-    console.log(`${prefix} Navigation changed to: ${event.pageId}`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Navigation changed to: ${event.pageId}`);
     if (!isDbReady) {
-        console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
         return;
     }
     if (event.pageId === 'page-home') {
-        console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
         try {
             const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.get(['lastSessionId']);
             if (lastSessionId) {
-                console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
                 await loadAndDisplaySession(lastSessionId);
                 await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.remove('lastSessionId');
             }
             else {
-                console.log(`${prefix} No load signal found. Resetting to welcome state.`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} No load signal found. Resetting to welcome state.`);
                 await loadAndDisplaySession(null);
             }
         }
         catch (error) {
             const err = error;
-            console.error(`${prefix} Error checking/loading session based on signal:`, err);
+            if (LOG_ERROR)
+                console.error(`${prefix} Error checking/loading session based on signal:`, err);
             (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Failed to load session state.');
             await loadAndDisplaySession(null);
         }
@@ -11178,12 +11468,14 @@ async function handlePageChange(event) {
 }
 // --- Main Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log(`${prefix} DOM Content Loaded.`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} DOM Content Loaded.`);
     const urlParams = new URLSearchParams(window.location.search);
     const requestedView = urlParams.get('view');
     // Log Viewer Mode
     if (requestedView === 'logs') {
-        console.log(`${prefix} Initializing in Log Viewer Mode.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Initializing in Log Viewer Mode.`);
         document.body.classList.add('log-viewer-mode');
         document.getElementById('header')?.classList.add('hidden');
         document.getElementById('bottom-nav')?.classList.add('hidden');
@@ -11195,7 +11487,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             logViewerPage.classList.remove('hidden');
         }
         else {
-            console.error(`${prefix} CRITICAL: #page-log-viewer element not found!`);
+            if (LOG_ERROR)
+                console.error(`${prefix} CRITICAL: #page-log-viewer element not found!`);
             document.body.innerHTML =
                 "<p style='color:red; padding: 1em;'>Error: Log viewer UI component failed to load.</p>";
             return;
@@ -11203,11 +11496,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const logViewerModule = await __webpack_require__.e(/*! import() */ "src_Controllers_LogViewerController_ts").then(__webpack_require__.bind(__webpack_require__, /*! ./Controllers/LogViewerController */ "./src/Controllers/LogViewerController.ts"));
             await logViewerModule.initializeLogViewerController();
-            console.log(`${prefix} Log Viewer Controller initialized.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Log Viewer Controller initialized.`);
         }
         catch (err) {
             const error = err;
-            console.error(`${prefix} Failed to load or initialize LogViewerController:`, error);
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to load or initialize LogViewerController:`, error);
             if (logViewerPage) {
                 logViewerPage.innerHTML = `<div style='color:red; padding: 1em;'>Error initializing log viewer: ${error.message}</div>`;
             }
@@ -11215,7 +11510,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     // Standard Mode
-    console.log(`${prefix} Initializing in Standard Mode.`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing in Standard Mode.`);
     document.getElementById('page-log-viewer')?.classList.add('hidden');
     // Initialize UI and Core Components
     try {
@@ -11226,37 +11522,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!uiInitResult)
             throw new Error('UI initialization failed');
         const { chatBody, fileInput } = uiInitResult;
-        console.log(`${prefix} UI Controller Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} UI Controller Initialized.`);
         if (!chatBody) {
-            console.error(`${prefix} CRITICAL: chatBody is null before initializeRenderer!`);
+            if (LOG_ERROR)
+                console.error(`${prefix} CRITICAL: chatBody is null before initializeRenderer!`);
             throw new Error('chatBody is null');
         }
         (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_3__.initializeRenderer)(chatBody, requestDbAndWait);
-        console.log(`${prefix} Chat Renderer Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Chat Renderer Initialized.`);
         (0,_navigation__WEBPACK_IMPORTED_MODULE_2__.initializeNavigation)();
-        console.log(`${prefix} Navigation Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Navigation Initialized.`);
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
         (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.initializeFileHandling)({
             getActiveSessionIdFunc: getActiveChatSessionId,
         });
-        console.log(`${prefix} File Handler Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} File Handler Initialized.`);
         if (fileInput) {
             fileInput.addEventListener('change', _Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.handleFileSelected);
         }
         else {
-            console.warn(`${prefix} File input element not found before adding listener.`);
+            if (LOG_WARN)
+                console.warn(`${prefix} File input element not found before adding listener.`);
         }
         const activeTab = await (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.getActiveTab)();
         currentTabId = activeTab?.id;
-        console.log(`${prefix} Current Tab ID: ${currentTabId}`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Current Tab ID: ${currentTabId}`);
         (0,_Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_4__.initializeOrchestrator)({
             getActiveSessionIdFunc: getActiveChatSessionId,
             onSessionCreatedCallback: handleSessionCreated,
             getCurrentTabIdFunc: () => currentTabId,
         });
-        console.log(`${prefix} Message Orchestrator Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Message Orchestrator Initialized.`);
         webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.onMessage.addListener(handleMessage);
-        console.log(`${prefix} Background message listener added.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Background message listener added.`);
         // Initialize Controllers
         const historyPopupElement = document.getElementById('history-popup');
         const historyListElement = document.getElementById('history-list');
@@ -11273,17 +11578,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 closeButton: closeHistoryButtonElement,
             }, requestDbAndWait);
             if (!historyPopupController) {
-                console.error(`${prefix} History Popup Controller initialization failed.`);
+                if (LOG_ERROR)
+                    console.error(`${prefix} History Popup Controller initialization failed.`);
             }
         }
         else {
-            console.warn(`${prefix} Could not find all required elements for History Popup Controller.`);
+            if (LOG_WARN)
+                console.warn(`${prefix} Could not find all required elements for History Popup Controller.`);
         }
         if (historyButton && historyPopupController) {
             historyButton.addEventListener('click', () => historyPopupController.show());
         }
         else {
-            console.warn(`${prefix} History button or controller not available for listener.`);
+            if (LOG_WARN)
+                console.warn(`${prefix} History button or controller not available for listener.`);
         }
         if (newChatButton) {
             newChatButton.addEventListener('click', handleNewChat);
@@ -11293,15 +11601,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             detachButton.addEventListener('click', handleDetach);
         }
         else {
-            console.warn(`${prefix} Detach button not found.`);
+            if (LOG_WARN)
+                console.warn(`${prefix} Detach button not found.`);
         }
         const libraryListElement = document.getElementById('starred-list');
         if (libraryListElement) {
             (0,_Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_11__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
-            console.log(`${prefix} Library Controller Initialized.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Library Controller Initialized.`);
         }
         else {
-            console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
+            if (LOG_WARN)
+                console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
             const { modelId, modelPath, loadId } = e.detail;
@@ -11310,7 +11621,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.ERROR)) {
-                console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
                 terminateModelWorker();
             }
             if (!modelWorker) {
@@ -11324,7 +11636,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const waitForEnvReady = async (timeoutMs = 5000) => {
                 if (isModelWorkerEnvReady)
                     return;
-                console.log(`${prefix} Waiting for model worker environment to be ready...`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Waiting for model worker environment to be ready...`);
                 const start = Date.now();
                 while (!isModelWorkerEnvReady) {
                     if (Date.now() - start > timeoutMs) {
@@ -11332,7 +11645,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     await new Promise(res => setTimeout(res, 50));
                 }
-                console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
             };
             try {
                 await waitForEnvReady();
@@ -11345,7 +11659,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Get the task from the manifest
             const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getManifestEntry)(modelId);
             const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
-            console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
             modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.LOADING_MODEL;
             currentModelIdInWorker = modelId;
             modelWorker.postMessage({
@@ -11354,11 +11669,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
         (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_12__.initializeDiscoverController)();
-        console.log(`${prefix} Discover Controller Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Discover Controller Initialized.`);
         (0,_Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_13__.initializeSettingsController)();
-        console.log(`${prefix} Settings Controller Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Settings Controller Initialized.`);
         (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__.initializeSpacesController)();
-        console.log(`${prefix} Spaces Controller Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Spaces Controller Initialized.`);
         (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_15__.initializeDriveController)({
             requestDbAndWaitFunc: requestDbAndWait,
             getActiveChatSessionId,
@@ -11366,33 +11684,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotification: _notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification,
             debounce: _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.debounce,
         });
-        console.log(`${prefix} Drive Controller Initialized.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Drive Controller Initialized.`);
         const popupContext = urlParams.get('context');
         originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;
         isPopup = popupContext === 'popup';
-        console.log(`${prefix} Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
         if (isPopup && originalTabIdFromPopup) {
             const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
             const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.get(storageKey);
             const detachedSessionId = result[storageKey];
             if (detachedSessionId) {
-                console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
                 await loadAndDisplaySession(detachedSessionId);
             }
             else {
-                console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
                 await setActiveChatSessionId(null);
             }
         }
         else {
-            console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
             await loadAndDisplaySession(null);
         }
         await ensureManifestForDropdownRepos();
         const dbInitSuccess = await initializeDatabase();
         if (!dbInitSuccess)
             return;
-        console.log(`${prefix} Initialization complete.`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Initialization complete.`);
         const modelDropdownEl = document.getElementById('model-selector');
         const quantDropdownEl = document.getElementById('onnx-variant-selector');
         if (modelDropdownEl) {
@@ -11443,7 +11767,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     catch (error) {
         const err = error;
-        console.error(`${prefix} Initialization failed:`, err);
+        if (LOG_ERROR)
+            console.error(`${prefix} Initialization failed:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
         const chatBody = document.getElementById('chat-body');
         if (chatBody) {
@@ -11452,13 +11777,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbInitializationCompleteNotification.type, async (e) => {
-    console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
+    if (LOG_DEBUG)
+        console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
 });
 async function initializeDatabase() {
     try {
         const result = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)();
         if (result?.success) {
-            console.log(`${prefix} DB initialized directly.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} DB initialized directly.`);
             isDbReady = true;
             for (const logPayload of logQueue) {
                 const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbAddLogRequest(logPayload);
@@ -11473,7 +11800,8 @@ async function initializeDatabase() {
     }
     catch (error) {
         const err = error;
-        console.error(`${prefix} DB Initialization failed:`, err);
+        if (LOG_ERROR)
+            console.error(`${prefix} DB Initialization failed:`, err);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
         const chatBody = document.getElementById('chat-body');
         if (chatBody) {
@@ -11564,12 +11892,22 @@ async function ensureManifestForDropdownRepos() {
                             }
                         }
                     }
-                    // Determine if any required file is serverOnly
+                    // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
-                    for (const fname of currentQuantRequiredFiles) {
-                        if (chunkedFiles && chunkedFiles[fname] && chunkedFiles[fname].serverOnly) {
+                    if (quantKey === 'onnx/model.onnx') {
+                        // Check for .onnx_data or .onnx.data file associated with model.onnx
+                        const dataFile = siblings.find(f => f.rfilename === 'onnx/model.onnx_data' || f.rfilename === 'onnx/model.onnx.data');
+                        if (dataFile && typeof dataFile.size === 'number' && dataFile.size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
                             isServerOnly = true;
-                            break;
+                        }
+                        else if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
+                            isServerOnly = true;
+                        }
+                    }
+                    else {
+                        // For other quants, only check their own ONNX file size
+                        if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
+                            isServerOnly = true;
                         }
                     }
                     const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.Available);
@@ -11717,7 +12055,7 @@ function isModelLoaded() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "06247047c8899a11f151" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "fc5e3b5b06eed5fb80d1" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

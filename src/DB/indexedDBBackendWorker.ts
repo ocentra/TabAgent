@@ -1420,18 +1420,18 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
     const payload = event.data.payload;
     const requestId = event.data.requestId;
     if (!action) {
-        console.log(`${prefix} No action provided ${event.data.action} ${event.data.payload} ${event.data.requestId}`);
+        if (LOG_INFO) console.log(`${prefix} No action provided ${event.data.action} ${event.data.payload} ${event.data.requestId}`);
         return;
     }
     let result: any;
     let success = true;
     let errorResult: ErrorResult | null = null;
     try {
-        console.log(`${prefix} handle action in try block:`, action);
+        if (LOG_INFO) console.log(`${prefix} handle action in try block:`, action);
 
         if (action === DBActions.INIT_CUSTOM_IDBS) {
             const { schemaConfig, ftsConfig } = payload as { schemaConfig?: GlobalSchemaConfig, ftsConfig?: GlobalFTSConfig };
-            console.log(`${prefix} INIT_CUSTOM_IDBS handler start`, { schemaConfig, ftsConfig });
+            if (LOG_INFO) console.log(`${prefix} INIT_CUSTOM_IDBS handler start`, { schemaConfig, ftsConfig });
             if (ftsConfig) {
                 idbManager.setFTSConfig(ftsConfig);
                // console.log(`${prefix} SET_FTS_CONFIG handler start`, { ftsConfig: idbManager.ftsConfig });
@@ -1459,7 +1459,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
             if (!success) errorResult = { message: "One or more databases failed to initialize.", name: "DBInitializationError" };
            // console.log(`${prefix} INIT_CUSTOM_IDBS handler end`, { result, errorResult });
         } else if (action === DBActions.RESET) {
-            console.log(`${prefix} RESET handler start`);
+            if (LOG_INFO) console.log(`${prefix} RESET handler start`);
             result = await resetAllIDBData();
             success = result.success; 
             if (!success) errorResult = { message: "Reset operation failed for one or more databases.", name: "DBResetError", details: result.details };
@@ -1483,7 +1483,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
             //console.log(`${prefix} QUERY handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
             result = await idbDataOps.query(operationPayload[0], operationPayload[1]);
-            console.log('[idbWorker][TEST] QUERY result for requestId:', requestId, 'result:', result);
+            if (LOG_INFO) console.log('[idbWorker][TEST] QUERY result for requestId:', requestId, 'result:', result);
         } else if (action === DBActions.DELETE) {
             //console.log(`${prefix} DELETE handler start`);
             const operationPayload = Array.isArray(payload) ? payload : [payload];
@@ -1534,7 +1534,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessagePayload>) => {
             result = await idbDataOps.applySyncedRecord(operationPayload[0], operationPayload[1], operationPayload[2]);
 
         } else {
-            console.log(`${prefix} Unknown action:`, action);
+            if (LOG_INFO) console.log(`${prefix} Unknown action:`, action);
             success = false;
             errorResult = { message: `Unknown action: ${action}`, name: "UnknownActionError" };
         }

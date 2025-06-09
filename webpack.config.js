@@ -86,6 +86,7 @@ export default {
       },
       {
         test: /\.mjs$/,
+        include: [path.resolve(__dirname, 'src/assets/onnxruntime-web')],
         type: 'asset/resource',
       },
       {

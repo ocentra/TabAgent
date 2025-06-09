@@ -50,10 +50,12 @@ let currentChat: any = null;
 let dbReadyResolve: ((value: boolean) => void) | null = null;
 
 // Logging flags for manifest batch fetch and general DB operations
-const LOG_GENERAL = true;
+const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[DB]';
 
 function resetDbReadyPromise() {
   dbReadyResolve = () => {};
@@ -85,13 +87,13 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage = `O
 function createDbWorker() {
   if (!dbWorker) {
     const workerUrl = browser.runtime.getURL('DB/indexedDBBackendWorker.js');
-    console.log('[DB] Creating new DB Worker with URL:', workerUrl);
+    if (LOG_INFO) console.log(prefix, 'Creating new DB Worker with URL:', workerUrl);
     let workerCreated = false;
     try {
       dbWorker = new Worker(workerUrl, { type: 'module' });
       workerCreated = true;
     } catch (workerErr) {
-      console.error('[DB] Failed to create DB Worker:', workerErr);
+      if (LOG_ERROR) console.error(prefix, 'Failed to create DB Worker:', workerErr);
       dbWorker = null;
       dbWorkerReady = false;
       // Optionally, you could throw or handle this error further here
@@ -101,9 +103,9 @@ function createDbWorker() {
       dbWorker.onmessage = (event) => {
         const { requestId, type, result, error, stack } = event.data;
         const { type: evtType, requestId: evtReqId, error: evtError } = event.data || {};
-        console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
+       if (LOG_INFO) console.log('[DB] Worker onmessage:', { type: evtType, requestId: evtReqId, error: evtError });
         if (evtType === 'query' && evtReqId && result) {
-          console.log('[DB][TEST] Worker onmessage for requestId:', evtReqId, 'result:', result);
+          if (LOG_INFO) console.log('[DB][TEST] Worker onmessage for requestId:', evtReqId, 'result:', result);
         }
         if (requestId && dbWorkerCallbacks[requestId]) {
           const callback = dbWorkerCallbacks[requestId];
@@ -119,23 +121,23 @@ function createDbWorker() {
               Object.assign(errObj, error);
               if (stack) errObj.stack = stack;
             }
-            console.error('[DB] Worker callback.reject:', errObj, 'for requestId:', requestId);
+            if (LOG_ERROR) console.error(prefix, 'Worker callback.reject:', errObj, 'for requestId:', requestId);
             callback.reject(errObj);
           } else {
-            console.log('[DB] Worker callback.resolve:', result, 'for requestId:', requestId);
+            if (LOG_INFO) console.log('[DB] Worker callback.resolve:', result, 'for requestId:', requestId);
             callback.resolve(result);
           }
         } else if (type === 'debug') {
-          console.log(`[DB Worker Debug] ${event.data.message}`);
+          if (LOG_INFO) console.log(`[DB Worker Debug] ${event.data.message}`);
         } else if (type === 'fatal') {
-          console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
+          if (LOG_ERROR) console.error(`[DB Worker Fatal] ${event.data.error}`, event.data.stack);
           Object.values(dbWorkerCallbacks).forEach((cb: any) =>
             cb.reject(new Error('DB Worker encountered a fatal error'))
           );
           Object.keys(dbWorkerCallbacks).forEach(key => delete dbWorkerCallbacks[key]);
         } else if (type === DBActions.WORKER_READY) {
           dbWorkerReady = true;
-          console.log('[DB] DB Worker signaled script ready.');
+          if (LOG_INFO) console.log('[DB] DB Worker signaled script ready.');
         } else if (requestId) {
           // This is a normal response to a request, no warning needed.
         } else {
@@ -145,7 +147,7 @@ function createDbWorker() {
         }
       };
       dbWorker.onerror = (errEvent) => {
-        console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
+        if (LOG_ERROR) console.error('[DB] Uncaught error in DB Worker:', errEvent.message, errEvent);
         Object.values(dbWorkerCallbacks).forEach((cb: any) =>
           cb.reject(new Error(`DB Worker crashed: ${errEvent.message || 'Unknown worker error'}`))
         );
@@ -153,24 +155,24 @@ function createDbWorker() {
         dbWorker = null;
         dbWorkerReady = false;
       };
-      console.log('[DB] DB Worker created and event handlers attached.');
+      if (LOG_INFO) console.log(prefix, 'DB Worker created and event handlers attached.');
     }
   } else {
-    console.log('[DB] Returning existing DB Worker instance.');
+    if (LOG_INFO) console.log(prefix, 'Returning existing DB Worker instance.');
   }
   return dbWorker;
 }
 
 // Helper to ensure dbWorker is not null
 function getDbWorker(): Worker {
-  console.log('[DEBUG] getDbWorker called. dbWorker:', dbWorker);
+  if (LOG_INFO) console.log(prefix, '[DEBUG] getDbWorker called. dbWorker:', dbWorker);
   if (!dbWorker) throw new AppError('WORKER_NOT_INITIALIZED', 'DB Worker is not initialized');
   return dbWorker;
 }
 
 function checkDbAndStoreReadiness(result: any) {
   if (!result || typeof result !== 'object') {
-    console.warn('[DB] checkDbAndStoreReadiness received invalid result:', result);
+    if (LOG_WARN) console.warn(prefix, 'checkDbAndStoreReadiness received invalid result:', result);
     return { allSuccess: false, failures: ['Invalid result object'] };
   }
   let allSuccess = true;
@@ -205,7 +207,7 @@ async function autoEnsureDbInitialized() {
   isDbInitInProgress = true;
   dbInitPromise = (async () => {
     try {
-      console.log('[DB] autoEnsureDbInitialized: Initializing databases and backend.');
+      if (LOG_INFO) console.log(prefix, 'autoEnsureDbInitialized: Initializing databases and backend.');
       let ids = await browser.storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
       if (!ids.currentLogSessionId) {
         ids.currentLogSessionId = crypto.randomUUID();
@@ -217,7 +219,7 @@ async function autoEnsureDbInitialized() {
       const worker = createDbWorker();
       if (!worker) {
         const errorMsg = '[DB] Failed to initialize DB Worker. Aborting DB initialization.';
-        console.error(errorMsg);
+        if (LOG_ERROR) console.error(prefix, errorMsg);
         isDbReadyFlag = false;
         if (typeof dbReadyResolve === 'function') dbReadyResolve(false);
         lastDbInitStatus = { error: errorMsg, success: false };
@@ -227,7 +229,7 @@ async function autoEnsureDbInitialized() {
       }
 
       if (!dbWorkerReady) {
-        console.log('[DB] Waiting for DB worker to become ready...');
+        if (LOG_INFO) console.log(prefix, 'Waiting for DB worker to become ready...');
         await new Promise<void>((resolveWorkerReady, rejectWorkerReady) => {
           const timeout = setTimeout(() => rejectWorkerReady(new Error(`Worker '${DBActions.WORKER_READY}' signal timeout after 10s`)), 10000);
           const checkWorker = () => {
@@ -236,13 +238,13 @@ async function autoEnsureDbInitialized() {
           };
           checkWorker();
         });
-        console.log('[DB] DB Worker is ready.');
+        if (LOG_INFO) console.log(prefix, 'DB Worker is ready.');
       }
 
       const payloadForWorker = { schemaConfig: schema }; // Make sure 'schema' is defined and imported
       const requestId = (++dbWorkerRequestId).toString();
       
-      console.log('[DB] Sending INIT_CUSTOM_IDBS to worker:', { requestId, type: DBActions.INIT_CUSTOM_IDBS, payload: payloadForWorker });
+      if (LOG_INFO) console.log(prefix, 'Sending INIT_CUSTOM_IDBS to worker:', { requestId, type: DBActions.INIT_CUSTOM_IDBS, payload: payloadForWorker });
       const initOpPromise = new Promise((resolve, reject) => {
         dbWorkerCallbacks[requestId] = { resolve, reject };
       });
@@ -259,7 +261,7 @@ async function autoEnsureDbInitialized() {
       const responsePayload = { success: allSuccess, dbStatus: resultFromWorker, sessionIds: { currentExtensionSessionId, previousExtensionSessionId } };
       if (!allSuccess) {
         const errorMsg = `One or more databases/stores failed to initialize: ${failures.join(', ')}.`;
-        console.error('[DB]', errorMsg, 'Details:', resultFromWorker);
+        if (LOG_ERROR) console.error(prefix, errorMsg, 'Details:', resultFromWorker);
         (responsePayload as any).error = new AppError('DB_INIT_FAILED', errorMsg, { failures, dbStatus: resultFromWorker });
       }
 
@@ -268,7 +270,7 @@ async function autoEnsureDbInitialized() {
       return responsePayload;
 
     } catch (err) {
-      console.error('[DB] autoEnsureDbInitialized -> CRITICAL Initialization failed:', (err as Error).message);
+      if (LOG_ERROR) console.error(prefix, 'autoEnsureDbInitialized -> CRITICAL Initialization failed:', (err as Error).message);
       isDbReadyFlag = false;
       if (typeof dbReadyResolve === 'function') dbReadyResolve(false);
       lastDbInitStatus = (lastDbInitStatus as any) || { error: (err as Error).message, success: false };
@@ -318,7 +320,7 @@ async function handleRequest(
 
   } catch (error) {
     const errObj = error as Error;
-    console.error(`[DB] Error in handleRequest for ${event?.type} (reqId: ${requestId}):`, errObj.message, (errObj as any).details || errObj);
+    if (LOG_ERROR) console.error(prefix, `Error in handleRequest for ${event?.type} (reqId: ${requestId}):`, errObj.message, (errObj as any).details || errObj);
     const appError = (error instanceof AppError) ? error : new AppError('UNKNOWN_HANDLER_ERROR', errObj.message || 'Failed in request handler', { originalErrorName: errObj.name, originalErrorStack: errObj.stack, details: (errObj as any).details });
     return new ResponseClass(requestId, false, null, appError);
   }
@@ -377,7 +379,7 @@ async function handleDbGetSessionRequest(event: any) {
 
 async function handleDbAddMessageRequest(event: any) {
   return handleRequest(event, async (payload: any) => {
-    console.log('[DB][TRACE] handleDbAddMessageRequest: sessionId:', payload?.sessionId, 'messageObject:', payload?.messageObject);
+    if (LOG_INFO) console.log(prefix, '[TRACE] handleDbAddMessageRequest: sessionId:', payload?.sessionId, 'messageObject:', payload?.messageObject);
     if (!payload?.sessionId || !payload.messageObject?.text) throw new AppError('INVALID_INPUT', 'Session ID and message text are required');
     const worker = getDbWorker();
     let chat = (currentChat && currentChat.id === payload.sessionId) ? currentChat : await Chat.read(payload.sessionId, worker);
@@ -393,12 +395,12 @@ async function handleDbAddMessageRequest(event: any) {
 
 async function handleDbUpdateMessageRequest(event: any) {
   return handleRequest(event, async (payload: any) => {
-    console.log('[DB][TRACE] handleDbUpdateMessageRequest: sessionId:', payload?.sessionId, 'messageId:', payload?.messageId, 'updates:', payload?.updates);
+    if (LOG_INFO) console.log(prefix, '[TRACE] handleDbUpdateMessageRequest: sessionId:', payload?.sessionId, 'messageId:', payload?.messageId, 'updates:', payload?.updates);
     if (!payload?.sessionId || !payload.messageId || !payload.updates || (payload.updates.text === undefined && payload.updates.isLoading === undefined && payload.updates.content === undefined /* Added content */)) {
       throw new AppError('INVALID_INPUT', 'Session ID, message ID, and updates (text, content or isLoading) are required');
     }
     if (typeof payload.messageId !== 'string') {
-      console.error('[DB] handleDbUpdateMessageRequest: messageId is not a string:', payload.messageId);
+      if (LOG_ERROR) console.error(prefix, 'handleDbUpdateMessageRequest: messageId is not a string:', payload.messageId);
       throw new AppError('INVALID_INPUT', 'messageId must be a string');
     }
     const worker = getDbWorker();
@@ -558,7 +560,7 @@ async function handleDbGetCurrentAndLastLogSessionIdsRequest(event: any) {
 
 async function handleDbResetDatabaseRequest(event: any) {
   return handleRequest(event, async () => {
-    console.log("[DB] Attempting database reset via DBActions.RESET worker command.");
+    if (LOG_INFO) console.log(prefix, "Attempting database reset via DBActions.RESET worker command.");
     const worker = getDbWorker(); // Get the current worker (throws if not available)
     await new Promise((resolve, reject) => {
       const reqId = crypto.randomUUID();
@@ -566,7 +568,7 @@ async function handleDbResetDatabaseRequest(event: any) {
       worker.postMessage({ action: DBActions.RESET, payload: null, requestId: reqId });
     });
     currentChat = null;
-    console.log("[DB] Database reset complete. Re-initializing DB state.");
+    if (LOG_INFO) console.log(prefix, "Database reset complete. Re-initializing DB state.");
     isDbReadyFlag = false; 
     lastDbInitStatus = null; 
     dbInitPromise = null; // Clear any pending init
@@ -609,11 +611,11 @@ function smartNotify(notification: any) {
         browser.runtime.sendMessage(notification).catch((e: any) => console.warn(`[DB] Error sending notification to runtime: ${e.message}`, notification.type));
     } catch (e: unknown) {
         const errObj = e as Error;
-        console.warn(`[DB] Failed to call browser.runtime.sendMessage (maybe not in extension context): ${errObj.message}`);
+       if (LOG_WARN) console.warn(prefix, `Failed to call browser.runtime.sendMessage (maybe not in extension context): ${errObj.message}`);
     }
   } else {
     document.dispatchEvent(new CustomEvent(notification.type, { detail: notification }));
-    if (dbChannel) dbChannel.postMessage(notification); else console.warn("[DB] dbChannel not initialized for smartNotify.");
+    if (dbChannel) dbChannel.postMessage(notification); else if (LOG_WARN) console.warn(prefix, "dbChannel not initialized for smartNotify.");
   }
 }
 
@@ -628,7 +630,7 @@ async function publishSessionUpdate(sessionId: string, updateType = 'update', se
         const chat = await Chat.read(sessionId, worker);
         if (chat) sessionData = chat;
         else if (updateType === 'delete') sessionData = { id: sessionId };
-        else { console.warn(`[DB] publishSessionUpdate: Session ${sessionId} not found for ${updateType}.`); return; }
+        else { if (LOG_WARN) console.warn(prefix, `publishSessionUpdate: Session ${sessionId} not found for ${updateType}.`); return; }
       }
     }
     // Load all messages and their attachments for the session
@@ -647,12 +649,12 @@ async function publishSessionUpdate(sessionId: string, updateType = 'update', se
     }
     const plainSession = (sessionData && typeof sessionData.toJSON === 'function') ? sessionData.toJSON() : JSON.parse(JSON.stringify(sessionData || {}));
     smartNotify(new DbSessionUpdatedNotification(sessionId, plainSession, updateType));
-  } catch (e) { console.error('[DB] Failed to publish session update:', e, { sessionId, updateType }); }
+  } catch (e) { if (LOG_ERROR) console.error(prefix, 'Failed to publish session update:', e, { sessionId, updateType }); }
 }
 
 async function publishMessagesUpdate(sessionId: string, messages: any) {
   try {
-    if (!Array.isArray(messages)) { console.error('[DB] publishMessagesUpdate: messages not an array:', messages); return; }
+    if (!Array.isArray(messages)) { if (LOG_ERROR) console.error(prefix, 'publishMessagesUpdate: messages not an array:', messages); return; }
     // Use toJSON and filter out any unserializable fields as a safety net
     const plainMessages = messages.map(m => {
       let json = (typeof m.toJSON === 'function' ? m.toJSON() : { ...m });
@@ -662,13 +664,13 @@ async function publishMessagesUpdate(sessionId: string, messages: any) {
       return json;
     });
     smartNotify(new DbMessagesUpdatedNotification(sessionId, plainMessages));
-  } catch (e) { console.error('[DB] Failed to publish messages update:', e, { sessionId });}
+  } catch (e) { if (LOG_ERROR) console.error(prefix, 'Failed to publish messages update:', e, { sessionId });}
 }
 
 async function publishStatusUpdate(sessionId: string, status: string) {
   try {
     smartNotify(new DbStatusUpdatedNotification(sessionId, status));
-  } catch (e) { console.error('[DB] Failed to publish status update:', e, { sessionId });}
+  } catch (e) { if (LOG_ERROR) console.error(prefix, 'Failed to publish status update:', e, { sessionId });}
 }
 
 // --- Message Listener for External Requests ---
@@ -680,14 +682,14 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     return false;
   }
 
-  console.log(`[DB] Received message for DB: ${message.type}, ReqID: ${message.requestId}`);
+  if (LOG_INFO) console.log(prefix, `Received message for DB: ${message.type}, ReqID: ${message.requestId}`);
   forwardDbRequest(message)
     .then(responseObject => {
         // console.log(`[DB] Sending response for ${message.type} (ReqID: ${message.requestId}):`, responseObject);
         sendResponse(responseObject);
     })
     .catch(err => {
-      console.error(`[DB] Error processing request ${message.type} (ReqID: ${message.requestId}):`, err);
+      if (LOG_ERROR) console.error(prefix, `Error processing request ${message.type} (ReqID: ${message.requestId}):`, err);
       // Construct a generic error response if one isn't already formed by forwardDbRequest
       const errorResponse: any = { 
           success: false, 
@@ -707,7 +709,7 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
 export async function forwardDbRequest(request: any) {
   const handler = (dbHandlerMap as any)[request?.type];
   if (!handler) { // Should have been caught by listener, but defensive check
-      console.error(`[DB] CRITICAL: No handler found in forwardDbRequest for type: ${request?.type}`);
+      if (LOG_ERROR) console.error(prefix, `CRITICAL: No handler found in forwardDbRequest for type: ${request?.type}`);
       const NoHandlerErrorResponse = (globalThis as any)[request.type.replace("Request", "Response")];
       if (NoHandlerErrorResponse && typeof NoHandlerErrorResponse === 'function') {
           return new NoHandlerErrorResponse(request.requestId, false, null, new AppError('NO_HANDLER', `No handler for ${request.type}`));
@@ -719,7 +721,7 @@ export async function forwardDbRequest(request: any) {
     return await handler(request);
   } catch (err: any) {
 
-    console.error(`[DB] Synchronous or unhandled promise error in handler for ${request.type}:`, err);
+    if (LOG_ERROR) console.error(prefix, `Synchronous or unhandled promise error in handler for ${request.type}:`, err);
     const appError = (err instanceof AppError) ? err : new AppError('HANDLER_EXECUTION_ERROR', err.message || `Error executing handler for ${request.type}`, { originalError: err });
     const ResponseClass = (globalThis as any)[request.type.replace("Request", "Response")];
     if (ResponseClass && typeof ResponseClass === 'function') {

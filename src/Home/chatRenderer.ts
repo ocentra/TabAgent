@@ -15,28 +15,33 @@ let currentSessionId: string | null = null;
 let requestDbAndWaitFunc: ((request: any) => Promise<any>) | null = null;
 let observer: MutationObserver | null = null; // MutationObserver
 const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary messages
-
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const LOG_INFO = false;
+const prefix = '[ChatRenderer]';
 function handleMessagesUpdate(notification: any) {
-    console.log('[ChatRenderer handleMessagesUpdate] handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
+    if (LOG_INFO) console.log(prefix, 'handleMessagesUpdate received notification:', JSON.parse(JSON.stringify(notification)));
     if (!notification || !notification.sessionId || !notification.payload) {
-        console.warn('[ChatRenderer][DEBUG] handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
+        if (LOG_WARN) console.warn(prefix, 'handleMessagesUpdate: Invalid or incomplete notification received. Bailing out.', { notification });
         return;
     }
     
     if (notification.sessionId === currentSessionId) {
-        console.log(`[ChatRenderer handleMessagesUpdate] Received message update notification for active session ${currentSessionId}. Rendering.`);
+        if (LOG_INFO) console.log(prefix, `Received message update notification for active session ${currentSessionId}. Rendering.`);
         
         let messages = notification.payload.messages;
         if (!Array.isArray(messages)) {
-            console.error('[ChatRenderer handleMessagesUpdate] ERROR: notification.payload.messages is not an array! Got:', notification.payload);
+            if (LOG_ERROR) console.error(prefix, 'ERROR: notification.payload.messages is not an array! Got:', notification.payload);
             return;
         }
         
-        console.log(`[ChatRenderer handleMessagesUpdate] Messages array received:`, JSON.stringify(messages));
+        if (LOG_INFO) console.log(prefix, `Messages array received:`, JSON.stringify(messages));
         if (!chatBodyElement) return;
         chatBodyElement.innerHTML = '';
         if (messages.length === 0) {
-            console.log(`[ChatRenderer handleMessagesUpdate] Active session ${currentSessionId} has no messages. Displaying welcome.`);
+            if (LOG_INFO) console.log(prefix, `Active session ${currentSessionId} has no messages. Displaying welcome.`);
             displayWelcomeMessage();
         } else {
             messages.forEach((msg: any) => renderSingleMessage(msg));
@@ -50,7 +55,7 @@ function handleSessionMetadataUpdate(notification: any) {
 
     if (notification.sessionId === currentSessionId) {
         const updatedSessionData = notification.payload.session;
-        console.log(`[ChatRenderer] Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
+        if (LOG_INFO) console.log(prefix, `Received metadata update for active session ${currentSessionId}. New Title: ${updatedSessionData.title}, Starred: ${updatedSessionData.isStarred}`);
         
         updateChatHeader(updatedSessionData);
     }
@@ -67,11 +72,11 @@ document.addEventListener(DbSessionUpdatedNotification.type, (e: Event) => {
 });
 
 dbChannel.onmessage = (event: MessageEvent) => {
-    console.log('[ChatRenderer] dbChannel event received:', event.data);
+    if (LOG_INFO) console.log(prefix, 'dbChannel event received:', event.data);
     const message = event.data;
     const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
     const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
-    console.log(`[ChatRenderer] dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+    if (LOG_INFO) console.log(prefix, `dbChannel.onmessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
     const type = message?.type;
     if (type === DbMessagesUpdatedNotification.type) {
         handleMessagesUpdate(message.payload);
@@ -86,7 +91,7 @@ if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessa
     browser.runtime.onMessage.addListener((message: any) => {
         const payloadKeys = message && message.payload ? Object.keys(message.payload) : [];
         const sessionId = message.sessionId || (message.payload && message.payload.session && message.payload.session.id) || 'N/A';
-        console.log(`[ChatRenderer] browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
+        if (LOG_INFO) console.log(prefix, `browser.runtime.onMessage: type=${message.type}, sessionId=${sessionId}, payloadKeys=[${payloadKeys.join(', ')}]`);
         const type = message?.type;
         if (type === DbMessagesUpdatedNotification.type) {
             handleMessagesUpdate(message.payload);
@@ -99,21 +104,21 @@ if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.onMessa
 
 export function initializeRenderer(chatBody: HTMLElement, requestDbFunc: (request: any) => Promise<any>) {
     if (!chatBody) {
-        console.error("[ChatRenderer] chatBody element is required for initialization.");
+        if (LOG_ERROR) console.error(prefix, "chatBody element is required for initialization.");
         return;
     }
     if (!requestDbFunc) {
-        console.error("[ChatRenderer] requestDbAndWait function is required for initialization.");
+        if (LOG_ERROR) console.error(prefix, "requestDbAndWait function is required for initialization.");
         return;
     }
     chatBodyElement = chatBody;
     requestDbAndWaitFunc = requestDbFunc;
-    console.log("[ChatRenderer] Initialized with chat body element and DB request function.");
+    if (LOG_INFO) console.log(prefix, "Initialized with chat body element and DB request function.");
     initializeObserver();
 }
 
 export function setActiveSessionId(sessionId: string | null) {
-    console.log(`[ChatRenderer] Setting active session ID to: ${sessionId}`);
+    if (LOG_INFO) console.log(prefix, `Setting active session ID to: ${sessionId}`);
     currentSessionId = sessionId;
     if (chatBodyElement) {
         chatBodyElement.innerHTML = '';
@@ -121,7 +126,7 @@ export function setActiveSessionId(sessionId: string | null) {
     if (!sessionId) {
         displayWelcomeMessage();
     } else {
-        console.log(`[ChatRenderer] Proactively loading messages for new session: ${sessionId}`);
+        if (LOG_INFO) console.log(prefix, `Proactively loading messages for new session: ${sessionId}`);
         loadAndRenderMessages(sessionId);
     }
 }
@@ -151,23 +156,23 @@ export function scrollToBottom() {
 
 async function loadAndRenderMessages(sessionId: string | null) {
     if (!requestDbAndWaitFunc) {
-        console.error("[ChatRenderer] Cannot load messages: requestDbAndWait function not available.");
+        if (LOG_ERROR) console.error("[ChatRenderer] Cannot load messages: requestDbAndWait function not available.");
         if (chatBodyElement) chatBodyElement.innerHTML = '<div class="p-4 text-red-500">Error: Cannot load chat messages.</div>';
         return;
     }
     if (!sessionId) {
-        console.warn("[ChatRenderer] loadAndRenderMessages called with null sessionId. Displaying welcome.");
+        if (LOG_WARN) console.warn(prefix, "loadAndRenderMessages called with null sessionId. Displaying welcome.");
         displayWelcomeMessage();
         return;
     }
 
-    console.log(`[ChatRenderer] Requesting messages for session ${sessionId}...`);
+    if (LOG_INFO) console.log(prefix, `Requesting messages for session ${sessionId}...`);
     try {
         const request = new DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWaitFunc(request);
 
         if (sessionData && sessionData.messages) {
-            console.log(`[ChatRenderer] Received ${sessionData.messages.length} messages for ${sessionId}. Rendering.`);
+            if (LOG_INFO) console.log(prefix, `Received ${sessionData.messages.length} messages for ${sessionId}. Rendering.`);
             if (chatBodyElement) chatBodyElement.innerHTML = '';
             if (sessionData.messages.length === 0) {
                 displayWelcomeMessage();
@@ -176,7 +181,7 @@ async function loadAndRenderMessages(sessionId: string | null) {
                 scrollToBottom();
             }
         } else {
-            console.warn(`[ChatRenderer] No messages found in session data for ${sessionId}. Displaying welcome.`, sessionData);
+            if (LOG_WARN) console.warn(prefix, `No messages found in session data for ${sessionId}. Displaying welcome.`, sessionData);
             displayWelcomeMessage();
         }
     } catch (error: unknown) {
@@ -188,25 +193,25 @@ async function loadAndRenderMessages(sessionId: string | null) {
 
 function updateChatHeader(sessionData: any) {
     if (!sessionData) {
-        console.log('[ChatRenderer] Clearing chat header (no active session).');
+        if (LOG_INFO) console.log(prefix, 'Clearing chat header (no active session).');
     } else {
-        console.log(`[ChatRenderer] Updating chat header for ${sessionData.id}. Title: ${sessionData.title}, Starred: ${sessionData.isStarred}`);
+        if (LOG_INFO) console.log(prefix, `Updating chat header for ${sessionData.id}. Title: ${sessionData.title}, Starred: ${sessionData.isStarred}`);
     }
 }
 
 function renderSingleMessage(msg: any) {
     if (!chatBodyElement) return;
 
-    console.log('[ChatRenderer] renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
+    if (LOG_INFO) console.log(prefix, 'renderSingleMessage: msg object:', JSON.parse(JSON.stringify(msg)));
 
     // Prefer content over text for display
     let displayContent = (typeof msg.content === 'string' && msg.content.trim() !== '') ? msg.content : msg.text;
-    console.log(`[ChatRenderer] renderSingleMessage: Using displayContent:`, displayContent, ' (from', (msg.content ? 'content' : 'text'), ')');
+    if (LOG_INFO) console.log(prefix, `renderSingleMessage: Using displayContent:`, displayContent, ' (from', (msg.content ? 'content' : 'text'), ')');
 
     // Parse metadata for type detection
     let meta: any = {};
     try { meta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : (msg.metadata || {}); } catch {
-        console.error('[ChatRenderer] Error parsing metadata for message:', msg.messageId);
+        if (LOG_ERROR) console.error(prefix, 'Error parsing metadata for message:', msg.messageId);
     }
     const extraction = meta.extraction;
     const isPageExtractor = (meta.extractionType === 'PageExtractor') || (extraction && extraction.__type === 'PageExtractor');
@@ -245,7 +250,7 @@ function renderSingleMessage(msg: any) {
         downloadButton.innerHTML = `<img src="${downloadIcon}" alt="Download" class="w-4 h-4">`;
         downloadButton.title = 'Download scrape data as JSON';
         downloadButton.onclick = () => {
-            console.log('Download clicked for:', msg.metadata.scrapeData); // Placeholder
+            if (LOG_INFO) console.log(prefix, 'Download clicked for:', msg.metadata.scrapeData); // Placeholder
             window.originalUITooltipController?.showTooltip(downloadButton, 'Download (placeholder)');
         };
         actionsContainer.appendChild(downloadButton);
@@ -260,12 +265,12 @@ function renderSingleMessage(msg: any) {
     if (isPageExtractor && extraction) {
         specialHeaderHTML = `<div class="scrape-header p-2 rounded-t-md bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 mb-1"><h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Scraped Page Extraction</h4><p class="text-xs text-gray-500 dark:text-gray-400 break-all">URL: ${extraction.url || 'N/A'}</p></div>`;
         contentToParse = '```json\n' + JSON.stringify(extraction, null, 2) + '\n```';
-        console.log('[ChatRenderer] Rendering PageExtractor JSON:', contentToParse);
+        if (LOG_INFO) console.log(prefix, 'Rendering PageExtractor JSON:', contentToParse);
     } else if (displayContent) {
-        console.log('[ChatRenderer] Preparing to parse regular message. Input to marked:', contentToParse);
+        if (LOG_INFO) console.log(prefix, 'Preparing to parse regular message. Input to marked:', contentToParse);
     }
 
-    console.log(`[ChatRenderer] Before style application: msg.sender = ${msg.sender}`);
+    if (LOG_INFO) console.log(prefix, `Before style application: msg.sender = ${msg.sender}`);
     // Apply sender-specific alignment and base bubble styling
     if (msg.isLoading) {
         messageDiv.classList.add('justify-start');
@@ -307,8 +312,8 @@ function renderSingleMessage(msg: any) {
         messageDiv.classList.add('justify-start');
         bubbleDiv.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-900', 'dark:text-gray-100', 'border', 'border-gray-300', 'dark:border-gray-600');
     }
-    console.log('[ChatRenderer] messageDiv classes:', messageDiv.className);
-    console.log('[ChatRenderer] bubbleDiv classes:', bubbleDiv.className);
+    if (LOG_INFO) console.log(prefix, 'messageDiv classes:', messageDiv.className);
+    if (LOG_INFO) console.log(prefix, 'bubbleDiv classes:', bubbleDiv.className);
 
     // --- HEADER BAR WITH FOLDOUT AND ACTIONS ---
     const headerBar = document.createElement('div');
@@ -352,7 +357,7 @@ function renderSingleMessage(msg: any) {
             // ONLY override the .code() method for now
             localRenderer.code = (tokenOrCode: any, languageInfoString: string, isEscaped: boolean) => {
                 // Log what we receive
-                console.log('[ChatRenderer Custom Code] Received arguments:', 
+                if (LOG_INFO) console.log(prefix, 'Received arguments:', 
                     {
                         tokenOrCode_type: typeof tokenOrCode,
                         tokenOrCode_value: JSON.parse(JSON.stringify(tokenOrCode)), // Deep copy for logging
@@ -370,12 +375,12 @@ function renderSingleMessage(msg: any) {
                     actualCodeString = tokenOrCode.text;
                     actualLanguageString = tokenOrCode.lang || actualLanguageString; 
                     // actuallyEscaped = typeof tokenOrCode.escaped === 'boolean' ? tokenOrCode.escaped : isEscaped;
-                    console.log('[ChatRenderer Custom Code] Interpreted as token object. Using token.text and token.lang.');
+                    if (LOG_INFO) console.log(prefix, 'Interpreted as token object. Using token.text and token.lang.');
                 } else if (typeof tokenOrCode === 'string') {
                     actualCodeString = tokenOrCode;
-                    console.log('[ChatRenderer Custom Code] Interpreted as direct code string.');
+                    if (LOG_INFO) console.log(prefix, 'Interpreted as direct code string.');
                 } else {
-                    console.warn('[ChatRenderer Custom Code] Received unexpected type for code argument:', tokenOrCode);
+                    if (LOG_WARN) console.warn(prefix, 'Received unexpected type for code argument:', tokenOrCode);
                     actualCodeString = '[Error: Unexpected code content type]';
                 }
                 
@@ -396,9 +401,9 @@ function renderSingleMessage(msg: any) {
                     if (actualLanguageString && window.hljs.getLanguage(actualLanguageString)) {
                         try {
                             highlightedCodeForDisplay = window.hljs.highlight(actualCodeString, { language: actualLanguageString, ignoreIllegals: true }).value;
-                            console.log('[ChatRenderer Custom Code] Highlighted with specified language:', actualLanguageString);
+                            if (LOG_INFO) console.log(prefix, 'Highlighted with specified language:', actualLanguageString);
                         } catch (e) {
-                            console.error('[ChatRenderer Custom Code] hljs.highlight error:', e);
+                            if (LOG_ERROR) console.error(prefix, 'hljs.highlight error:', e);
                             highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                         }
                     } else {
@@ -406,19 +411,19 @@ function renderSingleMessage(msg: any) {
                             const autoResult = window.hljs.highlightAuto(actualCodeString);
                             highlightedCodeForDisplay = autoResult.value;
                             const detectedLang = autoResult.language;
-                            console.log('[ChatRenderer Custom Code] Highlighted with auto-detection. Detected:', detectedLang);
+                            if (LOG_INFO) console.log(prefix, 'Highlighted with auto-detection. Detected:', detectedLang);
 
                             if (detectedLang) { // If auto-detection was successful
                                 safeLanguage = escapeHtmlEntities(detectedLang);
                                 langClass = `language-${safeLanguage}`; // Update based on detected language
                             }
                         } catch (e) {
-                            console.error('[ChatRenderer Custom Code] hljs.highlightAuto error:', e);
+                            if (LOG_ERROR) console.error(prefix, 'hljs.highlightAuto error:', e);
                             highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                         }
                     }
                 } else {
-                    console.warn('[ChatRenderer Custom Code] window.hljs not found. Falling back to escaped code.');
+                    if (LOG_WARN) console.warn(prefix, 'window.hljs not found. Falling back to escaped code.');
                     highlightedCodeForDisplay = escapeHtmlEntities(actualCodeString);
                 }
 
@@ -447,17 +452,17 @@ function renderSingleMessage(msg: any) {
                 gfm: true, 
                 breaks: true 
             });
-            console.log('[ChatRenderer Minimal Custom Marked.parse() output:]', parsedContent);
+            if (LOG_INFO) console.log(prefix, '[ChatRenderer Minimal Custom Marked.parse() output:]', parsedContent);
             mainContentDiv.innerHTML = parsedContent;
             if (window.hljs) {
-                console.log('[ChatRenderer] Content set. highlight should have processed via Marked config.');
+                if (LOG_INFO) console.log(prefix, '[ChatRenderer] Content set. highlight should have processed via Marked config.');
             }
         } catch (e) {
-            console.error('Error during marked.parse:', e);
+            if (LOG_ERROR) console.error(prefix, 'Error during marked.parse:', e);
             mainContentDiv.textContent = contentToParse || ''; 
         }
     } else {
-        console.warn('Marked not available. Falling back to textContent.');
+        if (LOG_WARN) console.warn(prefix, 'Marked not available. Falling back to textContent.');
         mainContentDiv.textContent = contentToParse || '';
     }
 
@@ -503,7 +508,7 @@ export function renderTemporaryMessage(type: string, text: string) {
 
     // Only log non-system temporary messages to reduce noise
     if (type !== 'system') {
-        console.log(`[ChatRenderer] Rendering temporary message (${type}): ${text}`);
+        if (LOG_INFO) console.log(prefix, `Rendering temporary message (${type}): ${text}`);
     }
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', `message-${type}`, TEMP_MESSAGE_CLASS);
@@ -534,7 +539,7 @@ export function renderTemporaryMessage(type: string, text: string) {
  */
 export function clearTemporaryMessages() {
     if (!chatBodyElement) return;
-    console.log("[ChatRenderer] Clearing temporary status messages.");
+    if (LOG_INFO) console.log(prefix, "Clearing temporary status messages.");
     const tempMessages = chatBodyElement.querySelectorAll(`.${TEMP_MESSAGE_CLASS}`);
     tempMessages.forEach((msg: Element) => msg.remove());
 }
@@ -567,7 +572,7 @@ function initializeObserver() {
 
     if (chatBodyElement) {
         observer.observe(chatBodyElement, { childList: true, subtree: true });
-        console.log("[ChatRenderer] MutationObserver initialized and observing chat body.");
+        if (LOG_INFO) console.log(prefix, "MutationObserver initialized and observing chat body.");
 
         // Event delegation for code block actions
         chatBodyElement.addEventListener('click', async (event: MouseEvent) => {
@@ -581,7 +586,7 @@ function initializeObserver() {
                         await navigator.clipboard.writeText(decodeURIComponent(codeToCopy));
                         window.originalUITooltipController?.showTooltip(target, 'Code Copied!');
                     } catch (err) {
-                        console.error('Failed to copy code snippet:', err);
+                        if (LOG_ERROR) console.error(prefix, 'Failed to copy code snippet:', err);
                         showError('Failed to copy code snippet.');
                     }
                 }
@@ -594,16 +599,16 @@ function initializeObserver() {
                         downloadFile(filename, decodeURIComponent(codeToDownload), getMimeType(lang));
                         window.originalUITooltipController?.showTooltip(target, 'Downloading...');
                     } catch (err) {
-                        console.error('Failed to download code snippet:', err);
+                        if (LOG_ERROR) console.error(prefix, 'Failed to download code snippet:', err);
                         showError('Failed to download code snippet.');
                     }
                 }
             }
         });
-        console.log("[ChatRenderer] Event listeners for code block actions (copy/download) added to chatBody.");
+        if (LOG_INFO) console.log(prefix, "[ChatRenderer] Event listeners for code block actions (copy/download) added to chatBody.");
 
     } else {
-        console.error("[ChatRenderer] Cannot initialize MutationObserver or event listeners: chatBody is null.");
+        if (LOG_ERROR) console.error(prefix, "[ChatRenderer] Cannot initialize MutationObserver or event listeners: chatBody is null.");
     }
 }
 

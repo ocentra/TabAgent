@@ -1746,7 +1746,6 @@ const UIEventNames = Object.freeze({
     BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
     BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
     BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
-    BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
     REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
     WORKER_READY: 'worker:ready',
     WORKER_ERROR: 'worker:error',
@@ -1831,7 +1830,6 @@ const RawDirectMessageTypes = Object.freeze({
     WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
     WORKER_GENERIC_ERROR: 'WorkerGenericError',
     WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
-    WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
     WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
 const Contexts = Object.freeze({
@@ -2146,20 +2144,6 @@ async function fetchDriveFileList(token, folderId = 'root') {
     const data = await response.json();
     console.log(CONTEXT_PREFIX + ' [BG-Drive] API success (Folder: ' + folderId + '). Found ' + (data.files?.length || 0) + ' items.');
     return data.files || [];
-}
-async function forwardToSidePanel(message) {
-    console.log(CONTEXT_PREFIX + ' Attempting to forward message type: ' + message?.type + ' to active side panel.');
-    try {
-        // This relies on sidepanel.js having an active onMessage listener.
-        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(message);
-        console.log(CONTEXT_PREFIX + ' Message type: ' + message?.type + ' forwarded (presumed to side panel).');
-        return { success: true };
-    }
-    catch (error) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error(CONTEXT_PREFIX + ` Error forwarding message type '${message?.type}' to side panel:`, errMsg);
-        return { success: false, error: `Side panel not available or error: ${errMsg}` };
-    }
 }
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled.addListener(async (details) => {
     console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);

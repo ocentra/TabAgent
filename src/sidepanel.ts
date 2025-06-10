@@ -42,7 +42,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantInfo, QuantStatus, addManifestEntry, getChunkedFileInfoMap, CHUNK_SIZE, SERVER_ONLY_SIZE } from './DB/idbModel';
+import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, SERVER_ONLY_SIZE } from './DB/idbModel';
 import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
@@ -1114,7 +1114,7 @@ export async function ensureManifestForDropdownRepos() {
     }
 
     try {
-      const { siblings, task, chunkedFiles } = await fetchRepoFiles(repo);
+      const { siblings, task } = await fetchRepoFiles(repo);
       if (!siblings || siblings.length === 0) {
         if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
         skippedRepos.push(repo);
@@ -1127,13 +1127,13 @@ export async function ensureManifestForDropdownRepos() {
       const quantMap: Record<string, any> = {};
 
       for (const file of siblings) {
-        if (file.rfilename && file.rfilename.endsWith('.onnx')) {
+        if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf'))) {
           const quantKey = file.rfilename; 
           if (!allFileNamesInRepo.has(quantKey)) {
-            if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant ONNX file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
+            if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant model file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
             continue;
           }
-          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Found ONNX file (quantKey): ${quantKey} in repo ${repo}`);
+          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Found quant file (quantKey): ${quantKey} in repo ${repo}`);
 
           const currentQuantRequiredFiles = new Set<string>();
           currentQuantRequiredFiles.add(quantKey); 
@@ -1166,38 +1166,27 @@ export async function ensureManifestForDropdownRepos() {
 
           // Determine serverOnly status based on quant type and associated data file
           let isServerOnly = false;
-          if (quantKey === 'onnx/model.onnx') {
-            // Check for .onnx_data or .onnx.data file associated with model.onnx
-            const dataFile = siblings.find(f =>
-              f.rfilename === 'onnx/model.onnx_data' || f.rfilename === 'onnx/model.onnx.data'
-            );
+          if (quantKey.endsWith('.onnx')) {
+            // For any .onnx, check for .onnx_data or .onnx.data file of the same quant family
+            const baseName = quantKey.replace(/\.onnx$/, '');
+            const dataFile = siblings.find(f => f.rfilename === `${baseName}.onnx_data` || f.rfilename === `${baseName}.onnx.data`);
             if (dataFile && typeof dataFile.size === 'number' && dataFile.size > SERVER_ONLY_SIZE) {
               isServerOnly = true;
-            } else if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > SERVER_ONLY_SIZE) {
-              isServerOnly = true;
             }
-          } else {
-            // For other quants, only check their own ONNX file size
-            if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > SERVER_ONLY_SIZE) {
+          } else if (quantKey.endsWith('.gguf')) {
+            const entry = siblings.find(f => f.rfilename === quantKey);
+            if (entry && typeof entry.size === 'number' && entry.size > SERVER_ONLY_SIZE) {
               isServerOnly = true;
             }
           }
           const status = isServerOnly ? QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || QuantStatus.Available);
-          // Build fileSizes and chunkedFiles info
+          // Build fileSizes info
           const fileSizes: Record<string, number> = {};
-          const chunkedFilesInfo: Record<string, { size: number, totalChunks: number, chunkSizeUsed: number }> = {};
           for (const fname of currentQuantRequiredFiles) {
             let size: number | undefined = undefined;
-            if (chunkedFiles && chunkedFiles[fname]) {
-              quantMap[quantKey] = quantMap[quantKey] || {};
-              quantMap[quantKey].chunkedFiles = quantMap[quantKey].chunkedFiles || {};
-              quantMap[quantKey].chunkedFiles[fname] = chunkedFiles[fname];
-              size = chunkedFiles[fname].size;
-            } else {
-              const entry = siblings.find(f => f.rfilename === fname);
-              if (entry && typeof entry.size === 'number' && entry.size > 0) {
-                size = entry.size;
-              }
+            const entry = siblings.find(f => f.rfilename === fname);
+            if (entry && typeof entry.size === 'number' && entry.size > 0) {
+              size = entry.size;
             }
             if (typeof size === 'number' && size > 0) {
               fileSizes[fname] = size;
@@ -1206,10 +1195,9 @@ export async function ensureManifestForDropdownRepos() {
           quantMap[quantKey] = {
             files: Array.from(currentQuantRequiredFiles).sort(),
             status,
-            fileSizes,
-            chunkedFiles: Object.keys(chunkedFilesInfo).length > 0 ? chunkedFilesInfo : undefined
+            fileSizes
           };
-          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] For quantKey ${quantKey}, required files:`, quantMap[quantKey].files, `Status: ${status}`, `fileSizes:`, fileSizes, `chunkedFiles:`, chunkedFilesInfo);
+          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] For quantKey ${quantKey}, required files:`, quantMap[quantKey].files, `Status: ${status}`, `fileSizes:`, fileSizes);
         }
       }
 

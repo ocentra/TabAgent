@@ -38,6 +38,7 @@ export const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
+    "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     // Add more models here as needed
 };
 
@@ -610,6 +611,8 @@ export function quantKeyToLabel(modelPath: string): string {
     if (modelPath === 'model.onnx' || modelPath.toLowerCase() === 'onnx') {
         return 'FP32';
     }
+
+    if (modelPath.endsWith('.gguf')) return 'GGUF';
 
     const pathParts = modelPath.split('/');
     let last = pathParts[pathParts.length - 1].toLowerCase();

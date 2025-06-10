@@ -2,13 +2,15 @@
 /* global RequestInfo, RequestInit */
 export {};
 
-import { env, AutoTokenizer, pipeline, AutoModelForCausalLM, Tensor } from './assets/onnxruntime-web/transformers';
+import { env, AutoTokenizer } from './assets/onnxruntime-web/transformers';
 import { WorkerEventNames, UIEventNames } from './events/eventNames';
 import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, addQuantToManifest,  QuantStatus, getInferenceSettings } from './DB/idbModel';
-import type { ManifestEntry } from './DB/idbModel';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings } from './Controllers/InferenceSettings';
 import { MESSAGE_EVENT } from './Utilities/eventConstants';
 import ort from 'onnxruntime-web';
+import Module from './wasm/llama_bitnet_inference.js';
+
+
 
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!(navigator as any).gpu;
 let hasWebGPU: boolean = _isNavigatorGpuAvailable;
@@ -21,6 +23,13 @@ const LOG_WARN = true;
 const LOG_SELF = true;
 const LOG_GENERATION = true;
 let currentLoadId: string | undefined = undefined;
+
+// Log the imported Module to verify import and see available keys
+console.log('[ModelWorker] llama_bitnet_inference Module:', Module);
+if (Module) {
+    console.log('[ModelWorker] llama_bitnet_inference Module keys:', Object.keys(Module));
+    console.log('[ModelWorker] llama_bitnet_inference typeof:', typeof Module);
+}
 
 if (_isNavigatorGpuAvailable) {
     webgpuCheckPromise = (async () => {
@@ -63,6 +72,8 @@ const ONNX_ASSETS_ROOT_PATH = 'assets/onnxruntime-web/';
 const ONNX_WASM_FILE_NAME = 'ort-wasm-simd-threaded.jsep.wasm';
 const ONNX_LOADER_FILE_NAME = 'ort-wasm-simd-threaded.jsep.mjs';
 
+const GGUF_WASM_FILE_NAME = 'wasm/llama_bitnet_inference.wasm';
+
 async function getOnnxWasmFilePath() {
     const baseUrl = await extBaseUrlReady;
     return baseUrl + ONNX_ASSETS_ROOT_PATH + ONNX_WASM_FILE_NAME;
@@ -74,6 +85,11 @@ async function getOnnxLoaderFilePath() {
 async function getOnnxWasmRootPath() {
     const baseUrl = await extBaseUrlReady;
     return baseUrl + ONNX_ASSETS_ROOT_PATH;
+}
+
+async function getLlamaBitnetWasmFilePath() {
+    const baseUrl = await extBaseUrlReady;
+    return baseUrl + GGUF_WASM_FILE_NAME;
 }
 
 (async () => {
@@ -201,7 +217,7 @@ async function handleModelFileRewriting(resourceUrl: string): Promise<string> {
 
     const manifest = await getManifestEntry(currentModelRepoId);
     if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
-        if (resourceUrl.match(/\.(onnx|onnx_data|bin|pt)$/i)) {
+        if (resourceUrl.match(/\.(onnx|onnx_data|gguf|bin|pt)$/i)) {
             await addQuantToManifest(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
         }
         return resourceUrl;
@@ -215,25 +231,23 @@ async function handleModelFileRewriting(resourceUrl: string): Promise<string> {
         return rewrittenUrl;
     }
 
-    rewrittenUrl = await rewriteOnnxFilePath(rewrittenUrl, resourceFileName, files);
+    rewrittenUrl = await rewriteMainModelFilePath(rewrittenUrl, resourceFileName, files);
     rewrittenUrl = await rewriteSupportingFilePath(rewrittenUrl, resourceFileName, files);
 
     return rewrittenUrl;
 }
 
-async function rewriteOnnxFilePath(resourceUrl: string, resourceFileName: string, files: string[]): Promise<string> {
-    if (!resourceFileName.endsWith('.onnx')) {
+async function rewriteMainModelFilePath(resourceUrl: string, resourceFileName: string, files: string[]): Promise<string> {
+    if (!resourceFileName.endsWith('.onnx') && !resourceFileName.endsWith('.gguf')) {
         return resourceUrl;
     }
-
-    const manifestOnnxFile = files.find(f => f.endsWith(resourceFileName));
-    if (manifestOnnxFile && resourceUrl.endsWith(manifestOnnxFile)) {
+    const manifestFile = files.find(f => f.endsWith(resourceFileName));
+    if (manifestFile && resourceUrl.endsWith(manifestFile)) {
         return resourceUrl;
     }
-
-    const quantOnnxFile = files.find(f => f.endsWith('.onnx') && !f.endsWith('.onnx_data'));
-    if (quantOnnxFile) {
-        return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${quantOnnxFile}`);
+    const quantFile = files.find(f => f.endsWith('.onnx') || f.endsWith('.gguf'));
+    if (quantFile) {
+        return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${quantFile}`);
     }
     return resourceUrl;
 }
@@ -301,7 +315,7 @@ async function saveToDualIndexedDB(resourceUrl: string, blob: Blob, originalInpu
     else if (originalInput instanceof Request) originalUrl = originalInput.url;
     else if (originalInput instanceof URL) originalUrl = originalInput.href;
     
-    const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|bin|pt)$/i;
+    const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|gguf|bin|pt)$/i;
     if (originalUrl && resourceUrl !== originalUrl && !LARGE_FILE_REGEX.test(resourceUrl)) {
         await saveToIndexedDB(originalUrl, blob);
     }
@@ -357,7 +371,105 @@ self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Pr
     return originalFetch.call(self, input, options);
 };
 
+async function handleGgufModel(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
+    const { modelId, modelPath, loadId } = payload;
+    currentLoadId = loadId;
+    currentModelRepoId = modelId;
+    currentModelQuantPath = modelPath;
+    currentTask = payload.task || 'text-generation';
+    isModelReady = false;
+
+    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
+
+    try {
+        const manifest = await getManifestEntry(currentModelRepoId);
+        if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
+            throw new Error(`Manifest or quant path ${currentModelQuantPath} not found for model ${currentModelRepoId}`);
+        }
+        const quantFiles = manifest.quants[currentModelQuantPath].files;
+
+        // Download GGUF model file
+        const ggufFile = quantFiles.find(f => f.endsWith('.gguf'));
+        if (!ggufFile) {
+            throw new Error(`No .gguf file found in manifest for ${currentModelRepoId}/${currentModelQuantPath}`);
+        }
+        const ggufUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${ggufFile}`;
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: ggufFile, progress: 60, loadId } });
+        const ggufResponse = await self.fetch(ggufUrl);
+        if (!ggufResponse.ok) {
+            throw new Error(`Failed to fetch GGUF model ${ggufFile}: ${ggufResponse.statusText}`);
+        }
+        const ggufArrayBuffer = await ggufResponse.arrayBuffer();
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: ggufFile, progress: 80, loaded: ggufArrayBuffer.byteLength, total: ggufArrayBuffer.byteLength, loadId } });
+
+        // Download config.json if present
+        const configJsonPath = quantFiles.find(f => f.endsWith('config.json'));
+        if (configJsonPath) {
+            const configUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${configJsonPath}`;
+            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'config.json', progress: 85, loadId } });
+            const configResponse = await self.fetch(configUrl);
+            if (!configResponse.ok) {
+                throw new Error(`Failed to fetch config.json from ${configUrl}: ${configResponse.statusText}`);
+            }
+            // Optionally parse config if needed in future
+            await configResponse.arrayBuffer();
+        }
+
+        // Download tokenizer if present
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'tokenizer', progress: 90, loadId } });
+        try {
+            await AutoTokenizer.from_pretrained(currentModelRepoId, {
+                revision: 'main',
+                progress_callback: (progressData: any) => {
+                    if (progressData.status === 'progress') {
+                        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...progressData, progress: 90 + (progressData.progress * 0.05), loadId } });
+                    } else if (progressData.status === 'ready' || progressData.status === 'done') {
+                        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: progressData.file || 'tokenizer files', progress: 95, loadId } });
+                    }
+                }
+            });
+        } catch (e) {
+            // Tokenizer is optional for GGUF, so just warn
+            if (LOG_WARN) console.warn(prefix, '[handleGgufModel] Tokenizer not found or failed to load:', e);
+        }
+
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: ggufFile, progress: 100, loadId } });
+        self.postMessage({
+            type: WorkerEventNames.WORKER_READY,
+            payload: { modelId, modelPath, task: currentTask, executionProvider: 'wasm', warning: 'GGUF model loaded (downloaded), but inference is not yet supported.' }
+        });
+        await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
+    } catch (error: any) {
+        if (LOG_ERROR) console.error(prefix, `[handleGgufModel] Error loading GGUF model ${modelId} (${modelPath}):`, error);
+        isModelReady = false;
+        currentModelRepoId = null;
+        currentModelQuantPath = null;
+        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load GGUF model ${modelPath}: ${error.message}` });
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: modelPath, error: error.message, loadId } });
+        if (modelId && modelPath) {
+            try {
+                await setManifestQuantStatus(modelId, modelPath, QuantStatus.Failed);
+            } catch (manifestError) {
+                if (LOG_ERROR) console.error(prefix, `[handleGgufModel] Failed to update manifest status on error:`, manifestError);
+            }
+        }
+    } finally {
+        currentLoadId = undefined;
+    }
+}
+
+async function handleGgufGeneration(payload: any) {
+    self.postMessage({
+        type: WorkerEventNames.GENERATION_ERROR,
+        payload: { ...payload, error: 'GGUF model generation is not yet supported (WIP).' }
+    });
+}
+
 async function loadModelInternal(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }): Promise<void> {
+    if (payload.modelPath && payload.modelPath.endsWith('.gguf')) {
+        await handleGgufModel(payload);
+        return;
+    }
     await webgpuCheckPromise; 
     const { modelId, modelPath, task, loadId } = payload;
     if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Starting to load. Model ID: ${modelId}, Quant Path: ${modelPath}, Task: ${task}, Load ID: ${loadId}`);
@@ -516,6 +628,10 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
 }
 
 async function generateInternal(payload: any): Promise<void> {
+    if (currentModelQuantPath && currentModelQuantPath.endsWith('.gguf')) {
+        await handleGgufGeneration(payload);
+        return;
+    }
     if (!isModelReady || !onnxSession || !tokenizer || !modelConfig) {
         if (LOG_ERROR) console.error(prefix, '[generateInternal] Model not ready or core components missing.');
         self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'Model not ready. Please load a model first.' } });
@@ -664,114 +780,6 @@ async function generateInternal(payload: any): Promise<void> {
 
     } catch (error: any) {
         if (LOG_ERROR) console.error(prefix, '[generateInternal] Error during generation:', error, error.stack);
-        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: error.message || String(error) } });
-    }
-}
-
-let transformersPipeline: any = null;
-let transformersTask: string | null = null;
-let transformersModelId: string | null = null;
-let transformersTokenizer: any = null;
-let transformersModel: any = null;
-
-async function loadModelWithTransformers(payload: { modelId: string, modelPath?: string, task?: string, loadId?: string }) {
-    const { modelId, modelPath, task = 'text-generation', loadId } = payload;
-    currentLoadId = loadId;
-    transformersModelId = modelId;
-    transformersTask = task;
-    transformersModel = null;
-    transformersTokenizer = null;
-    transformersPipeline = null;
-
-    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelId, progress: 0, loadId } });
-    if (LOG_GENERAL) console.log(prefix, `[loadModelWithTransformers] Starting load for ${modelId}`);
-
-    try {
-        transformersTokenizer = await AutoTokenizer.from_pretrained(modelId, {
-            progress_callback: (progressData: any) => {
-                if (progressData.status === 'progress') {
-                    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...progressData, progress: 10 + (progressData.progress * 0.4), loadId } });
-                }
-            }
-        });
-        if (LOG_GENERAL) console.log(prefix, `[loadModelWithTransformers] Tokenizer loaded.`);
-
-        transformersModel = await AutoModelForCausalLM.from_pretrained(modelId, {
-            progress_callback: (progressData: any) => {
-                if (progressData.status === 'progress') {
-                    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...progressData, progress: 50 + (progressData.progress * 0.4), loadId } });
-                }
-            }
-        });
-        if (LOG_GENERAL) console.log(prefix, `[loadModelWithTransformers] Model loaded.`);
-
-        transformersPipeline = await pipeline(task, modelId, { model: transformersModel, tokenizer: transformersTokenizer });
-        if (LOG_GENERAL) console.log(prefix, `[loadModelWithTransformers] Pipeline created successfully.`);
-
-        self.postMessage({ type: WorkerEventNames.WORKER_READY, payload: { modelId: transformersModelId, modelPath: modelPath || null, task: transformersTask } });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: 'transformers', progress: 100, loadId } });
-
-    } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, `[loadModelWithTransformers] Error loading model ${modelId}:`, error.stack);
-        transformersPipeline = null;
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model ${modelId}: ${error.message}` });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: modelId, error: error.message, loadId } });
-    } finally {
-        currentLoadId = undefined;
-    }
-}
-
-async function generateWithTransformers(payload: any): Promise<void> {
-    if (!transformersPipeline || !transformersTokenizer) {
-        if (LOG_ERROR) console.error(prefix, '[generateWithTransformers] Pipeline or tokenizer not ready.');
-        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'Model pipeline not ready. Please load a model first.' } });
-        return;
-    }
-
-    const { chatId, messageId, messages } = payload;
-    if (LOG_GENERATION) console.log(prefix, '[generateWithTransformers] Received payload:', JSON.stringify(payload));
-
-    try {
-        const {
-            temperature = 1.0, top_k = 50, top_p = 1.0, repetition_penalty = 1.0,
-            do_sample = true, max_new_tokens = 128, system_prompt = '',
-        } = inferenceSettings;
-
-        let messagesForTemplate: Array<{role: string, content: string}> = [];
-        if (system_prompt && typeof system_prompt === 'string' && system_prompt.trim().length > 0) {
-            messagesForTemplate.push({ role: 'system', content: system_prompt });
-        }
-        if (Array.isArray(messages)) {
-            messagesForTemplate.push(...messages);
-        } else {
-            messagesForTemplate.push({ role: 'user', content: messages });
-        }
-        
-        const promptString = transformersTokenizer.apply_chat_template(messagesForTemplate, { tokenize: false, add_generation_prompt: true });
-        if (LOG_GENERATION) console.log(prefix, '[generateWithTransformers] Prompt for pipeline:', promptString);
-
-        let fullOutputText = '';
-
-        const streamer = {
-            put(output: any) {
-                if (!output || !output[0] || output[0].length === 0) return;
-                const tokenId = Number(output[0][output[0].length - 1]);
-                const decodedToken = transformersTokenizer.decode([tokenId], { skip_special_tokens: true });
-                fullOutputText += decodedToken;
-                self.postMessage({ type: WorkerEventNames.GENERATION_UPDATE, payload: { chatId, messageId, token: decodedToken } });
-            },
-            end() {
-                if (LOG_GENERATION) console.log(prefix, '[generateWithTransformers] Stream finished. Final text:', fullOutputText);
-                self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: fullOutputText, generatedText: fullOutputText, } });
-            }
-        };
-
-        await transformersPipeline(promptString, {
-            max_new_tokens, temperature, top_k, top_p, repetition_penalty, do_sample, streamer,
-        });
-
-    } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, '[generateWithTransformers] Error during generation:', error, error.stack);
         self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: error.message || String(error) } });
     }
 }

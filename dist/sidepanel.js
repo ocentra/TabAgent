@@ -6941,7 +6941,6 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   CHUNK_SIZE: () => (/* binding */ CHUNK_SIZE),
 /* harmony export */   CURRENT_MANIFEST_VERSION: () => (/* binding */ CURRENT_MANIFEST_VERSION),
 /* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
 /* harmony export */   SERVER_ONLY_SIZE: () => (/* binding */ SERVER_ONLY_SIZE),
@@ -6951,16 +6950,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchRepoFiles: () => (/* binding */ fetchRepoFiles),
 /* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
 /* harmony export */   getAllManifestEntries: () => (/* binding */ getAllManifestEntries),
-/* harmony export */   getChunkedFileInfoMap: () => (/* binding */ getChunkedFileInfoMap),
-/* harmony export */   getFileChunks: () => (/* binding */ getFileChunks),
 /* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
-/* harmony export */   hasFileChunks: () => (/* binding */ hasFileChunks),
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
-/* harmony export */   saveFileChunk: () => (/* binding */ saveFileChunk),
 /* harmony export */   saveInferenceSettings: () => (/* binding */ saveInferenceSettings),
 /* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB)
 /* harmony export */ });
@@ -6988,7 +6983,6 @@ const LOG_ERROR = true;
 const LOG_WARN = true;
 const LOG_INFERENCE_SETTINGS = true;
 const LOG_OPEN_DB = false;
-const CHUNK_SIZE = 10 * 1024 * 1024;
 const modelCacheSchema = {
     [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS]: {
         version: CURRENT_MANIFEST_VERSION,
@@ -7004,10 +6998,6 @@ const modelCacheSchema = {
             inferenceSettings: {
                 keyPath: 'id',
                 indexes: []
-            },
-            fileChunks: {
-                keyPath: ['fileId', 'chunkIndex'],
-                indexes: ['fileId']
             }
         }
     }
@@ -7250,19 +7240,7 @@ async function fetchRepoFiles(repo) {
                 }
             }
         }));
-        // Build chunkedFiles for .onnx/.onnx.data/.onnx_data files
-        const chunkedFiles = {};
-        for (const entry of siblings) {
-            if ((entry.rfilename.endsWith('.onnx') || entry.rfilename.endsWith('.onnx.data') || entry.rfilename.endsWith('.onnx_data')) && typeof entry.size === 'number' && entry.size > 0) {
-                chunkedFiles[entry.rfilename] = {
-                    size: entry.size,
-                    totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
-                    chunkSizeUsed: CHUNK_SIZE,
-                    serverOnly: entry.size > SERVER_ONLY_SIZE
-                };
-            }
-        }
-        return { siblings, task: json.pipeline_tag || 'text-generation', chunkedFiles };
+        return { siblings, task: json.pipeline_tag || 'text-generation' };
     }
     catch (err) {
         if (LOG_ERROR)
@@ -7485,117 +7463,6 @@ async function addQuantToManifest(repo, modelPath, status, files) {
         }
     }
     await addManifestEntry(repo, manifest);
-}
-async function saveFileChunk(fileId, chunkIndex, chunk) {
-    const db = await openModelCacheDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('fileChunks', 'readwrite');
-        const store = tx.objectStore('fileChunks');
-        const req = store.put({ fileId, chunkIndex, chunk });
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => db.close();
-        tx.onabort = () => db.close();
-    });
-}
-async function getFileChunks(fileId, totalChunks) {
-    const db = await openModelCacheDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('fileChunks', 'readonly');
-        const store = tx.objectStore('fileChunks');
-        const chunks = new Array(totalChunks);
-        let readCount = 0;
-        for (let i = 0; i < totalChunks; i++) {
-            const req = store.get([fileId, i]);
-            req.onsuccess = () => {
-                if (req.result && req.result.chunk) {
-                    chunks[i] = req.result.chunk;
-                }
-                else {
-                    chunks[i] = new Uint8Array(0);
-                }
-                readCount++;
-                if (readCount === totalChunks) {
-                    // Concatenate all chunks
-                    const totalLength = chunks.reduce((sum, arr) => sum + arr.length, 0);
-                    const result = new Uint8Array(totalLength);
-                    let offset = 0;
-                    for (const arr of chunks) {
-                        result.set(arr, offset);
-                        offset += arr.length;
-                    }
-                    resolve(result);
-                }
-            };
-            req.onerror = () => reject(req.error);
-        }
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => db.close();
-        tx.onabort = () => db.close();
-    });
-}
-/**
- * Check if there are any chunks for a given fileId in the fileChunks store.
- * Returns true if at least one chunk exists, false otherwise.
- */
-async function hasFileChunks(fileId) {
-    const db = await openModelCacheDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('fileChunks', 'readonly');
-        const store = tx.objectStore('fileChunks');
-        const index = store.index('fileId');
-        const req = index.get(fileId);
-        req.onsuccess = () => {
-            resolve(!!req.result);
-        };
-        req.onerror = () => reject(req.error);
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => db.close();
-        tx.onabort = () => db.close();
-    });
-}
-/**
- * Returns chunk info for all .onnx.data/.onnx_data files in the given metadata.
- * For each such file, returns { size, totalChunks, chunkSizeUsed }.
- * Uses metadata.size if present, otherwise fetches size via HEAD request.
- */
-async function getChunkedFileInfoMap(metadata, baseRepoUrl) {
-    const hfFileEntries = metadata.siblings || [];
-    // Only .onnx.data or .onnx_data files
-    const chunkedEntries = hfFileEntries.filter((f) => f.rfilename.endsWith('.onnx.data') || f.rfilename.endsWith('.onnx_data'));
-    if (chunkedEntries.length === 0)
-        return {};
-    async function getFileSizeWithHEAD(url) {
-        try {
-            const headResp = await fetch(url, { method: 'HEAD' });
-            if (headResp.ok) {
-                const len = headResp.headers.get('Content-Length');
-                return len ? parseInt(len, 10) : null;
-            }
-        }
-        catch (e) {
-            if (LOG_WARN)
-                console.warn(prefix, `[getChunkedFileInfoMap] HEAD request failed for ${url}:`, e);
-        }
-        return null;
-    }
-    const infoMap = {};
-    await Promise.all(chunkedEntries.map(async (entry) => {
-        let size = entry.size;
-        if (typeof size !== 'number' || !isFinite(size) || size <= 0) {
-            const url = baseRepoUrl + entry.rfilename;
-            size = await getFileSizeWithHEAD(url) || 0;
-        }
-        if (size > 0) {
-            infoMap[entry.rfilename] = {
-                size,
-                totalChunks: Math.ceil(size / CHUNK_SIZE),
-                chunkSizeUsed: CHUNK_SIZE
-            };
-        }
-    }));
-    return infoMap;
 }
 
 
@@ -8718,7 +8585,6 @@ class ChatOrchestrator {
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e) => this.handleBackgroundMsgResponse(e.detail));
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_ERROR_RECEIVED, (e) => this.handleBackgroundMsgError(e.detail));
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, (e) => this.handleBackgroundScrapeStage(e.detail));
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_5__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, (e) => this.handleBackgroundDirectScrapeResult(e.detail));
     }
     showUiOnlyWarning(msg) {
         let warningDiv = document.getElementById('ui-only-warning');
@@ -9085,53 +8951,6 @@ class ChatOrchestrator {
                 console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundScrapeStage`);
         }
     }
-    async handleBackgroundDirectScrapeResult(message) {
-        if (this.LOG_GENERAL)
-            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundDirectScrapeResult:`, this.isSendingMessage);
-        const { chatId, messageId, success, error, ...scrapeData } = message;
-        if (this.LOG_GENERAL)
-            console.log(this.prefix, `handleBackgroundDirectScrapeResult: for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
-        const updatePayload = { isLoading: false };
-        if (success) {
-            updatePayload.sender = 'system';
-            let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
-            updatePayload.text = mainContent;
-            updatePayload.content = mainContent;
-            updatePayload.metadata = {
-                type: 'scrape_result_full',
-                scrapeData: scrapeData
-            };
-        }
-        else {
-            updatePayload.sender = 'error';
-            updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
-        }
-        try {
-            const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
-            await this.requestDbAndWait(updateRequest);
-            const finalStatus = success ? 'idle' : 'error';
-            if (this.LOG_GENERAL)
-                console.log(this.prefix, `handleBackgroundDirectScrapeResult: Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
-            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, finalStatus);
-            await this.requestDbAndWait(statusRequest);
-        }
-        catch (error) {
-            const errObj = error;
-            if (this.LOG_ERROR)
-                console.error(this.prefix, `handleBackgroundDirectScrapeResult: Error handling direct scrape result for chat ${chatId}:`, errObj);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
-            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
-            this.requestDbAndWait(statusRequest).catch(e => {
-                if (this.LOG_ERROR)
-                    console.error(this.prefix, 'Failed to set session status on direct scrape processing error:', e);
-            });
-        }
-        finally {
-            this.isSendingMessage = false;
-            if (this.LOG_GENERAL)
-                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundDirectScrapeResult`);
-        }
-    }
 }
 let orchestratorInstance = null;
 function initializeOrchestrator(dependencies) {
@@ -9203,6 +9022,7 @@ const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
+    "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     // Add more models here as needed
 };
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
@@ -9773,6 +9593,8 @@ function quantKeyToLabel(modelPath) {
     if (modelPath === 'model.onnx' || modelPath.toLowerCase() === 'onnx') {
         return 'FP32';
     }
+    if (modelPath.endsWith('.gguf'))
+        return 'GGUF';
     const pathParts = modelPath.split('/');
     let last = pathParts[pathParts.length - 1].toLowerCase();
     let parent = pathParts.length > 1 ? pathParts[pathParts.length - 2].toLowerCase() : '';
@@ -10407,7 +10229,6 @@ const UIEventNames = Object.freeze({
     BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
     BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
     BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
-    BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
     REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
     WORKER_READY: 'worker:ready',
     WORKER_ERROR: 'worker:error',
@@ -10492,7 +10313,6 @@ const RawDirectMessageTypes = Object.freeze({
     WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
     WORKER_GENERIC_ERROR: 'WorkerGenericError',
     WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
-    WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
     WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
 const Contexts = Object.freeze({
@@ -11334,10 +11154,6 @@ function handleMessage(message, sender, sendResponse) {
         sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({ status: 'received', type });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
-        sendResponse({});
-    }
     else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
         type === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS) {
         // No action needed
@@ -11861,7 +11677,7 @@ async function ensureManifestForDropdownRepos() {
                 console.warn(`${prefix} [ensureManifestForDropdownRepos] Error fetching existing manifest for ${repo}, will create anew if possible.`, e);
         }
         try {
-            const { siblings, task, chunkedFiles } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.fetchRepoFiles)(repo);
+            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.fetchRepoFiles)(repo);
             if (!siblings || siblings.length === 0) {
                 if (LOG_WARN)
                     console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
@@ -11873,15 +11689,15 @@ async function ensureManifestForDropdownRepos() {
                 console.log(`${prefix} [ensureManifestForDropdownRepos] All files in repo ${repo}:`, allFileNamesInRepo);
             const quantMap = {};
             for (const file of siblings) {
-                if (file.rfilename && file.rfilename.endsWith('.onnx')) {
+                if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf'))) {
                     const quantKey = file.rfilename;
                     if (!allFileNamesInRepo.has(quantKey)) {
                         if (LOG_WARN)
-                            console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant ONNX file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
+                            console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant model file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
                         continue;
                     }
                     if (LOG_MANIFEST_GENERATION)
-                        console.log(`${prefix} [ensureManifestForDropdownRepos] Found ONNX file (quantKey): ${quantKey} in repo ${repo}`);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] Found quant file (quantKey): ${quantKey} in repo ${repo}`);
                     const currentQuantRequiredFiles = new Set();
                     currentQuantRequiredFiles.add(quantKey);
                     const quantDir = quantKey.includes('/') ? quantKey.substring(0, quantKey.lastIndexOf('/')) : '';
@@ -11912,39 +11728,28 @@ async function ensureManifestForDropdownRepos() {
                     }
                     // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
-                    if (quantKey === 'onnx/model.onnx') {
-                        // Check for .onnx_data or .onnx.data file associated with model.onnx
-                        const dataFile = siblings.find(f => f.rfilename === 'onnx/model.onnx_data' || f.rfilename === 'onnx/model.onnx.data');
+                    if (quantKey.endsWith('.onnx')) {
+                        // For any .onnx, check for .onnx_data or .onnx.data file of the same quant family
+                        const baseName = quantKey.replace(/\.onnx$/, '');
+                        const dataFile = siblings.find(f => f.rfilename === `${baseName}.onnx_data` || f.rfilename === `${baseName}.onnx.data`);
                         if (dataFile && typeof dataFile.size === 'number' && dataFile.size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
                             isServerOnly = true;
                         }
-                        else if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
-                            isServerOnly = true;
-                        }
                     }
-                    else {
-                        // For other quants, only check their own ONNX file size
-                        if (chunkedFiles && chunkedFiles[quantKey] && chunkedFiles[quantKey].size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
+                    else if (quantKey.endsWith('.gguf')) {
+                        const entry = siblings.find(f => f.rfilename === quantKey);
+                        if (entry && typeof entry.size === 'number' && entry.size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
                             isServerOnly = true;
                         }
                     }
                     const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.Available);
-                    // Build fileSizes and chunkedFiles info
+                    // Build fileSizes info
                     const fileSizes = {};
-                    const chunkedFilesInfo = {};
                     for (const fname of currentQuantRequiredFiles) {
                         let size = undefined;
-                        if (chunkedFiles && chunkedFiles[fname]) {
-                            quantMap[quantKey] = quantMap[quantKey] || {};
-                            quantMap[quantKey].chunkedFiles = quantMap[quantKey].chunkedFiles || {};
-                            quantMap[quantKey].chunkedFiles[fname] = chunkedFiles[fname];
-                            size = chunkedFiles[fname].size;
-                        }
-                        else {
-                            const entry = siblings.find(f => f.rfilename === fname);
-                            if (entry && typeof entry.size === 'number' && entry.size > 0) {
-                                size = entry.size;
-                            }
+                        const entry = siblings.find(f => f.rfilename === fname);
+                        if (entry && typeof entry.size === 'number' && entry.size > 0) {
+                            size = entry.size;
                         }
                         if (typeof size === 'number' && size > 0) {
                             fileSizes[fname] = size;
@@ -11953,11 +11758,10 @@ async function ensureManifestForDropdownRepos() {
                     quantMap[quantKey] = {
                         files: Array.from(currentQuantRequiredFiles).sort(),
                         status,
-                        fileSizes,
-                        chunkedFiles: Object.keys(chunkedFilesInfo).length > 0 ? chunkedFilesInfo : undefined
+                        fileSizes
                     };
                     if (LOG_MANIFEST_GENERATION)
-                        console.log(`${prefix} [ensureManifestForDropdownRepos] For quantKey ${quantKey}, required files:`, quantMap[quantKey].files, `Status: ${status}`, `fileSizes:`, fileSizes, `chunkedFiles:`, chunkedFilesInfo);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] For quantKey ${quantKey}, required files:`, quantMap[quantKey].files, `Status: ${status}`, `fileSizes:`, fileSizes);
                 }
             }
             if (Object.keys(quantMap).length === 0) {

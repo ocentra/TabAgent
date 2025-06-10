@@ -34,7 +34,6 @@ const LOG_WARN = true;
 const LOG_INFERENCE_SETTINGS = true;
 const LOG_OPEN_DB = false;
 
-export const CHUNK_SIZE = 10 * 1024 * 1024;
 
 export const modelCacheSchema = {
     [DBNames.DB_MODELS]: {
@@ -51,11 +50,8 @@ export const modelCacheSchema = {
         inferenceSettings: {
           keyPath: 'id',
           indexes: []
-        },
-        fileChunks: { // NEW store for chunked files
-          keyPath: ['fileId', 'chunkIndex'],
-          indexes: ['fileId']
         }
+
       }
     }
   };
@@ -232,7 +228,7 @@ export async function addManifestEntry(repo: string, entry: ManifestEntry): Prom
     });
 }
 
-export async function fetchRepoFiles(repo: string): Promise<{ siblings: { rfilename: string, size?: number }[], task: string, chunkedFiles: Record<string, { size: number, totalChunks: number, chunkSizeUsed: number, serverOnly?: boolean }> }> {
+export async function fetchRepoFiles(repo: string): Promise<{ siblings: { rfilename: string, size?: number }[], task: string }> {
     if (LOG_GENERAL) console.log(prefix, '[fetchRepoFiles] Fetching', repo);
     const url = `https://huggingface.co/api/models/${repo}`;
     try {
@@ -260,20 +256,7 @@ export async function fetchRepoFiles(repo: string): Promise<{ siblings: { rfilen
                 }
             }
         }));
-        // Build chunkedFiles for .onnx/.onnx.data/.onnx_data files
-        const chunkedFiles: Record<string, { size: number, totalChunks: number, chunkSizeUsed: number, serverOnly?: boolean }> = {};
-      
-        for (const entry of siblings) {
-            if ((entry.rfilename.endsWith('.onnx') || entry.rfilename.endsWith('.onnx.data') || entry.rfilename.endsWith('.onnx_data')) && typeof entry.size === 'number' && entry.size > 0) {
-                chunkedFiles[entry.rfilename] = {
-                    size: entry.size,
-                    totalChunks: Math.ceil(entry.size / CHUNK_SIZE),
-                    chunkSizeUsed: CHUNK_SIZE,
-                    serverOnly: entry.size > SERVER_ONLY_SIZE
-                };
-            }
-        }
-        return { siblings, task: json.pipeline_tag || 'text-generation', chunkedFiles };
+        return { siblings, task: json.pipeline_tag || 'text-generation' };
     } catch (err) {
         if (LOG_ERROR) console.error(prefix, '[fetchRepoFiles] Exception for', repo, err);
         throw err;
@@ -480,119 +463,3 @@ export async function addQuantToManifest(repo: string, modelPath: string, status
     }
     await addManifestEntry(repo, manifest);
 }
-
-export async function saveFileChunk(fileId: string, chunkIndex: number, chunk: Uint8Array) {
-  const db = await openModelCacheDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction('fileChunks', 'readwrite');
-    const store = tx.objectStore('fileChunks');
-    const req = store.put({ fileId, chunkIndex, chunk });
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => db.close();
-    tx.onabort = () => db.close();
-  });
-}
-
-export async function getFileChunks(fileId: string, totalChunks: number): Promise<Uint8Array> {
-  const db = await openModelCacheDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('fileChunks', 'readonly');
-    const store = tx.objectStore('fileChunks');
-    const chunks: Uint8Array[] = new Array(totalChunks);
-    let readCount = 0;
-    for (let i = 0; i < totalChunks; i++) {
-      const req = store.get([fileId, i]);
-      req.onsuccess = () => {
-        if (req.result && req.result.chunk) {
-          chunks[i] = req.result.chunk;
-        } else {
-          chunks[i] = new Uint8Array(0);
-        }
-        readCount++;
-        if (readCount === totalChunks) {
-          // Concatenate all chunks
-          const totalLength = chunks.reduce((sum, arr) => sum + arr.length, 0);
-          const result = new Uint8Array(totalLength);
-          let offset = 0;
-          for (const arr of chunks) {
-            result.set(arr, offset);
-            offset += arr.length;
-          }
-          resolve(result);
-        }
-      };
-      req.onerror = () => reject(req.error);
-    }
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => db.close();
-    tx.onabort = () => db.close();
-  });
-}
-
-/**
- * Check if there are any chunks for a given fileId in the fileChunks store.
- * Returns true if at least one chunk exists, false otherwise.
- */
-export async function hasFileChunks(fileId: string): Promise<boolean> {
-  const db = await openModelCacheDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('fileChunks', 'readonly');
-    const store = tx.objectStore('fileChunks');
-    const index = store.index('fileId');
-    const req = index.get(fileId);
-    req.onsuccess = () => {
-      resolve(!!req.result);
-    };
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => db.close();
-    tx.onabort = () => db.close();
-  });
-}
-
-/**
- * Returns chunk info for all .onnx.data/.onnx_data files in the given metadata.
- * For each such file, returns { size, totalChunks, chunkSizeUsed }.
- * Uses metadata.size if present, otherwise fetches size via HEAD request.
- */
-export async function getChunkedFileInfoMap(metadata: any, baseRepoUrl: string): Promise<Record<string, { size: number, totalChunks: number, chunkSizeUsed: number }>> {
-    const hfFileEntries = metadata.siblings || [];
-    // Only .onnx.data or .onnx_data files
-    const chunkedEntries = hfFileEntries.filter((f: any) => f.rfilename.endsWith('.onnx.data') || f.rfilename.endsWith('.onnx_data'));
-    if (chunkedEntries.length === 0) return {};
-
-    async function getFileSizeWithHEAD(url: string): Promise<number | null> {
-        try {
-            const headResp = await fetch(url, { method: 'HEAD' });
-            if (headResp.ok) {
-                const len = headResp.headers.get('Content-Length');
-                return len ? parseInt(len, 10) : null;
-            }
-        } catch (e) {
-            if (LOG_WARN) console.warn(prefix, `[getChunkedFileInfoMap] HEAD request failed for ${url}:`, e);
-        }
-        return null;
-    }
-
-    const infoMap: Record<string, { size: number, totalChunks: number, chunkSizeUsed: number }> = {};
-    await Promise.all(chunkedEntries.map(async (entry: any) => {
-        let size = entry.size;
-        if (typeof size !== 'number' || !isFinite(size) || size <= 0) {
-            const url = baseRepoUrl + entry.rfilename;
-            size = await getFileSizeWithHEAD(url) || 0;
-        }
-        if (size > 0) {
-            infoMap[entry.rfilename] = {
-                size,
-                totalChunks: Math.ceil(size / CHUNK_SIZE),
-                chunkSizeUsed: CHUNK_SIZE
-            };
-        }
-    }));
-    return infoMap;
-}
-
-
-

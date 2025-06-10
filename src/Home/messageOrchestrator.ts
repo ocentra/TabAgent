@@ -72,7 +72,6 @@ class ChatOrchestrator {
         document.addEventListener(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, (e: Event) => this.handleBackgroundMsgResponse((e as CustomEvent).detail));
         document.addEventListener(UIEventNames.BACKGROUND_ERROR_RECEIVED, (e: Event) => this.handleBackgroundMsgError((e as CustomEvent).detail));
         document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, (e: Event) => this.handleBackgroundScrapeStage((e as CustomEvent).detail));
-        document.addEventListener(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, (e: Event) => this.handleBackgroundDirectScrapeResult((e as CustomEvent).detail));
     }
 
     private showUiOnlyWarning(msg: string) {
@@ -126,9 +125,8 @@ class ChatOrchestrator {
         const sessionData = await this.requestDbAndWait(new DbGetSessionRequest(sessionId));
         if (!sessionData || !Array.isArray(sessionData.messages)) return [];
         return (sessionData.messages as any[])
-            // Hydrate Message for business logic only; dbWorker is not needed
             .map((m: any) => m.__type === DB_ENTITY_TYPES.Message ? Message.fromJSON(m) : m)
-            .filter((m: Message) => (m.sender === 'user' || m.sender === 'ai') && (!placeholderMessageId || m.id !== placeholderMessageId) && !(m as any)?.isLoading)
+            .filter((m: Message) => (m.sender === 'user' || m.sender === 'ai' || m.sender === 'system') && (!placeholderMessageId || m.id !== placeholderMessageId) && !(m as any)?.isLoading)
             .map((m: Message) => ({
                 role: m.sender === 'user' ? 'user' : 'assistant',
                 content: m.content || ''
@@ -136,14 +134,15 @@ class ChatOrchestrator {
     }
 
     private async handleQuerySubmit(data: any) {
-        const { text } = data;
-        if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] BEFORE handleQuerySubmit:`, this.isSendingMessage);
         if (this.isSendingMessage) {
-            console.warn('[Orchestrator handleQuerySubmit]: Already processing a previous submission.');
+            console.warn('[Orchestrator handleQuerySubmit]: Already processing a previous submission. [isSendingMessage]', this.isSendingMessage);
             return;
         }
         this.isSendingMessage = true;
-
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] SET to true in handleQuerySubmit`);
+        const { text } = data;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
         let sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
         const currentTabId = this.getCurrentTabId ? this.getCurrentTabId() : null;
         let placeholderMessageId = null;
@@ -274,6 +273,7 @@ class ChatOrchestrator {
     }
 
     private async handleBackgroundMsgResponse(message: any) {
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgResponse:`, this.isSendingMessage);
         const { chatId, messageId, text } = message;
         if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: for chat ${chatId}, placeholder ${messageId}`);
         try {
@@ -293,10 +293,12 @@ class ChatOrchestrator {
             });
         } finally {
             this.isSendingMessage = false;
+            if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
         }
     }
 
     private async handleBackgroundMsgError(message: any) {
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgError:`, this.isSendingMessage);
         if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
         showError(`Error processing request: ${message.error}`);
         const sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
@@ -322,16 +324,18 @@ class ChatOrchestrator {
             }
         }
         this.isSendingMessage = false;
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgError`);
     }
 
     private async handleBackgroundScrapeStage(payload: any) {
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundScrapeStage:`, this.isSendingMessage);
         const { stage, success, chatId, messageId, error, ...rest } = payload;
         if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
         let updatePayload: any = {};
         let finalStatus = 'idle';
         if (success) {
             if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundScrapeStage: Scrape stage ${stage} succeeded for chat ${chatId}.`);
-            let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
+            let mainContent = '```json\n' + JSON.stringify(rest, null, 2) + '\n```';
             updatePayload = {
                 isLoading: false,
                 sender: 'system',
@@ -371,44 +375,7 @@ class ChatOrchestrator {
             }
         } finally {
             this.isSendingMessage = false;
-            if (this.LOG_GENERAL) console.log(this.prefix, 'handleBackgroundScrapeStage: Resetting isSendingMessage after processing scrape stage result.');
-        }
-    }
-
-    private async handleBackgroundDirectScrapeResult(message: any) {
-        const { chatId, messageId, success, error, ...scrapeData } = message;
-        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundDirectScrapeResult: for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
-        const updatePayload: any = { isLoading: false };
-        if (success) {
-            updatePayload.sender = 'system';
-            let mainContent = scrapeData?.extraction?.content || scrapeData?.content || scrapeData?.title || 'Scrape complete.';
-            updatePayload.text = mainContent;
-            updatePayload.content = mainContent;
-            updatePayload.metadata = {
-                type: 'scrape_result_full',
-                scrapeData: scrapeData
-            };
-        } else {
-            updatePayload.sender = 'error';
-            updatePayload.text = `Scraping failed: ${error || 'Unknown error.'}`;
-        }
-        try {
-            const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
-            await this.requestDbAndWait(updateRequest);
-            const finalStatus = success ? 'idle' : 'error';
-            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundDirectScrapeResult: Setting session ${chatId} status to '${finalStatus}' after direct scrape result via event`);
-            const statusRequest = new DbUpdateStatusRequest(chatId, finalStatus);
-            await this.requestDbAndWait(statusRequest);
-        } catch (error: unknown) {
-            const errObj = error as Error;
-            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundDirectScrapeResult: Error handling direct scrape result for chat ${chatId}:`, errObj);
-            showError(`Failed to update chat with direct scrape result: ${errObj.message || errObj}`);
-            const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
-            this.requestDbAndWait(statusRequest).catch(e => {
-                if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on direct scrape processing error:', e);
-            });
-        } finally {
-            this.isSendingMessage = false;
+            if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundScrapeStage`);
         }
     }
 }

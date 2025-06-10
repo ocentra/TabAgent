@@ -141,6 +141,7 @@ let numAttentionHeads: number | undefined;
 let numKeyValueHeads: number | undefined;
 let headDim: number | undefined;
 let eosTokenId: number | undefined = undefined;
+let modelContextLength: number = 2048; // A reasonable default
 
 (async () => {
     const settings = await getInferenceSettings();
@@ -413,6 +414,9 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
         }
         modelConfig = await configResponse.json();
 
+        modelContextLength = modelConfig?.max_position_embeddings || modelConfig?.n_positions || 2048;
+        if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Model context length set to: ${modelContextLength}`);
+
         if (modelConfig) {
             if (tokenizer?.eos_token_id !== null && tokenizer?.eos_token_id !== undefined) {
                 eosTokenId = tokenizer.eos_token_id;
@@ -522,16 +526,9 @@ async function generateInternal(payload: any): Promise<void> {
 
     try {
         const {
-            temperature = 1.0,
-            top_k = 0,
-            top_p = 0.0,
-            repetition_penalty = 1.0,
-            do_sample = true,
-            no_repeat_ngram_size = 0,
-            max_new_tokens = 128,
-            system_prompt = '',
-            min_length = 0,
-            max_length = 2048,
+            temperature = 1.0, top_k = 0, top_p = 0.0, repetition_penalty = 1.0,
+            do_sample = true, no_repeat_ngram_size = 0, max_new_tokens = 128,
+            system_prompt = '', min_length = 0, max_length = 2048,
         } = inferenceSettings;
 
         let messagesForTemplate: Array<{role: string, content: string}> = [];
@@ -544,12 +541,31 @@ async function generateInternal(payload: any): Promise<void> {
         else if (message) messagesForTemplate.push({ role: 'user', content: message });
         else if (input) messagesForTemplate.push({ role: 'user', content: input });
 
-        const promptTokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
-        const promptTokenIds = promptTokenIdsTensor.tolist().flat();
+        const effectiveMaxLength = Math.min(max_length, modelContextLength);
+
+        let promptTokenIds;
+        while (true) {
+            const tokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
+            promptTokenIds = tokenIdsTensor.tolist().flat();
+            
+            if (promptTokenIds.length < effectiveMaxLength) {
+                break;
+            }
+
+            if (messagesForTemplate.length > 2) {
+                if (LOG_WARN) console.warn(prefix, `[generateInternal] Context too long (${promptTokenIds.length}). Removing oldest message.`);
+                messagesForTemplate.splice(1, 1);
+            } else {
+                if (LOG_ERROR) console.error(prefix, `[generateInternal] Prompt length (${promptTokenIds.length}) exceeds effective max length (${effectiveMaxLength}) and cannot be shortened further.`);
+                self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: `The conversation history is too long to process. Please start a new chat.` } });
+                return;
+            }
+        }
+        
         if (LOG_GENERATION) console.log(prefix, '[generateInternal] Correctly tokenized prompt IDs:', promptTokenIds);
 
         const generatedTokenIds: number[] = [];
-        const maxLen = Math.min(max_length, promptTokenIds.length + max_new_tokens);
+        const maxLen = Math.min(effectiveMaxLength, promptTokenIds.length + max_new_tokens);
         const minLen = Math.max(min_length, promptTokenIds.length + 1);
 
         if (eosTokenId === undefined) {
@@ -639,7 +655,10 @@ async function generateInternal(payload: any): Promise<void> {
             }
         }
 
-        const finalGeneratedText = tokenizer.decode(generatedTokenIds, { skip_special_tokens: true });
+        const finalGeneratedText = generatedTokenIds.length > 0 
+            ? tokenizer.decode(generatedTokenIds, { skip_special_tokens: true })
+            : "";
+
         if (LOG_GENERATION) console.log(prefix, '[generateInternal] Final generated text (decoded):', finalGeneratedText);
         self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
 
@@ -738,7 +757,6 @@ async function generateWithTransformers(payload: any): Promise<void> {
                 if (!output || !output[0] || output[0].length === 0) return;
                 const tokenId = Number(output[0][output[0].length - 1]);
                 const decodedToken = transformersTokenizer.decode([tokenId], { skip_special_tokens: true });
-                if (LOG_GENERATION) console.log(prefix, '[generateWithTransformers] Streamed token:', decodedToken);
                 fullOutputText += decodedToken;
                 self.postMessage({ type: WorkerEventNames.GENERATION_UPDATE, payload: { chatId, messageId, token: decodedToken } });
             },
@@ -761,13 +779,11 @@ async function generateWithTransformers(payload: any): Promise<void> {
 self.onmessage = async (event: MessageEvent) => {
     const { type, payload } = (event.data || {}) as { type: string; payload: any; };
     switch (type) {
-        case WorkerEventNames.SET_BASE_URL: {
+        case WorkerEventNames.SET_BASE_URL:
             return;
-        }
-        case WorkerEventNames.SET_ENV_CONFIG: {
+        case WorkerEventNames.SET_ENV_CONFIG:
             envConfig = { ...envConfig, ...payload };
             break;
-        }
         case WorkerEventNames.INFERENCE_SETTINGS_UPDATE: {
             const settings = await getInferenceSettings();
             if(settings) {
@@ -782,16 +798,13 @@ self.onmessage = async (event: MessageEvent) => {
                 self.postMessage({ type: WorkerEventNames.ERROR, payload: `Model ID or Quant Path missing in INIT event.` });
                 return;
             }
-            // Use manual ONNX path by default
             await loadModelInternal({ modelId, modelPath, task, loadId });
             return;
         }
-        case WorkerEventNames.GENERATE: {
-            // Use manual ONNX path by default
+        case WorkerEventNames.GENERATE:
             await generateInternal(payload);
             break;
-        }
-        case WorkerEventNames.RESET: {
+        case WorkerEventNames.RESET:
             if (onnxSession) {
                 try { await onnxSession.release(); } catch(e) { if (LOG_WARN) console.warn(prefix, "Error releasing session on reset:", e); }
             }
@@ -802,11 +815,9 @@ self.onmessage = async (event: MessageEvent) => {
             self.postMessage({ type: WorkerEventNames.RESET_COMPLETE });
             if (LOG_GENERAL) console.log(prefix, "Model worker reset complete.");
             break;
-        }
-        default: {
+        default:
             self.postMessage({ type: WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
             break;
-        }
     }
 };
 

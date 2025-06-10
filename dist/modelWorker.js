@@ -46911,6 +46911,7 @@ let numAttentionHeads;
 let numKeyValueHeads;
 let headDim;
 let eosTokenId = undefined;
+let modelContextLength = 2048; // A reasonable default
 (async () => {
     const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getInferenceSettings)();
     if (settings) {
@@ -47147,6 +47148,9 @@ async function loadModelInternal(payload) {
             throw new Error(`Failed to fetch model config.json from ${configUrl}: ${configResponse.statusText}`);
         }
         modelConfig = await configResponse.json();
+        modelContextLength = modelConfig?.max_position_embeddings || modelConfig?.n_positions || 2048;
+        if (LOG_GENERAL)
+            console.log(prefix, `[loadModelInternal] Model context length set to: ${modelContextLength}`);
         if (modelConfig) {
             if (tokenizer?.eos_token_id !== null && tokenizer?.eos_token_id !== undefined) {
                 eosTokenId = tokenizer.eos_token_id;
@@ -47267,12 +47271,30 @@ async function generateInternal(payload) {
             messagesForTemplate.push({ role: 'user', content: message });
         else if (input)
             messagesForTemplate.push({ role: 'user', content: input });
-        const promptTokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
-        const promptTokenIds = promptTokenIdsTensor.tolist().flat();
+        const effectiveMaxLength = Math.min(max_length, modelContextLength);
+        let promptTokenIds;
+        while (true) {
+            const tokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
+            promptTokenIds = tokenIdsTensor.tolist().flat();
+            if (promptTokenIds.length < effectiveMaxLength) {
+                break;
+            }
+            if (messagesForTemplate.length > 2) {
+                if (LOG_WARN)
+                    console.warn(prefix, `[generateInternal] Context too long (${promptTokenIds.length}). Removing oldest message.`);
+                messagesForTemplate.splice(1, 1);
+            }
+            else {
+                if (LOG_ERROR)
+                    console.error(prefix, `[generateInternal] Prompt length (${promptTokenIds.length}) exceeds effective max length (${effectiveMaxLength}) and cannot be shortened further.`);
+                self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: `The conversation history is too long to process. Please start a new chat.` } });
+                return;
+            }
+        }
         if (LOG_GENERATION)
             console.log(prefix, '[generateInternal] Correctly tokenized prompt IDs:', promptTokenIds);
         const generatedTokenIds = [];
-        const maxLen = Math.min(max_length, promptTokenIds.length + max_new_tokens);
+        const maxLen = Math.min(effectiveMaxLength, promptTokenIds.length + max_new_tokens);
         const minLen = Math.max(min_length, promptTokenIds.length + 1);
         if (eosTokenId === undefined) {
             if (LOG_WARN)
@@ -47358,7 +47380,9 @@ async function generateInternal(payload) {
                 self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_UPDATE, payload: { chatId, messageId, token: decodedProgressToken } });
             }
         }
-        const finalGeneratedText = tokenizer.decode(generatedTokenIds, { skip_special_tokens: true });
+        const finalGeneratedText = generatedTokenIds.length > 0
+            ? tokenizer.decode(generatedTokenIds, { skip_special_tokens: true })
+            : "";
         if (LOG_GENERATION)
             console.log(prefix, '[generateInternal] Final generated text (decoded):', finalGeneratedText);
         self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
@@ -47453,8 +47477,6 @@ async function generateWithTransformers(payload) {
                     return;
                 const tokenId = Number(output[0][output[0].length - 1]);
                 const decodedToken = transformersTokenizer.decode([tokenId], { skip_special_tokens: true });
-                if (LOG_GENERATION)
-                    console.log(prefix, '[generateWithTransformers] Streamed token:', decodedToken);
                 fullOutputText += decodedToken;
                 self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_UPDATE, payload: { chatId, messageId, token: decodedToken } });
             },
@@ -47477,13 +47499,11 @@ async function generateWithTransformers(payload) {
 self.onmessage = async (event) => {
     const { type, payload } = (event.data || {});
     switch (type) {
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_BASE_URL: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_BASE_URL:
             return;
-        }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_ENV_CONFIG: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.SET_ENV_CONFIG:
             envConfig = { ...envConfig, ...payload };
             break;
-        }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.INFERENCE_SETTINGS_UPDATE: {
             const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getInferenceSettings)();
             if (settings) {
@@ -47499,16 +47519,13 @@ self.onmessage = async (event) => {
                 self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Model ID or Quant Path missing in INIT event.` });
                 return;
             }
-            // Use manual ONNX path by default
             await loadModelInternal({ modelId, modelPath, task, loadId });
             return;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATE: {
-            // Use manual ONNX path by default
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATE:
             await generateInternal(payload);
             break;
-        }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESET:
             if (onnxSession) {
                 try {
                     await onnxSession.release();
@@ -47535,11 +47552,9 @@ self.onmessage = async (event) => {
             if (LOG_GENERAL)
                 console.log(prefix, "Model worker reset complete.");
             break;
-        }
-        default: {
+        default:
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
             break;
-        }
     }
 };
 async function setManifestQuantStatus(repo, quant, status) {

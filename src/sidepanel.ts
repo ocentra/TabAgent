@@ -483,6 +483,7 @@ function sendToModelWorker(message: any) {
 }
 
 function sendUiEvent(type: string, payload: any) {
+  document.dispatchEvent(new CustomEvent(type, { detail: payload }));
   browser.runtime.sendMessage({ type, payload });
 }
 
@@ -615,9 +616,6 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
   } else if (type === RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
     sendUiEvent(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
     sendResponse({ status: 'received', type });
-  } else if (type === RawDirectMessageTypes.WORKER_DIRECT_SCRAPE_RESULT) {
-    sendUiEvent(UIEventNames.BACKGROUND_SCRAPE_RESULT_RECEIVED, message.payload);
-    sendResponse({});
   } else if (
     type === InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
     type === UIEventNames.MODEL_WORKER_LOADING_PROGRESS

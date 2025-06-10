@@ -2086,31 +2086,7 @@ async function scrapeUrlWithTempTabExecuteScript(url, chatId, messageId) {
                     cleanupAndReject(`[BG-Scrape] Script error: ${scriptResult.error}`, scriptResult);
                     return;
                 }
-                // Update the placeholder message in the DB via forwardToSidePanel
-                if (typeof forwardToSidePanel === 'function' && chatId && messageId) {
-                    // Add __type marker to the extraction object
-                    const extractionWithType = { ...scriptResult, __type: "PageExtractor" };
-                    const updateMsg = {
-                        type: _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
-                        payload: {
-                            sessionId: chatId,
-                            messageId: messageId,
-                            updates: {
-                                text: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
-                                content: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
-                                extraction: extractionWithType,
-                                type: "code",
-                                metadata: JSON.stringify({
-                                    language: "json",
-                                    isJson: true,
-                                    extractionType: "PageExtractor",
-                                    extraction: extractionWithType
-                                })
-                            }
-                        }
-                    };
-                    forwardToSidePanel(updateMsg);
-                }
+                // Remove DB update logic; just resolve with the scrape result
                 resolve(scriptResult);
             }
             catch (error) {

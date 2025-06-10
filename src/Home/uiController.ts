@@ -73,7 +73,7 @@ document.addEventListener(DbMessagesUpdatedNotification.type, (e: Event) => {
     const messages = customEvent.detail?.payload?.messages;
     if (Array.isArray(messages) && messages.length > 0) {
         const lastMsg = messages[messages.length - 1];
-        if (lastMsg.sender === 'ai' && !lastMsg.isLoading) {
+        if ((lastMsg.sender === 'ai' || lastMsg.sender === 'system') && !lastMsg.isLoading) {
             setInputStateInternal('ready');
         }
     }

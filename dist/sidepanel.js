@@ -8775,23 +8775,26 @@ class ChatOrchestrator {
         if (!sessionData || !Array.isArray(sessionData.messages))
             return [];
         return sessionData.messages
-            // Hydrate Message for business logic only; dbWorker is not needed
             .map((m) => m.__type === _DB_idbBase__WEBPACK_IMPORTED_MODULE_7__.DB_ENTITY_TYPES.Message ? _DB_idbMessage__WEBPACK_IMPORTED_MODULE_6__.Message.fromJSON(m) : m)
-            .filter((m) => (m.sender === 'user' || m.sender === 'ai') && (!placeholderMessageId || m.id !== placeholderMessageId) && !m?.isLoading)
+            .filter((m) => (m.sender === 'user' || m.sender === 'ai' || m.sender === 'system') && (!placeholderMessageId || m.id !== placeholderMessageId) && !m?.isLoading)
             .map((m) => ({
             role: m.sender === 'user' ? 'user' : 'assistant',
             content: m.content || ''
         }));
     }
     async handleQuerySubmit(data) {
-        const { text } = data;
         if (this.LOG_GENERAL)
-            console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
+            console.log(this.prefix, `[isSendingMessage] BEFORE handleQuerySubmit:`, this.isSendingMessage);
         if (this.isSendingMessage) {
-            console.warn('[Orchestrator handleQuerySubmit]: Already processing a previous submission.');
+            console.warn('[Orchestrator handleQuerySubmit]: Already processing a previous submission. [isSendingMessage]', this.isSendingMessage);
             return;
         }
         this.isSendingMessage = true;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] SET to true in handleQuerySubmit`);
+        const { text } = data;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
         let sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
         const currentTabId = this.getCurrentTabId ? this.getCurrentTabId() : null;
         let placeholderMessageId = null;
@@ -8947,6 +8950,8 @@ class ChatOrchestrator {
         }
     }
     async handleBackgroundMsgResponse(message) {
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgResponse:`, this.isSendingMessage);
         const { chatId, messageId, text } = message;
         if (this.LOG_GENERAL)
             console.log(this.prefix, `handleBackgroundMsgResponse: for chat ${chatId}, placeholder ${messageId}`);
@@ -8972,9 +8977,13 @@ class ChatOrchestrator {
         }
         finally {
             this.isSendingMessage = false;
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
         }
     }
     async handleBackgroundMsgError(message) {
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgError:`, this.isSendingMessage);
         if (this.LOG_ERROR)
             console.error(this.prefix, `handleBackgroundMsgError: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`);
@@ -9008,8 +9017,12 @@ class ChatOrchestrator {
             }
         }
         this.isSendingMessage = false;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgError`);
     }
     async handleBackgroundScrapeStage(payload) {
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundScrapeStage:`, this.isSendingMessage);
         const { stage, success, chatId, messageId, error, ...rest } = payload;
         if (this.LOG_GENERAL)
             console.log(this.prefix, `handleBackgroundScrapeStage: Stage ${stage}, chatId: ${chatId}, Success: ${success}`);
@@ -9018,7 +9031,7 @@ class ChatOrchestrator {
         if (success) {
             if (this.LOG_GENERAL)
                 console.log(this.prefix, `handleBackgroundScrapeStage: Scrape stage ${stage} succeeded for chat ${chatId}.`);
-            let mainContent = rest?.extraction?.content || rest?.content || rest?.title || 'Scrape complete.';
+            let mainContent = '```json\n' + JSON.stringify(rest, null, 2) + '\n```';
             updatePayload = {
                 isLoading: false,
                 sender: 'system',
@@ -9069,10 +9082,12 @@ class ChatOrchestrator {
         finally {
             this.isSendingMessage = false;
             if (this.LOG_GENERAL)
-                console.log(this.prefix, 'handleBackgroundScrapeStage: Resetting isSendingMessage after processing scrape stage result.');
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundScrapeStage`);
         }
     }
     async handleBackgroundDirectScrapeResult(message) {
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundDirectScrapeResult:`, this.isSendingMessage);
         const { chatId, messageId, success, error, ...scrapeData } = message;
         if (this.LOG_GENERAL)
             console.log(this.prefix, `handleBackgroundDirectScrapeResult: for chat ${chatId}, placeholder ${messageId}, Success: ${success}`);
@@ -9113,6 +9128,8 @@ class ChatOrchestrator {
         }
         finally {
             this.isSendingMessage = false;
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundDirectScrapeResult`);
         }
     }
 }
@@ -9218,7 +9235,7 @@ document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbMessagesUp
     const messages = customEvent.detail?.payload?.messages;
     if (Array.isArray(messages) && messages.length > 0) {
         const lastMsg = messages[messages.length - 1];
-        if (lastMsg.sender === 'ai' && !lastMsg.isLoading) {
+        if ((lastMsg.sender === 'ai' || lastMsg.sender === 'system') && !lastMsg.isLoading) {
             setInputStateInternal('ready');
         }
     }
@@ -11174,6 +11191,7 @@ function sendToModelWorker(message) {
     }
 }
 function sendUiEvent(type, payload) {
+    document.dispatchEvent(new CustomEvent(type, { detail: payload }));
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({ type, payload });
 }
 function getActiveChatSessionId() {

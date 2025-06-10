@@ -3,7 +3,6 @@ export const UIEventNames = Object.freeze({
   BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',
   BACKGROUND_ERROR_RECEIVED: 'background:errorReceived',
   BACKGROUND_SCRAPE_STAGE_RESULT: 'background:scrapeStageResult',
-  BACKGROUND_SCRAPE_RESULT_RECEIVED: 'background:scrapeResultReceived',
   REQUEST_MODEL_LOAD: 'ui:requestModelLoad',
   WORKER_READY: 'worker:ready',
   WORKER_ERROR: 'worker:error',
@@ -96,7 +95,6 @@ export const RawDirectMessageTypes = Object.freeze({
   WORKER_GENERIC_RESPONSE: 'WorkerGenericResponse',
   WORKER_GENERIC_ERROR: 'WorkerGenericError',
   WORKER_SCRAPE_STAGE_RESULT: 'WorkerScrapeStageResult',
-  WORKER_DIRECT_SCRAPE_RESULT: 'WorkerDirectScrapeResult',
   WORKER_UI_LOADING_STATUS_UPDATE: 'UiLoadingStatusUpdate' // This one is used as a direct message type
 });
 

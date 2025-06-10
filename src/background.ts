@@ -147,31 +147,7 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
                     cleanupAndReject(`[BG-Scrape] Script error: ${scriptResult.error}`, scriptResult);
                     return;
                 }
-                // Update the placeholder message in the DB via forwardToSidePanel
-                if (typeof forwardToSidePanel === 'function' && chatId && messageId) {
-                    // Add __type marker to the extraction object
-                    const extractionWithType = { ...scriptResult, __type: "PageExtractor" };
-                    const updateMsg = {
-                        type: DBEventNames.DB_UPDATE_MESSAGE_REQUEST,
-                        payload: {
-                            sessionId: chatId,
-                            messageId: messageId,
-                            updates: {
-                                text: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
-                                content: "```json\n" + JSON.stringify(scriptResult, null, 2) + "\n```",
-                                extraction: extractionWithType,
-                                type: "code",
-                                metadata: JSON.stringify({
-                                    language: "json",
-                                    isJson: true,
-                                    extractionType: "PageExtractor",
-                                    extraction: extractionWithType
-                                })
-                            }
-                        }
-                    };
-                    forwardToSidePanel(updateMsg);
-                }
+                // Remove DB update logic; just resolve with the scrape result
                 resolve(scriptResult);
             } catch (error: unknown) {
                 const errMsg = error instanceof Error ? error.message : String(error);
@@ -231,19 +207,7 @@ async function fetchDriveFileList(token: string, folderId: string = 'root'): Pro
     return data.files || [];
 }
 
-async function forwardToSidePanel(message: any): Promise<any> {
-    console.log(CONTEXT_PREFIX + ' Attempting to forward message type: ' + message?.type + ' to active side panel.');
-    try {
-        // This relies on sidepanel.js having an active onMessage listener.
-        await browser.runtime.sendMessage(message);
-        console.log(CONTEXT_PREFIX + ' Message type: ' + message?.type + ' forwarded (presumed to side panel).');
-        return { success: true };
-    } catch (error: unknown) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error( CONTEXT_PREFIX +` Error forwarding message type '${message?.type}' to side panel:`, errMsg);
-        return { success: false, error: `Side panel not available or error: ${errMsg}` };
-    }
-}
+
 
 browser.runtime.onInstalled.addListener(async (details: any) => {
     console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);

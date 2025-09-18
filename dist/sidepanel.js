@@ -10665,6 +10665,11 @@ const UIEventNames = Object.freeze({
     REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
     REQUEST_MODEL_EXECUTION: 'ui:requestModelExecution', // When user clicks "Load Model" button (to load into worker)
     WORKER_STATE_CHANGED: 'worker:stateChanged', // Generic event for worker state updates (ready, error, etc.)
+    SHOW_GOOGLE_TERMS_DIALOG: 'ui:showGoogleTermsDialog',
+    SHOW_MODEL_SOURCE_DIALOG: 'ui:showModelSourceDialog',
+    SHOW_HUGGINGFACE_LOGIN_DIALOG: 'ui:showHuggingFaceLoginDialog',
+    SHOW_KAGGLE_LOGIN_DIALOG: 'ui:showKaggleLoginDialog',
+    SHOW_GOOGLE_LOGIN_DIALOG: 'ui:showGoogleLoginDialog',
 });
 const WorkerEventNames = Object.freeze({
     WORKER_SCRIPT_READY: 'workerScriptReady',
@@ -10694,6 +10699,10 @@ const WorkerEventNames = Object.freeze({
     INFERENCE_SETTINGS_UPDATE: 'inferenceSettingsUpdate',
     MEMORY_STATS: 'memoryStats',
     REQUEST_MEMORY_STATS: 'requestMemoryStats',
+    HUGGINGFACE_LOGIN: 'huggingfaceLogin',
+    HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
+    MODEL_SOURCE_SELECTION: 'modelSourceSelection',
+    GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

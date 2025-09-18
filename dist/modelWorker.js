@@ -46444,6 +46444,11 @@ const UIEventNames = Object.freeze({
     REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
     REQUEST_MODEL_EXECUTION: 'ui:requestModelExecution', // When user clicks "Load Model" button (to load into worker)
     WORKER_STATE_CHANGED: 'worker:stateChanged', // Generic event for worker state updates (ready, error, etc.)
+    SHOW_GOOGLE_TERMS_DIALOG: 'ui:showGoogleTermsDialog',
+    SHOW_MODEL_SOURCE_DIALOG: 'ui:showModelSourceDialog',
+    SHOW_HUGGINGFACE_LOGIN_DIALOG: 'ui:showHuggingFaceLoginDialog',
+    SHOW_KAGGLE_LOGIN_DIALOG: 'ui:showKaggleLoginDialog',
+    SHOW_GOOGLE_LOGIN_DIALOG: 'ui:showGoogleLoginDialog',
 });
 const WorkerEventNames = Object.freeze({
     WORKER_SCRIPT_READY: 'workerScriptReady',
@@ -46473,6 +46478,10 @@ const WorkerEventNames = Object.freeze({
     INFERENCE_SETTINGS_UPDATE: 'inferenceSettingsUpdate',
     MEMORY_STATS: 'memoryStats',
     REQUEST_MEMORY_STATS: 'requestMemoryStats',
+    HUGGINGFACE_LOGIN: 'huggingfaceLogin',
+    HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
+    MODEL_SOURCE_SELECTION: 'modelSourceSelection',
+    GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -47439,6 +47448,11 @@ async function loadMediaPipeModel(payload) {
     }
 }
 async function loadModelInternal(payload) {
+    // Check if this is a Google model that needs authentication
+    if (isGoogleModel(payload.modelId)) {
+        await handleGoogleModelLoad(payload);
+        return;
+    }
     if (payload.modelPath && payload.modelPath.endsWith('.gguf')) {
         await handleGgufModel(payload);
         return;
@@ -48054,20 +48068,38 @@ self.onmessage = async (event) => {
             if (LOG_GENERAL)
                 console.log(prefix, "Model worker reset complete.");
             break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.HUGGINGFACE_LOGIN:
+            await handleHuggingFaceLogin(payload);
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.HUGGINGFACE_LOGOUT:
+            await handleHuggingFaceLogout();
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MODEL_SOURCE_SELECTION:
+            await handleModelSourceSelection(payload);
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GOOGLE_TERMS_ACCEPTED:
+            await handleGoogleTermsAccepted(payload);
+            break;
         default:
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
             break;
     }
 };
+// Google model detection
+function isGoogleModel(modelId) {
+    return modelId.toLowerCase().startsWith('google/');
+}
 // MediaPipe model detection
 function isMediaPipeCompatibleModel(modelId, modelPath) {
     // Check for Gemma models or .litertlm/.task files
     const isGemmaModel = modelId.toLowerCase().includes('gemma');
     const isLitertlmFile = modelPath.toLowerCase().endsWith('.litertlm');
     const isTaskFile = modelPath.toLowerCase().endsWith('.task');
+    // Prefer Web versions for MediaPipe
+    const isWebVersion = modelPath.toLowerCase().includes('-web');
     if (LOG_DEBUG)
-        console.log(prefix, `[isMediaPipeCompatibleModel] Model: ${modelId}, Path: ${modelPath}, Gemma: ${isGemmaModel}, Litertlm: ${isLitertlmFile}, Task: ${isTaskFile}`);
-    return isGemmaModel || isLitertlmFile || isTaskFile;
+        console.log(prefix, `[isMediaPipeCompatibleModel] Model: ${modelId}, Path: ${modelPath}, Gemma: ${isGemmaModel}, Litertlm: ${isLitertlmFile}, Web: ${isWebVersion}`);
+    return (isGemmaModel || isLitertlmFile || isTaskFile) && isWebVersion;
 }
 async function setManifestQuantStatus(repo, quant, status) {
     let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getManifestEntry)(repo);
@@ -48175,6 +48207,163 @@ function sample(logits, generatedIds, options) {
         }
         return argMax(processedLogits);
     }
+}
+// Google model handling functions
+async function handleGoogleModelLoad(payload) {
+    // Check if user has already accepted Google terms
+    const termsAcceptedBlob = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getFromIndexedDB)('google_terms_accepted');
+    const termsAccepted = termsAcceptedBlob ? await termsAcceptedBlob.text() === 'true' : false;
+    if (!termsAccepted) {
+        // Show terms acceptance dialog
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG,
+            payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
+        });
+        return;
+    }
+    // Check if user has selected a source
+    const selectedSourceBlob = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getFromIndexedDB)('selected_model_source');
+    const selectedSource = selectedSourceBlob ? await selectedSourceBlob.text() : null;
+    if (!selectedSource) {
+        // Show source selection dialog
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG,
+            payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
+        });
+        return;
+    }
+    // Proceed with model loading based on selected source
+    await loadModelFromSource(payload, selectedSource);
+}
+async function handleModelSourceSelection(payload) {
+    const { modelId, source, modelPath, task, loadId } = payload;
+    // Store user's source preference
+    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.saveToIndexedDB)('selected_model_source', new Blob([source], { type: 'text/plain' }));
+    // Handle authentication based on source
+    switch (source) {
+        case 'huggingface':
+            await handleHuggingFaceAuth(modelId, modelPath, task, loadId);
+            break;
+        case 'kaggle':
+            await handleKaggleAuth(modelId, modelPath, task, loadId);
+            break;
+        case 'google':
+            await handleGoogleAuth(modelId, modelPath, task, loadId);
+            break;
+        default:
+            if (LOG_ERROR)
+                console.error(prefix, `[handleModelSourceSelection] Unknown source: ${source}`);
+            self.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR,
+                payload: { error: `Unknown model source: ${source}` }
+            });
+    }
+}
+async function handleHuggingFaceAuth(modelId, modelPath, task, loadId) {
+    // Check if user is already authenticated
+    const hfTokenBlob = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getFromIndexedDB)('huggingface_token');
+    const hfToken = hfTokenBlob ? await hfTokenBlob.text() : null;
+    if (!hfToken) {
+        // Show HuggingFace login dialog
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG,
+            payload: { modelId, modelPath, task, loadId }
+        });
+        return;
+    }
+    // Proceed with model loading
+    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, hfToken);
+}
+async function handleHuggingFaceLogin(payload) {
+    const { token, modelId, modelPath, task, loadId } = payload;
+    // Store the token
+    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.saveToIndexedDB)('huggingface_token', new Blob([token], { type: 'text/plain' }));
+    // Proceed with model loading
+    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, token);
+}
+async function handleHuggingFaceLogout() {
+    // Remove the token
+    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.saveToIndexedDB)('huggingface_token', new Blob([''], { type: 'text/plain' }));
+    if (LOG_GENERAL)
+        console.log(prefix, '[handleHuggingFaceLogout] HuggingFace token removed');
+}
+async function handleKaggleAuth(modelId, modelPath, task, loadId) {
+    // Check if user is already authenticated
+    const kaggleTokenBlob = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getFromIndexedDB)('kaggle_token');
+    const kaggleToken = kaggleTokenBlob ? await kaggleTokenBlob.text() : null;
+    if (!kaggleToken) {
+        // Show Kaggle login dialog
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG,
+            payload: { modelId, modelPath, task, loadId }
+        });
+        return;
+    }
+    // Proceed with model loading
+    await loadModelFromKaggle(modelId, modelPath, task, loadId, kaggleToken);
+}
+async function handleGoogleAuth(modelId, modelPath, task, loadId) {
+    // Check if user is already authenticated
+    const googleTokenBlob = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getFromIndexedDB)('google_token');
+    const googleToken = googleTokenBlob ? await googleTokenBlob.text() : null;
+    if (!googleToken) {
+        // Show Google login dialog
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG,
+            payload: { modelId, modelPath, task, loadId }
+        });
+        return;
+    }
+    // Proceed with model loading
+    await loadModelFromGoogle(modelId, modelPath, task, loadId, googleToken);
+}
+async function loadModelFromSource(payload, source) {
+    switch (source) {
+        case 'huggingface':
+            await loadModelFromHuggingFace(payload.modelId, payload.modelPath, payload.task, payload.loadId);
+            break;
+        case 'kaggle':
+            await loadModelFromKaggle(payload.modelId, payload.modelPath, payload.task, payload.loadId);
+            break;
+        case 'google':
+            await loadModelFromGoogle(payload.modelId, payload.modelPath, payload.task, payload.loadId);
+            break;
+        default:
+            if (LOG_ERROR)
+                console.error(prefix, `[loadModelFromSource] Unknown source: ${source}`);
+    }
+}
+async function loadModelFromHuggingFace(modelId, modelPath, task, loadId, token) {
+    // Add token to your existing fetch interceptor
+    if (token) {
+        // Update your fetch interceptor to include the token
+        // This will be handled in your existing fetch logic
+    }
+    // Proceed with MediaPipe model loading
+    await loadMediaPipeModel({ modelId, modelPath, task, loadId });
+}
+async function loadModelFromKaggle(modelId, modelPath, task, loadId, token) {
+    // Add Kaggle-specific logic here
+    if (LOG_GENERAL)
+        console.log(prefix, `[loadModelFromKaggle] Loading from Kaggle: ${modelId}`);
+    // For now, fallback to HuggingFace
+    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, token);
+}
+async function loadModelFromGoogle(modelId, modelPath, task, loadId, token) {
+    // Add Google-specific logic here
+    if (LOG_GENERAL)
+        console.log(prefix, `[loadModelFromGoogle] Loading from Google: ${modelId}`);
+    // For now, fallback to HuggingFace
+    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, token);
+}
+async function handleGoogleTermsAccepted(payload) {
+    // Store terms acceptance
+    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.saveToIndexedDB)('google_terms_accepted', new Blob(['true'], { type: 'text/plain' }));
+    // Show source selection dialog
+    self.postMessage({
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG,
+        payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
+    });
 }
 
 })();

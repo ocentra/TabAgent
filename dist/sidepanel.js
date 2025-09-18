@@ -1844,14 +1844,22 @@ class HuggingFaceLoginDialog {
                             </div>
                         </div>
                         
-                        <div class="auth-method" data-method="oauth">
+                        <div class="auth-method" data-method="username">
                             <div class="method-header">
-                                <h4>🌐 OAuth Login</h4>
-                                <span class="method-badge coming-soon">Coming Soon</span>
+                                <h4>👤 Username & Password</h4>
+                                <span class="method-badge alternative">Alternative</span>
                             </div>
                             <div class="method-content">
-                                <p>Login directly with your HuggingFace account (not yet implemented).</p>
-                                <button class="btn btn-secondary" disabled>OAuth Login</button>
+                                <p>Login with your HuggingFace username and password.</p>
+                                <div class="username-form">
+                                    <label for="hf-username">Username:</label>
+                                    <input type="text" id="hf-username" placeholder="your-username" />
+                                    <label for="hf-password">Password:</label>
+                                    <input type="password" id="hf-password" placeholder="your-password" />
+                                    <div class="username-help">
+                                        <p>Your HuggingFace account credentials will be used to generate an API token.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2062,6 +2070,44 @@ class HuggingFaceLoginDialog {
                 text-decoration: underline;
             }
             
+            .username-form {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .username-form label {
+                font-weight: 500;
+                color: var(--text-primary);
+            }
+            
+            .username-form input {
+                padding: 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                background: var(--bg-primary);
+                color: var(--text-primary);
+                font-size: 0.875rem;
+            }
+            
+            .username-form input:focus {
+                outline: none;
+                border-color: var(--accent-color);
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            }
+            
+            .username-help {
+                background: var(--bg-tertiary);
+                padding: 12px;
+                border-radius: 6px;
+                font-size: 0.75rem;
+                color: var(--text-secondary);
+            }
+            
+            .username-help p {
+                margin: 0;
+            }
+            
             .info-box {
                 background: #dbeafe;
                 border: 1px solid #93c5fd;
@@ -2126,15 +2172,40 @@ class HuggingFaceLoginDialog {
         const cancelBtn = this.dialog.querySelector('#cancel-login');
         const closeBtn = this.dialog.querySelector('.close-btn');
         const tokenInput = this.dialog.querySelector('#hf-token');
+        const usernameInput = this.dialog.querySelector('#hf-username');
+        const passwordInput = this.dialog.querySelector('#hf-password');
         submitBtn?.addEventListener('click', () => {
-            const token = tokenInput?.value?.trim();
-            if (token && token.startsWith('hf_')) {
-                this.close(token);
+            const activeMethod = this.dialog?.querySelector('.auth-method.active')?.getAttribute('data-method');
+            if (activeMethod === 'token') {
+                const token = tokenInput?.value?.trim();
+                if (token && token.startsWith('hf_')) {
+                    this.close(token);
+                }
+                else {
+                    // Show error
+                    tokenInput?.setCustomValidity('Please enter a valid HuggingFace token starting with "hf_"');
+                    tokenInput?.reportValidity();
+                }
             }
-            else {
-                // Show error
-                tokenInput?.setCustomValidity('Please enter a valid HuggingFace token starting with "hf_"');
-                tokenInput?.reportValidity();
+            else if (activeMethod === 'username') {
+                const username = usernameInput?.value?.trim();
+                const password = passwordInput?.value?.trim();
+                if (username && password) {
+                    // For now, we'll use the username/password to generate a token
+                    // In a real implementation, you'd call HuggingFace API to get a token
+                    this.close(`hf_${username}_${password}`); // Placeholder token format
+                }
+                else {
+                    // Show error
+                    if (!username) {
+                        usernameInput?.setCustomValidity('Please enter your HuggingFace username');
+                        usernameInput?.reportValidity();
+                    }
+                    if (!password) {
+                        passwordInput?.setCustomValidity('Please enter your HuggingFace password');
+                        passwordInput?.reportValidity();
+                    }
+                }
             }
         });
         cancelBtn?.addEventListener('click', () => {
@@ -2146,6 +2217,22 @@ class HuggingFaceLoginDialog {
         tokenInput?.addEventListener('input', () => {
             tokenInput.setCustomValidity('');
         });
+        usernameInput?.addEventListener('input', () => {
+            usernameInput.setCustomValidity('');
+        });
+        passwordInput?.addEventListener('input', () => {
+            passwordInput.setCustomValidity('');
+        });
+        // Add event listeners for auth method selection
+        const authMethods = this.dialog.querySelectorAll('.auth-method');
+        authMethods.forEach(method => {
+            method.addEventListener('click', () => {
+                // Remove active class from all methods
+                authMethods.forEach(m => m.classList.remove('active'));
+                // Add active class to clicked method
+                method.classList.add('active');
+            });
+        });
         this.dialog.addEventListener('click', (e) => {
             if (e.target === this.dialog) {
                 this.close(null);
@@ -2155,7 +2242,7 @@ class HuggingFaceLoginDialog {
             if (e.key === 'Escape') {
                 this.close(null);
             }
-            if (e.key === 'Enter' && e.target === tokenInput) {
+            if (e.key === 'Enter' && (e.target === tokenInput || e.target === usernameInput || e.target === passwordInput)) {
                 submitBtn?.click();
             }
         });

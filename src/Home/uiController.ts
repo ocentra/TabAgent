@@ -40,6 +40,7 @@ export const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
+    "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
     // Add more models here as needed
 };
 

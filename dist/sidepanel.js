@@ -8222,7 +8222,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
 /* harmony export */   getServerOnlySizeLimit: () => (/* binding */ getServerOnlySizeLimit),
-/* harmony export */   initializeGoogleModels: () => (/* binding */ initializeGoogleModels),
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
@@ -8772,38 +8771,6 @@ async function addQuantToManifest(repo, modelPath, status, files) {
         }
     }
     await addManifestEntry(repo, manifest);
-}
-// Initialize Google models in manifest
-async function initializeGoogleModels() {
-    const googleModels = [
-        {
-            repo: 'google/gemma-3n-E4B-it-litert-lm',
-            name: 'Gemma 3B (MediaPipe)',
-            description: 'Google Gemma 3B model optimized for MediaPipe with streaming support',
-            task: 'text-generation',
-            manifestVersion: CURRENT_MANIFEST_VERSION,
-            quants: {
-                'gemma-3n-E4B-it-int4-Web.litertlm': {
-                    files: ['gemma-3n-E4B-it-int4-Web.litertlm'],
-                    status: QuantStatus.Available
-                }
-            }
-        }
-    ];
-    for (const model of googleModels) {
-        try {
-            const existing = await getManifestEntry(model.repo);
-            if (!existing) {
-                await addManifestEntry(model.repo, model);
-                if (LOG_GENERAL)
-                    console.log(prefix, `[initializeGoogleModels] Added Google model: ${model.repo}`);
-            }
-        }
-        catch (error) {
-            if (LOG_ERROR)
-                console.error(prefix, `[initializeGoogleModels] Error adding model ${model.repo}:`, error);
-        }
-    }
 }
 
 
@@ -10420,6 +10387,7 @@ const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
+    "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
     // Add more models here as needed
 };
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
@@ -13101,16 +13069,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_13__.initializeSettingsController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Settings Controller Initialized.`);
-        // Initialize Google models
-        try {
-            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.initializeGoogleModels)();
-            if (LOG_DEBUG)
-                console.log(`${prefix} Google models initialized.`);
-        }
-        catch (error) {
-            if (LOG_ERROR)
-                console.error(`${prefix} Error initializing Google models:`, error);
-        }
         (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__.initializeSpacesController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Spaces Controller Initialized.`);
@@ -13287,7 +13245,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
     const dropdownRepos = getModelSelectorOptions();
     if (LOG_MANIFEST_GENERATION)
         console.log(`${prefix} [ensureManifestForDropdownRepos] Dropdown repos to check/update:`, dropdownRepos);
-    const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model)$/i;
+    const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model|litertlm)$/i;
     const processedRepos = [];
     const skippedRepos = [];
     const errorRepos = [];
@@ -13332,7 +13290,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 console.log(`${prefix} [ensureManifestForDropdownRepos] All files in repo ${repo}:`, allFileNamesInRepo);
             const quantMap = {};
             for (const file of siblings) {
-                if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf'))) {
+                if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf') || file.rfilename.endsWith('.litertlm'))) {
                     const quantKey = file.rfilename;
                     if (!allFileNamesInRepo.has(quantKey)) {
                         if (LOG_WARN)
@@ -13422,6 +13380,32 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                             // Check if this model is in the bypass list
                             if (!bypassModels.has(repo)) {
                                 isServerOnly = true;
+                            }
+                        }
+                    }
+                    else if (quantKey.endsWith('.litertlm')) {
+                        // For MediaPipe .litertlm files, check the file size directly
+                        const entry = siblings.find(f => f.rfilename === quantKey);
+                        if (entry && typeof entry.size === 'number' && entry.size > serverOnlySizeLimit) {
+                            // Check if this model is in the bypass list
+                            if (!bypassModels.has(repo)) {
+                                isServerOnly = true;
+                                if (LOG_MANIFEST_GENERATION) {
+                                    console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} size check:`);
+                                    console.log(`${prefix} [ensureManifestForDropdownRepos] - File size: ${entry.size} bytes (${(entry.size / (1024 * 1024 * 1024)).toFixed(2)} GB)`);
+                                    console.log(`${prefix} [ensureManifestForDropdownRepos] - Size limit: ${serverOnlySizeLimit} bytes (${(serverOnlySizeLimit / (1024 * 1024 * 1024)).toFixed(2)} GB)`);
+                                    console.log(`${prefix} [ensureManifestForDropdownRepos] - Setting server_only=true (over limit and not bypassed)`);
+                                }
+                            }
+                            else {
+                                if (LOG_MANIFEST_GENERATION) {
+                                    console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (over limit but bypassed)`);
+                                }
+                            }
+                        }
+                        else {
+                            if (LOG_MANIFEST_GENERATION) {
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (under limit)`);
                             }
                         }
                     }

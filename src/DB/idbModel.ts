@@ -503,33 +503,3 @@ export async function addQuantToManifest(repo: string, modelPath: string, status
     await addManifestEntry(repo, manifest);
 }
 
-// Initialize Google models in manifest
-export async function initializeGoogleModels(): Promise<void> {
-    const googleModels = [
-        {
-            repo: 'google/gemma-3n-E4B-it-litert-lm',
-            name: 'Gemma 3B (MediaPipe)',
-            description: 'Google Gemma 3B model optimized for MediaPipe with streaming support',
-            task: 'text-generation',
-            manifestVersion: CURRENT_MANIFEST_VERSION,
-            quants: {
-                'gemma-3n-E4B-it-int4-Web.litertlm': {
-                    files: ['gemma-3n-E4B-it-int4-Web.litertlm'],
-                    status: QuantStatus.Available
-                }
-            }
-        }
-    ];
-
-    for (const model of googleModels) {
-        try {
-            const existing = await getManifestEntry(model.repo);
-            if (!existing) {
-                await addManifestEntry(model.repo, model);
-                if (LOG_GENERAL) console.log(prefix, `[initializeGoogleModels] Added Google model: ${model.repo}`);
-            }
-        } catch (error) {
-            if (LOG_ERROR) console.error(prefix, `[initializeGoogleModels] Error adding model ${model.repo}:`, error);
-        }
-    }
-}

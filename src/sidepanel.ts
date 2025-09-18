@@ -46,7 +46,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, getServerOnlySizeLimit, getBypassSizeLimitModels, initializeGoogleModels } from './DB/idbModel';
+import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, getServerOnlySizeLimit, getBypassSizeLimitModels } from './DB/idbModel';
 import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
@@ -1047,14 +1047,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeSettingsController();
     if (LOG_DEBUG) console.log(`${prefix} Settings Controller Initialized.`);
 
-    // Initialize Google models
-    try {
-        await initializeGoogleModels();
-        if (LOG_DEBUG) console.log(`${prefix} Google models initialized.`);
-    } catch (error) {
-        if (LOG_ERROR) console.error(`${prefix} Error initializing Google models:`, error);
-    }
-
     initializeSpacesController();
     if (LOG_DEBUG) console.log(`${prefix} Spaces Controller Initialized.`);
 
@@ -1222,7 +1214,7 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
   const dropdownRepos = getModelSelectorOptions(); 
   if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Dropdown repos to check/update:`, dropdownRepos);
 
-  const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model)$/i;
+  const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model|litertlm)$/i;
 
   const processedRepos: string[] = [];
   const skippedRepos: string[] = [];
@@ -1266,7 +1258,7 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
       const quantMap: Record<string, any> = {};
 
       for (const file of siblings) {
-        if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf'))) {
+        if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf') || file.rfilename.endsWith('.litertlm'))) {
           const quantKey = file.rfilename; 
           if (!allFileNamesInRepo.has(quantKey)) {
             if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant model file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
@@ -1357,6 +1349,29 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
               // Check if this model is in the bypass list
               if (!bypassModels.has(repo)) {
                 isServerOnly = true;
+              }
+            }
+          } else if (quantKey.endsWith('.litertlm')) {
+            // For MediaPipe .litertlm files, check the file size directly
+            const entry = siblings.find(f => f.rfilename === quantKey);
+            if (entry && typeof entry.size === 'number' && entry.size > serverOnlySizeLimit) {
+              // Check if this model is in the bypass list
+              if (!bypassModels.has(repo)) {
+                isServerOnly = true;
+                if (LOG_MANIFEST_GENERATION) {
+                  console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} size check:`);
+                  console.log(`${prefix} [ensureManifestForDropdownRepos] - File size: ${entry.size} bytes (${(entry.size / (1024*1024*1024)).toFixed(2)} GB)`);
+                  console.log(`${prefix} [ensureManifestForDropdownRepos] - Size limit: ${serverOnlySizeLimit} bytes (${(serverOnlySizeLimit / (1024*1024*1024)).toFixed(2)} GB)`);
+                  console.log(`${prefix} [ensureManifestForDropdownRepos] - Setting server_only=true (over limit and not bypassed)`);
+                }
+              } else {
+                if (LOG_MANIFEST_GENERATION) {
+                  console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (over limit but bypassed)`);
+                }
+              }
+            } else {
+              if (LOG_MANIFEST_GENERATION) {
+                console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (under limit)`);
               }
             }
           }

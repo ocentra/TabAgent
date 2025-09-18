@@ -16,13 +16,16 @@ const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!(navigato
 let hasWebGPU: boolean = _isNavigatorGpuAvailable;
 let webgpuCheckPromise: Promise<void> = Promise.resolve();
 const prefix = '[ModelWorker]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
-const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_SELF = true;
-const LOG_GENERATION = true;
+const LOG_GENERAL = true; // Enable general logs for model loading debugging
+const LOG_DEBUG = true;   // Enable debug logs for model loading debugging
+const LOG_ERROR = true;   // Keep error logs enabled
+const LOG_WARN = true;    // Enable warning logs for model loading debugging
+const LOG_SELF = false;   // Keep self logs disabled
+const LOG_GENERATION = false; // Keep generation logs disabled
+const LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
 let currentLoadId: string | undefined = undefined;
+let isGenerating = false;
+let shouldStopGeneration = false;
 
 // Log the imported Module to verify import and see available keys
 console.log('[ModelWorker] llama_bitnet_inference Module:', Module);
@@ -158,6 +161,7 @@ let numKeyValueHeads: number | undefined;
 let headDim: number | undefined;
 let eosTokenId: number | undefined = undefined;
 let modelContextLength: number = 2048; // A reasonable default
+let modelInputMetadata: Map<string, { type: string; dims: number[] }> = new Map();
 
 (async () => {
     const settings = await getInferenceSettings();
@@ -267,12 +271,15 @@ async function rewriteSupportingFilePath(resourceUrl: string, resourceFileName: 
 
 async function tryServeFromIndexedDB(resourceUrl: string): Promise<Response | null> {
     if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
+        if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] URL doesn't match pattern, not checking cache: ${resourceUrl}`);
         return null;
     }
     
     try {
+        if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] Checking cache for: ${resourceUrl}`);
         const cached = await getFromIndexedDB(resourceUrl);
         if (cached) {
+            if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] Found cached response for: ${resourceUrl}, size: ${cached.size} bytes`);
             const headers = new Headers();
             if (cached.type) {
                 headers.set('Content-Type', cached.type);
@@ -283,6 +290,8 @@ async function tryServeFromIndexedDB(resourceUrl: string): Promise<Response | nu
             }
             headers.set('Content-Length', cached.size.toString());
             return new Response(cached, { headers: headers });
+        } else {
+            if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] No cached response found for: ${resourceUrl}`);
         }
         return null;
     } catch (dbError) {
@@ -323,8 +332,10 @@ async function saveToDualIndexedDB(resourceUrl: string, blob: Blob, originalInpu
 
 async function fetchFromNetworkAndCache(input: RequestInfo | URL, resourceUrl: string, options?: RequestInit): Promise<Response> {
     const { fetchInput } = determineFetchInput(input, resourceUrl);
+    if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] Fetching from: ${resourceUrl}, fetchInput: ${fetchInput}`);
     
     const resp = await originalFetch.call(self, fetchInput, options);
+    if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] Response: status=${resp.status}, statusText=${resp.statusText}, ok=${resp.ok}`);
     if (!resp.ok) {
         return resp;
     }
@@ -360,7 +371,10 @@ self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Pr
 
         const cachedResponse = await tryServeFromIndexedDB(finalResourceUrl);
         if (cachedResponse) {
+            if (LOG_DEBUG) console.log(prefix, `[Custom Fetch] Serving from cache: ${finalResourceUrl}`);
             return cachedResponse;
+        } else {
+            if (LOG_DEBUG) console.log(prefix, `[Custom Fetch] Cache miss, proceeding to network fetch: ${finalResourceUrl}`);
         }
 
         if (finalResourceUrl.includes('/resolve/main/') || finalResourceUrl.includes('/resolve/')) {
@@ -528,6 +542,15 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
 
         modelContextLength = modelConfig?.max_position_embeddings || modelConfig?.n_positions || 2048;
         if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Model context length set to: ${modelContextLength}`);
+        
+        // Log model quantization type for debugging
+        if (LOG_GENERAL) {
+            const quantType = currentModelQuantPath ? 
+                (currentModelQuantPath.includes('fp16') ? 'FP16' : 
+                 currentModelQuantPath.includes('bnb4') ? 'BNB4' :
+                 currentModelQuantPath.includes('int8') ? 'INT8' : 'Unknown') : 'Unknown';
+            console.log(prefix, `[loadModelInternal] Model quantization type: ${quantType}`);
+        }
 
         if (modelConfig) {
             if (tokenizer?.eos_token_id !== null && tokenizer?.eos_token_id !== undefined) {
@@ -556,27 +579,45 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
 
         const onnxModelFile = currentModelQuantPath;
         const onnxModelUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${onnxModelFile}`;
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Attempting to fetch ONNX model from: ${onnxModelUrl}`);
         const onnxModelResponse = await self.fetch(onnxModelUrl);
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ONNX model fetch response: status=${onnxModelResponse.status}, statusText=${onnxModelResponse.statusText}, ok=${onnxModelResponse.ok}`);
         if (!onnxModelResponse.ok) {
             throw new Error(`Failed to fetch ONNX model ${onnxModelFile}: ${onnxModelResponse.statusText}`);
         }
-        const onnxModelArrayBuffer = await onnxModelResponse.arrayBuffer();
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Converting response to ArrayBuffer...`);
+        let onnxModelArrayBuffer: ArrayBuffer;
+        try {
+            onnxModelArrayBuffer = await onnxModelResponse.arrayBuffer();
+            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ArrayBuffer created successfully, size: ${onnxModelArrayBuffer.byteLength} bytes`);
+        } catch (arrayBufferError) {
+            if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Error converting response to ArrayBuffer:`, arrayBufferError);
+            throw arrayBufferError;
+        }
         self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: onnxModelFile, progress: 70, loaded: onnxModelArrayBuffer.byteLength, total: onnxModelArrayBuffer.byteLength, loadId } });
 
         let externalDataConfig: { externalData?: any[] } = {};
         const onnxDataFilePattern = onnxModelFile.replace(/\.onnx$/, String.raw`\.onnx_data`);
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Looking for external data file with pattern: ${onnxDataFilePattern}`);
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Available quant files:`, quantFiles);
         const onnxDataFile = quantFiles.find(f => f.match(new RegExp(onnxDataFilePattern + '$')) || f.match(new RegExp(onnxModelFile + String.raw`.data` + '$')));
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Found external data file: ${onnxDataFile}`);
 
         if (onnxDataFile) {
             const onnxDataUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${onnxDataFile}`;
+            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Attempting to fetch ONNX external data from: ${onnxDataUrl}`);
             self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: onnxDataFile, progress: 75, loadId } });
             const onnxDataResponse = await self.fetch(onnxDataUrl);
+            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ONNX external data fetch response: status=${onnxDataResponse.status}, statusText=${onnxDataResponse.statusText}, ok=${onnxDataResponse.ok}`);
             if (!onnxDataResponse.ok) {
                 throw new Error(`Failed to fetch ONNX external data ${onnxDataFile}: ${onnxDataResponse.statusText}`);
             }
             const onnxDataArrayBuffer = await onnxDataResponse.arrayBuffer();
-            const onnxDataName = onnxDataFile.split('/').pop();
-            externalDataConfig.externalData = [{ name: onnxDataName, data: onnxDataArrayBuffer }];
+            const onnxDataName = onnxDataFile.split('/').pop() || onnxDataFile;
+            
+            if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] External data file: ${onnxDataFile}, name: ${onnxDataName}, size: ${onnxDataArrayBuffer.byteLength} bytes`);
+            
+            externalDataConfig.externalData = [{ path: onnxDataName, data: onnxDataArrayBuffer }];
             self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: onnxDataFile, progress: 85, loaded: onnxDataArrayBuffer.byteLength, total: onnxDataArrayBuffer.byteLength, loadId } });
         }
 
@@ -593,6 +634,27 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
         onnxSession = await ort.InferenceSession.create(onnxModelArrayBuffer, { ...ortSessionOptions, ...externalDataConfig });
         inputNames = onnxSession.inputNames;
         outputNames = onnxSession.outputNames;
+        
+        // Store input metadata for tensor type detection
+        modelInputMetadata.clear();
+        if (onnxSession.inputNames && onnxSession.inputNames.length > 0) {
+            // Try to get input metadata from the session
+            try {
+                // Check if getInputMetadata method exists
+                if (typeof onnxSession.getInputMetadata === 'function') {
+                    const sessionMetadata = await onnxSession.getInputMetadata();
+                    for (const [name, metadata] of Object.entries(sessionMetadata)) {
+                        if (metadata && typeof metadata === 'object' && 'type' in metadata) {
+                            modelInputMetadata.set(name, metadata as { type: string; dims: number[] });
+                        }
+                    }
+                } else {
+                    if (LOG_WARN) console.warn(prefix, '[loadModelInternal] getInputMetadata method not available, using fallback detection');
+                }
+            } catch (e) {
+                if (LOG_WARN) console.warn(prefix, '[loadModelInternal] Could not get input metadata, using fallback detection:', e);
+            }
+        }
 
         let actualExecutionProvider = onnxSession.executionProvider;
         let providerNote: string | undefined = undefined;
@@ -637,6 +699,12 @@ async function generateInternal(payload: any): Promise<void> {
         self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'Model not ready. Please load a model first.' } });
         return;
     }
+    
+    // Set generation state
+    isGenerating = true;
+    shouldStopGeneration = false;
+    console.log(prefix, '[generateInternal] Generation started. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
+    
     const { chatId, messageId, messages, message, input } = payload;
     if (LOG_GENERATION) console.log(prefix, '[generateInternal] Received payload:', JSON.stringify(payload));
 
@@ -653,29 +721,127 @@ async function generateInternal(payload: any): Promise<void> {
                 messagesForTemplate.push({ role: 'system', content: system_prompt });
             }
         }
-        if (Array.isArray(messages)) messagesForTemplate.push(...messages);
-        else if (message) messagesForTemplate.push({ role: 'user', content: message });
-        else if (input) messagesForTemplate.push({ role: 'user', content: input });
+        if (Array.isArray(messages)) {
+            if (LOG_CHAT_HISTORY) {
+                console.log(prefix, '[CHAT_HISTORY] Received messages array from orchestrator:', messages.length, 'messages');
+                messages.forEach((msg: any, i: number) => {
+                    console.log(prefix, `[CHAT_HISTORY] Input msg[${i}]:`, {
+                        role: msg.role,
+                        content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                    });
+                });
+            }
+            messagesForTemplate.push(...messages);
+        }
+        else if (message) {
+            if (LOG_CHAT_HISTORY) console.log(prefix, '[CHAT_HISTORY] Using single message:', message.substring(0, 100) + '...');
+            messagesForTemplate.push({ role: 'user', content: message });
+        }
+        else if (input) {
+            if (LOG_CHAT_HISTORY) console.log(prefix, '[CHAT_HISTORY] Using input:', input.substring(0, 100) + '...');
+            messagesForTemplate.push({ role: 'user', content: input });
+        }
 
         const effectiveMaxLength = Math.min(max_length, modelContextLength);
 
         let promptTokenIds;
         while (true) {
+            if (LOG_CHAT_HISTORY) {
+                console.log(prefix, '[CHAT_HISTORY] Final messages for tokenization:', messagesForTemplate.length, 'messages');
+                messagesForTemplate.forEach((msg: any, i: number) => {
+                    console.log(prefix, `[CHAT_HISTORY] Tokenization msg[${i}]:`, {
+                        role: msg.role,
+                        content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                    });
+                });
+            }
             const tokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
             promptTokenIds = tokenIdsTensor.tolist().flat();
+            
+            if (LOG_CHAT_HISTORY) {
+                console.log(prefix, '[CHAT_HISTORY] Tokenization result:', {
+                    promptTokens: promptTokenIds.length,
+                    effectiveMaxLength: effectiveMaxLength,
+                    modelContextLength: modelContextLength,
+                    maxLength: max_length
+                });
+            }
             
             if (promptTokenIds.length < effectiveMaxLength) {
                 break;
             }
 
-            if (messagesForTemplate.length > 2) {
-                if (LOG_WARN) console.warn(prefix, `[generateInternal] Context too long (${promptTokenIds.length}). Removing oldest message.`);
-                messagesForTemplate.splice(1, 1);
-            } else {
-                if (LOG_ERROR) console.error(prefix, `[generateInternal] Prompt length (${promptTokenIds.length}) exceeds effective max length (${effectiveMaxLength}) and cannot be shortened further.`);
-                self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: `The conversation history is too long to process. Please start a new chat.` } });
-                return;
+            // Context is too long, need to trim intelligently
+            if (LOG_CHAT_HISTORY) {
+                console.log(prefix, '[CHAT_HISTORY] Context too long, trimming content intelligently');
+                console.log(prefix, '[CHAT_HISTORY] Before trimming:', messagesForTemplate.length, 'messages,', promptTokenIds.length, 'tokens');
             }
+            
+            // Smart content trimming: preserve structure but trim content
+            const targetTokens = Math.floor(effectiveMaxLength * 0.8); // Use 80% of limit for safety
+            const systemPrompt = messagesForTemplate[0];
+            const lastUserMessage = messagesForTemplate[messagesForTemplate.length - 1];
+            const middleMessages = messagesForTemplate.slice(1, -1);
+            
+            // Calculate tokens for system prompt and last user message
+            const systemTokens = tokenizer.encode(systemPrompt.content).length;
+            const lastUserTokens = tokenizer.encode(lastUserMessage.content).length;
+            const reservedTokens = systemTokens + lastUserTokens + 100; // 100 tokens buffer
+            
+            let availableTokens = targetTokens - reservedTokens;
+            
+            if (LOG_CHAT_HISTORY) {
+                console.log(prefix, '[CHAT_HISTORY] Token budget:', {
+                    targetTokens,
+                    systemTokens,
+                    lastUserTokens,
+                    reservedTokens,
+                    availableTokens
+                });
+            }
+            
+            // Trim middle messages to fit within available tokens
+            const trimmedMessages = [];
+            let usedTokens = 0;
+            
+            for (let i = 0; i < middleMessages.length; i++) {
+                const msg = middleMessages[i];
+                const msgTokens = tokenizer.encode(msg.content).length;
+                
+                if (usedTokens + msgTokens <= availableTokens) {
+                    // Message fits, add it as-is
+                    trimmedMessages.push(msg);
+                    usedTokens += msgTokens;
+                } else {
+                    // Message too long, trim it
+                    const remainingTokens = availableTokens - usedTokens;
+                    if (remainingTokens > 50) { // Only add if we have meaningful space left
+                        const trimmedContent = tokenizer.decode(tokenizer.encode(msg.content).slice(0, remainingTokens - 10)) + '...';
+                        trimmedMessages.push({
+                            ...msg,
+                            content: trimmedContent
+                        });
+                    }
+                    break; // Stop adding more messages
+                }
+            }
+            
+            // Reconstruct messages: system + trimmed middle + last user message
+            messagesForTemplate = [systemPrompt, ...trimmedMessages, lastUserMessage];
+            
+            if (LOG_CHAT_HISTORY) {
+                console.log(prefix, '[CHAT_HISTORY] After intelligent trimming:', messagesForTemplate.length, 'messages');
+                messagesForTemplate.forEach((msg, i) => {
+                    console.log(prefix, `[CHAT_HISTORY] Trimmed msg[${i}]:`, {
+                        role: msg.role,
+                        content: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+                    });
+                });
+            }
+            
+            // Re-tokenize to check if we're now within limits
+            const newTokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
+            promptTokenIds = newTokenIdsTensor.tolist().flat();
         }
         
         if (LOG_GENERATION) console.log(prefix, '[generateInternal] Correctly tokenized prompt IDs:', promptTokenIds);
@@ -692,11 +858,19 @@ async function generateInternal(payload: any): Promise<void> {
         let pastKeyValues: Record<string, ort.Tensor> | null = null;
 
         for (let i = 0; i < max_new_tokens; i++) {
+            // Check if generation should be stopped
+            if (shouldStopGeneration) {
+                console.log(prefix, '[generateInternal] Generation stopped by user request at iteration', i);
+                break;
+            }
+            
             const currentSequenceLength = promptTokenIds.length + generatedTokenIds.length;
             if (currentSequenceLength >= maxLen) {
                 if (LOG_GENERATION) console.log(prefix, '[generateInternal] Max length reached.');
                 break;
             }
+            
+            if (LOG_GENERATION) console.log(prefix, `[generateInternal] Generation step ${i + 1}/${max_new_tokens}, sequence length: ${currentSequenceLength}`);
 
             const feeds: Record<string, ort.Tensor> = {};
             let inputIds: number[];
@@ -724,9 +898,50 @@ async function generateInternal(payload: any): Promise<void> {
 
             if (i === 0) {
                 if (numKeyValueHeads && headDim) {
+                    // Get the expected tensor data type from the model's input metadata
+                    const getTensorDataType = (inputName: string): string => {
+                        // First, try to get the data type from the model's actual input metadata
+                        const metadata = modelInputMetadata.get(inputName);
+                        if (metadata && metadata.type) {
+                            // Convert ONNX type to ORT type
+                            const onnxType = metadata.type.toLowerCase();
+                            if (onnxType.includes('float16') || onnxType.includes('f16')) {
+                                return 'float16';
+                            } else if (onnxType.includes('float32') || onnxType.includes('f32') || onnxType.includes('float')) {
+                                return 'float32';
+                            }
+                        }
+                        
+                        // Fallback: Check quantization type by examining the model path
+                        const isFP16Model = currentModelQuantPath && (
+                            currentModelQuantPath.includes('fp16') || 
+                            currentModelQuantPath.includes('float16')
+                        );
+                        const isBNB4Model = currentModelQuantPath && (
+                            currentModelQuantPath.includes('bnb4') || 
+                            currentModelQuantPath.includes('bitsandbytes')
+                        );
+                        
+                        // For attention-related tensors, use the appropriate precision
+                        if (inputName.startsWith('past_key_values.') || inputName.includes('attention')) {
+                            if (isFP16Model) return 'float16';
+                            if (isBNB4Model) return 'float32'; // BNB4 models typically use float32 for compatibility
+                            return 'float32'; // Default
+                        }
+                        
+                        return 'float32'; // Default fallback
+                    };
+                    
                     for (const name of inputNames) {
                         if (name.startsWith('past_key_values.')) {
-                            feeds[name] = new ort.Tensor('float32', new Float32Array(0), [1, numKeyValueHeads, 0, headDim]);
+                            const dataType = getTensorDataType(name);
+                            if (LOG_GENERATION) console.log(prefix, `[generateInternal] Creating tensor for ${name} with data type: ${dataType}`);
+                            
+                            if (dataType === 'float16') {
+                                feeds[name] = new ort.Tensor('float16', new Uint16Array(0), [1, numKeyValueHeads, 0, headDim]);
+                            } else {
+                                feeds[name] = new ort.Tensor('float32', new Float32Array(0), [1, numKeyValueHeads, 0, headDim]);
+                            }
                         }
                     }
                 }
@@ -736,7 +951,18 @@ async function generateInternal(payload: any): Promise<void> {
                 }
             }
 
+            if (LOG_GENERATION) console.log(prefix, `[generateInternal] Running ONNX session with ${Object.keys(feeds).length} inputs`);
+            
             const outputMap = await onnxSession!.run(feeds);
+            
+            // Check for stop request after ONNX session completes
+            if (shouldStopGeneration) {
+                console.log(prefix, '[generateInternal] Generation stopped by user request after ONNX session at iteration', i);
+                break;
+            }
+            
+            if (LOG_GENERATION) console.log(prefix, `[generateInternal] ONNX session completed, outputs: ${Object.keys(outputMap).join(', ')}`);
+            
             const logitsOutputName = outputNames.find(name => name === 'logits');
             if (!logitsOutputName) throw new Error("Model's ONNX graph does not have a 'logits' output.");
             const logitsTensor = outputMap[logitsOutputName];
@@ -748,6 +974,12 @@ async function generateInternal(payload: any): Promise<void> {
 
             if (nextTokenId === undefined) {
                 if (LOG_ERROR) console.error("Failed to determine next token ID. Breaking loop.");
+                break;
+            }
+
+            // Check for stop request after token generation
+            if (shouldStopGeneration) {
+                console.log(prefix, '[generateInternal] Generation stopped by user request after token generation at iteration', i);
                 break;
             }
 
@@ -776,11 +1008,25 @@ async function generateInternal(payload: any): Promise<void> {
             : "";
 
         if (LOG_GENERATION) console.log(prefix, '[generateInternal] Final generated text (decoded):', finalGeneratedText);
-        self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
+        
+        // Send appropriate completion message based on whether generation was stopped
+        console.log(prefix, '[generateInternal] Generation finished. shouldStopGeneration:', shouldStopGeneration, 'finalGeneratedText length:', finalGeneratedText.length);
+        if (shouldStopGeneration) {
+            console.log(prefix, '[generateInternal] Sending GENERATION_STOPPED message');
+            self.postMessage({ type: WorkerEventNames.GENERATION_STOPPED, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
+        } else {
+            console.log(prefix, '[generateInternal] Sending GENERATION_COMPLETE message');
+            self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
+        }
 
     } catch (error: any) {
         if (LOG_ERROR) console.error(prefix, '[generateInternal] Error during generation:', error, error.stack);
         self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: error.message || String(error) } });
+    } finally {
+        // Reset generation state
+        console.log(prefix, '[generateInternal] Resetting generation state. isGenerating: false, shouldStopGeneration: false');
+        isGenerating = false;
+        shouldStopGeneration = false;
     }
 }
 
@@ -811,6 +1057,15 @@ self.onmessage = async (event: MessageEvent) => {
         }
         case WorkerEventNames.GENERATE:
             await generateInternal(payload);
+            break;
+        case WorkerEventNames.STOP_GENERATION:
+            console.log(prefix, '[onmessage] STOP_GENERATION message received. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
+            if (isGenerating) {
+                shouldStopGeneration = true;
+                console.log(prefix, '[onmessage] Stop generation flag set to true.');
+            } else {
+                console.log(prefix, '[onmessage] Stop generation requested but not currently generating.');
+            }
             break;
         case WorkerEventNames.RESET:
             if (onnxSession) {

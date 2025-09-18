@@ -6,10 +6,10 @@ import { showSystemPromptPopup } from '../Components/SystemPromptPopup';
 import popupIcon from '../assets/icons/popup.png';
 
 const prefix = '[InferenceSettings]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;
 export const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
 
 if (LOG_GENERAL) console.log(prefix, 'popupIcon import resolves to:', popupIcon);

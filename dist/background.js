@@ -1767,6 +1767,8 @@ const WorkerEventNames = Object.freeze({
     GENERATION_UPDATE: 'generationUpdate',
     GENERATION_COMPLETE: 'generationComplete',
     GENERATION_ERROR: 'generationError',
+    GENERATION_STOPPED: 'generationStopped',
+    STOP_GENERATION: 'stopGeneration',
     RESET_COMPLETE: 'resetComplete',
     ERROR: 'error',
     UNINITIALIZED: 'uninitialized',
@@ -1953,6 +1955,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const CONTEXT_PREFIX = '[Background]';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 let detachedPopups = {}; // TabId to Popup WindowId
 let popupIdToTabId = {}; // Popup WindowId to Original TabId
 const DNR_RULE_ID_1 = 1;
@@ -1973,8 +1977,8 @@ async function initializeSessionIds() {
         }
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ previousLogSessionId: currentLogSessionId });
     }
-    console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
-    console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
+    // console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
+    // console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
 }
 async function updateDeclarativeNetRequestRules() {
     try {
@@ -2003,7 +2007,8 @@ async function updateDeclarativeNetRequestRules() {
             removeRuleIds: rulesToRemove,
             addRules: rulesToAdd
         });
-        console.log(CONTEXT_PREFIX + ' Declarative Net Request rules updated successfully.');
+        if (LOG_DEBUG)
+            console.log(CONTEXT_PREFIX + ' Declarative Net Request rules updated successfully.');
     }
     catch (error) {
         console.error("Error updating Declarative Net Request rules:", error);
@@ -2146,7 +2151,8 @@ async function fetchDriveFileList(token, folderId = 'root') {
     return data.files || [];
 }
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onInstalled.addListener(async (details) => {
-    console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);
+    if (LOG_DEBUG)
+        console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
     webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
@@ -2282,7 +2288,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
 (async () => {
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
-    console.log(CONTEXT_PREFIX + ' Initialized.');
+    if (LOG_DEBUG)
+        console.log(CONTEXT_PREFIX + ' Initialized.');
 })();
 
 })();

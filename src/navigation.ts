@@ -21,7 +21,7 @@ const pageTitles: { [key: string]: string } = {
 };
 
 async function navigateTo(pageId: string) { 
-    console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
+    // console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
    
     pageContainers.forEach(container => {
         container.classList.add('hidden');
@@ -69,7 +69,7 @@ async function navigateTo(pageId: string) {
     });
 
     document.dispatchEvent(new CustomEvent(UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
-    console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
+    // console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
 
     const queryInput = document.getElementById('query-input');
      if (pageId === 'page-home' && queryInput) {
@@ -78,7 +78,7 @@ async function navigateTo(pageId: string) {
 }
 
 function initializeNavigation() {
-    console.log(CONTEXT_PREFIX + "Initializing navigation...");
+    // console.log(CONTEXT_PREFIX + "Initializing navigation...");
 
     pageContainers = document.querySelectorAll('.page-container');
     navButtons = document.querySelectorAll('.nav-button');
@@ -95,7 +95,7 @@ function initializeNavigation() {
     });
 
     navigateTo('page-home');
-    console.log(CONTEXT_PREFIX + "Navigation initialized.");
+    // console.log(CONTEXT_PREFIX + "Navigation initialized.");
 }
 
 export { initializeNavigation, navigateTo }; 

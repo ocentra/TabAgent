@@ -25,6 +25,8 @@ export const WorkerEventNames = Object.freeze({
   GENERATION_UPDATE: 'generationUpdate',
   GENERATION_COMPLETE: 'generationComplete',
   GENERATION_ERROR: 'generationError',
+  GENERATION_STOPPED: 'generationStopped',
+  STOP_GENERATION: 'stopGeneration',
   RESET_COMPLETE: 'resetComplete',
   ERROR: 'error',
   UNINITIALIZED: 'uninitialized',

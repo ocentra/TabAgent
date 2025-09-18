@@ -17,7 +17,8 @@ import {
   initializeUI,
   clearInput,
   focusInput,
-  setActiveSession,  
+  setActiveSession,
+  updateGenerationState,
 } from './Home/uiController';
 import { getActiveTab, showError as utilShowError, debounce, showWarning as utilShowWarning } from './Utilities/generalUtils';
 import { showNotification } from './notifications';
@@ -42,7 +43,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, SERVER_ONLY_SIZE } from './DB/idbModel';
+import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, getServerOnlySizeLimit, getBypassSizeLimitModels } from './DB/idbModel';
 import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
@@ -62,8 +63,8 @@ const LOG_MANIFEST_GENERATION = true;
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFERENCE_SETTINGS = true;
+const LOG_WARN = false;
+const LOG_INFERENCE_SETTINGS = false;
 const LOG_QUEUE_MAX = 1000;
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 
@@ -82,6 +83,7 @@ let modelWorker: Worker | undefined = undefined;
 let currentModelIdInWorker: string | null = null;
 let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady: boolean = false;
+let isGenerating = false;
 
 // Track the currently loaded model and quant (onnx variant)
 let currentLoadedModel: { modelId: string | null, quant: string | null } = { modelId: null, quant: null };
@@ -276,6 +278,34 @@ function hideDeviceBadge() {
   if (badge) badge.style.display = 'none';
 }
 
+function updateSendButtonForGeneration(isGenerating: boolean) {
+  updateGenerationState(isGenerating);
+}
+
+function handleStopGeneration() {
+  console.log(`${prefix} handleStopGeneration called. modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
+  if (modelWorker && isGenerating) {
+    console.log(`${prefix} Sending stop generation request to worker.`);
+    sendToModelWorker({ type: WorkerEventNames.STOP_GENERATION });
+  } else {
+    console.log(`${prefix} Cannot send stop request - modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
+  }
+}
+
+function handleSendButtonClick() {
+  // This will be handled by the UI controller
+  const queryInput = document.getElementById('query-input') as HTMLTextAreaElement | null;
+  if (queryInput && queryInput.value.trim() && !queryInput.disabled) {
+    document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { 
+      detail: { text: queryInput.value.trim() } 
+    }));
+    // Clear input after sending
+    queryInput.value = '';
+    // Adjust textarea height
+    queryInput.style.height = 'auto';
+  }
+}
+
 function handleModelWorkerMessage(event: MessageEvent) {
   const { type, label, payload } = event.data || {};
   // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
@@ -340,8 +370,30 @@ function handleModelWorkerMessage(event: MessageEvent) {
       case UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
           document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
           break;
+      case WorkerEventNames.GENERATION_UPDATE:
+          // Streaming token update from worker
+          if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
+              // Set generating state when we receive first token
+              if (!isGenerating) {
+                  isGenerating = true;
+                  // Update UI to show stop button
+                  updateSendButtonForGeneration(true);
+              }
+              // Fetch the current message from the DB (optional, or just append)
+              // For now, just append the token to the message text/content
+              sendDbRequestSmart(new DbUpdateMessageRequest(payload.chatId, payload.messageId, {
+                  isLoading: true,
+                  sender: 'ai',
+                  appendText: payload.token,
+                  appendContent: payload.token
+              }));
+          }
+          break;
       case WorkerEventNames.GENERATION_COMPLETE: {
           if (LOG_DEBUG) console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
+          // Reset generating state
+          isGenerating = false;
+          updateSendButtonForGeneration(false);
           // Use only the clean generatedText from the worker
           if (payload.messageId && activeSessionId) {
               sendDbRequestSmart(new DbUpdateMessageRequest(activeSessionId, payload.messageId, {
@@ -353,7 +405,26 @@ function handleModelWorkerMessage(event: MessageEvent) {
           }
           break;
       }
+      case WorkerEventNames.GENERATION_STOPPED: {
+          if (LOG_DEBUG) console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
+          // Reset generating state
+          isGenerating = false;
+          updateSendButtonForGeneration(false);
+          // Handle stopped generation the same as complete, but could add UI indication
+          if (payload.messageId && activeSessionId) {
+              sendDbRequestSmart(new DbUpdateMessageRequest(activeSessionId, payload.messageId, {
+                  isLoading: false,
+                  sender: 'ai',
+                  text: payload.generatedText,
+                  content: payload.generatedText,
+              }));
+          }
+          break;
+      }
       case WorkerEventNames.GENERATION_ERROR:
+          // Reset generating state on error
+          isGenerating = false;
+          updateSendButtonForGeneration(false);
           document.dispatchEvent(new CustomEvent(UIEventNames.BACKGROUND_ERROR_RECEIVED, {
               detail: {
                   chatId: payload.chatId,
@@ -379,20 +450,6 @@ function handleModelWorkerMessage(event: MessageEvent) {
           });
         }
         break;
-      case WorkerEventNames.GENERATION_UPDATE: {
-          // Streaming token update from worker
-          if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
-              // Fetch the current message from the DB (optional, or just append)
-              // For now, just append the token to the message text/content
-              sendDbRequestSmart(new DbUpdateMessageRequest(payload.chatId, payload.messageId, {
-                  isLoading: true,
-                  sender: 'ai',
-                  appendText: payload.token,
-                  appendContent: payload.token
-              }));
-          }
-          break;
-      }
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
   }
@@ -715,35 +772,30 @@ async function handleDetach() {
   }
 }
 
-async function handlePageChange(event: any) {
-  if (!event?.pageId) return;
-  if (LOG_DEBUG) console.log(`${prefix} Navigation changed to: ${event.pageId}`);
-  if (!isDbReady) {
-    if (LOG_DEBUG) console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
-    return;
-  }
-  if (event.pageId === 'page-home') {
-    if (LOG_DEBUG) console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
-    try {
-      const { lastSessionId } = await browser.storage.local.get(['lastSessionId']);
-      if (lastSessionId) {
-        if (LOG_DEBUG) console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
-        await loadAndDisplaySession(lastSessionId);
-        await browser.storage.local.remove('lastSessionId');
-      } else {
-        if (LOG_DEBUG) console.log(`${prefix} No load signal found. Resetting to welcome state.`);
-        await loadAndDisplaySession(null);
-      }
-    } catch (error) {
-      const err = error as Error;
-      if (LOG_ERROR) console.error(`${prefix} Error checking/loading session based on signal:`, err);
-      utilShowError('Failed to load session state.');
-      await loadAndDisplaySession(null);
-    }
-  }
+export function isModelLoaded() {
+  return modelWorkerState === WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
 }
 
-// --- Main Initialization ---
+export function isGenerationActive() {
+  return isGenerating;
+}
+
+export { sendDbRequestSmart, sendToModelWorker };
+
+// Add listener for stop generation event
+document.addEventListener('stopGeneration', () => {
+  console.log(`${prefix} Received stopGeneration event from UI`);
+  handleStopGeneration();
+});
+
+// Add listener for generation starting event
+document.addEventListener('generationStarting', () => {
+  console.log(`${prefix} Received generationStarting event from orchestrator`);
+  isGenerating = true;
+  updateSendButtonForGeneration(true);
+});
+
+// Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
   if (LOG_DEBUG) console.log(`${prefix} DOM Content Loaded.`);
   const urlParams = new URLSearchParams(window.location.search);
@@ -782,7 +834,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Standard Mode
-    if (LOG_DEBUG) console.log(`${prefix} Initializing in Standard Mode.`);
+  if (LOG_DEBUG) console.log(`${prefix} Initializing in Standard Mode.`);
   document.getElementById('page-log-viewer')?.classList.add('hidden');
 
   // Initialize UI and Core Components
@@ -820,7 +872,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const activeTab = await getActiveTab();
     currentTabId = activeTab?.id;
-    if (LOG_DEBUG)  console.log(`${prefix} Current Tab ID: ${currentTabId}`);
+    if (LOG_DEBUG) console.log(`${prefix} Current Tab ID: ${currentTabId}`);
 
     initializeOrchestrator({
       getActiveSessionIdFunc: getActiveChatSessionId,
@@ -882,7 +934,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (LOG_WARN) console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
     }
 
-
     document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
       const { modelId, modelPath, loadId } = (e as CustomEvent).detail;
       if (!modelId) {
@@ -911,7 +962,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
           await new Promise(res => setTimeout(res, 50));
         }
-        if (LOG_DEBUG)  console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
+        if (LOG_DEBUG) console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
       };
       try {
         await waitForEnvReady();
@@ -924,7 +975,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const manifestEntry = await getManifestEntry(modelId);
       const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
 
-      
       if (LOG_DEBUG) console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
       modelWorkerState = WorkerEventNames.LOADING_MODEL;
       currentModelIdInWorker = modelId;
@@ -933,7 +983,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           payload: { modelId, modelPath, task, loadId }
       });
     });
-
 
     initializeDiscoverController();
     if (LOG_DEBUG) console.log(`${prefix} Discover Controller Initialized.`);
@@ -978,11 +1027,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadAndDisplaySession(null);
     }
 
-    await ensureManifestForDropdownRepos();
+    // Check if we have bypass settings that might affect manifest status
+    const hasBypassSettings = getBypassSizeLimitModels().size > 0;
+    await ensureManifestForDropdownRepos(hasBypassSettings);
     
     const dbInitSuccess = await initializeDatabase();
     if (!dbInitSuccess) return;
-   
 
     if (LOG_DEBUG) console.log(`${prefix} Initialization complete.`);
 
@@ -1044,15 +1094,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
     }
   }
-
-
 });
 
-document.addEventListener(DbInitializationCompleteNotification.type, async (e: any) => {
-  if (LOG_DEBUG) console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
-
-});
-
+async function handlePageChange(event: any) {
+  if (!event?.pageId) return;
+  if (LOG_DEBUG) console.log(`${prefix} Navigation changed to: ${event.pageId}`);
+  if (!isDbReady) {
+    if (LOG_DEBUG) console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
+    return;
+  }
+  if (event.pageId === 'page-home') {
+    if (LOG_DEBUG) console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
+    try {
+      const { lastSessionId } = await browser.storage.local.get(['lastSessionId']);
+      if (lastSessionId) {
+        if (LOG_DEBUG) console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+        await loadAndDisplaySession(lastSessionId);
+        await browser.storage.local.remove('lastSessionId');
+      } else {
+        if (LOG_DEBUG) console.log(`${prefix} No load signal found. Resetting to welcome state.`);
+        await loadAndDisplaySession(null);
+      }
+    } catch (error) {
+      const err = error as Error;
+      if (LOG_ERROR) console.error(`${prefix} Error checking/loading session based on signal:`, err);
+      utilShowError('Failed to load session state.');
+      await loadAndDisplaySession(null);
+    }
+  }
+}
 
 async function initializeDatabase(): Promise<boolean> {
   try {
@@ -1081,7 +1151,7 @@ async function initializeDatabase(): Promise<boolean> {
   }
 }
 
-export async function ensureManifestForDropdownRepos() {
+export async function ensureManifestForDropdownRepos(forceRebuild: boolean = false) {
   if (typeof document === 'undefined') return;
 
   const dropdownRepos = getModelSelectorOptions(); 
@@ -1094,12 +1164,16 @@ export async function ensureManifestForDropdownRepos() {
   const errorRepos: string[] = [];
 
   for (const repo of dropdownRepos) {
-    // --- Check if manifest already exists for this repo ---
-    const manifest = await getManifestEntry(repo);
-    if (manifest) {
-      if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
-      processedRepos.push(repo);
-      continue;
+    // --- Check if we should skip existing manifests ---
+    if (!forceRebuild) {
+      const existingManifest = await getManifestEntry(repo);
+      if (existingManifest) {
+        if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
+        processedRepos.push(repo);
+        continue;
+      }
+    } else {
+      if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Force rebuild requested for ${repo}. Will update/create manifest.`);
     }
 
     let oldManifest: ManifestEntry | null = null;
@@ -1166,20 +1240,70 @@ export async function ensureManifestForDropdownRepos() {
 
           // Determine serverOnly status based on quant type and associated data file
           let isServerOnly = false;
+          const serverOnlySizeLimit = getServerOnlySizeLimit();
+          const bypassModels = getBypassSizeLimitModels();
+          
+          if (LOG_MANIFEST_GENERATION) {
+            console.log(`${prefix} [ensureManifestForDropdownRepos] Processing ${quantKey} for ${repo}:`);
+            console.log(`${prefix} [ensureManifestForDropdownRepos] Size limit: ${serverOnlySizeLimit / (1024*1024*1024)} GB`);
+            console.log(`${prefix} [ensureManifestForDropdownRepos] Bypass models:`, Array.from(bypassModels));
+            console.log(`${prefix} [ensureManifestForDropdownRepos] Required files for ${quantKey}:`, Array.from(currentQuantRequiredFiles));
+          }
+          
           if (quantKey.endsWith('.onnx')) {
             // For any .onnx, check for .onnx_data or .onnx.data file of the same quant family
             const baseName = quantKey.replace(/\.onnx$/, '');
             const dataFile = siblings.find(f => f.rfilename === `${baseName}.onnx_data` || f.rfilename === `${baseName}.onnx.data`);
-            if (dataFile && typeof dataFile.size === 'number' && dataFile.size > SERVER_ONLY_SIZE) {
-              isServerOnly = true;
+            if (dataFile && typeof dataFile.size === 'number') {
+              const dataFileSizeGB = dataFile.size / (1024 * 1024 * 1024);
+              const limitGB = serverOnlySizeLimit / (1024 * 1024 * 1024);
+              const isOverLimit = dataFile.size > serverOnlySizeLimit;
+              
+              if (LOG_MANIFEST_GENERATION) {
+                console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} size check:`);
+                console.log(`${prefix} [ensureManifestForDropdownRepos] - Data file: ${dataFile.rfilename}`);
+                console.log(`${prefix} [ensureManifestForDropdownRepos] - Data file size: ${dataFile.size} bytes (${dataFileSizeGB.toFixed(2)} GB)`);
+                console.log(`${prefix} [ensureManifestForDropdownRepos] - Size limit: ${serverOnlySizeLimit} bytes (${limitGB.toFixed(2)} GB)`);
+                console.log(`${prefix} [ensureManifestForDropdownRepos] - Is over limit: ${isOverLimit}`);
+                console.log(`${prefix} [ensureManifestForDropdownRepos] - Is in bypass: ${bypassModels.has(repo)}`);
+              }
+              
+              if (isOverLimit) {
+                // Check if this model is in the bypass list
+                if (!bypassModels.has(repo)) {
+                  isServerOnly = true;
+                  if (LOG_MANIFEST_GENERATION) {
+                    console.log(`${prefix} [ensureManifestForDropdownRepos] - Setting server_only=true (over limit and not bypassed)`);
+                  }
+                } else {
+                  if (LOG_MANIFEST_GENERATION) {
+                    console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (over limit but bypassed)`);
+                  }
+                }
+              } else {
+                if (LOG_MANIFEST_GENERATION) {
+                  console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (under limit)`);
+                }
+              }
             }
           } else if (quantKey.endsWith('.gguf')) {
             const entry = siblings.find(f => f.rfilename === quantKey);
-            if (entry && typeof entry.size === 'number' && entry.size > SERVER_ONLY_SIZE) {
-              isServerOnly = true;
+            if (entry && typeof entry.size === 'number' && entry.size > serverOnlySizeLimit) {
+              // Check if this model is in the bypass list
+              if (!bypassModels.has(repo)) {
+                isServerOnly = true;
+              }
             }
           }
-          const status = isServerOnly ? QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || QuantStatus.Available);
+          const oldStatus = oldManifest?.quants[quantKey]?.status;
+          const status = isServerOnly ? QuantStatus.ServerOnly : QuantStatus.Available;
+          
+          if (LOG_MANIFEST_GENERATION) {
+            console.log(`${prefix} [ensureManifestForDropdownRepos] Status calculation for ${quantKey}:`);
+            console.log(`${prefix} [ensureManifestForDropdownRepos] - isServerOnly: ${isServerOnly}`);
+            console.log(`${prefix} [ensureManifestForDropdownRepos] - oldStatus: ${oldStatus}`);
+            console.log(`${prefix} [ensureManifestForDropdownRepos] - final status: ${status}`);
+          }
           // Build fileSizes info
           const fileSizes: Record<string, number> = {};
           for (const fname of currentQuantRequiredFiles) {
@@ -1232,12 +1356,17 @@ export async function ensureManifestForDropdownRepos() {
   document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
 }
 
-
-export function isModelLoaded() {
-  return modelWorkerState === WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
-}
-
-export { sendDbRequestSmart, sendToModelWorker };
-
-
-
+// Listen for manifest refresh requests from settings
+document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
+  if (LOG_GENERAL) console.log('[Sidepanel] Manifest refresh requested from settings');
+  try {
+    // Always rebuild all manifests when settings change to apply new bypass settings
+    await ensureManifestForDropdownRepos(true); // Pass true to force rebuild
+    if (LOG_GENERAL) console.log('[Sidepanel] Manifest refreshed successfully');
+    
+    // Dispatch MANIFEST_UPDATED event AFTER the manifest update is complete
+    document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
+  } catch (e) {
+    console.error('[Sidepanel] Error refreshing manifest:', e);
+  }
+});

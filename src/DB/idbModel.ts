@@ -18,7 +18,46 @@ export type QuantInfo = {
 };
 
 export const CURRENT_MANIFEST_VERSION = 1;
-export const SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
+// Default size limit - will be overridden by settings
+export const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
+
+// Function to get the current server-only size limit from settings
+export function getServerOnlySizeLimit(): number {
+  try {
+    const stored = localStorage.getItem('modelLoadingSettings');
+    console.log('[IDBModel] getServerOnlySizeLimit - stored settings:', stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log('[IDBModel] getServerOnlySizeLimit - parsed settings:', parsed);
+      const limit = (parsed.maxModelSize || 2.1) * 1024 * 1024 * 1024;
+      console.log('[IDBModel] getServerOnlySizeLimit - calculated limit:', limit / (1024*1024*1024), 'GB');
+      return limit;
+    }
+  } catch (e) {
+    console.error('[IDBModel] Error parsing model loading settings:', e);
+  }
+  console.log('[IDBModel] getServerOnlySizeLimit - using default:', DEFAULT_SERVER_ONLY_SIZE / (1024*1024*1024), 'GB');
+  return DEFAULT_SERVER_ONLY_SIZE;
+}
+
+// Function to get the current bypass models from settings
+export function getBypassSizeLimitModels(): Set<string> {
+  try {
+    const stored = localStorage.getItem('modelLoadingSettings');
+    console.log('[IDBModel] getBypassSizeLimitModels - stored settings:', stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log('[IDBModel] getBypassSizeLimitModels - parsed settings:', parsed);
+      const bypassSet = new Set<string>(parsed.bypassModels || []);
+      console.log('[IDBModel] getBypassSizeLimitModels - bypass models:', Array.from(bypassSet));
+      return bypassSet;
+    }
+  } catch (e) {
+    console.error('[IDBModel] Error parsing model loading settings:', e);
+  }
+  console.log('[IDBModel] getBypassSizeLimitModels - using empty set');
+  return new Set<string>();
+}
 export type ManifestEntry = {
   repo: string; // e.g., "microsoft/Phi-3-mini-4k-instruct-onnx"
   quants: Record<string, QuantInfo>; // Key is the full rfilename of the .onnx file
@@ -27,11 +66,11 @@ export type ManifestEntry = {
 };
 
 const prefix = '[IDBModel]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFERENCE_SETTINGS = true;
+const LOG_WARN = false;
+const LOG_INFERENCE_SETTINGS = false;
 const LOG_OPEN_DB = false;
 
 

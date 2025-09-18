@@ -70,7 +70,8 @@ export default {
     fallback: {
       fs: false,
       path: false,
-      crypto: false
+      crypto: false,
+      module: false
     }
   },
   module: {
@@ -87,6 +88,16 @@ export default {
       {
         test: /\.mjs$/,
         include: [path.resolve(__dirname, 'src/assets/onnxruntime-web')],
+        type: 'asset/resource',
+      },
+      {
+        test: /\.(mjs|js)$/,
+        include: [path.resolve(__dirname, 'src/assets/mediapipe')],
+        type: 'asset/resource',
+      },
+      {
+        test: /\.d\.ts$/,
+        include: [path.resolve(__dirname, 'src/assets/mediapipe')],
         type: 'asset/resource',
       },
       {

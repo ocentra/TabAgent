@@ -2418,10 +2418,10 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const prefix = '[InferenceSettings]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;
 const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
 if (LOG_GENERAL)
     console.log(prefix, 'popupIcon import resolves to:', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__);
@@ -3431,7 +3431,9 @@ function initializeLibraryController(elements, requestFunc) {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   initializeSettingsController: () => (/* binding */ initializeSettingsController)
+/* harmony export */   getCurrentModelLoadingSettings: () => (/* binding */ getCurrentModelLoadingSettings),
+/* harmony export */   initializeSettingsController: () => (/* binding */ initializeSettingsController),
+/* harmony export */   updateModelLoadingSettings: () => (/* binding */ updateModelLoadingSettings)
 /* harmony export */ });
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
@@ -3525,6 +3527,226 @@ function createLogManagementFoldout() {
         initiallyOpen: false
     });
 }
+function createModelLoadingSettingsFoldout() {
+    const contentHTML = `
+        <div class="space-y-4 text-sm">
+            <div class="space-y-2">
+                <label for="maxModelSize" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Maximum Model Size (GB)
+                </label>
+                <div class="flex items-center space-x-2">
+                    <input 
+                        type="range" 
+                        id="maxModelSize" 
+                        min="1" 
+                        max="8" 
+                        step="0.1" 
+                        value="2.1"
+                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                    >
+                    <span id="maxModelSizeValue" class="text-sm font-mono text-gray-600 dark:text-gray-400 min-w-[3rem]">2.1 GB</span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    Models larger than this size will be marked as "Server Only". 
+                    <br>⚠️ Increasing this may cause browser crashes on systems with limited RAM.
+                </p>
+            </div>
+            
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Bypass Size Limit for Specific Models
+                </label>
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassSmolLM2" class="rounded border-gray-300">
+                        <label for="bypassSmolLM2" class="text-sm text-gray-700 dark:text-gray-300">
+                            SmolLM2-1.7B-Instruct
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassPhi35" class="rounded border-gray-300">
+                        <label for="bypassPhi35" class="text-sm text-gray-700 dark:text-gray-300">
+                            Phi-3.5 Mini
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassBitnet2B" class="rounded border-gray-300">
+                        <label for="bypassBitnet2B" class="text-sm text-gray-700 dark:text-gray-300">
+                            Bitnet2B
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassQwen3" class="rounded border-gray-300">
+                        <label for="bypassQwen3" class="text-sm text-gray-700 dark:text-gray-300">
+                            Qwen3-1.7B
+                        </label>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    These models will be allowed to exceed the size limit. Use with caution.
+                </p>
+            </div>
+            
+            <div class="pt-2">
+                <button id="saveModelSettings" class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs">
+                    Save Settings
+                </button>
+                <button id="resetModelSettings" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs ml-2">
+                    Reset to Default
+                </button>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Model Loading Settings',
+        contentHTML,
+        sectionClass: 'model-loading-settings-section',
+        initiallyOpen: false
+    });
+}
+function setupModelLoadingSettings(container) {
+    // Load current settings
+    const currentSettings = getModelLoadingSettings();
+    // Setup slider
+    const maxModelSizeSlider = container.querySelector('#maxModelSize');
+    const maxModelSizeValue = container.querySelector('#maxModelSizeValue');
+    if (maxModelSizeSlider && maxModelSizeValue) {
+        maxModelSizeSlider.value = currentSettings.maxModelSize.toString();
+        maxModelSizeValue.textContent = `${currentSettings.maxModelSize} GB`;
+        maxModelSizeSlider.addEventListener('input', () => {
+            const value = parseFloat(maxModelSizeSlider.value);
+            maxModelSizeValue.textContent = `${value} GB`;
+        });
+    }
+    // Setup checkboxes
+    const bypassSmolLM2 = container.querySelector('#bypassSmolLM2');
+    const bypassPhi35 = container.querySelector('#bypassPhi35');
+    const bypassBitnet2B = container.querySelector('#bypassBitnet2B');
+    const bypassQwen3 = container.querySelector('#bypassQwen3');
+    if (bypassSmolLM2)
+        bypassSmolLM2.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+    if (bypassPhi35)
+        bypassPhi35.checked = currentSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
+    if (bypassBitnet2B)
+        bypassBitnet2B.checked = currentSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
+    if (bypassQwen3)
+        bypassQwen3.checked = currentSettings.bypassModels.has('onnx-community/Qwen3-1.7B-ONNX');
+    // Setup save button
+    const saveButton = container.querySelector('#saveModelSettings');
+    if (saveButton) {
+        saveButton.addEventListener('click', () => {
+            console.log('[SettingsController] Save button clicked');
+            console.log('[SettingsController] Current settings:', currentSettings);
+            console.log('[SettingsController] Checkbox states:', {
+                bypassSmolLM2: bypassSmolLM2?.checked,
+                bypassPhi35: bypassPhi35?.checked,
+                bypassBitnet2B: bypassBitnet2B?.checked,
+                bypassQwen3: bypassQwen3?.checked
+            });
+            // Preserve existing bypass models and only update the ones we're managing in the UI
+            const newSettings = {
+                maxModelSize: parseFloat(maxModelSizeSlider?.value || '2.1'),
+                bypassModels: new Set(Array.from(currentSettings.bypassModels)) // Copy existing bypass models
+            };
+            console.log('[SettingsController] New settings before clearing:', newSettings);
+            // Clear the specific models we manage in this UI first
+            newSettings.bypassModels.delete('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            newSettings.bypassModels.delete('microsoft/Phi-3.5-mini-instruct-onnx');
+            newSettings.bypassModels.delete('microsoft/bitnet-b1.58-2B-4T-gguf');
+            newSettings.bypassModels.delete('onnx-community/Qwen3-1.7B-ONNX');
+            console.log('[SettingsController] After clearing managed models:', newSettings);
+            // Add back only the ones that are checked
+            if (bypassSmolLM2?.checked)
+                newSettings.bypassModels.add('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            if (bypassPhi35?.checked)
+                newSettings.bypassModels.add('microsoft/Phi-3.5-mini-instruct-onnx');
+            if (bypassBitnet2B?.checked)
+                newSettings.bypassModels.add('microsoft/bitnet-b1.58-2B-4T-gguf');
+            if (bypassQwen3?.checked)
+                newSettings.bypassModels.add('onnx-community/Qwen3-1.7B-ONNX');
+            console.log('[SettingsController] Final new settings before saving:', newSettings);
+            saveModelLoadingSettings(newSettings);
+            // Trigger manifest refresh to apply new settings
+            try {
+                // Dispatch event to refresh manifest
+                document.dispatchEvent(new CustomEvent('MANIFEST_REFRESH_REQUESTED'));
+                alert('Model loading settings saved! The model list will be refreshed automatically.');
+            }
+            catch (e) {
+                alert('Model loading settings saved! You may need to refresh the model list for changes to take effect.');
+            }
+        });
+    }
+    // Setup reset button
+    const resetButton = container.querySelector('#resetModelSettings');
+    if (resetButton) {
+        resetButton.addEventListener('click', () => {
+            const defaultSettings = getDefaultModelLoadingSettings();
+            saveModelLoadingSettings(defaultSettings);
+            // Update UI
+            if (maxModelSizeSlider)
+                maxModelSizeSlider.value = defaultSettings.maxModelSize.toString();
+            if (maxModelSizeValue)
+                maxModelSizeValue.textContent = `${defaultSettings.maxModelSize} GB`;
+            if (bypassSmolLM2)
+                bypassSmolLM2.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            if (bypassPhi35)
+                bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
+            if (bypassBitnet2B)
+                bypassBitnet2B.checked = defaultSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
+            alert('Model loading settings reset to default!');
+        });
+    }
+}
+function getModelLoadingSettings() {
+    const stored = localStorage.getItem('modelLoadingSettings');
+    if (stored) {
+        try {
+            const parsed = JSON.parse(stored);
+            return {
+                maxModelSize: parsed.maxModelSize || 2.1,
+                bypassModels: new Set(parsed.bypassModels || [])
+            };
+        }
+        catch (e) {
+            console.error('[SettingsController] Error parsing model loading settings:', e);
+        }
+    }
+    return getDefaultModelLoadingSettings();
+}
+function getDefaultModelLoadingSettings() {
+    return {
+        maxModelSize: 2.1,
+        bypassModels: new Set()
+    };
+}
+function saveModelLoadingSettings(settings) {
+    const bypassArray = Array.from(settings.bypassModels);
+    console.log('[SettingsController] saveModelLoadingSettings - bypassModels Set:', settings.bypassModels);
+    console.log('[SettingsController] saveModelLoadingSettings - bypassModels Array:', bypassArray);
+    console.log('[SettingsController] saveModelLoadingSettings - full settings to save:', {
+        maxModelSize: settings.maxModelSize,
+        bypassModels: bypassArray
+    });
+    const settingsToSave = {
+        maxModelSize: settings.maxModelSize,
+        bypassModels: bypassArray
+    };
+    localStorage.setItem('modelLoadingSettings', JSON.stringify(settingsToSave));
+    console.log('[SettingsController] saveModelLoadingSettings - saved to localStorage:', localStorage.getItem('modelLoadingSettings'));
+}
+// Export functions for use in other modules
+function getCurrentModelLoadingSettings() {
+    return getModelLoadingSettings();
+}
+function updateModelLoadingSettings(settings) {
+    const current = getModelLoadingSettings();
+    const updated = {
+        maxModelSize: settings.maxModelSize ?? current.maxModelSize,
+        bypassModels: settings.bypassModels ?? current.bypassModels
+    };
+    saveModelLoadingSettings(updated);
+}
 function initializeSettingsController() {
     if (isInitialized) {
         console.log("[SettingsController] Already initialized.");
@@ -3554,6 +3776,9 @@ function initializeSettingsController() {
     // Inject Log Management foldout
     const logManagementFoldout = createLogManagementFoldout();
     settingsPageContainer.appendChild(logManagementFoldout);
+    // Inject Model Loading Settings foldout
+    const modelLoadingSettingsFoldout = createModelLoadingSettingsFoldout();
+    settingsPageContainer.appendChild(modelLoadingSettingsFoldout);
     // Setup listeners for log management buttons
     const viewLogsButton = settingsPageContainer.querySelector('#viewLogsButton');
     if (viewLogsButton) {
@@ -3594,6 +3819,8 @@ function initializeSettingsController() {
             }
         });
     }
+    // Setup model loading settings
+    setupModelLoadingSettings(settingsPageContainer);
     // Inject Inference Settings foldout (already styled)
     (0,_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.setupInferenceSettings)();
     isInitialized = true;
@@ -5194,6 +5421,12 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const LOG_SELF = false;
+const LOG_GENERATION = false;
 class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGraphNode {
     constructor(id, title, kgn_created_at, kgn_updated_at, options = {}, dbWorker) {
         super(id, _idbSchema__WEBPACK_IMPORTED_MODULE_3__.NodeType.Chat, title, kgn_created_at, kgn_updated_at, options.kgn_properties ? JSON.stringify(options.kgn_properties) : undefined, options.kgn_embedding_id, options.modelWorker, dbWorker);
@@ -5262,7 +5495,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         this.chat_metadata_json = data ? JSON.stringify(data) : undefined;
     }
     static async createChat(initialTitleOrPrompt, dbWorker, options = {}) {
-        console.log('[DEBUG] Chat.createChat called with dbWorker:', dbWorker);
+        if (LOG_DEBUG)
+            console.log('[DEBUG] Chat.createChat called with dbWorker:', dbWorker);
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.createChat.name, Chat.name);
         const chatId = options.id || crypto.randomUUID();
         const now = Date.now();
@@ -5357,7 +5591,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         });
     }
     static async read(id, dbWorker, modelWorker) {
-        console.log('[DEBUG] Chat.read called with dbWorker:', dbWorker);
+        if (LOG_DEBUG)
+            console.log('[DEBUG] Chat.read called with dbWorker:', dbWorker);
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.read.name, Chat.name);
         if (!dbWorker)
             throw new Error('dbWorker is required for Chat.read');
@@ -5557,7 +5792,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         return false;
     }
     static async updateChat(chatId, updates, dbWorker, modelWorker) {
-        console.log('[DEBUG] Chat.updateChat called with dbWorker:', dbWorker);
+        if (LOG_DEBUG)
+            console.log('[DEBUG] Chat.updateChat called with dbWorker:', dbWorker);
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.updateChat.name, Chat.name);
         const chat = await Chat.read(chatId, dbWorker, modelWorker);
         if (!chat)
@@ -5572,7 +5808,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         }
     }
     static async deleteChat(chatId, dbWorker, modelWorker, options = {}) {
-        console.log('[DEBUG] Chat.deleteChat called with dbWorker:', dbWorker);
+        if (LOG_DEBUG)
+            console.log('[DEBUG] Chat.deleteChat called with dbWorker:', dbWorker);
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.deleteChat.name, Chat.name);
         const chat = await Chat.read(chatId, dbWorker, modelWorker);
         if (!chat)
@@ -5586,7 +5823,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         }
     }
     static async addMessageToChat(chatId, data, dbWorker, modelWorker) {
-        console.log('[DEBUG] Chat.addMessageToChat called with dbWorker:', dbWorker);
+        if (LOG_DEBUG)
+            console.log('[DEBUG] Chat.addMessageToChat called with dbWorker:', dbWorker);
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.addMessageToChat.name, Chat.name);
         const chat = await Chat.read(chatId, dbWorker, modelWorker);
         if (!chat)
@@ -5600,7 +5838,8 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
         }
     }
     static async getAllChats(dbWorker) {
-        console.log('[DEBUG] Chat.getAllChats called with dbWorker:', dbWorker);
+        if (LOG_DEBUG)
+            console.log('[DEBUG] Chat.getAllChats called with dbWorker:', dbWorker);
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(dbWorker, Chat.getAllChats.name, Chat.name);
         const requestId = crypto.randomUUID();
         const chatDatas = await new Promise((resolve, reject) => {
@@ -6942,17 +7181,19 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   CURRENT_MANIFEST_VERSION: () => (/* binding */ CURRENT_MANIFEST_VERSION),
+/* harmony export */   DEFAULT_SERVER_ONLY_SIZE: () => (/* binding */ DEFAULT_SERVER_ONLY_SIZE),
 /* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
-/* harmony export */   SERVER_ONLY_SIZE: () => (/* binding */ SERVER_ONLY_SIZE),
 /* harmony export */   addManifestEntry: () => (/* binding */ addManifestEntry),
 /* harmony export */   addQuantToManifest: () => (/* binding */ addQuantToManifest),
 /* harmony export */   fetchModelMetadataInternal: () => (/* binding */ fetchModelMetadataInternal),
 /* harmony export */   fetchRepoFiles: () => (/* binding */ fetchRepoFiles),
 /* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
 /* harmony export */   getAllManifestEntries: () => (/* binding */ getAllManifestEntries),
+/* harmony export */   getBypassSizeLimitModels: () => (/* binding */ getBypassSizeLimitModels),
 /* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
+/* harmony export */   getServerOnlySizeLimit: () => (/* binding */ getServerOnlySizeLimit),
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
@@ -6975,13 +7216,52 @@ var QuantStatus;
     QuantStatus["ServerOnly"] = "server_only";
 })(QuantStatus || (QuantStatus = {}));
 const CURRENT_MANIFEST_VERSION = 1;
-const SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
+// Default size limit - will be overridden by settings
+const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
+// Function to get the current server-only size limit from settings
+function getServerOnlySizeLimit() {
+    try {
+        const stored = localStorage.getItem('modelLoadingSettings');
+        console.log('[IDBModel] getServerOnlySizeLimit - stored settings:', stored);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('[IDBModel] getServerOnlySizeLimit - parsed settings:', parsed);
+            const limit = (parsed.maxModelSize || 2.1) * 1024 * 1024 * 1024;
+            console.log('[IDBModel] getServerOnlySizeLimit - calculated limit:', limit / (1024 * 1024 * 1024), 'GB');
+            return limit;
+        }
+    }
+    catch (e) {
+        console.error('[IDBModel] Error parsing model loading settings:', e);
+    }
+    console.log('[IDBModel] getServerOnlySizeLimit - using default:', DEFAULT_SERVER_ONLY_SIZE / (1024 * 1024 * 1024), 'GB');
+    return DEFAULT_SERVER_ONLY_SIZE;
+}
+// Function to get the current bypass models from settings
+function getBypassSizeLimitModels() {
+    try {
+        const stored = localStorage.getItem('modelLoadingSettings');
+        console.log('[IDBModel] getBypassSizeLimitModels - stored settings:', stored);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('[IDBModel] getBypassSizeLimitModels - parsed settings:', parsed);
+            const bypassSet = new Set(parsed.bypassModels || []);
+            console.log('[IDBModel] getBypassSizeLimitModels - bypass models:', Array.from(bypassSet));
+            return bypassSet;
+        }
+    }
+    catch (e) {
+        console.error('[IDBModel] Error parsing model loading settings:', e);
+    }
+    console.log('[IDBModel] getBypassSizeLimitModels - using empty set');
+    return new Set();
+}
 const prefix = '[IDBModel]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFERENCE_SETTINGS = true;
+const LOG_WARN = false;
+const LOG_INFERENCE_SETTINGS = false;
 const LOG_OPEN_DB = false;
 const modelCacheSchema = {
     [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS]: {
@@ -7788,7 +8068,7 @@ const TEMP_MESSAGE_CLASS = 'temp-status-message'; // Class for temporary message
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;
 const LOG_INFO = false;
 const prefix = '[ChatRenderer]';
 function handleMessagesUpdate(notification) {
@@ -8541,10 +8821,11 @@ class ChatOrchestrator {
         this.getCurrentTabId = null;
         this.isSendingMessage = false;
         this.prefix = '[Orchestrator]';
-        this.LOG_GENERAL = true;
-        this.LOG_DEBUG = true;
+        this.LOG_GENERAL = false;
+        this.LOG_DEBUG = false;
         this.LOG_ERROR = true;
-        this.LOG_WARN = true;
+        this.LOG_WARN = false;
+        this.LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
     }
     initialize(dependencies) {
         this.validateDependencies(dependencies);
@@ -8640,13 +8921,58 @@ class ChatOrchestrator {
         const sessionData = await this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbGetSessionRequest(sessionId));
         if (!sessionData || !Array.isArray(sessionData.messages))
             return [];
-        return sessionData.messages
-            .map((m) => m.__type === _DB_idbBase__WEBPACK_IMPORTED_MODULE_7__.DB_ENTITY_TYPES.Message ? _DB_idbMessage__WEBPACK_IMPORTED_MODULE_6__.Message.fromJSON(m) : m)
-            .filter((m) => (m.sender === 'user' || m.sender === 'ai' || m.sender === 'system') && (!placeholderMessageId || m.id !== placeholderMessageId) && !m?.isLoading)
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] Raw messages from DB:', sessionData.messages.length, 'messages');
+            sessionData.messages.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Raw msg[${i}]:`, {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT',
+                    __type: msg.__type,
+                    isLoading: msg.isLoading
+                });
+            });
+        }
+        const convertedMessages = sessionData.messages
+            .map((m) => m.__type === _DB_idbBase__WEBPACK_IMPORTED_MODULE_7__.DB_ENTITY_TYPES.Message ? _DB_idbMessage__WEBPACK_IMPORTED_MODULE_6__.Message.fromJSON(m) : m);
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] After Message.fromJSON conversion:');
+            convertedMessages.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Converted msg[${i}]:`, {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT',
+                    type: msg.constructor.name
+                });
+            });
+        }
+        const filteredMessages = convertedMessages
+            .filter((m) => (m.sender === 'user' || m.sender === 'ai' || m.sender === 'system') && (!placeholderMessageId || m.id !== placeholderMessageId) && !m?.isLoading);
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] After filtering:', filteredMessages.length, 'messages remain');
+            filteredMessages.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Filtered msg[${i}]:`, {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                });
+            });
+        }
+        const finalHistory = filteredMessages
             .map((m) => ({
             role: m.sender === 'user' ? 'user' : 'assistant',
             content: m.content || ''
         }));
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] Final history for model:', finalHistory.length, 'messages');
+            finalHistory.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Final msg[${i}]:`, {
+                    role: msg.role,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                });
+            });
+        }
+        return finalHistory;
     }
     async handleQuerySubmit(data) {
         if (this.LOG_GENERAL)
@@ -8773,7 +9099,21 @@ class ChatOrchestrator {
                     options: {},
                     messageId: placeholderMessageId
                 };
+                if (this.LOG_CHAT_HISTORY) {
+                    console.log(this.prefix, '[CHAT_HISTORY] Sending payload to model worker:', {
+                        chatId: messagePayload.chatId,
+                        messageId: messagePayload.messageId,
+                        messagesCount: messagePayload.messages.length,
+                        messages: messagePayload.messages.map((msg, i) => ({
+                            index: i,
+                            role: msg.role,
+                            content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                        }))
+                    });
+                }
                 try {
+                    // Notify sidepanel that generation is starting
+                    document.dispatchEvent(new CustomEvent('generationStarting'));
                     (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendToModelWorker)({ type: 'generate', payload: messagePayload });
                 }
                 catch (error) {
@@ -8815,76 +9155,70 @@ class ChatOrchestrator {
             this.isSendingMessage = false;
         }
     }
-    async handleBackgroundMsgResponse(message) {
+    async handleBackgroundMsgResponse(data) {
         if (this.LOG_GENERAL)
             console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgResponse:`, this.isSendingMessage);
-        const { chatId, messageId, text } = message;
+        const { chatId, messageId, response, error } = data;
         if (this.LOG_GENERAL)
-            console.log(this.prefix, `handleBackgroundMsgResponse: for chat ${chatId}, placeholder ${messageId}`);
+            console.log(this.prefix, `handleBackgroundMsgResponse: received response for chatId: ${chatId}, messageId: ${messageId}`);
+        if (error) {
+            if (this.LOG_ERROR)
+                console.error(this.prefix, `handleBackgroundMsgResponse: Error in response:`, error);
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
+            return;
+        }
+        if (response && response.type === 'generationStopped') {
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundMsgResponse: Generation was stopped by user`);
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse (stopped)`);
+            return;
+        }
+        if (response && response.type === 'generationComplete') {
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `handleBackgroundMsgResponse: Generation completed successfully`);
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL)
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
+            return;
+        }
+        // Handle other response types as before
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `handleBackgroundMsgResponse: Processing response type: ${response?.type}`);
+        this.isSendingMessage = false;
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
+    }
+    async handleBackgroundMsgError(data) {
+        if (this.LOG_GENERAL)
+            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgError:`, this.isSendingMessage);
+        const { chatId, messageId, error } = data;
+        if (this.LOG_ERROR)
+            console.error(this.prefix, `handleBackgroundMsgError: Error for chat ${chatId}, message ${messageId}:`, error);
         try {
-            const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
+            const updatePayload = {
+                isLoading: false,
+                sender: 'ai',
+                text: `Error: ${error || 'Unknown error occurred.'}`
+            };
             const updateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(chatId, messageId, updatePayload);
             await this.requestDbAndWait(updateRequest);
-            if (this.LOG_GENERAL)
-                console.log(this.prefix, `handleBackgroundMsgResponse: Setting session ${chatId} status to 'idle' after response via event`);
-            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'idle');
+            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
             await this.requestDbAndWait(statusRequest);
         }
-        catch (error) {
-            const errObj = error;
+        catch (dbError) {
+            const errObj = dbError;
             if (this.LOG_ERROR)
-                console.error(this.prefix, `handleBackgroundMsgResponse: Error handling background response for chat ${chatId}:`, errObj);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with response: ${errObj.message || errObj}`);
-            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(chatId, 'error');
-            this.requestDbAndWait(statusRequest).catch(e => {
-                if (this.LOG_ERROR)
-                    console.error(this.prefix, 'Failed to set session status on response processing error:', e);
-            });
+                console.error(this.prefix, `handleBackgroundMsgError: Error updating DB for chat ${chatId}:`, errObj);
         }
         finally {
             this.isSendingMessage = false;
             if (this.LOG_GENERAL)
-                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
+                console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgError`);
         }
-    }
-    async handleBackgroundMsgError(message) {
-        if (this.LOG_GENERAL)
-            console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgError:`, this.isSendingMessage);
-        if (this.LOG_ERROR)
-            console.error(this.prefix, `handleBackgroundMsgError: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Error processing request: ${message.error}`);
-        const sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
-        if (sessionId && message.chatId === sessionId && message.messageId) {
-            if (this.LOG_GENERAL)
-                console.log(this.prefix, `handleBackgroundMsgError: Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
-            const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
-            const errorUpdateRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
-            const statusRequest = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error');
-            try {
-                await this.requestDbAndWait(errorUpdateRequest);
-                if (this.LOG_GENERAL)
-                    console.log(this.prefix, `handleBackgroundMsgError: Error message update successful for session ${sessionId}.`);
-                await this.requestDbAndWait(statusRequest);
-                if (this.LOG_GENERAL)
-                    console.log(this.prefix, `handleBackgroundMsgError: Session ${sessionId} status set to 'error'.`);
-            }
-            catch (dbError) {
-                const dbErr = dbError;
-                if (this.LOG_ERROR)
-                    console.error(this.prefix, `handleBackgroundMsgError: Error updating chat/status on background error:`, dbErr);
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.showError)(`Failed to update chat with error status: ${dbErr.message}`);
-                try {
-                    await this.requestDbAndWait(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_3__.DbUpdateStatusRequest(sessionId, 'error'));
-                }
-                catch (statusError) {
-                    if (this.LOG_ERROR)
-                        console.error(this.prefix, 'handleBackgroundMsgError: Failed to set session status on error handling error:', statusError);
-                }
-            }
-        }
-        this.isSendingMessage = false;
-        if (this.LOG_GENERAL)
-            console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgError`);
     }
     async handleBackgroundScrapeStage(payload) {
         if (this.LOG_GENERAL)
@@ -8985,6 +9319,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   quantKeyToLabel: () => (/* binding */ quantKeyToLabel),
 /* harmony export */   setActiveSession: () => (/* binding */ setActiveSession),
 /* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick),
+/* harmony export */   updateGenerationState: () => (/* binding */ updateGenerationState),
 /* harmony export */   updateQuantDropdown: () => (/* binding */ updateQuantDropdown)
 /* harmony export */ });
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
@@ -9014,8 +9349,8 @@ let lastSeenLoadId = null;
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFO = false;
+const LOG_WARN = false;
+const LOG_INFO = true;
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -9023,6 +9358,7 @@ const AVAILABLE_MODELS = {
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
+    "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
     // Add more models here as needed
 };
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
@@ -9045,7 +9381,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.a
 _DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__.dbChannel.onmessage = (event) => {
     const message = event.data;
     const type = message?.type;
-    console.log('[UIController] dbChannel.onmessage Received progress update: ', message.type, message.payload);
+    if (LOG_INFO)
+        console.log('[UIController] dbChannel.onmessage Received progress update: ', message.type, message.payload);
     if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
@@ -9100,12 +9437,14 @@ function handleEnterKey(event) {
         event.preventDefault();
         const messageText = getInputValue();
         if (messageText && !queryInput.disabled) {
-            console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
+            if (LOG_INFO)
+                console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
             clearInput();
         }
         else {
-            console.log("[UIController] Enter key pressed, but input is empty or disabled.");
+            if (LOG_INFO)
+                console.log("[UIController] Enter key pressed, but input is empty or disabled.");
         }
     }
 }
@@ -9386,7 +9725,81 @@ function clearInput() {
     }
 }
 function focusInput() {
-    queryInput?.focus();
+    if (!isInitialized || !queryInput)
+        return;
+    queryInput.focus();
+}
+function updateGenerationState(isGenerating) {
+    if (!isInitialized || !sendButton) {
+        if (LOG_INFO)
+            console.log('[UIController] updateGenerationState called but not initialized or no sendButton');
+        return;
+    }
+    if (LOG_INFO)
+        console.log('[UIController] updateGenerationState called with isGenerating:', isGenerating);
+    if (isGenerating) {
+        // Change to stop button - red background, enabled
+        sendButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
+            </svg>
+        `;
+        sendButton.title = 'Stop Generation';
+        sendButton.onclick = handleStopGeneration;
+        sendButton.disabled = false; // Ensure stop button is enabled
+        sendButton.className = 'absolute bottom-2.5 right-2.5 p-1 rounded bg-red-500 hover:bg-red-600 text-white';
+        // Add direct click listener for debugging
+        sendButton.addEventListener('click', (e) => {
+            if (LOG_INFO)
+                console.log('[UIController] Direct click event detected on stop button');
+            if (LOG_INFO)
+                console.log('[UIController] Event target:', e.target);
+            if (LOG_INFO)
+                console.log('[UIController] Event currentTarget:', e.currentTarget);
+        });
+        // Add mousedown and mouseup listeners to see if any mouse events are being detected
+        sendButton.addEventListener('mousedown', (e) => {
+            if (LOG_INFO)
+                console.log('[UIController] Mouse down detected on stop button');
+        });
+        sendButton.addEventListener('mouseup', (e) => {
+            if (LOG_INFO)
+                console.log('[UIController] Mouse up detected on stop button');
+        });
+        // Log button position and size for debugging
+        const rect = sendButton.getBoundingClientRect();
+        if (LOG_INFO)
+            console.log('[UIController] Stop button position:', rect);
+        if (LOG_INFO)
+            console.log('[UIController] Stop button computed style:', window.getComputedStyle(sendButton));
+        if (LOG_INFO)
+            console.log('[UIController] Updated to stop button - disabled:', sendButton.disabled, 'onclick set:', !!sendButton.onclick, 'className:', sendButton.className);
+    }
+    else {
+        // Change back to send button - blue background, check if should be enabled
+        sendButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+            </svg>
+        `;
+        sendButton.title = 'Send';
+        sendButton.onclick = handleSendButtonClick;
+        sendButton.className = 'absolute bottom-2.5 right-2.5 p-1 rounded bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed';
+        // Re-evaluate if send button should be enabled based on input state
+        if (queryInput) {
+            sendButton.disabled = queryInput.value.trim() === '' || queryInput.disabled;
+        }
+    }
+}
+function handleStopGeneration() {
+    // Dispatch event to stop generation
+    if (LOG_INFO)
+        console.log('[UIController] handleStopGeneration function called');
+    if (LOG_INFO)
+        console.log('[UIController] Stop generation button clicked, dispatching stopGeneration event');
+    if (LOG_INFO)
+        console.log('[UIController] Button state - disabled:', sendButton?.disabled, 'innerHTML length:', sendButton?.innerHTML.length);
+    document.dispatchEvent(new CustomEvent('stopGeneration'));
 }
 function triggerFileInputClick() {
     fileInput?.click();
@@ -9471,13 +9884,20 @@ async function updateQuantDropdown() {
     const quantDropdown = document.getElementById('onnx-variant-selector');
     if (!modelDropdown || !quantDropdown)
         return;
+    if (LOG_INFO)
+        console.log(prefix, "updateQuantDropdown: Refreshing manifest cache...");
     const allManifests = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getAllManifestEntries)();
     const modelRepos = getModelSelectorOptions();
+    // Clear the cache completely
     repoQuantsCache = {};
+    if (LOG_INFO)
+        console.log(prefix, "updateQuantDropdown: Found manifests:", allManifests.length);
     for (const repo of modelRepos) {
         const manifestEntry = allManifests.find(entry => entry.repo === repo);
         if (manifestEntry) {
             repoQuantsCache[repo] = manifestEntry;
+            if (LOG_INFO)
+                console.log(prefix, `updateQuantDropdown: Cached manifest for ${repo}:`, Object.keys(manifestEntry.quants || {}));
         }
     }
     populateQuantDropdownForSelectedRepo();
@@ -9535,7 +9955,10 @@ function populateQuantDropdownForSelectedRepo() {
         let label = quantKeyToLabel(modelPath);
         let dot = '⚪'; // default gray
         let statusLabel = '';
-        switch (manifestEntry.quants[modelPath].status) {
+        const status = manifestEntry.quants[modelPath].status;
+        if (LOG_INFO)
+            console.log(prefix, `populateQuantDropdown: ${modelPath} status:`, status);
+        switch (status) {
             case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Downloaded:
                 dot = '🟢';
                 break;
@@ -9557,7 +9980,7 @@ function populateQuantDropdownForSelectedRepo() {
                 break;
         }
         option.textContent = `${label} ${dot}${statusLabel}`;
-        if (manifestEntry.quants[modelPath].status === _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.ServerOnly) {
+        if (status === _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.ServerOnly) {
             option.disabled = false; // allow selection, but block load
             option.classList.add('server-only-quant');
         }
@@ -9569,6 +9992,7 @@ function populateQuantDropdownForSelectedRepo() {
 }
 document.getElementById('model-selector')?.addEventListener('change', onModelDropdownChange);
 function onModelDropdownChange() {
+    // Just populate the dropdown with current cached data - updateQuantDropdown() should have already refreshed it
     populateQuantDropdownForSelectedRepo();
 }
 window.addEventListener('message', (event) => {
@@ -10250,6 +10674,8 @@ const WorkerEventNames = Object.freeze({
     GENERATION_UPDATE: 'generationUpdate',
     GENERATION_COMPLETE: 'generationComplete',
     GENERATION_ERROR: 'generationError',
+    GENERATION_STOPPED: 'generationStopped',
+    STOP_GENERATION: 'stopGeneration',
     RESET_COMPLETE: 'resetComplete',
     ERROR: 'error',
     UNINITIALIZED: 'uninitialized',
@@ -10384,7 +10810,7 @@ const pageTitles = {
     'page-settings': 'Settings'
 };
 async function navigateTo(pageId) {
-    console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
+    // console.log(CONTEXT_PREFIX + `Navigating to ${pageId}`);
     pageContainers.forEach(container => {
         container.classList.add('hidden');
         container.classList.remove('active-page');
@@ -10430,14 +10856,14 @@ async function navigateTo(pageId) {
         }
     });
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.NAVIGATION_PAGE_CHANGED, { detail: { pageId } }));
-    console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
+    // console.log(CONTEXT_PREFIX + `Published navigation:pageChanged event for ${pageId}`);
     const queryInput = document.getElementById('query-input');
     if (pageId === 'page-home' && queryInput) {
         queryInput.focus();
     }
 }
 function initializeNavigation() {
-    console.log(CONTEXT_PREFIX + "Initializing navigation...");
+    // console.log(CONTEXT_PREFIX + "Initializing navigation...");
     pageContainers = document.querySelectorAll('.page-container');
     navButtons = document.querySelectorAll('.nav-button');
     mainHeaderTitle = document.querySelector('#header h1');
@@ -10451,7 +10877,7 @@ function initializeNavigation() {
         });
     });
     navigateTo('page-home');
-    console.log(CONTEXT_PREFIX + "Navigation initialized.");
+    // console.log(CONTEXT_PREFIX + "Navigation initialized.");
 }
 
 
@@ -10506,6 +10932,7 @@ function hideNotification() {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   ensureManifestForDropdownRepos: () => (/* binding */ ensureManifestForDropdownRepos),
+/* harmony export */   isGenerationActive: () => (/* binding */ isGenerationActive),
 /* harmony export */   isModelLoaded: () => (/* binding */ isModelLoaded),
 /* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart),
 /* harmony export */   sendToModelWorker: () => (/* binding */ sendToModelWorker)
@@ -10582,8 +11009,8 @@ const LOG_MANIFEST_GENERATION = true;
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFERENCE_SETTINGS = true;
+const LOG_WARN = false;
+const LOG_INFERENCE_SETTINGS = false;
 const LOG_QUEUE_MAX = 1000;
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 // --- Global State ---
@@ -10599,6 +11026,7 @@ let modelWorker = undefined;
 let currentModelIdInWorker = null;
 let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady = false;
+let isGenerating = false;
 // Track the currently loaded model and quant (onnx variant)
 let currentLoadedModel = { modelId: null, quant: null };
 // Define getModelSelectorOptions locally if not exported
@@ -10793,6 +11221,32 @@ function hideDeviceBadge() {
     if (badge)
         badge.style.display = 'none';
 }
+function updateSendButtonForGeneration(isGenerating) {
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.updateGenerationState)(isGenerating);
+}
+function handleStopGeneration() {
+    console.log(`${prefix} handleStopGeneration called. modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
+    if (modelWorker && isGenerating) {
+        console.log(`${prefix} Sending stop generation request to worker.`);
+        sendToModelWorker({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.STOP_GENERATION });
+    }
+    else {
+        console.log(`${prefix} Cannot send stop request - modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
+    }
+}
+function handleSendButtonClick() {
+    // This will be handled by the UI controller
+    const queryInput = document.getElementById('query-input');
+    if (queryInput && queryInput.value.trim() && !queryInput.disabled) {
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.QUERY_SUBMITTED, {
+            detail: { text: queryInput.value.trim() }
+        }));
+        // Clear input after sending
+        queryInput.value = '';
+        // Adjust textarea height
+        queryInput.style.height = 'auto';
+    }
+}
 function handleModelWorkerMessage(event) {
     const { type, label, payload } = event.data || {};
     // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
@@ -10863,9 +11317,31 @@ function handleModelWorkerMessage(event) {
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
             break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_UPDATE:
+            // Streaming token update from worker
+            if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
+                // Set generating state when we receive first token
+                if (!isGenerating) {
+                    isGenerating = true;
+                    // Update UI to show stop button
+                    updateSendButtonForGeneration(true);
+                }
+                // Fetch the current message from the DB (optional, or just append)
+                // For now, just append the token to the message text/content
+                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(payload.chatId, payload.messageId, {
+                    isLoading: true,
+                    sender: 'ai',
+                    appendText: payload.token,
+                    appendContent: payload.token
+                }));
+            }
+            break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_COMPLETE: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
+            // Reset generating state
+            isGenerating = false;
+            updateSendButtonForGeneration(false);
             // Use only the clean generatedText from the worker
             if (payload.messageId && activeSessionId) {
                 sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
@@ -10877,7 +11353,27 @@ function handleModelWorkerMessage(event) {
             }
             break;
         }
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_STOPPED: {
+            if (LOG_DEBUG)
+                console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
+            // Reset generating state
+            isGenerating = false;
+            updateSendButtonForGeneration(false);
+            // Handle stopped generation the same as complete, but could add UI indication
+            if (payload.messageId && activeSessionId) {
+                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
+                    isLoading: false,
+                    sender: 'ai',
+                    text: payload.generatedText,
+                    content: payload.generatedText,
+                }));
+            }
+            break;
+        }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_ERROR:
+            // Reset generating state on error
+            isGenerating = false;
+            updateSendButtonForGeneration(false);
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
                 detail: {
                     chatId: payload.chatId,
@@ -10903,20 +11399,6 @@ function handleModelWorkerMessage(event) {
                 });
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.GENERATION_UPDATE: {
-            // Streaming token update from worker
-            if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
-                // Fetch the current message from the DB (optional, or just append)
-                // For now, just append the token to the message text/content
-                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(payload.chatId, payload.messageId, {
-                    isLoading: true,
-                    sender: 'ai',
-                    appendText: payload.token,
-                    appendContent: payload.token
-                }));
-            }
-            break;
-        }
         default:
             console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
     }
@@ -11264,43 +11746,25 @@ async function handleDetach() {
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error detaching chat: ${err.message}`);
     }
 }
-async function handlePageChange(event) {
-    if (!event?.pageId)
-        return;
-    if (LOG_DEBUG)
-        console.log(`${prefix} Navigation changed to: ${event.pageId}`);
-    if (!isDbReady) {
-        if (LOG_DEBUG)
-            console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
-        return;
-    }
-    if (event.pageId === 'page-home') {
-        if (LOG_DEBUG)
-            console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
-        try {
-            const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.get(['lastSessionId']);
-            if (lastSessionId) {
-                if (LOG_DEBUG)
-                    console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
-                await loadAndDisplaySession(lastSessionId);
-                await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.remove('lastSessionId');
-            }
-            else {
-                if (LOG_DEBUG)
-                    console.log(`${prefix} No load signal found. Resetting to welcome state.`);
-                await loadAndDisplaySession(null);
-            }
-        }
-        catch (error) {
-            const err = error;
-            if (LOG_ERROR)
-                console.error(`${prefix} Error checking/loading session based on signal:`, err);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Failed to load session state.');
-            await loadAndDisplaySession(null);
-        }
-    }
+function isModelLoaded() {
+    return modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
 }
-// --- Main Initialization ---
+function isGenerationActive() {
+    return isGenerating;
+}
+
+// Add listener for stop generation event
+document.addEventListener('stopGeneration', () => {
+    console.log(`${prefix} Received stopGeneration event from UI`);
+    handleStopGeneration();
+});
+// Add listener for generation starting event
+document.addEventListener('generationStarting', () => {
+    console.log(`${prefix} Received generationStarting event from orchestrator`);
+    isGenerating = true;
+    updateSendButtonForGeneration(true);
+});
+// Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
     if (LOG_DEBUG)
         console.log(`${prefix} DOM Content Loaded.`);
@@ -11545,7 +12009,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
             await loadAndDisplaySession(null);
         }
-        await ensureManifestForDropdownRepos();
+        // Check if we have bypass settings that might affect manifest status
+        const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getBypassSizeLimitModels)().size > 0;
+        await ensureManifestForDropdownRepos(hasBypassSettings);
         const dbInitSuccess = await initializeDatabase();
         if (!dbInitSuccess)
             return;
@@ -11610,10 +12076,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 });
-document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbInitializationCompleteNotification.type, async (e) => {
+async function handlePageChange(event) {
+    if (!event?.pageId)
+        return;
     if (LOG_DEBUG)
-        console.log(`${prefix} DbInitializationCompleteNotification received.`, e.detail);
-});
+        console.log(`${prefix} Navigation changed to: ${event.pageId}`);
+    if (!isDbReady) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} DB not ready yet, skipping session load on initial navigation event.`);
+        return;
+    }
+    if (event.pageId === 'page-home') {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Navigated to home page, checking for specific session load signal...`);
+        try {
+            const { lastSessionId } = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.get(['lastSessionId']);
+            if (lastSessionId) {
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Found load signal: ${lastSessionId}. Loading session and clearing signal.`);
+                await loadAndDisplaySession(lastSessionId);
+                await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.remove('lastSessionId');
+            }
+            else {
+                if (LOG_DEBUG)
+                    console.log(`${prefix} No load signal found. Resetting to welcome state.`);
+                await loadAndDisplaySession(null);
+            }
+        }
+        catch (error) {
+            const err = error;
+            if (LOG_ERROR)
+                console.error(`${prefix} Error checking/loading session based on signal:`, err);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Failed to load session state.');
+            await loadAndDisplaySession(null);
+        }
+    }
+}
 async function initializeDatabase() {
     try {
         const result = await (0,_DB_db__WEBPACK_IMPORTED_MODULE_0__.autoEnsureDbInitialized)();
@@ -11644,7 +12142,7 @@ async function initializeDatabase() {
         return false;
     }
 }
-async function ensureManifestForDropdownRepos() {
+async function ensureManifestForDropdownRepos(forceRebuild = false) {
     if (typeof document === 'undefined')
         return;
     const dropdownRepos = getModelSelectorOptions();
@@ -11655,13 +12153,19 @@ async function ensureManifestForDropdownRepos() {
     const skippedRepos = [];
     const errorRepos = [];
     for (const repo of dropdownRepos) {
-        // --- Check if manifest already exists for this repo ---
-        const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getManifestEntry)(repo);
-        if (manifest) {
+        // --- Check if we should skip existing manifests ---
+        if (!forceRebuild) {
+            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getManifestEntry)(repo);
+            if (existingManifest) {
+                if (LOG_MANIFEST_GENERATION)
+                    console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
+                processedRepos.push(repo);
+                continue;
+            }
+        }
+        else {
             if (LOG_MANIFEST_GENERATION)
-                console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
-            processedRepos.push(repo);
-            continue;
+                console.log(`${prefix} [ensureManifestForDropdownRepos] Force rebuild requested for ${repo}. Will update/create manifest.`);
         }
         let oldManifest = null;
         try {
@@ -11728,21 +12232,68 @@ async function ensureManifestForDropdownRepos() {
                     }
                     // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
+                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getServerOnlySizeLimit)();
+                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.getBypassSizeLimitModels)();
+                    if (LOG_MANIFEST_GENERATION) {
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] Processing ${quantKey} for ${repo}:`);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] Size limit: ${serverOnlySizeLimit / (1024 * 1024 * 1024)} GB`);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] Bypass models:`, Array.from(bypassModels));
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] Required files for ${quantKey}:`, Array.from(currentQuantRequiredFiles));
+                    }
                     if (quantKey.endsWith('.onnx')) {
                         // For any .onnx, check for .onnx_data or .onnx.data file of the same quant family
                         const baseName = quantKey.replace(/\.onnx$/, '');
                         const dataFile = siblings.find(f => f.rfilename === `${baseName}.onnx_data` || f.rfilename === `${baseName}.onnx.data`);
-                        if (dataFile && typeof dataFile.size === 'number' && dataFile.size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
-                            isServerOnly = true;
+                        if (dataFile && typeof dataFile.size === 'number') {
+                            const dataFileSizeGB = dataFile.size / (1024 * 1024 * 1024);
+                            const limitGB = serverOnlySizeLimit / (1024 * 1024 * 1024);
+                            const isOverLimit = dataFile.size > serverOnlySizeLimit;
+                            if (LOG_MANIFEST_GENERATION) {
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} size check:`);
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] - Data file: ${dataFile.rfilename}`);
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] - Data file size: ${dataFile.size} bytes (${dataFileSizeGB.toFixed(2)} GB)`);
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] - Size limit: ${serverOnlySizeLimit} bytes (${limitGB.toFixed(2)} GB)`);
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] - Is over limit: ${isOverLimit}`);
+                                console.log(`${prefix} [ensureManifestForDropdownRepos] - Is in bypass: ${bypassModels.has(repo)}`);
+                            }
+                            if (isOverLimit) {
+                                // Check if this model is in the bypass list
+                                if (!bypassModels.has(repo)) {
+                                    isServerOnly = true;
+                                    if (LOG_MANIFEST_GENERATION) {
+                                        console.log(`${prefix} [ensureManifestForDropdownRepos] - Setting server_only=true (over limit and not bypassed)`);
+                                    }
+                                }
+                                else {
+                                    if (LOG_MANIFEST_GENERATION) {
+                                        console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (over limit but bypassed)`);
+                                    }
+                                }
+                            }
+                            else {
+                                if (LOG_MANIFEST_GENERATION) {
+                                    console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (under limit)`);
+                                }
+                            }
                         }
                     }
                     else if (quantKey.endsWith('.gguf')) {
                         const entry = siblings.find(f => f.rfilename === quantKey);
-                        if (entry && typeof entry.size === 'number' && entry.size > _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.SERVER_ONLY_SIZE) {
-                            isServerOnly = true;
+                        if (entry && typeof entry.size === 'number' && entry.size > serverOnlySizeLimit) {
+                            // Check if this model is in the bypass list
+                            if (!bypassModels.has(repo)) {
+                                isServerOnly = true;
+                            }
                         }
                     }
-                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.ServerOnly : (oldManifest?.quants[quantKey]?.status || _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.Available);
+                    const oldStatus = oldManifest?.quants[quantKey]?.status;
+                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_19__.QuantStatus.Available;
+                    if (LOG_MANIFEST_GENERATION) {
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] Status calculation for ${quantKey}:`);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] - isServerOnly: ${isServerOnly}`);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] - oldStatus: ${oldStatus}`);
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] - final status: ${status}`);
+                    }
                     // Build fileSizes info
                     const fileSizes = {};
                     for (const fname of currentQuantRequiredFiles) {
@@ -11797,10 +12348,22 @@ async function ensureManifestForDropdownRepos() {
     }
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED));
 }
-function isModelLoaded() {
-    return modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
-}
-
+// Listen for manifest refresh requests from settings
+document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
+    if (LOG_GENERAL)
+        console.log('[Sidepanel] Manifest refresh requested from settings');
+    try {
+        // Always rebuild all manifests when settings change to apply new bypass settings
+        await ensureManifestForDropdownRepos(true); // Pass true to force rebuild
+        if (LOG_GENERAL)
+            console.log('[Sidepanel] Manifest refreshed successfully');
+        // Dispatch MANIFEST_UPDATED event AFTER the manifest update is complete
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_16__.WorkerEventNames.MANIFEST_UPDATED));
+    }
+    catch (e) {
+        console.error('[Sidepanel] Error refreshing manifest:', e);
+    }
+});
 
 
 /***/ })
@@ -11877,7 +12440,7 @@ function isModelLoaded() {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "fc5e3b5b06eed5fb80d1" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "bb56856d3f27813dcc5e" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

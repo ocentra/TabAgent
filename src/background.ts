@@ -8,6 +8,8 @@ import { WorkerEventNames,
 import { DBEventNames} from './DB/dbEvents';
 
 const CONTEXT_PREFIX = '[Background]';
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 
 let detachedPopups: { [tabId: string]: number } = {}; // TabId to Popup WindowId
 let popupIdToTabId: { [popupId: number]: string } = {}; // Popup WindowId to Original TabId
@@ -33,8 +35,8 @@ async function initializeSessionIds() {
         }
         await browser.storage.local.set({ previousLogSessionId: currentLogSessionId });
     }
-    console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
-    console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
+    // console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
+    // console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
 }
 
 async function updateDeclarativeNetRequestRules() {
@@ -64,7 +66,7 @@ async function updateDeclarativeNetRequestRules() {
             removeRuleIds: rulesToRemove,
             addRules: rulesToAdd
         });
-        console.log(CONTEXT_PREFIX + ' Declarative Net Request rules updated successfully.');
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Declarative Net Request rules updated successfully.');
     } catch (error: unknown) {
         console.error("Error updating Declarative Net Request rules:", error);
     }
@@ -210,7 +212,7 @@ async function fetchDriveFileList(token: string, folderId: string = 'root'): Pro
 
 
 browser.runtime.onInstalled.addListener(async (details: any) => {
-    console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);
+    if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
     browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
@@ -350,5 +352,5 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
 (async () => {
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
-    console.log(CONTEXT_PREFIX + ' Initialized.');
+    if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Initialized.');
 })();

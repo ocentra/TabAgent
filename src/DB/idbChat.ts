@@ -12,6 +12,13 @@ import { DB_ENTITY_TYPES } from "./idbBase";
 import { assertDbWorker } from '../Utilities/dbChannels';
 import { MESSAGE_EVENT } from '../Utilities/eventConstants';
 
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const LOG_SELF = false;
+const LOG_GENERATION = false;
+
 export class Chat extends KnowledgeGraphNode {
 
   public user_id: string;
@@ -148,7 +155,7 @@ export class Chat extends KnowledgeGraphNode {
         initialMessageSender?: string;
     } = {}
   ): Promise<Chat> {
-    console.log('[DEBUG] Chat.createChat called with dbWorker:', dbWorker);
+    if (LOG_DEBUG) console.log('[DEBUG] Chat.createChat called with dbWorker:', dbWorker);
     assertDbWorker(dbWorker, Chat.createChat.name, Chat.name);
     const chatId = options.id || crypto.randomUUID();
     const now = Date.now();
@@ -246,7 +253,7 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   static async read(id: string, dbWorker: Worker, modelWorker?: Worker): Promise<Chat | undefined> {
-    console.log('[DEBUG] Chat.read called with dbWorker:', dbWorker);
+    if (LOG_DEBUG) console.log('[DEBUG] Chat.read called with dbWorker:', dbWorker);
     assertDbWorker(dbWorker, Chat.read.name, Chat.name);
     if (!dbWorker) throw new Error('dbWorker is required for Chat.read');
     const requestId = crypto.randomUUID();
@@ -483,7 +490,7 @@ export class Chat extends KnowledgeGraphNode {
     dbWorker: Worker,
     modelWorker?: Worker
   ): Promise<{ success: boolean; chat?: Chat; error?: string }> {
-    console.log('[DEBUG] Chat.updateChat called with dbWorker:', dbWorker);
+    if (LOG_DEBUG) console.log('[DEBUG] Chat.updateChat called with dbWorker:', dbWorker);
     assertDbWorker(dbWorker, Chat.updateChat.name, Chat.name);
     const chat = await Chat.read(chatId, dbWorker, modelWorker);
     if (!chat) return { success: false, error: 'Chat not found' };
@@ -502,7 +509,7 @@ export class Chat extends KnowledgeGraphNode {
     modelWorker?: Worker,
     options: { deleteMessages?: boolean, deleteSummaries?: boolean, deleteKGNRels?: boolean, deleteOrphanedEmbedding?: boolean } = {}
   ): Promise<{ success: boolean; error?: string }> {
-    console.log('[DEBUG] Chat.deleteChat called with dbWorker:', dbWorker);
+    if (LOG_DEBUG) console.log('[DEBUG] Chat.deleteChat called with dbWorker:', dbWorker);
     assertDbWorker(dbWorker, Chat.deleteChat.name, Chat.name);
     const chat = await Chat.read(chatId, dbWorker, modelWorker);
     if (!chat) return { success: false, error: 'Chat not found' };
@@ -531,7 +538,7 @@ export class Chat extends KnowledgeGraphNode {
     dbWorker: Worker,
     modelWorker?: Worker
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    console.log('[DEBUG] Chat.addMessageToChat called with dbWorker:', dbWorker);
+    if (LOG_DEBUG) console.log('[DEBUG] Chat.addMessageToChat called with dbWorker:', dbWorker);
     assertDbWorker(dbWorker, Chat.addMessageToChat.name, Chat.name);
     const chat = await Chat.read(chatId, dbWorker, modelWorker);
     if (!chat) return { success: false, error: 'Chat not found' };
@@ -544,7 +551,7 @@ export class Chat extends KnowledgeGraphNode {
   }
 
   static async getAllChats(dbWorker: Worker): Promise<Chat[]> {
-    console.log('[DEBUG] Chat.getAllChats called with dbWorker:', dbWorker);
+    if (LOG_DEBUG) console.log('[DEBUG] Chat.getAllChats called with dbWorker:', dbWorker);
     assertDbWorker(dbWorker, Chat.getAllChats.name, Chat.name);
     const requestId = crypto.randomUUID();
     const chatDatas = await new Promise<any[]>((resolve, reject) => {

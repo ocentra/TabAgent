@@ -63,11 +63,11 @@
                  <!-- Bottom Controls Row -->
                  <div class="flex items-center justify-between text-xs">
                      <div class="flex items-center space-x-2 flex-1 min-w-0">
-                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 max-w-[120px] min-w-[60px] w-full truncate">
+                        <select id="model-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 max-w-[120px] min-w-[60px] w-full truncate" title="Select Model">
                            <!-- Model options will be populated by uiController.js -->
                         </select>
                         <!-- ONNX Variant Dropdown -->
-                        <select id="onnx-variant-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 ml-1 max-w-[120px] min-w-[60px] w-full truncate">
+                        <select id="onnx-variant-selector" class="p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-500 ml-1 max-w-[120px] min-w-[60px] w-full truncate" title="Select Model Variant">
                            <!-- ONNX variant options will be populated dynamically -->
                         </select>
                         <button id="load-model-button" style="display:none;" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded">Load Model</button>
@@ -96,6 +96,7 @@
                 id="file-input"
                 class="hidden"
                 accept="image/png, image/jpeg, image/gif, image/webp, image/svg+xml, text/plain, text/markdown, .md, .txt, application/pdf"
+                title="File Upload"
              />
 
         </div>

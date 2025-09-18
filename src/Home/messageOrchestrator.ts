@@ -28,10 +28,11 @@ class ChatOrchestrator {
     private isSendingMessage = false;
 
     private readonly prefix = '[Orchestrator]';
-    private readonly LOG_GENERAL = true;
-    private readonly LOG_DEBUG = true;
+    private readonly LOG_GENERAL = false;
+    private readonly LOG_DEBUG = false;
     private readonly LOG_ERROR = true;
-    private readonly LOG_WARN = true;
+    private readonly LOG_WARN = false;
+    private readonly LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
 
     public initialize(dependencies: OrchestratorDependencies) {
         this.validateDependencies(dependencies);
@@ -124,13 +125,66 @@ class ChatOrchestrator {
     private async getChatHistoryForModel(sessionId: string, placeholderMessageId?: string): Promise<{role: string, content: string}[]> {
         const sessionData = await this.requestDbAndWait(new DbGetSessionRequest(sessionId));
         if (!sessionData || !Array.isArray(sessionData.messages)) return [];
-        return (sessionData.messages as any[])
-            .map((m: any) => m.__type === DB_ENTITY_TYPES.Message ? Message.fromJSON(m) : m)
-            .filter((m: Message) => (m.sender === 'user' || m.sender === 'ai' || m.sender === 'system') && (!placeholderMessageId || m.id !== placeholderMessageId) && !(m as any)?.isLoading)
+        
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] Raw messages from DB:', sessionData.messages.length, 'messages');
+            sessionData.messages.forEach((msg: any, i: number) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Raw msg[${i}]:`, {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT',
+                    __type: msg.__type,
+                    isLoading: msg.isLoading
+                });
+            });
+        }
+        
+        const convertedMessages = (sessionData.messages as any[])
+            .map((m: any) => m.__type === DB_ENTITY_TYPES.Message ? Message.fromJSON(m) : m);
+            
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] After Message.fromJSON conversion:');
+            convertedMessages.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Converted msg[${i}]:`, {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT',
+                    type: msg.constructor.name
+                });
+            });
+        }
+        
+        const filteredMessages = convertedMessages
+            .filter((m: Message) => (m.sender === 'user' || m.sender === 'ai' || m.sender === 'system') && (!placeholderMessageId || m.id !== placeholderMessageId) && !(m as any)?.isLoading);
+            
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] After filtering:', filteredMessages.length, 'messages remain');
+            filteredMessages.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Filtered msg[${i}]:`, {
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                });
+            });
+        }
+        
+        const finalHistory = filteredMessages
             .map((m: Message) => ({
                 role: m.sender === 'user' ? 'user' : 'assistant',
                 content: m.content || ''
             }));
+            
+        if (this.LOG_CHAT_HISTORY) {
+            console.log(this.prefix, '[CHAT_HISTORY] Final history for model:', finalHistory.length, 'messages');
+            finalHistory.forEach((msg, i) => {
+                console.log(this.prefix, `[CHAT_HISTORY] Final msg[${i}]:`, {
+                    role: msg.role,
+                    content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                });
+            });
+        }
+        
+        return finalHistory;
     }
 
     private async handleQuerySubmit(data: any) {
@@ -239,7 +293,23 @@ class ChatOrchestrator {
                     options: {},
                     messageId: placeholderMessageId
                 };
+                
+                if (this.LOG_CHAT_HISTORY) {
+                    console.log(this.prefix, '[CHAT_HISTORY] Sending payload to model worker:', {
+                        chatId: messagePayload.chatId,
+                        messageId: messagePayload.messageId,
+                        messagesCount: messagePayload.messages.length,
+                        messages: messagePayload.messages.map((msg: any, i: number) => ({
+                            index: i,
+                            role: msg.role,
+                            content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
+                        }))
+                    });
+                }
+                
                 try {
+                    // Notify sidepanel that generation is starting
+                    document.dispatchEvent(new CustomEvent('generationStarting'));
                     sendToModelWorker({ type: 'generate', payload: messagePayload });
                 } catch (error: unknown) {
                     const errObj = error as Error;
@@ -272,59 +342,61 @@ class ChatOrchestrator {
         }
     }
 
-    private async handleBackgroundMsgResponse(message: any) {
+    private async handleBackgroundMsgResponse(data: any) {
         if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgResponse:`, this.isSendingMessage);
-        const { chatId, messageId, text } = message;
-        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: for chat ${chatId}, placeholder ${messageId}`);
-        try {
-            const updatePayload = { isLoading: false, sender: 'ai', text: text || 'Received empty response.' };
-            const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
-            await this.requestDbAndWait(updateRequest);
-            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: Setting session ${chatId} status to 'idle' after response via event`);
-            const statusRequest = new DbUpdateStatusRequest(chatId, 'idle');
-            await this.requestDbAndWait(statusRequest);
-        } catch (error: unknown) {
-            const errObj = error as Error;
-            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgResponse: Error handling background response for chat ${chatId}:`, errObj);
-            showError(`Failed to update chat with response: ${errObj.message || errObj}`);
-            const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
-            this.requestDbAndWait(statusRequest).catch(e => {
-                if (this.LOG_ERROR) console.error(this.prefix, 'Failed to set session status on response processing error:', e);
-            });
-        } finally {
+        const { chatId, messageId, response, error } = data;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: received response for chatId: ${chatId}, messageId: ${messageId}`);
+
+        if (error) {
+            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgResponse: Error in response:`, error);
             this.isSendingMessage = false;
             if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
+            return;
         }
+
+        if (response && response.type === 'generationStopped') {
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: Generation was stopped by user`);
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse (stopped)`);
+            return;
+        }
+
+        if (response && response.type === 'generationComplete') {
+            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: Generation completed successfully`);
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
+            return;
+        }
+
+        // Handle other response types as before
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgResponse: Processing response type: ${response?.type}`);
+        this.isSendingMessage = false;
+        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgResponse`);
     }
 
-    private async handleBackgroundMsgError(message: any) {
+    private async handleBackgroundMsgError(data: any) {
         if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] ENTER handleBackgroundMsgError:`, this.isSendingMessage);
-        if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Received error for chat ${message.chatId}, placeholder ${message.messageId}: ${message.error}`);
-        showError(`Error processing request: ${message.error}`);
-        const sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
-        if (sessionId && message.chatId === sessionId && message.messageId) {
-            if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgError: Attempting to update message ${message.messageId} in active session ${sessionId} with error.`);
-            const errorPayload = { isLoading: false, sender: 'error', text: `Error: ${message.error}` };
-            const errorUpdateRequest = new DbUpdateMessageRequest(sessionId, message.messageId, errorPayload);
-            const statusRequest = new DbUpdateStatusRequest(sessionId, 'error');
-            try {
-                await this.requestDbAndWait(errorUpdateRequest);
-                if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgError: Error message update successful for session ${sessionId}.`);
-                await this.requestDbAndWait(statusRequest);
-                if (this.LOG_GENERAL) console.log(this.prefix, `handleBackgroundMsgError: Session ${sessionId} status set to 'error'.`);
-            } catch (dbError: unknown) {
-                const dbErr = dbError as Error;
-                if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Error updating chat/status on background error:`, dbErr);
-                showError(`Failed to update chat with error status: ${dbErr.message}`);
-                try {
-                    await this.requestDbAndWait(new DbUpdateStatusRequest(sessionId, 'error'));
-                } catch (statusError) {
-                    if (this.LOG_ERROR) console.error(this.prefix, 'handleBackgroundMsgError: Failed to set session status on error handling error:', statusError);
-                }
-            }
+        const { chatId, messageId, error } = data;
+        if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Error for chat ${chatId}, message ${messageId}:`, error);
+
+        try {
+            const updatePayload = { 
+                isLoading: false, 
+                sender: 'ai', 
+                text: `Error: ${error || 'Unknown error occurred.'}` 
+            };
+            const updateRequest = new DbUpdateMessageRequest(chatId, messageId, updatePayload);
+            await this.requestDbAndWait(updateRequest);
+            
+            const statusRequest = new DbUpdateStatusRequest(chatId, 'error');
+            await this.requestDbAndWait(statusRequest);
+        } catch (dbError: unknown) {
+            const errObj = dbError as Error;
+            if (this.LOG_ERROR) console.error(this.prefix, `handleBackgroundMsgError: Error updating DB for chat ${chatId}:`, errObj);
+        } finally {
+            this.isSendingMessage = false;
+            if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgError`);
         }
-        this.isSendingMessage = false;
-        if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] RESET to false in handleBackgroundMsgError`);
     }
 
     private async handleBackgroundScrapeStage(payload: any) {

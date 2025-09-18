@@ -55,8 +55,14 @@ export function getBypassSizeLimitModels(): Set<string> {
   } catch (e) {
     console.error('[IDBModel] Error parsing model loading settings:', e);
   }
-  console.log('[IDBModel] getBypassSizeLimitModels - using empty set');
-  return new Set<string>();
+  
+  // Default bypass models (MediaPipe models that need to bypass size limits)
+  const defaultBypassModels = new Set<string>([
+    'google/gemma-3n-E4B-it-litert-lm'
+  ]);
+  
+  console.log('[IDBModel] getBypassSizeLimitModels - using default bypass models:', Array.from(defaultBypassModels));
+  return defaultBypassModels;
 }
 export type ManifestEntry = {
   repo: string; // e.g., "microsoft/Phi-3-mini-4k-instruct-onnx"

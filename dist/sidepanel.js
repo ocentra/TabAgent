@@ -8281,8 +8281,12 @@ function getBypassSizeLimitModels() {
     catch (e) {
         console.error('[IDBModel] Error parsing model loading settings:', e);
     }
-    console.log('[IDBModel] getBypassSizeLimitModels - using empty set');
-    return new Set();
+    // Default bypass models (MediaPipe models that need to bypass size limits)
+    const defaultBypassModels = new Set([
+        'google/gemma-3n-E4B-it-litert-lm'
+    ]);
+    console.log('[IDBModel] getBypassSizeLimitModels - using default bypass models:', Array.from(defaultBypassModels));
+    return defaultBypassModels;
 }
 const prefix = '[IDBModel]';
 const LOG_GENERAL = false;
@@ -10945,6 +10949,16 @@ function populateQuantDropdownForSelectedRepo() {
         quantDropdown.disabled = true;
         return;
     }
+    // Hide quant dropdown for MediaPipe models (Google models)
+    if (selectedRepo.startsWith('google/')) {
+        quantDropdown.innerHTML = '';
+        quantDropdown.disabled = true;
+        quantDropdown.style.display = 'none';
+        return;
+    }
+    else {
+        quantDropdown.style.display = 'block';
+    }
     const manifestEntry = repoQuantsCache[selectedRepo];
     const prevSelectedModelPath = quantDropdown.value;
     quantDropdown.innerHTML = '';
@@ -12442,6 +12456,21 @@ function handleModelWorkerMessage(event) {
                     }
                 });
             }
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
+            break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
             break;
         default:
             console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);

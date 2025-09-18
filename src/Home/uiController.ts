@@ -604,6 +604,16 @@ function populateQuantDropdownForSelectedRepo() {
     quantDropdown.disabled = true;
     return;
   }
+
+  // Hide quant dropdown for MediaPipe models (Google models)
+  if (selectedRepo.startsWith('google/')) {
+    quantDropdown.innerHTML = '';
+    quantDropdown.disabled = true;
+    quantDropdown.style.display = 'none';
+    return;
+  } else {
+    quantDropdown.style.display = 'block';
+  }
   
   const manifestEntry = repoQuantsCache[selectedRepo];  
   const prevSelectedModelPath = quantDropdown.value;

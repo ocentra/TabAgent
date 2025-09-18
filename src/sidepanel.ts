@@ -453,6 +453,21 @@ function handleModelWorkerMessage(event: MessageEvent) {
           });
         }
         break;
+      case UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
+          document.dispatchEvent(new CustomEvent(UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
+          break;
+      case UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
+          document.dispatchEvent(new CustomEvent(UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
+          break;
+      case UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
+          document.dispatchEvent(new CustomEvent(UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
+          break;
+      case UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
+          document.dispatchEvent(new CustomEvent(UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
+          break;
+      case UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
+          document.dispatchEvent(new CustomEvent(UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
+          break;
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
   }

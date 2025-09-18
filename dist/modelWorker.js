@@ -3833,8 +3833,12 @@ function getBypassSizeLimitModels() {
     catch (e) {
         console.error('[IDBModel] Error parsing model loading settings:', e);
     }
-    console.log('[IDBModel] getBypassSizeLimitModels - using empty set');
-    return new Set();
+    // Default bypass models (MediaPipe models that need to bypass size limits)
+    const defaultBypassModels = new Set([
+        'google/gemma-3n-E4B-it-litert-lm'
+    ]);
+    console.log('[IDBModel] getBypassSizeLimitModels - using default bypass models:', Array.from(defaultBypassModels));
+    return defaultBypassModels;
 }
 const prefix = '[IDBModel]';
 const LOG_GENERAL = false;

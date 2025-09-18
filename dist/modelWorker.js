@@ -4482,6 +4482,16 @@ module.exports = __webpack_require__.p + "icons/popup.png";
 
 /***/ }),
 
+/***/ "./src/assets/mediapipe/genai_bundle.mjs":
+/*!***********************************************!*\
+  !*** ./src/assets/mediapipe/genai_bundle.mjs ***!
+  \***********************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+module.exports = __webpack_require__.p + "assets/genai_bundle-539ffc6c3462f682283f.mjs";
+
+/***/ }),
+
 /***/ "./src/assets/onnxruntime-web/transformers.js":
 /*!****************************************************!*\
   !*** ./src/assets/onnxruntime-web/transformers.js ***!
@@ -46786,12 +46796,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Utilities_eventConstants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Utilities/eventConstants */ "./src/Utilities/eventConstants.ts");
 /* harmony import */ var onnxruntime_web__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! onnxruntime-web */ "./node_modules/onnxruntime-web/dist/ort.bundle.min.mjs?3a96");
 /* harmony import */ var _wasm_llama_bitnet_inference_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./wasm/llama_bitnet_inference.js */ "./src/wasm/llama_bitnet_inference.js");
+/* harmony import */ var _assets_mediapipe_genai_bundle_mjs__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./assets/mediapipe/genai_bundle.mjs */ "./src/assets/mediapipe/genai_bundle.mjs");
 
 
 
 
 
 
+
+// MediaPipe imports
 
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
 let hasWebGPU = _isNavigatorGpuAvailable;
@@ -46950,6 +46963,10 @@ let headDim;
 let eosTokenId = undefined;
 let modelContextLength = 2048; // A reasonable default
 let modelInputMetadata = new Map();
+// MediaPipe state variables
+let mediaPipeGenai = null;
+let mediaPipeLlmInference = null;
+let isMediaPipeModel = false;
 (async () => {
     const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getInferenceSettings)();
     if (settings) {
@@ -47246,9 +47263,189 @@ async function handleGgufGeneration(payload) {
         payload: { ...payload, error: 'GGUF model generation is not yet supported (WIP).' }
     });
 }
+async function generateMediaPipeResponse(payload) {
+    if (!isModelReady || !mediaPipeLlmInference) {
+        if (LOG_ERROR)
+            console.error(prefix, '[generateMediaPipeResponse] MediaPipe model not ready or missing.');
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'MediaPipe model not ready. Please load a model first.' } });
+        return;
+    }
+    // Set generation state
+    isGenerating = true;
+    shouldStopGeneration = false;
+    console.log(prefix, '[generateMediaPipeResponse] MediaPipe generation started. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
+    const { chatId, messageId, messages, message, input } = payload;
+    if (LOG_GENERATION)
+        console.log(prefix, '[generateMediaPipeResponse] Received payload:', JSON.stringify(payload));
+    try {
+        // Prepare input prompt
+        let inputPrompt = '';
+        if (Array.isArray(messages)) {
+            // Convert messages to a simple prompt format for MediaPipe
+            inputPrompt = messages.map(msg => `${msg.role}: ${msg.content}`).join('\n');
+        }
+        else if (message) {
+            inputPrompt = message;
+        }
+        else if (input) {
+            inputPrompt = input;
+        }
+        if (LOG_GENERATION)
+            console.log(prefix, '[generateMediaPipeResponse] Input prompt:', inputPrompt);
+        // Generate response with streaming
+        let fullResponse = '';
+        const response = await mediaPipeLlmInference.generateResponse(inputPrompt, (partialResult, done) => {
+            if (LOG_GENERATION)
+                console.log(prefix, '[generateMediaPipeResponse] Partial result:', partialResult, 'Done:', done);
+            // Check if generation should be stopped
+            if (shouldStopGeneration) {
+                console.log(prefix, '[generateMediaPipeResponse] Generation stopped by user request');
+                return;
+            }
+            fullResponse += partialResult;
+            // Send partial result to UI
+            if (partialResult) {
+                self.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_UPDATE,
+                    payload: { chatId, messageId, token: partialResult }
+                });
+            }
+            if (done) {
+                console.log(prefix, '[generateMediaPipeResponse] MediaPipe generation completed');
+            }
+        });
+        // Handle non-streaming response (fallback)
+        if (!response && fullResponse) {
+            if (LOG_GENERATION)
+                console.log(prefix, '[generateMediaPipeResponse] Using accumulated response:', fullResponse);
+        }
+        else if (response && typeof response === 'string') {
+            fullResponse = response;
+            if (LOG_GENERATION)
+                console.log(prefix, '[generateMediaPipeResponse] Using direct response:', fullResponse);
+        }
+        // Send completion message
+        console.log(prefix, '[generateMediaPipeResponse] Generation finished. shouldStopGeneration:', shouldStopGeneration, 'fullResponse length:', fullResponse.length);
+        if (shouldStopGeneration) {
+            console.log(prefix, '[generateMediaPipeResponse] Sending GENERATION_STOPPED message');
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_STOPPED, payload: { ...payload, output: fullResponse, generatedText: fullResponse } });
+        }
+        else {
+            console.log(prefix, '[generateMediaPipeResponse] Sending GENERATION_COMPLETE message');
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: fullResponse, generatedText: fullResponse } });
+        }
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[generateMediaPipeResponse] Error during MediaPipe generation:', error, error.stack);
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: error.message || String(error) } });
+    }
+    finally {
+        // Reset generation state
+        console.log(prefix, '[generateMediaPipeResponse] Resetting generation state. isGenerating: false, shouldStopGeneration: false');
+        isGenerating = false;
+        shouldStopGeneration = false;
+    }
+}
+async function loadMediaPipeModel(payload) {
+    const { modelId, modelPath, loadId } = payload;
+    currentLoadId = loadId;
+    currentModelRepoId = modelId;
+    currentModelQuantPath = modelPath;
+    currentTask = payload.task || 'text-generation';
+    isModelReady = false;
+    isMediaPipeModel = true;
+    self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
+    try {
+        // Initialize MediaPipe with local WASM files
+        if (LOG_GENERAL)
+            console.log(prefix, `[loadMediaPipeModel] Initializing MediaPipe with local WASM files`);
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'mediapipe-wasm', progress: 10, loadId } });
+        // Get extension base URL from the message we receive
+        const extensionBaseUrl = await extBaseUrlReady;
+        mediaPipeGenai = await /* non-default import from non-esm module */undefined.forGenAiTasks(extensionBaseUrl + 'assets/mediapipe/wasm/');
+        if (LOG_GENERAL)
+            console.log(prefix, `[loadMediaPipeModel] MediaPipe FilesetResolver initialized successfully`);
+        // Get manifest entry for model files
+        const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getManifestEntry)(currentModelRepoId);
+        if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
+            throw new Error(`Manifest or quant path ${currentModelQuantPath} not found for model ${currentModelRepoId}`);
+        }
+        const quantFiles = manifest.quants[currentModelQuantPath].files;
+        // Find the model file (.litertlm or .task)
+        const modelFile = quantFiles.find(f => f.endsWith('.litertlm') || f.endsWith('.task'));
+        if (!modelFile) {
+            throw new Error(`No .litertlm or .task file found in manifest for ${currentModelRepoId}/${currentModelQuantPath}`);
+        }
+        // Download model file using existing caching system
+        const modelUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${modelFile}`;
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: modelFile, progress: 30, loadId } });
+        if (LOG_DEBUG)
+            console.log(prefix, `[loadMediaPipeModel] Downloading model from: ${modelUrl}`);
+        const modelResponse = await self.fetch(modelUrl);
+        if (!modelResponse.ok) {
+            throw new Error(`Failed to fetch MediaPipe model ${modelFile}: ${modelResponse.statusText}`);
+        }
+        const modelArrayBuffer = await modelResponse.arrayBuffer();
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: modelFile, progress: 60, loaded: modelArrayBuffer.byteLength, total: modelArrayBuffer.byteLength, loadId } });
+        // Create blob URL for MediaPipe to load
+        const modelBlob = new Blob([modelArrayBuffer]);
+        const modelBlobUrl = URL.createObjectURL(modelBlob);
+        if (LOG_DEBUG)
+            console.log(prefix, `[loadMediaPipeModel] Created blob URL for model: ${modelBlobUrl}`);
+        // Initialize MediaPipe LLM Inference
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'mediapipe-init', progress: 80, loadId } });
+        const { temperature = 0.8, top_k = 40, max_new_tokens = 1000, } = inferenceSettings;
+        mediaPipeLlmInference = await /* non-default import from non-esm module */undefined.createFromOptions(mediaPipeGenai, {
+            baseOptions: {
+                modelAssetPath: modelBlobUrl
+            },
+            maxTokens: max_new_tokens,
+            topK: top_k,
+            temperature: temperature,
+            randomSeed: 101
+        });
+        if (LOG_GENERAL)
+            console.log(prefix, `[loadMediaPipeModel] MediaPipe LLM Inference initialized successfully`);
+        isModelReady = true;
+        self.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.WORKER_READY,
+            payload: { modelId, modelPath, task: currentTask, executionProvider: 'mediapipe', warning: 'MediaPipe model loaded successfully.' }
+        });
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: modelFile, progress: 100, loadId } });
+        await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Downloaded);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, `[loadMediaPipeModel] Error loading MediaPipe model ${modelId} (${modelPath}):`, error);
+        isModelReady = false;
+        isMediaPipeModel = false;
+        currentModelRepoId = null;
+        currentModelQuantPath = null;
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Failed to load MediaPipe model ${modelPath}: ${error.message}` });
+        self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: modelPath, error: error.message, loadId } });
+        if (modelId && modelPath) {
+            try {
+                await setManifestQuantStatus(modelId, modelPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.QuantStatus.Failed);
+            }
+            catch (manifestError) {
+                if (LOG_ERROR)
+                    console.error(prefix, `[loadMediaPipeModel] Failed to update manifest status on error:`, manifestError);
+            }
+        }
+    }
+    finally {
+        currentLoadId = undefined;
+    }
+}
 async function loadModelInternal(payload) {
     if (payload.modelPath && payload.modelPath.endsWith('.gguf')) {
         await handleGgufModel(payload);
+        return;
+    }
+    // Check if this is a MediaPipe-compatible model
+    if (isMediaPipeCompatibleModel(payload.modelId, payload.modelPath)) {
+        await loadMediaPipeModel(payload);
         return;
     }
     await webgpuCheckPromise;
@@ -47466,6 +47663,11 @@ async function loadModelInternal(payload) {
 async function generateInternal(payload) {
     if (currentModelQuantPath && currentModelQuantPath.endsWith('.gguf')) {
         await handleGgufGeneration(payload);
+        return;
+    }
+    // Check if this is a MediaPipe model
+    if (isMediaPipeModel && mediaPipeLlmInference) {
+        await generateMediaPipeResponse(payload);
         return;
     }
     if (!isModelReady || !onnxSession || !tokenizer || !modelConfig) {
@@ -47820,12 +48022,24 @@ self.onmessage = async (event) => {
                 }
                 catch (e) {
                     if (LOG_WARN)
-                        console.warn(prefix, "Error releasing session on reset:", e);
+                        console.warn(prefix, "Error releasing ONNX session on reset:", e);
+                }
+            }
+            if (mediaPipeLlmInference) {
+                try {
+                    await mediaPipeLlmInference.close();
+                }
+                catch (e) {
+                    if (LOG_WARN)
+                        console.warn(prefix, "Error closing MediaPipe inference on reset:", e);
                 }
             }
             onnxSession = null;
             tokenizer = null;
             modelConfig = null;
+            mediaPipeGenai = null;
+            mediaPipeLlmInference = null;
+            isMediaPipeModel = false;
             inputNames = [];
             outputNames = [];
             isModelReady = false;
@@ -47845,6 +48059,16 @@ self.onmessage = async (event) => {
             break;
     }
 };
+// MediaPipe model detection
+function isMediaPipeCompatibleModel(modelId, modelPath) {
+    // Check for Gemma models or .litertlm/.task files
+    const isGemmaModel = modelId.toLowerCase().includes('gemma');
+    const isLitertlmFile = modelPath.toLowerCase().endsWith('.litertlm');
+    const isTaskFile = modelPath.toLowerCase().endsWith('.task');
+    if (LOG_DEBUG)
+        console.log(prefix, `[isMediaPipeCompatibleModel] Model: ${modelId}, Path: ${modelPath}, Gemma: ${isGemmaModel}, Litertlm: ${isLitertlmFile}, Task: ${isTaskFile}`);
+    return isGemmaModel || isLitertlmFile || isTaskFile;
+}
 async function setManifestQuantStatus(repo, quant, status) {
     let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getManifestEntry)(repo);
     if (!manifest)

@@ -1262,11 +1262,20 @@ self.onmessage = async (event: MessageEvent) => {
         }
         case WorkerEventNames.INIT: {
             const { modelId, modelPath, task, loadId } = payload;
-            if (!modelId || !modelPath) {
-                if(LOG_ERROR) console.error(prefix, `[onmessage] INIT event missing modelId or modelPath. Payload:`, payload);
-                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Model ID or Quant Path missing in INIT event.` });
+            if (!modelId) {
+                if(LOG_ERROR) console.error(prefix, `[onmessage] INIT event missing modelId. Payload:`, payload);
+                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Model ID missing in INIT event.` });
                 return;
             }
+            
+            // For MediaPipe models, modelPath might be empty since they don't use quantization
+            // We'll determine the correct model path in loadModelInternal
+            if (!modelPath && !isGoogleModel(modelId)) {
+                if(LOG_ERROR) console.error(prefix, `[onmessage] INIT event missing modelPath for non-Google model. Payload:`, payload);
+                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Quant Path missing in INIT event for non-Google model.` });
+                return;
+            }
+            
             await loadModelInternal({ modelId, modelPath, task, loadId });
             return;
         }
@@ -1458,6 +1467,33 @@ function sample(logits: Float32Array, generatedIds: number[], options: {
 
 // Google model handling functions
 async function handleGoogleModelLoad(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
+    // If modelPath is empty, determine it from the manifest
+    let actualModelPath = payload.modelPath;
+    if (!actualModelPath) {
+        const manifest = await getManifestEntry(payload.modelId);
+        if (manifest && manifest.quants) {
+            // Find the first available quant (prefer Web versions for MediaPipe)
+            const availableQuants = Object.keys(manifest.quants).filter(quant => 
+                manifest.quants[quant].status === QuantStatus.Available
+            );
+            
+            // Prefer Web versions for MediaPipe models
+            const webQuant = availableQuants.find(quant => quant.toLowerCase().includes('-web'));
+            actualModelPath = webQuant || availableQuants[0];
+            
+            if (LOG_DEBUG) console.log(prefix, `[handleGoogleModelLoad] Determined model path from manifest: ${actualModelPath}`);
+        }
+        
+        if (!actualModelPath) {
+            if (LOG_ERROR) console.error(prefix, `[handleGoogleModelLoad] No available quants found for Google model: ${payload.modelId}`);
+            self.postMessage({ type: WorkerEventNames.ERROR, payload: `No available model variants found for ${payload.modelId}` });
+            return;
+        }
+    }
+    
+    // Update payload with actual model path
+    const updatedPayload = { ...payload, modelPath: actualModelPath };
+    
     // Check if user has already accepted Google terms
     const termsAcceptedBlob = await getFromIndexedDB('google_terms_accepted');
     const termsAccepted = termsAcceptedBlob ? await termsAcceptedBlob.text() === 'true' : false;
@@ -1466,7 +1502,7 @@ async function handleGoogleModelLoad(payload: { modelId: string, modelPath: stri
         // Show terms acceptance dialog
         self.postMessage({
             type: UIEventNames.SHOW_GOOGLE_TERMS_DIALOG,
-            payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
+            payload: { modelId: updatedPayload.modelId, modelPath: updatedPayload.modelPath, task: updatedPayload.task, loadId: updatedPayload.loadId }
         });
         return;
     }
@@ -1479,13 +1515,13 @@ async function handleGoogleModelLoad(payload: { modelId: string, modelPath: stri
         // Show source selection dialog
         self.postMessage({
             type: UIEventNames.SHOW_MODEL_SOURCE_DIALOG,
-            payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
+            payload: { modelId: updatedPayload.modelId, modelPath: updatedPayload.modelPath, task: updatedPayload.task, loadId: updatedPayload.loadId }
         });
         return;
     }
     
     // Proceed with model loading based on selected source
-    await loadModelFromSource(payload, selectedSource);
+    await loadModelFromSource(updatedPayload, selectedSource);
 }
 
 async function handleModelSourceSelection(payload: { modelId: string, source: string, modelPath: string, task?: string, loadId?: string }) {

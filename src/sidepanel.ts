@@ -30,6 +30,9 @@ import { initializeDiscoverController } from './Controllers/DiscoverController';
 import { initializeSettingsController } from './Controllers/SettingsController';
 import { initializeSpacesController } from './Controllers/SpacesController';
 import { initializeDriveController } from './Controllers/DriveController';
+import { GoogleTermsDialog } from './Components/GoogleTermsDialog';
+import { ModelSourceDialog } from './Components/ModelSourceDialog';
+import { HuggingFaceLoginDialog } from './Components/HuggingFaceLoginDialog';
 import {
   UIEventNames,
   RuntimeMessageTypes,
@@ -43,7 +46,7 @@ import { DBEventNames } from './DB/dbEvents';
 
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
-import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, getServerOnlySizeLimit, getBypassSizeLimitModels } from './DB/idbModel';
+import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, getServerOnlySizeLimit, getBypassSizeLimitModels, initializeGoogleModels } from './DB/idbModel';
 import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
@@ -859,6 +862,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.addEventListener(UIEventNames.NAVIGATION_PAGE_CHANGED, (e: Event) => handlePageChange((e as CustomEvent).detail));
 
+    // Initialize dialog instances
+    const googleTermsDialog = new GoogleTermsDialog();
+    const modelSourceDialog = new ModelSourceDialog();
+    const huggingFaceLoginDialog = new HuggingFaceLoginDialog();
+
     initializeFileHandling({
       getActiveSessionIdFunc: getActiveChatSessionId,
     });
@@ -984,11 +992,68 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
+    // Dialog event handlers
+    document.addEventListener(UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, async (e) => {
+      const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;
+      const accepted = await googleTermsDialog.show(modelId);
+      if (accepted) {
+        // Send terms accepted event to model worker
+        if (modelWorker) {
+          modelWorker.postMessage({
+            type: WorkerEventNames.GOOGLE_TERMS_ACCEPTED,
+            payload: { modelId, modelPath, task, loadId }
+          });
+        }
+      } else {
+        utilShowError('Google terms not accepted. Cannot load model.');
+      }
+    });
+
+    document.addEventListener(UIEventNames.SHOW_MODEL_SOURCE_DIALOG, async (e) => {
+      const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;
+      const source = await modelSourceDialog.show(modelId);
+      if (source) {
+        // Send source selection event to model worker
+        if (modelWorker) {
+          modelWorker.postMessage({
+            type: WorkerEventNames.MODEL_SOURCE_SELECTION,
+            payload: { modelId, modelPath, task, loadId, source }
+          });
+        }
+      } else {
+        utilShowError('No source selected. Cannot load model.');
+      }
+    });
+
+    document.addEventListener(UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
+      const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;
+      const token = await huggingFaceLoginDialog.show(modelId);
+      if (token) {
+        // Send login event to model worker
+        if (modelWorker) {
+          modelWorker.postMessage({
+            type: WorkerEventNames.HUGGINGFACE_LOGIN,
+            payload: { modelId, modelPath, task, loadId, token }
+          });
+        }
+      } else {
+        utilShowError('HuggingFace authentication cancelled. Cannot load model.');
+      }
+    });
+
     initializeDiscoverController();
     if (LOG_DEBUG) console.log(`${prefix} Discover Controller Initialized.`);
 
     initializeSettingsController();
     if (LOG_DEBUG) console.log(`${prefix} Settings Controller Initialized.`);
+
+    // Initialize Google models
+    try {
+        await initializeGoogleModels();
+        if (LOG_DEBUG) console.log(`${prefix} Google models initialized.`);
+    } catch (error) {
+        if (LOG_ERROR) console.error(`${prefix} Error initializing Google models:`, error);
+    }
 
     initializeSpacesController();
     if (LOG_DEBUG) console.log(`${prefix} Spaces Controller Initialized.`);

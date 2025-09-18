@@ -10,7 +10,7 @@ import { MESSAGE_EVENT } from './Utilities/eventConstants';
 import ort from 'onnxruntime-web';
 import Module from './wasm/llama_bitnet_inference.js';
 // MediaPipe imports
-import { FilesetResolver, LlmInference } from './assets/mediapipe/genai_bundle.mjs';
+import * as MediaPipeGenAI from './assets/mediapipe/genai_bundle.mjs';
 
 
 
@@ -591,7 +591,7 @@ async function loadMediaPipeModel(payload: { modelId: string, modelPath: string,
         
         // Get extension base URL from the message we receive
         const extensionBaseUrl = await extBaseUrlReady;
-        mediaPipeGenai = await FilesetResolver.forGenAiTasks(
+        mediaPipeGenai = await MediaPipeGenAI.FilesetResolver.forGenAiTasks(
             extensionBaseUrl + 'assets/mediapipe/wasm/'
         );
         
@@ -636,7 +636,7 @@ async function loadMediaPipeModel(payload: { modelId: string, modelPath: string,
             temperature = 0.8, top_k = 40, max_new_tokens = 1000,
         } = inferenceSettings;
 
-        mediaPipeLlmInference = await LlmInference.createFromOptions(mediaPipeGenai, {
+        mediaPipeLlmInference = await MediaPipeGenAI.LlmInference.createFromOptions(mediaPipeGenai, {
             baseOptions: {
                 modelAssetPath: modelBlobUrl
             },

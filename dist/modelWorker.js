@@ -3774,6 +3774,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
 /* harmony export */   getServerOnlySizeLimit: () => (/* binding */ getServerOnlySizeLimit),
+/* harmony export */   initializeGoogleModels: () => (/* binding */ initializeGoogleModels),
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
@@ -4323,6 +4324,38 @@ async function addQuantToManifest(repo, modelPath, status, files) {
         }
     }
     await addManifestEntry(repo, manifest);
+}
+// Initialize Google models in manifest
+async function initializeGoogleModels() {
+    const googleModels = [
+        {
+            repo: 'google/gemma-3n-E4B-it-litert-lm',
+            name: 'Gemma 3B (MediaPipe)',
+            description: 'Google Gemma 3B model optimized for MediaPipe with streaming support',
+            task: 'text-generation',
+            manifestVersion: CURRENT_MANIFEST_VERSION,
+            quants: {
+                'gemma-3n-E4B-it-int4-Web.litertlm': {
+                    files: ['gemma-3n-E4B-it-int4-Web.litertlm'],
+                    status: QuantStatus.Available
+                }
+            }
+        }
+    ];
+    for (const model of googleModels) {
+        try {
+            const existing = await getManifestEntry(model.repo);
+            if (!existing) {
+                await addManifestEntry(model.repo, model);
+                if (LOG_GENERAL)
+                    console.log(prefix, `[initializeGoogleModels] Added Google model: ${model.repo}`);
+            }
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(prefix, `[initializeGoogleModels] Error adding model ${model.repo}:`, error);
+        }
+    }
 }
 
 

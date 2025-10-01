@@ -4066,7 +4066,13 @@ function createModelLoadingSettingsFoldout() {
                     <div class="flex items-center space-x-2">
                         <input type="checkbox" id="bypassPhi35" class="rounded border-gray-300">
                         <label for="bypassPhi35" class="text-sm text-gray-700 dark:text-gray-300">
-                            Phi-3.5 Mini
+                            Phi-3.5 Mini (ONNX)
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassPhi35Transformers" class="rounded border-gray-300">
+                        <label for="bypassPhi35Transformers" class="text-sm text-gray-700 dark:text-gray-300">
+                            Phi-3.5 Mini (Transformers.js)
                         </label>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -4122,6 +4128,7 @@ function setupModelLoadingSettings(container) {
     const bypassSmolLM2 = container.querySelector('#bypassSmolLM2');
     const bypassSmolLM3 = container.querySelector('#bypassSmolLM3');
     const bypassPhi35 = container.querySelector('#bypassPhi35');
+    const bypassPhi35Transformers = container.querySelector('#bypassPhi35Transformers');
     const bypassBitnet2B = container.querySelector('#bypassBitnet2B');
     const bypassQwen3 = container.querySelector('#bypassQwen3');
     if (bypassSmolLM2)
@@ -4130,6 +4137,8 @@ function setupModelLoadingSettings(container) {
         bypassSmolLM3.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
     if (bypassPhi35)
         bypassPhi35.checked = currentSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
+    if (bypassPhi35Transformers)
+        bypassPhi35Transformers.checked = currentSettings.bypassModels.has('onnx-community/Phi-3.5-mini-instruct-onnx-web');
     if (bypassBitnet2B)
         bypassBitnet2B.checked = currentSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
     if (bypassQwen3)
@@ -4146,6 +4155,7 @@ function setupModelLoadingSettings(container) {
                 console.log(`${prefix} Checkbox states:`, {
                     bypassSmolLM2: bypassSmolLM2?.checked,
                     bypassPhi35: bypassPhi35?.checked,
+                    bypassPhi35Transformers: bypassPhi35Transformers?.checked,
                     bypassBitnet2B: bypassBitnet2B?.checked,
                     bypassQwen3: bypassQwen3?.checked
                 });
@@ -4160,6 +4170,7 @@ function setupModelLoadingSettings(container) {
             newSettings.bypassModels.delete('HuggingFaceTB/SmolLM2-1.7B-Instruct');
             newSettings.bypassModels.delete('HuggingFaceTB/SmolLM3-3B-ONNX');
             newSettings.bypassModels.delete('microsoft/Phi-3.5-mini-instruct-onnx');
+            newSettings.bypassModels.delete('onnx-community/Phi-3.5-mini-instruct-onnx-web');
             newSettings.bypassModels.delete('microsoft/bitnet-b1.58-2B-4T-gguf');
             newSettings.bypassModels.delete('onnx-community/Qwen3-1.7B-ONNX');
             if (LOG_DEBUG)
@@ -4171,6 +4182,8 @@ function setupModelLoadingSettings(container) {
                 newSettings.bypassModels.add('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35?.checked)
                 newSettings.bypassModels.add('microsoft/Phi-3.5-mini-instruct-onnx');
+            if (bypassPhi35Transformers?.checked)
+                newSettings.bypassModels.add('onnx-community/Phi-3.5-mini-instruct-onnx-web');
             if (bypassBitnet2B?.checked)
                 newSettings.bypassModels.add('microsoft/bitnet-b1.58-2B-4T-gguf');
             if (bypassQwen3?.checked)
@@ -4206,6 +4219,8 @@ function setupModelLoadingSettings(container) {
                 bypassSmolLM3.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35)
                 bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
+            if (bypassPhi35Transformers)
+                bypassPhi35Transformers.checked = defaultSettings.bypassModels.has('onnx-community/Phi-3.5-mini-instruct-onnx-web');
             if (bypassBitnet2B)
                 bypassBitnet2B.checked = defaultSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
             alert('Model loading settings reset to default!');
@@ -10473,6 +10488,7 @@ const LOG_INFO = false;
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
+    "onnx-community/Phi-3.5-mini-instruct-onnx-web": "Phi-3.5 Mini (Transformers.js)",
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
@@ -13765,7 +13781,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "bff3ceebfd6460aed7e0" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "060c6abe6d5a50e644eb" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

@@ -2,7 +2,7 @@
 /* global RequestInfo, RequestInit */
 export {};
 
-import { env, AutoTokenizer } from './assets/onnxruntime-web/transformers';
+import { env, AutoTokenizer, AutoModelForCausalLM, TextStreamer } from '@huggingface/transformers';
 import { WorkerEventNames, UIEventNames } from './events/eventNames';
 import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, addQuantToManifest,  QuantStatus, getInferenceSettings } from './DB/idbModel';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings } from './Controllers/InferenceSettings';
@@ -11,6 +11,9 @@ import ort from 'onnxruntime-web';
 import Module from './wasm/llama_bitnet_inference.js';
 // MediaPipe imports
 import * as MediaPipeGenAI from './assets/mediapipe/genai_bundle.mjs';
+
+// Feature flag to switch between ONNX/MediaPipe and transformers.js
+const USE_TRANSFORMERS = true;
 
 
 
@@ -25,15 +28,33 @@ const LOG_WARN = true;    // Enable warning logs for model loading debugging
 const LOG_SELF = false;   // Keep self logs disabled
 const LOG_GENERATION = false; // Keep generation logs disabled
 const LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
+const LOG_TRANSFORMERS = true; // Enable transformers.js specific debugging
 let currentLoadId: string | undefined = undefined;
 let isGenerating = false;
 let shouldStopGeneration = false;
+
+// Transformers.js specific variables
+let transformersTokenizer: any = null;
+let transformersModel: any = null;
+let isTransformersModelReady = false;
+let isTransformersModelLoading = false;
 
 // Log the imported Module to verify import and see available keys
 console.log('[ModelWorker] llama_bitnet_inference Module:', Module);
 if (Module) {
     console.log('[ModelWorker] llama_bitnet_inference Module keys:', Object.keys(Module));
     console.log('[ModelWorker] llama_bitnet_inference typeof:', typeof Module);
+}
+
+// Log transformers.js imports to verify what we have available
+if (LOG_TRANSFORMERS) {
+    console.log('[ModelWorker] transformers.js env:', env);
+    console.log('[ModelWorker] transformers.js AutoTokenizer:', AutoTokenizer);
+    console.log('[ModelWorker] transformers.js AutoModelForCausalLM:', AutoModelForCausalLM);
+    console.log('[ModelWorker] transformers.js TextStreamer:', TextStreamer);
+    console.log('[ModelWorker] transformers.js env.allowLocalModels:', env.allowLocalModels);
+    console.log('[ModelWorker] transformers.js env.allowRemoteModels:', env.allowRemoteModels);
+    console.log('[ModelWorker] transformers.js env keys:', Object.keys(env));
 }
 
 if (_isNavigatorGpuAvailable) {
@@ -575,15 +596,15 @@ async function generateMediaPipeResponse(payload: any): Promise<void> {
 
 async function loadMediaPipeModel(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
     const { modelId, modelPath, loadId } = payload;
-    currentLoadId = loadId;
-    currentModelRepoId = modelId;
-    currentModelQuantPath = modelPath;
+        currentLoadId = loadId;
+        currentModelRepoId = modelId;
+        currentModelQuantPath = modelPath;
     currentTask = payload.task || 'text-generation';
     isModelReady = false;
     isMediaPipeModel = true;
-
-    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
-
+        
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
+        
     try {
         // Initialize MediaPipe with local WASM files
         if (LOG_GENERAL) console.log(prefix, `[loadMediaPipeModel] Initializing MediaPipe with local WASM files`);
@@ -603,7 +624,7 @@ async function loadMediaPipeModel(payload: { modelId: string, modelPath: string,
             throw new Error(`Manifest or quant path ${currentModelQuantPath} not found for model ${currentModelRepoId}`);
         }
         const quantFiles = manifest.quants[currentModelQuantPath].files;
-
+        
         // Find the model file (.litertlm or .task)
         const modelFile = quantFiles.find(f => f.endsWith('.litertlm') || f.endsWith('.task'));
         if (!modelFile) {
@@ -677,6 +698,12 @@ async function loadMediaPipeModel(payload: { modelId: string, modelPath: string,
 }
 
 async function loadModelInternal(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }): Promise<void> {
+    // Feature flag: Use transformers.js implementation
+    if (USE_TRANSFORMERS) {
+        await loadTransformersModel(payload);
+        return;
+    }
+    
     // Check if this is a Google model that needs authentication
     if (isGoogleModel(payload.modelId)) {
         await handleGoogleModelLoad(payload);
@@ -899,6 +926,12 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
 }
 
 async function generateInternal(payload: any): Promise<void> {
+    // Feature flag: Use transformers.js implementation
+    if (USE_TRANSFORMERS) {
+        await generateTransformersResponse(payload);
+        return;
+    }
+    
     if (currentModelQuantPath && currentModelQuantPath.endsWith('.gguf')) {
         await handleGgufGeneration(payload);
         return;
@@ -1670,4 +1703,363 @@ async function handleGoogleTermsAccepted(payload: { modelId: string, modelPath: 
         type: UIEventNames.SHOW_MODEL_SOURCE_DIALOG,
         payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
     });
+}
+
+// ============================================================================
+// TRANSFORMERS.JS IMPLEMENTATION
+// ============================================================================
+
+/**
+ * Filter scraped content to reduce context size for model inference
+ * Extracts only essential fields (title, text, url) from scraped data
+ * Handles both direct JSON and markdown-wrapped JSON (```json ... ```)
+ */
+function filterScrapedContent(messages: Array<{role: string, content: string}>): Array<{role: string, content: string}> {
+    if (LOG_TRANSFORMERS) {
+        console.log(prefix, `[filterScrapedContent] Processing ${messages.length} messages`);
+    }
+    
+    return messages.map((msg, index) => {
+        let content = msg.content.trim();
+        let isJsonContent = false;
+        let jsonData = null;
+        
+        // Check for markdown-wrapped JSON (```json ... ```)
+        if (content.startsWith('```json') && content.endsWith('```')) {
+            try {
+                const jsonStart = content.indexOf('```json') + 7; // Skip ```json
+                const jsonEnd = content.lastIndexOf('```');
+                const jsonString = content.substring(jsonStart, jsonEnd).trim();
+                jsonData = JSON.parse(jsonString);
+                isJsonContent = true;
+                
+                if (LOG_TRANSFORMERS) {
+                    console.log(prefix, `[filterScrapedContent] Detected markdown-wrapped JSON in message ${index}`);
+                }
+            } catch (error) {
+                // If JSON parsing fails, treat as regular content
+                if (LOG_TRANSFORMERS) {
+                    console.log(prefix, `[filterScrapedContent] Failed to parse markdown-wrapped JSON in message ${index}:`, error);
+                }
+            }
+        }
+        // Check for direct JSON (starts with { and ends with })
+        else if (content.startsWith('{') && content.endsWith('}')) {
+            try {
+                jsonData = JSON.parse(content);
+                isJsonContent = true;
+                
+                if (LOG_TRANSFORMERS) {
+                    console.log(prefix, `[filterScrapedContent] Detected direct JSON in message ${index}`);
+                }
+            } catch (error) {
+                // If JSON parsing fails, treat as regular content
+                if (LOG_TRANSFORMERS) {
+                    console.log(prefix, `[filterScrapedContent] Failed to parse direct JSON in message ${index}:`, error);
+                }
+            }
+        }
+        
+        if (LOG_TRANSFORMERS) {
+            console.log(prefix, `[filterScrapedContent] Message ${index}:`, {
+                role: msg.role,
+                isJson: isJsonContent,
+                contentLength: msg.content.length,
+                contentPreview: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+            });
+        }
+        
+        // Check for scraped data patterns
+        const isScrapedData = isJsonContent && jsonData && (
+            jsonData.method === "tempTabExecuteScript" ||
+            jsonData.extractedAt ||
+            jsonData.wordCount ||
+            jsonData.readingTime ||
+            jsonData.segments ||
+            jsonData.images ||
+            jsonData.links
+        );
+        
+        if (isScrapedData) {
+            if (LOG_TRANSFORMERS) {
+                console.log(prefix, `[filterScrapedContent] Detected scraped data in message ${index}:`, {
+                    hasTitle: !!jsonData.title,
+                    hasText: !!jsonData.text,
+                    hasContent: !!jsonData.content,
+                    hasUrl: !!jsonData.url,
+                    hasImages: !!jsonData.images,
+                    hasLinks: !!jsonData.links,
+                    hasSegments: !!jsonData.segments,
+                    originalLength: msg.content.length
+                });
+            }
+            
+            // Extract only essential fields
+            const filteredContent = {
+                title: jsonData.title || 'Untitled',
+                text: jsonData.text || jsonData.content || '',
+                url: jsonData.url || ''
+            };
+            
+            const newContent = `Title: ${filteredContent.title}\nURL: ${filteredContent.url}\nContent: ${filteredContent.text}`;
+            
+            if (LOG_TRANSFORMERS) {
+                console.log(prefix, `[filterScrapedContent] Filtered message ${index}:`, {
+                    originalLength: msg.content.length,
+                    newLength: newContent.length,
+                    reduction: `${Math.round((1 - newContent.length / msg.content.length) * 100)}%`
+                });
+            }
+            
+            // Return clean, minimal content
+            return {
+                ...msg,
+                content: newContent
+            };
+        }
+        
+        // Return original content if not scraped data
+        return msg;
+    });
+}
+
+/**
+ * Load model using transformers.js (similar to the examples)
+ */
+async function loadTransformersModel(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
+    const { modelId, modelPath, task, loadId } = payload;
+    
+    if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Loading model: ${modelId}`);
+    if (LOG_TRANSFORMERS) {
+        console.log(prefix, `[loadTransformersModel] Payload:`, payload);
+        console.log(prefix, `[loadTransformersModel] hasWebGPU:`, hasWebGPU);
+        console.log(prefix, `[loadTransformersModel] env.allowLocalModels:`, env.allowLocalModels);
+        console.log(prefix, `[loadTransformersModel] env.allowRemoteModels:`, env.allowRemoteModels);
+    }
+    
+    try {
+        isTransformersModelLoading = true;
+        currentLoadId = loadId;
+        
+        // Try using IndexedDB + blob URL approach first
+        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Trying IndexedDB + blob URL approach for transformers.js`);
+        
+        // Send loading started event
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { status: 'initiate', file: modelPath, progress: 0, loadId } 
+        });
+        
+        // Load tokenizer
+        if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Loading tokenizer for: ${modelId}`);
+        if (LOG_TRANSFORMERS) {
+            console.log(prefix, `[loadTransformersModel] About to call AutoTokenizer.from_pretrained with modelId: ${modelId}`);
+            console.log(prefix, `[loadTransformersModel] This will trigger fetch requests through your custom fetch override`);
+        }
+        
+        // Track last logged percentage for tokenizer
+        let lastTokenizerLoggedPercent = -1;
+        
+        transformersTokenizer = await AutoTokenizer.from_pretrained(modelId, {
+            progress_callback: (data: any) => {
+                // Always send progress to UI for progress bar updates
+                self.postMessage({ 
+                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+                    payload: { ...data, file: "tokenizer", progress: 10 + (data.progress * 0.15), loadId } 
+                });
+                
+                // Calculate percentage and only log every 10% to reduce console spam
+                if (data.progress !== undefined && data.total !== undefined) {
+                    const percent = Math.round((data.progress / data.total) * 100);
+                    const tensPercent = Math.floor(percent / 10) * 10;
+                    
+                    if (tensPercent > lastTokenizerLoggedPercent) {
+                        // Throttled logging - only every 10% to reduce spam
+                        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Tokenizer progress:`, data);
+                        lastTokenizerLoggedPercent = tensPercent;
+                    }
+                } else if (data.status !== 'progress') {
+                    // Log non-progress status updates (initiate, download, done, etc.)
+                    if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Tokenizer progress:`, data);
+                }
+            }
+        });
+        
+        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Tokenizer loaded:`, transformersTokenizer);
+        
+        // Load model
+        if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Loading model for: ${modelId}`);
+        if (LOG_TRANSFORMERS) {
+            console.log(prefix, `[loadTransformersModel] About to call AutoModelForCausalLM.from_pretrained with modelId: ${modelId}`);
+            console.log(prefix, `[loadTransformersModel] Device: ${hasWebGPU ? "webgpu" : "cpu"}`);
+            console.log(prefix, `[loadTransformersModel] Dtype: q4f16`);
+            console.log(prefix, `[loadTransformersModel] This will also trigger fetch requests through your custom fetch override`);
+        }
+        
+        // Track last logged percentage for model
+        let lastModelLoggedPercent = -1;
+        
+        transformersModel = await AutoModelForCausalLM.from_pretrained(modelId, {
+            dtype: "q4f16",
+            device: hasWebGPU ? "webgpu" : "cpu",
+            use_external_data_format: true,
+            progress_callback: (data: any) => {
+                // Always send progress to UI for progress bar updates
+                self.postMessage({ 
+                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+                    payload: { ...data, file: "model", progress: 30 + (data.progress * 0.6), loadId } 
+                });
+                
+                // Calculate percentage and only log every 10% to reduce console spam
+                if (data.progress !== undefined && data.total !== undefined) {
+                    const percent = Math.round((data.progress / data.total) * 100);
+                    const tensPercent = Math.floor(percent / 10) * 10;
+                    
+                    if (tensPercent > lastModelLoggedPercent) {
+                        // Throttled logging - only every 10% to reduce spam
+                        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Model progress:`, data);
+                        lastModelLoggedPercent = tensPercent;
+                    }
+                } else if (data.status !== 'progress') {
+                    // Log non-progress status updates (initiate, download, done, etc.)
+                    if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Model progress:`, data);
+                }
+            }
+        });
+        
+        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Model loaded:`, transformersModel);
+        
+        isTransformersModelReady = true;
+        isTransformersModelLoading = false;
+        
+        if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Model loaded successfully: ${modelId}`);
+        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Successfully used IndexedDB + blob URL approach!`);
+        
+        // Send loading complete event
+        self.postMessage({
+            type: WorkerEventNames.WORKER_READY,
+            payload: { modelId, modelPath, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
+        });
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { status: 'done', file: modelPath, progress: 100, loadId } 
+        });
+        
+    } catch (error: any) {
+        isTransformersModelLoading = false;
+        isTransformersModelReady = false;
+        
+        if (LOG_ERROR) console.error(prefix, `[loadTransformersModel] Error loading model:`, error);
+        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] IndexedDB + blob URL approach failed, error:`, error.message);
+        
+        self.postMessage({ 
+            type: WorkerEventNames.ERROR, 
+            payload: `Failed to load model ${modelPath}: ${error.message}` 
+        });
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { status: 'error', file: modelPath, error: error.message, loadId } 
+        });
+    }
+}
+
+/**
+ * Generate text using transformers.js (similar to the examples)
+ */
+async function generateTransformersResponse(payload: any) {
+    const { messages, settings } = payload;
+    
+    if (LOG_TRANSFORMERS) {
+        console.log(prefix, `[generateTransformersResponse] Starting generation with payload:`, payload);
+        console.log(prefix, `[generateTransformersResponse] isTransformersModelReady:`, isTransformersModelReady);
+        console.log(prefix, `[generateTransformersResponse] transformersTokenizer:`, !!transformersTokenizer);
+        console.log(prefix, `[generateTransformersResponse] transformersModel:`, !!transformersModel);
+    }
+    
+    if (!isTransformersModelReady || !transformersTokenizer || !transformersModel) {
+        if (LOG_ERROR) console.error(prefix, '[generateTransformersResponse] Model not ready');
+        self.postMessage({ 
+            type: WorkerEventNames.GENERATION_ERROR, 
+            payload: { ...payload, error: 'Model not ready. Please load a model first.' } 
+        });
+        return;
+    }
+    
+    try {
+        isGenerating = true;
+        shouldStopGeneration = false;
+        
+        if (LOG_GENERAL) console.log(prefix, '[generateTransformersResponse] Starting generation');
+        
+        // Filter scraped content to reduce context size
+        const filteredMessages = filterScrapedContent(messages);
+        
+        if (LOG_TRANSFORMERS) {
+            console.log(prefix, `[generateTransformersResponse] Original messages:`, messages.length);
+            console.log(prefix, `[generateTransformersResponse] Filtered messages:`, filteredMessages.length);
+        }
+        
+        // Apply chat template with filtered messages
+        const inputs = transformersTokenizer.apply_chat_template(filteredMessages, {
+            add_generation_prompt: true,
+            return_dict: true,
+        });
+        
+        // Accumulate the full generated text for the completion event
+        let fullGeneratedText = '';
+        
+        // Create streamer for incremental updates
+        const streamer = new TextStreamer(transformersTokenizer, {
+            skip_prompt: true,
+            skip_special_tokens: true,
+            callback_function: (output: string) => {
+                // Accumulate the full text
+                fullGeneratedText += output;
+                
+                // Send incremental updates - use same format as original ONNX code
+                // Don't log every token to reduce spam
+                self.postMessage({
+                    type: WorkerEventNames.GENERATION_UPDATE,
+                    payload: { chatId: payload.chatId, messageId: payload.messageId, token: output }
+                });
+            }
+        });
+        
+        // Generate with the model
+        const result = await transformersModel.generate({
+            ...inputs,
+            do_sample: true,
+            top_k: 3,
+            temperature: 0.2,
+            max_new_tokens: 512,
+            streamer: streamer,
+        });
+        
+        // Only log the final completion, not every token
+        if (LOG_TRANSFORMERS) console.log(prefix, `[generateTransformersResponse] Generation completed successfully`);
+        
+        // Send appropriate completion event based on whether generation was stopped
+        if (shouldStopGeneration) {
+            console.log(prefix, '[generateTransformersResponse] Sending GENERATION_STOPPED message');
+            self.postMessage({
+                type: WorkerEventNames.GENERATION_STOPPED,
+                payload: { ...payload, output: fullGeneratedText, generatedText: fullGeneratedText }
+            });
+        } else {
+            console.log(prefix, '[generateTransformersResponse] Sending GENERATION_COMPLETE message');
+            self.postMessage({
+                type: WorkerEventNames.GENERATION_COMPLETE,
+                payload: { ...payload, output: fullGeneratedText, generatedText: fullGeneratedText }
+            });
+        }
+        
+    } catch (error: any) {
+        if (LOG_ERROR) console.error(prefix, '[generateTransformersResponse] Error during generation:', error);
+        self.postMessage({ 
+            type: WorkerEventNames.GENERATION_ERROR, 
+            payload: { ...payload, error: error.message || 'Generation failed' } 
+        });
+    } finally {
+        isGenerating = false;
+    }
 }

@@ -66,6 +66,10 @@ export default {
     extensions: ['.ts', '.js', '.json'],
     alias: {
       '@vendor': path.resolve(__dirname, 'src/vendor'),
+      '@huggingface/transformers': path.resolve(
+        __dirname,
+        'node_modules/@huggingface/transformers/dist/transformers.web.min.js'
+      ),
     },
     fallback: {
       fs: false,

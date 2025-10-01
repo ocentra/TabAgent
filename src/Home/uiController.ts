@@ -35,8 +35,9 @@ const LOG_INFO = false;
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
+    "onnx-community/Phi-3.5-mini-instruct-onnx-web": "Phi-3.5 Mini (Transformers.js)",
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
-    "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
+    "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",   
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "HuggingFaceTB/SmolLM3-3B-ONNX": "SmolLM3-3B ONNX",
     "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",

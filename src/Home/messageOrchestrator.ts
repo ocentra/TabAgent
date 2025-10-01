@@ -310,6 +310,8 @@ class ChatOrchestrator {
                 try {
                     // Notify sidepanel that generation is starting
                     document.dispatchEvent(new CustomEvent('generationStarting'));
+                    
+                    // Send query to model worker
                     sendToModelWorker({ type: 'generate', payload: messagePayload });
                 } catch (error: unknown) {
                     const errObj = error as Error;

@@ -24,6 +24,9 @@ import {
   DbGetUniqueLogValuesRequest, DbGetUniqueLogValuesResponse,
   DbClearLogsRequest, DbClearLogsResponse,
   DbGetCurrentAndLastLogSessionIdsRequest, DbGetCurrentAndLastLogSessionIdsResponse,
+  DbGetCachedModelsRequest, DbGetCachedModelsResponse,
+  DbDeleteCachedModelRequest, DbDeleteCachedModelResponse,
+  DbDeleteAllCachedModelsRequest, DbDeleteAllCachedModelsResponse,
 
 } from './dbEvents';
 import { schema, dbChannel } from './idbSchema';

@@ -1,6 +1,14 @@
 import { showError } from '../Utilities/generalUtils';
 import { DbAddMessageRequest } from '../DB/dbEvents';
 import { triggerFileInputClick } from './uiController';
+
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[FileHandler]';
+
 declare const eventBus: any;
 let getActiveSessionIdFunc: (() => string | null) | null = null;
 
@@ -10,7 +18,7 @@ export function initializeFileHandling(dependencies: { getActiveSessionIdFunc: (
     if (!getActiveSessionIdFunc) {
         console.error("FileHandler: Missing getActiveSessionIdFunc dependency!");
     } else {
-        console.log("[FileHandler] Initialized (Note: DB/Renderer interaction via events assumed).");
+        if (LOG_DEBUG) console.log(`${prefix} Initialized (Note: DB/Renderer interaction via events assumed).`);
     }
 }
 
@@ -47,7 +55,7 @@ export async function handleFileSelected(event: Event) {
     try {
         const request = new DbAddMessageRequest(sessionId, fileMessage);
         eventBus.publish(DbAddMessageRequest.type, request);
-        console.log("[FileHandler] Published DbAddMessageRequest for file attachment.");
+        if (LOG_DEBUG) console.log(`${prefix} Published DbAddMessageRequest for file attachment.`);
 
     } catch (error) {
          console.error("FileHandler: Error publishing file attachment message event:", error);

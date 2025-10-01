@@ -12,10 +12,10 @@ var Module=moduleArg;var readyPromiseResolve,readyPromiseReject;var readyPromise
 }
 );
 })();
-if (typeof exports === 'object' && typeof module === 'object') {
-  module.exports = ModuleFactory;
-  // This default export looks redundant, but it allows TS to import this
-  // commonjs style module.
-  module.exports.default = ModuleFactory;
-} else if (typeof define === 'function' && define['amd'])
-  define([], () => ModuleFactory);
+// Export as ES module
+export { ModuleFactory };
+
+// Also set self.ModuleFactory for compatibility with the original .mjs bundle
+if (typeof self !== 'undefined') {
+  self.ModuleFactory = ModuleFactory;
+}

@@ -25,7 +25,8 @@ export class HuggingFaceLoginDialog {
                 <div class="dialog-body">
                     <div class="model-info">
                         <p><strong>Model:</strong> ${modelId}</p>
-                        <p>To download this model, you need to authenticate with HuggingFace.</p>
+                        <p>This Google model requires HuggingFace authentication to access.</p>
+                        <p><strong>Important:</strong> You must accept Google's terms on HuggingFace first!</p>
                     </div>
                     
                     <div class="auth-methods">
@@ -35,32 +36,20 @@ export class HuggingFaceLoginDialog {
                                 <span class="method-badge recommended">Recommended</span>
                             </div>
                             <div class="method-content">
-                                <p>Use your HuggingFace API token for secure authentication.</p>
+                                <p>Enter your HuggingFace API token to access this model.</p>
                                 <div class="token-form">
                                     <label for="hf-token">API Token:</label>
                                     <input type="password" id="hf-token" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
                                     <div class="token-help">
-                                        <p>Get your token from <a href="https://huggingface.co/settings/tokens" target="_blank">HuggingFace Settings</a></p>
-                                        <p>Make sure to select "Read" permissions for the token.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="auth-method" data-method="username">
-                            <div class="method-header">
-                                <h4>👤 Username & Password</h4>
-                                <span class="method-badge alternative">Alternative</span>
-                            </div>
-                            <div class="method-content">
-                                <p>Login with your HuggingFace username and password.</p>
-                                <div class="username-form">
-                                    <label for="hf-username">Username:</label>
-                                    <input type="text" id="hf-username" placeholder="your-username" />
-                                    <label for="hf-password">Password:</label>
-                                    <input type="password" id="hf-password" placeholder="your-password" />
-                                    <div class="username-help">
-                                        <p>Your HuggingFace account credentials will be used to generate an API token.</p>
+                                        <p><strong>Step 1: Accept Google Terms</strong></p>
+                                        <p>1. Go to <a href="https://huggingface.co/${modelId}" target="_blank">this Google model on HuggingFace</a></p>
+                                        <p>2. Click "Accept Google's Terms" and sign in to your HF account</p>
+                                        <p>3. Complete the terms acceptance process</p>
+                                        <br>
+                                        <p><strong>Step 2: Get Your API Token</strong></p>
+                                        <p>4. Go to <a href="https://huggingface.co/settings/tokens" target="_blank">HuggingFace Settings → Tokens</a></p>
+                                        <p>5. Create a new token with "Read" permissions</p>
+                                        <p>6. Copy the token and paste it here</p>
                                     </div>
                                 </div>
                             </div>
@@ -73,7 +62,7 @@ export class HuggingFaceLoginDialog {
                 </div>
                 <div class="dialog-footer">
                     <button class="btn btn-secondary" id="cancel-login">Cancel</button>
-                    <button class="btn btn-primary" id="submit-token">Connect to HuggingFace</button>
+                    <button class="btn btn-primary" id="submit-login">Connect to HuggingFace</button>
                 </div>
             </div>
         `;
@@ -377,43 +366,19 @@ export class HuggingFaceLoginDialog {
     private addEventListeners() {
         if (!this.dialog) return;
 
-        const submitBtn = this.dialog.querySelector('#submit-token') as HTMLButtonElement;
+        const submitBtn = this.dialog.querySelector('#submit-login') as HTMLButtonElement;
         const cancelBtn = this.dialog.querySelector('#cancel-login') as HTMLButtonElement;
         const closeBtn = this.dialog.querySelector('.close-btn') as HTMLButtonElement;
         const tokenInput = this.dialog.querySelector('#hf-token') as HTMLInputElement;
-        const usernameInput = this.dialog.querySelector('#hf-username') as HTMLInputElement;
-        const passwordInput = this.dialog.querySelector('#hf-password') as HTMLInputElement;
 
         submitBtn?.addEventListener('click', () => {
-            const activeMethod = this.dialog?.querySelector('.auth-method.active')?.getAttribute('data-method');
-            
-            if (activeMethod === 'token') {
-                const token = tokenInput?.value?.trim();
-                if (token && token.startsWith('hf_')) {
-                    this.close(token);
-                } else {
-                    // Show error
-                    tokenInput?.setCustomValidity('Please enter a valid HuggingFace token starting with "hf_"');
-                    tokenInput?.reportValidity();
-                }
-            } else if (activeMethod === 'username') {
-                const username = usernameInput?.value?.trim();
-                const password = passwordInput?.value?.trim();
-                if (username && password) {
-                    // For now, we'll use the username/password to generate a token
-                    // In a real implementation, you'd call HuggingFace API to get a token
-                    this.close(`hf_${username}_${password}`); // Placeholder token format
-                } else {
-                    // Show error
-                    if (!username) {
-                        usernameInput?.setCustomValidity('Please enter your HuggingFace username');
-                        usernameInput?.reportValidity();
-                    }
-                    if (!password) {
-                        passwordInput?.setCustomValidity('Please enter your HuggingFace password');
-                        passwordInput?.reportValidity();
-                    }
-                }
+            const token = tokenInput?.value?.trim();
+            if (token && token.startsWith('hf_')) {
+                this.close(token);
+            } else {
+                // Show error
+                tokenInput?.setCustomValidity('Please enter a valid HuggingFace API token (starts with hf_)');
+                tokenInput?.reportValidity();
             }
         });
 
@@ -427,14 +392,6 @@ export class HuggingFaceLoginDialog {
 
         tokenInput?.addEventListener('input', () => {
             tokenInput.setCustomValidity('');
-        });
-
-        usernameInput?.addEventListener('input', () => {
-            usernameInput.setCustomValidity('');
-        });
-
-        passwordInput?.addEventListener('input', () => {
-            passwordInput.setCustomValidity('');
         });
 
         // Add event listeners for auth method selection
@@ -458,19 +415,19 @@ export class HuggingFaceLoginDialog {
             if (e.key === 'Escape') {
                 this.close(null);
             }
-            if (e.key === 'Enter' && (e.target === tokenInput || e.target === usernameInput || e.target === passwordInput)) {
+            if (e.key === 'Enter' && e.target === tokenInput) {
                 submitBtn?.click();
             }
         });
     }
 
-    private close(token: string | null) {
+    private close(result: string | null) {
         this.dialog?.close();
         this.dialog?.remove();
         this.dialog = null;
         
         if (this.resolve) {
-            this.resolve(token);
+            this.resolve(result);
             this.resolve = null;
         }
     }

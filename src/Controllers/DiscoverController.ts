@@ -1,5 +1,11 @@
 // src/Controllers/DiscoverController.js
 
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[DiscoverController]';
 
 let isInitialized = false;
 
@@ -7,15 +13,15 @@ let isInitialized = false;
 
 export function initializeDiscoverController(/* Pass necessary elements or functions if needed */) {
     if (isInitialized) {
-        console.log("[DiscoverController] Already initialized.");
+        if (LOG_DEBUG) console.log(`${prefix} Already initialized.`);
         return;
     }
-    console.log("[DiscoverController] Initializing...");
+    if (LOG_DEBUG) console.log(`${prefix} Initializing...`);
     
 
 
     isInitialized = true;
-    console.log("[DiscoverController] Initialized successfully.");
+    if (LOG_DEBUG) console.log(`${prefix} Initialized successfully.`);
 
 
     return {}; 

@@ -2,6 +2,13 @@ import browser from 'webextension-polyfill';
 import { showNotification } from '../notifications';
 import { RuntimeMessageTypes } from '../events/eventNames';
 
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[DriveController]';
+
 
 const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 
@@ -137,7 +144,7 @@ function fetchAndDisplayViewerFolderContent(folderId: string): void {
     .then((response: any) => {
         isFetchingDriveList = false;
         if (response && response.success && response.files) {
-            console.log(`[DriveController] Success! Caching and rendering ${response.files.length} files.`);
+            if (LOG_DEBUG) console.log(`${prefix} Success! Caching and rendering ${response.files.length} files.`);
             driveFilesCache[folderId] = response.files;
             renderDriveViewerItems(response.files);
         } else {

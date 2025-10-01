@@ -30,8 +30,6 @@ import { initializeDiscoverController } from './Controllers/DiscoverController';
 import { initializeSettingsController } from './Controllers/SettingsController';
 import { initializeSpacesController } from './Controllers/SpacesController';
 import { initializeDriveController } from './Controllers/DriveController';
-import { GoogleTermsDialog } from './Components/GoogleTermsDialog';
-import { ModelSourceDialog } from './Components/ModelSourceDialog';
 import { HuggingFaceLoginDialog } from './Components/HuggingFaceLoginDialog';
 import {
   UIEventNames,
@@ -878,8 +876,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener(UIEventNames.NAVIGATION_PAGE_CHANGED, (e: Event) => handlePageChange((e as CustomEvent).detail));
 
     // Initialize dialog instances
-    const googleTermsDialog = new GoogleTermsDialog();
-    const modelSourceDialog = new ModelSourceDialog();
     const huggingFaceLoginDialog = new HuggingFaceLoginDialog();
 
     initializeFileHandling({
@@ -1008,37 +1004,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Dialog event handlers
-    document.addEventListener(UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, async (e) => {
-      const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;
-      const accepted = await googleTermsDialog.show(modelId);
-      if (accepted) {
-        // Send terms accepted event to model worker
-        if (modelWorker) {
-          modelWorker.postMessage({
-            type: WorkerEventNames.GOOGLE_TERMS_ACCEPTED,
-            payload: { modelId, modelPath, task, loadId }
-          });
-        }
-      } else {
-        utilShowError('Google terms not accepted. Cannot load model.');
-      }
-    });
-
-    document.addEventListener(UIEventNames.SHOW_MODEL_SOURCE_DIALOG, async (e) => {
-      const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;
-      const source = await modelSourceDialog.show(modelId);
-      if (source) {
-        // Send source selection event to model worker
-        if (modelWorker) {
-          modelWorker.postMessage({
-            type: WorkerEventNames.MODEL_SOURCE_SELECTION,
-            payload: { modelId, modelPath, task, loadId, source }
-          });
-        }
-      } else {
-        utilShowError('No source selected. Cannot load model.');
-      }
-    });
 
     document.addEventListener(UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
       const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;

@@ -4,7 +4,7 @@ import {  clearTemporaryMessages, renderTemporaryMessage } from './chatRenderer'
 import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification, DbMessagesUpdatedNotification } from '../DB/dbEvents';
-import {  QuantStatus, getAllManifestEntries, QuantInfo } from '../DB/idbModel';
+import {  QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry } from '../DB/idbModel';
 
 
 let queryInput: HTMLTextAreaElement | null,
@@ -29,19 +29,24 @@ let currentLoadId: string | null = null;
 let lastSeenLoadId: string | null = null;
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
-const LOG_ERROR = true;
+const LOG_ERROR = false;
 const LOG_WARN = false;
-const LOG_INFO = true;
+const LOG_INFO = false;
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
+    "HuggingFaceTB/SmolLM3-3B-ONNX": "SmolLM3-3B ONNX",
     "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
+    // Google models will be added dynamically after authentication
+};
+
+export const GOOGLE_MODELS = {
     "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
-    // Add more models here as needed
+    // Add more Google models here as needed
 };
 
 document.addEventListener(DbStatusUpdatedNotification.type, (e: Event) => {
@@ -301,6 +306,100 @@ export function getCurrentlySelectedModel(): { modelId: string | null; modelPath
 
 
 
+// Check if user is authenticated with HuggingFace
+async function isHuggingFaceAuthenticated(): Promise<boolean> {
+    try {
+        const tokenBlob = await getFromIndexedDB('huggingface_token');
+        const token = tokenBlob ? await tokenBlob.text() : null;
+        return !!(token && token.startsWith('hf_'));
+    } catch (error) {
+        if (LOG_WARN) console.warn(prefix, 'Error checking HF authentication:', error);
+        return false;
+    }
+}
+
+// Update model dropdown with available models based on authentication
+async function updateModelDropdown() {
+    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
+    if (!modelSelector) return;
+    
+    const isAuthenticated = await isHuggingFaceAuthenticated();
+    
+    // Clear existing options
+    modelSelector.innerHTML = '';
+    
+    // Add regular models
+    for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
+        const option = document.createElement('option');
+        option.value = modelId;
+        option.textContent = displayName;
+        modelSelector.appendChild(option);
+    }
+    
+    // Add Google models (always visible and selectable)
+    for (const [modelId, displayName] of Object.entries(GOOGLE_MODELS)) {
+        const option = document.createElement('option');
+        option.value = modelId;
+        option.textContent = displayName;
+        if (!isAuthenticated) {
+            option.textContent += ' (Authentication Required)';
+        }
+        // Don't disable the option - let users select it to trigger auth
+        modelSelector.appendChild(option);
+    }
+    
+    // Enable/disable based on available models
+    const hasModels = modelSelector.children.length > 0;
+    modelSelector.disabled = !hasModels;
+    
+    // Update load button and quant dropdown based on selection
+    updateLoadButtonAndQuantDropdown();
+}
+
+// Update load button and quant dropdown based on current selection
+async function updateLoadButtonAndQuantDropdown() {
+    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
+    const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    
+    if (!modelSelector || !loadModelButton) return;
+    
+    const selectedModel = modelSelector.value;
+    const isGoogleModel = selectedModel.toLowerCase().startsWith('google/');
+    const isAuthenticated = await isHuggingFaceAuthenticated();
+    
+    if (loadModelButton) {
+        const loadBtn = loadModelButton as HTMLButtonElement;
+        if (selectedModel && (!isGoogleModel || isAuthenticated)) {
+            loadBtn.style.display = '';
+            loadBtn.disabled = false;
+            loadBtn.textContent = 'Load Model';
+        } else {
+            loadBtn.style.display = '';
+            loadBtn.disabled = true;
+            if (isGoogleModel && !isAuthenticated) {
+                loadBtn.textContent = 'Authentication Required';
+            } else {
+                loadBtn.textContent = 'Load Model';
+            }
+        }
+    }
+    
+    // Show/hide quant dropdown based on model type and auth
+    if (quantSelector) {
+        if (isGoogleModel && !isAuthenticated) {
+            quantSelector.style.display = 'none';
+        } else {
+            quantSelector.style.display = '';
+        }
+    }
+}
+
+// Export function to refresh model dropdown (called after authentication)
+export async function refreshModelDropdown() {
+    await updateModelDropdown();
+    await updateLoadButtonAndQuantDropdown();
+}
+
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
     if (LOG_INFO) console.log(prefix, "Initializing...");
     if (isInitialized) {
@@ -337,46 +436,12 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
     if (LOG_INFO) console.log(prefix, modelSelector ? "Model selector found." : "WARNING: Model selector NOT found!");
     if (modelSelector) {
-        modelSelector.innerHTML = ''; // Clear existing options
-        if (LOG_INFO) console.log(prefix, "Populating model selector. Available models:", AVAILABLE_MODELS);
-        let hasModel = false;
-        for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
-            if (LOG_INFO) console.log(prefix, `Adding option: ${displayName} (${modelId})`);
-            const option = document.createElement('option');
-            option.value = modelId;
-            option.textContent = displayName;
-            modelSelector.appendChild(option);
-            hasModel = true;
-        }
-        if (!hasModel) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No models available';
-            option.disabled = true;
-            option.selected = true;
-            modelSelector.appendChild(option);
-        }
-        modelSelector.disabled = !hasModel;
+        // Use the new updateModelDropdown function
+        await updateModelDropdown();
+        
         if (loadModelButton) {
-            const loadBtn = loadModelButton as HTMLButtonElement;
-            if (hasModel && modelSelector.value) {
-                loadBtn.style.display = '';
-                loadBtn.disabled = false;
-            } else {
-                loadBtn.style.display = 'none';
-                loadBtn.disabled = true;
-            }
-            modelSelector.addEventListener('change', () => {
-                if (loadModelButton) {
-                    const loadBtn = loadModelButton as HTMLButtonElement;
-                    if (modelSelector.value) {
-                        loadBtn.style.display = '';
-                        loadBtn.disabled = false;
-                    } else {
-                        loadBtn.style.display = 'none';
-                        loadBtn.disabled = true;
-                    }
-                }
+            modelSelector.addEventListener('change', async () => {
+                await updateLoadButtonAndQuantDropdown();
             });
         }
     } else {
@@ -504,11 +569,46 @@ function enableInput() {
 
 
 
-function _handleModelOrVariantChange() { 
+async function _handleModelOrVariantChange() { 
     if (!modelSelectorDropdown || !quantSelectorDropdown) return;
     const modelId = modelSelectorDropdown.value;
-    const modelPath = quantSelectorDropdown.value;
+    let modelPath = quantSelectorDropdown.value;
+    
+    // For Google models, set the correct quant path (always use the "web" file)
+    if (modelId.toLowerCase().startsWith('google/')) {
+        // For Google models, we always need to set the quant path to the "web" file
+        // The manifest should have the "web" file available
+        try {
+            const manifest = await getManifestEntry(modelId);
+            if (manifest && manifest.quants) {
+                // Find the web quant (should be the only one for Google models)
+                const webQuant = Object.keys(manifest.quants).find(quant => quant.includes('Web'));
+                if (webQuant) {
+                    modelPath = webQuant;
+                }
+            }
+        } catch (error) {
+            if (LOG_WARN) console.warn(prefix, 'Error getting manifest for Google model:', error);
+        }
+    }
+    
     if (LOG_INFO) console.log(prefix, `Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
+    
+    // Update UI elements based on selection
+    await updateLoadButtonAndQuantDropdown();
+    
+    // Check if this is a Google model that needs authentication
+    if (modelId.toLowerCase().startsWith('google/')) {
+        const isAuthenticated = await isHuggingFaceAuthenticated();
+        if (!isAuthenticated) {
+            // For Google models, check authentication on dropdown selection
+            document.dispatchEvent(new CustomEvent('GOOGLE_MODEL_AUTHENTICATION', {
+                detail: { modelId, modelPath, loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
+            }));
+            return;
+        }
+    }
+    
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
         detail: { modelId, modelPath } 
     }));
@@ -529,17 +629,47 @@ function handleServerOnlyModelLoad(modelId: string, modelPath: string) {
     renderTemporaryMessage('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
 
-function _handleLoadModelButtonClick() {
+async function _handleLoadModelButtonClick() {
     if (!modelSelectorDropdown || !loadModelButton) return;
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
         if (LOG_WARN) console.warn(prefix, "Load Model button clicked, but no model selected.");
         return;
     }
-    if (isLoadingModel) return; 
+    if (isLoadingModel) return;
+    
+    // Check if this is a Google model that needs authentication
+    if (modelId.toLowerCase().startsWith('google/')) {
+        const isAuthenticated = await isHuggingFaceAuthenticated();
+        if (!isAuthenticated) {
+            // Show authentication dialog
+            document.dispatchEvent(new CustomEvent('GOOGLE_MODEL_AUTHENTICATION', {
+                detail: { modelId, modelPath: '', loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
+            }));
+            return;
+        }
+    }
+    
     // Check for ServerOnly status
     const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
-    const modelPath = quantDropdown ? quantDropdown.value : '';
+    let modelPath = quantDropdown ? quantDropdown.value : '';
+    
+    // For Google models, set the correct quant path (always use the "web" file)
+    if (modelId.toLowerCase().startsWith('google/')) {
+        try {
+            const manifest = await getManifestEntry(modelId);
+            if (manifest && manifest.quants) {
+                // Find the web quant (should be the only one for Google models)
+                const webQuant = Object.keys(manifest.quants).find(quant => quant.includes('Web'));
+                if (webQuant) {
+                    modelPath = webQuant;
+                }
+            }
+        } catch (error) {
+            if (LOG_WARN) console.warn(prefix, 'Error getting manifest for Google model:', error);
+        }
+    }
+    
     const manifestEntry = repoQuantsCache[modelId];
     if (manifestEntry && manifestEntry.quants[modelPath] && manifestEntry.quants[modelPath].status === QuantStatus.ServerOnly) {
         handleServerOnlyModelLoad(modelId, modelPath);
@@ -605,11 +735,23 @@ function populateQuantDropdownForSelectedRepo() {
     return;
   }
 
-  // Hide quant dropdown for MediaPipe models (Google models)
+  // For Google models, show the quant dropdown with the "web" option
   if (selectedRepo.startsWith('google/')) {
     quantDropdown.innerHTML = '';
-    quantDropdown.disabled = true;
-    quantDropdown.style.display = 'none';
+    quantDropdown.disabled = false;
+    quantDropdown.style.display = 'block';
+    
+    // Add the "web" quant option for Google models
+    const manifestEntry = repoQuantsCache[selectedRepo];
+    if (manifestEntry && manifestEntry.quants) {
+      const webQuant = Object.keys(manifestEntry.quants).find(quant => quant.includes('Web'));
+      if (webQuant) {
+        const option = document.createElement('option');
+        option.value = webQuant;
+        option.textContent = 'Web (MediaPipe)';
+        quantDropdown.appendChild(option);
+      }
+    }
     return;
   } else {
     quantDropdown.style.display = 'block';

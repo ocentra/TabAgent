@@ -25,18 +25,18 @@ export const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
 export function getServerOnlySizeLimit(): number {
   try {
     const stored = localStorage.getItem('modelLoadingSettings');
-    console.log('[IDBModel] getServerOnlySizeLimit - stored settings:', stored);
+    if (LOG_DEBUG) console.log(`${prefix} getServerOnlySizeLimit - stored settings:`, stored);
     if (stored) {
       const parsed = JSON.parse(stored);
-      console.log('[IDBModel] getServerOnlySizeLimit - parsed settings:', parsed);
+      if (LOG_DEBUG) console.log(`${prefix} getServerOnlySizeLimit - parsed settings:`, parsed);
       const limit = (parsed.maxModelSize || 2.1) * 1024 * 1024 * 1024;
-      console.log('[IDBModel] getServerOnlySizeLimit - calculated limit:', limit / (1024*1024*1024), 'GB');
+      if (LOG_DEBUG) console.log(`${prefix} getServerOnlySizeLimit - calculated limit:`, limit / (1024*1024*1024), 'GB');
       return limit;
     }
   } catch (e) {
-    console.error('[IDBModel] Error parsing model loading settings:', e);
+    if (LOG_ERROR) console.error(`${prefix} Error parsing model loading settings:`, e);
   }
-  console.log('[IDBModel] getServerOnlySizeLimit - using default:', DEFAULT_SERVER_ONLY_SIZE / (1024*1024*1024), 'GB');
+  if (LOG_DEBUG) console.log(`${prefix} getServerOnlySizeLimit - using default:`, DEFAULT_SERVER_ONLY_SIZE / (1024*1024*1024), 'GB');
   return DEFAULT_SERVER_ONLY_SIZE;
 }
 
@@ -44,16 +44,16 @@ export function getServerOnlySizeLimit(): number {
 export function getBypassSizeLimitModels(): Set<string> {
   try {
     const stored = localStorage.getItem('modelLoadingSettings');
-    console.log('[IDBModel] getBypassSizeLimitModels - stored settings:', stored);
+    if (LOG_DEBUG) console.log(`${prefix} getBypassSizeLimitModels - stored settings:`, stored);
     if (stored) {
       const parsed = JSON.parse(stored);
-      console.log('[IDBModel] getBypassSizeLimitModels - parsed settings:', parsed);
+      if (LOG_DEBUG) console.log(`${prefix} getBypassSizeLimitModels - parsed settings:`, parsed);
       const bypassSet = new Set<string>(parsed.bypassModels || []);
-      console.log('[IDBModel] getBypassSizeLimitModels - bypass models:', Array.from(bypassSet));
+      if (LOG_DEBUG) console.log(`${prefix} getBypassSizeLimitModels - bypass models:`, Array.from(bypassSet));
       return bypassSet;
     }
   } catch (e) {
-    console.error('[IDBModel] Error parsing model loading settings:', e);
+    if (LOG_ERROR) console.error(`${prefix} Error parsing model loading settings:`, e);
   }
   
   // Default bypass models (MediaPipe models that need to bypass size limits)
@@ -61,7 +61,7 @@ export function getBypassSizeLimitModels(): Set<string> {
     'google/gemma-3n-E4B-it-litert-lm'
   ]);
   
-  console.log('[IDBModel] getBypassSizeLimitModels - using default bypass models:', Array.from(defaultBypassModels));
+  if (LOG_DEBUG) console.log(`${prefix} getBypassSizeLimitModels - using default bypass models:`, Array.from(defaultBypassModels));
   return defaultBypassModels;
 }
 export type ManifestEntry = {
@@ -72,10 +72,10 @@ export type ManifestEntry = {
 };
 
 const prefix = '[IDBModel]';
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
+const LOG_GENERAL = true;
+const LOG_DEBUG = true;
 const LOG_ERROR = true;
-const LOG_WARN = false;
+const LOG_WARN = true;
 const LOG_INFERENCE_SETTINGS = false;
 const LOG_OPEN_DB = false;
 
@@ -100,6 +100,365 @@ export const modelCacheSchema = {
       }
     }
   };
+
+// Helper function to get HuggingFace token from IndexedDB
+export async function getHuggingFaceToken(): Promise<string | null> {
+    try {
+        const tokenBlob = await getFromIndexedDB('huggingface_token');
+        return tokenBlob ? await tokenBlob.text() : null;
+    } catch (error) {
+        if (LOG_WARN) console.warn(prefix, '[getHuggingFaceToken] Failed to get token:', error);
+        return null;
+    }
+}
+
+// Helper function to create authenticated fetch headers
+export async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
+    const token = await getHuggingFaceToken();
+    const headers: Record<string, string> = {
+        'Accept': 'application/json',
+    };
+    
+    if (token && token.startsWith('hf_')) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+}
+
+// Model management functions for UI
+export interface CachedModelInfo {
+  modelId: string;
+  modelPath: string;
+  totalSize: number;
+  numChunks: number;
+  chunkSize: number;
+  downloadDate: string;
+  cacheKey: string;
+  metadataKey: string;
+  chunkKeys: string[];
+}
+
+export async function getAllCachedModels(): Promise<CachedModelInfo[]> {
+  const models: CachedModelInfo[] = [];
+  
+  try {
+    if (LOG_DEBUG) console.log(prefix, '[getAllCachedModels] Starting to retrieve cached models...');
+    
+    // Get all keys from IndexedDB
+    const db = await openModelCacheDB();
+    const transaction = db.transaction(['files'], 'readonly');
+    const store = transaction.objectStore('files');
+    const request = store.getAll();
+    
+    const allData = await new Promise<any[]>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    
+    if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Found ${allData.length} total entries in IndexedDB`);
+    
+    // Group by model ID and collect chunks
+    const modelGroups = new Map<string, { chunks: string[], totalSize: number, chunkSizes: number[] }>();
+    
+    for (const item of allData) {
+      const key = item.url;
+      
+      if (LOG_DEBUG && key.includes('chunk')) {
+        console.log(prefix, `[getAllCachedModels] Processing chunk: ${key}`);
+      }
+      
+      if (key.includes('_chunk_')) {
+        // This is a chunk file - extract the base model path
+        const modelKey = key.replace(/_chunk_\d+$/, '');
+        if (!modelGroups.has(modelKey)) {
+          modelGroups.set(modelKey, { chunks: [], totalSize: 0, chunkSizes: [] });
+        }
+        
+        const group = modelGroups.get(modelKey)!;
+        group.chunks.push(key);
+        
+        // Get the blob size from the item - try different possible structures
+        let blobSize = 0;
+        if (item.data && item.data.size) {
+          blobSize = item.data.size;
+        } else if (item.blob && item.blob.size) {
+          blobSize = item.blob.size;
+        } else if (item.size) {
+          blobSize = item.size;
+        } else if (item.data instanceof Blob) {
+          blobSize = item.data.size;
+        } else if (item.data instanceof Uint8Array) {
+          blobSize = item.data.length;
+        }
+        
+        if (blobSize > 0) {
+          group.totalSize += blobSize;
+          group.chunkSizes.push(blobSize);
+          if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Chunk ${key}: ${blobSize} bytes`);
+        } else {
+          if (LOG_WARN) console.warn(prefix, `[getAllCachedModels] Could not determine size for chunk: ${key}`, item);
+        }
+      } else if (key.includes('_metadata')) {
+        // Skip metadata files for now - we'll calculate from chunks
+        if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Found metadata file: ${key}`);
+      } else if ((key.startsWith('models/') || key.includes('/model.') || key.includes('/onnx/')) && !key.includes('huggingface_token')) {
+        // Handle non-chunked models - be more inclusive in detection
+        let modelId = '';
+        let modelPath = '';
+        
+        if (key.startsWith('models/')) {
+          // Traditional models/ path
+          const pathParts = key.replace('models/', '').split('/');
+          if (pathParts.length >= 2) {
+            modelId = pathParts[0];
+            modelPath = pathParts.slice(1).join('/');
+          }
+        } else if (key.includes('huggingface.co/')) {
+          // HuggingFace URL format: https://huggingface.co/ModelName/repo/resolve/main/path/file.ext
+          const urlParts = key.split('/');
+          const modelIndex = urlParts.findIndex((part: string) => part === 'huggingface.co') + 1;
+          if (modelIndex > 0 && urlParts[modelIndex]) {
+            modelId = urlParts[modelIndex];
+            const filePath = urlParts.slice(modelIndex + 3).join('/'); // Skip 'repo/resolve/main'
+            modelPath = filePath;
+          }
+        }
+        
+        if (modelId && modelPath) {
+          // Get size for non-chunked models
+          let modelSize = 0;
+          if (item.data && item.data.size) {
+            modelSize = item.data.size;
+          } else if (item.blob && item.blob.size) {
+            modelSize = item.blob.size;
+          } else if (item.size) {
+            modelSize = item.size;
+          } else if (item.data instanceof Blob) {
+            modelSize = item.data.size;
+          } else if (item.data instanceof Uint8Array) {
+            modelSize = item.data.length;
+          }
+          
+          models.push({
+            modelId,
+            modelPath,
+            totalSize: modelSize,
+            numChunks: 1,
+            chunkSize: modelSize,
+            downloadDate: new Date().toISOString(),
+            cacheKey: key,
+            metadataKey: key,
+            chunkKeys: [key]
+          });
+          
+          if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Non-chunked model ${key}: ${modelSize} bytes (${modelId}/${modelPath})`);
+        }
+      }
+    }
+    
+    if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Found ${modelGroups.size} chunked model groups`);
+    
+    // Convert chunked models to CachedModelInfo
+    for (const [cacheKey, data] of modelGroups) {
+      if (data.chunks.length > 0) {
+        // Extract model info from cache key
+        const pathParts = cacheKey.replace('models/', '').split('/');
+        if (pathParts.length >= 2) {
+          const modelId = pathParts[0];
+          const modelPath = pathParts.slice(1).join('/');
+          
+          // Calculate average chunk size
+          const avgChunkSize = data.chunkSizes.length > 0 ? 
+            Math.round(data.totalSize / data.chunkSizes.length) : 0;
+          
+          models.push({
+            modelId,
+            modelPath,
+            totalSize: data.totalSize,
+            numChunks: data.chunks.length,
+            chunkSize: avgChunkSize,
+            downloadDate: new Date().toISOString(), // We don't store this yet
+            cacheKey,
+            metadataKey: `${cacheKey}_metadata`,
+            chunkKeys: data.chunks.sort((a, b) => {
+              const aNum = parseInt(a.match(/_chunk_(\d+)$/)?.[1] || '0');
+              const bNum = parseInt(b.match(/_chunk_(\d+)$/)?.[1] || '0');
+              return aNum - bNum;
+            })
+          });
+          
+          if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Added model: ${modelId}/${modelPath}, ${data.chunks.length} chunks, ${(data.totalSize / 1024 / 1024).toFixed(1)}MB`);
+        }
+      }
+    }
+    
+    db.close();
+    
+    if (LOG_DEBUG) console.log(prefix, `[getAllCachedModels] Returning ${models.length} models`);
+    
+  } catch (error) {
+    if (LOG_ERROR) console.error(prefix, '[getAllCachedModels] Error:', error);
+  }
+  
+  return models;
+}
+
+export async function deleteCachedModel(modelInfo: CachedModelInfo): Promise<void> {
+  try {
+    // Delete all chunks
+    for (const chunkKey of modelInfo.chunkKeys) {
+      await deleteFromIndexedDB(chunkKey);
+    }
+    
+    // Delete metadata
+    await deleteFromIndexedDB(modelInfo.metadataKey);
+    
+    if (LOG_GENERAL) console.log(prefix, `[deleteCachedModel] Deleted model: ${modelInfo.modelId}/${modelInfo.modelPath}`);
+  } catch (error) {
+    if (LOG_ERROR) console.error(prefix, '[deleteCachedModel] Error:', error);
+    throw error;
+  }
+}
+
+export async function deleteAllCachedModels(): Promise<void> {
+  const models = await getAllCachedModels();
+  for (const model of models) {
+    await deleteCachedModel(model);
+  }
+  if (LOG_GENERAL) console.log(prefix, '[deleteAllCachedModels] Deleted all cached models');
+}
+
+// DB system compatible functions for model management
+export async function getCachedModelsViaDB(dbWorker: any): Promise<CachedModelInfo[]> {
+  try {
+    if (LOG_DEBUG) console.log(prefix, '[getCachedModelsViaDB] Getting cached models via DB system...');
+    
+    // Use the DB worker to get all files from the model cache
+    const result = await dbWorker.postMessage({
+      action: 'GET_ALL_MODEL_FILES',
+      payload: {}
+    });
+    
+    if (!result || !result.success) {
+      throw new Error('Failed to get model files from DB worker');
+    }
+    
+    const allFiles = result.data || [];
+    if (LOG_DEBUG) console.log(prefix, `[getCachedModelsViaDB] Found ${allFiles.length} files in model cache`);
+    
+    // Group files by model
+    const modelGroups = new Map<string, { chunks: any[], totalSize: number, chunkSizes: number[] }>();
+    
+    for (const file of allFiles) {
+      const key = file.url || file.key;
+      
+      if (key.includes('_chunk_')) {
+        // This is a chunk file
+        const modelKey = key.replace(/_chunk_\d+$/, '');
+        if (!modelGroups.has(modelKey)) {
+          modelGroups.set(modelKey, { chunks: [], totalSize: 0, chunkSizes: [] });
+        }
+        
+        const group = modelGroups.get(modelKey)!;
+        group.chunks.push(file);
+        
+        // Get size from the file data
+        const size = file.data?.size || file.blob?.size || 0;
+        group.totalSize += size;
+        group.chunkSizes.push(size);
+        
+      } else if (key.startsWith('models/') && !key.includes('huggingface_token') && !key.includes('_metadata')) {
+        // Handle non-chunked models
+        const pathParts = key.replace('models/', '').split('/');
+        if (pathParts.length >= 2) {
+          const modelId = pathParts[0];
+          const modelPath = pathParts.slice(1).join('/');
+          const size = file.data?.size || file.blob?.size || 0;
+          
+          return [{
+            modelId,
+            modelPath,
+            totalSize: size,
+            numChunks: 1,
+            chunkSize: size,
+            downloadDate: new Date().toISOString(),
+            cacheKey: key,
+            metadataKey: key,
+            chunkKeys: [key]
+          }];
+        }
+      }
+    }
+    
+    // Convert chunked models to CachedModelInfo
+    const models: CachedModelInfo[] = [];
+    for (const [cacheKey, data] of modelGroups) {
+      if (data.chunks.length > 0) {
+        const pathParts = cacheKey.replace('models/', '').split('/');
+        if (pathParts.length >= 2) {
+          const modelId = pathParts[0];
+          const modelPath = pathParts.slice(1).join('/');
+          
+          const avgChunkSize = data.chunkSizes.length > 0 ? 
+            Math.round(data.totalSize / data.chunkSizes.length) : 0;
+          
+          models.push({
+            modelId,
+            modelPath,
+            totalSize: data.totalSize,
+            numChunks: data.chunks.length,
+            chunkSize: avgChunkSize,
+            downloadDate: new Date().toISOString(),
+            cacheKey,
+            metadataKey: `${cacheKey}_metadata`,
+            chunkKeys: data.chunks.map((c: any) => c.url || c.key).sort((a: string, b: string) => {
+              const aNum = parseInt(a.match(/_chunk_(\d+)$/)?.[1] || '0');
+              const bNum = parseInt(b.match(/_chunk_(\d+)$/)?.[1] || '0');
+              return aNum - bNum;
+            })
+          });
+        }
+      }
+    }
+    
+    if (LOG_DEBUG) console.log(prefix, `[getCachedModelsViaDB] Returning ${models.length} models`);
+    return models;
+    
+  } catch (error) {
+    if (LOG_ERROR) console.error(prefix, '[getCachedModelsViaDB] Error:', error);
+    return [];
+  }
+}
+
+export async function deleteCachedModelViaDB(modelInfo: CachedModelInfo, dbWorker: any): Promise<void> {
+  try {
+    if (LOG_DEBUG) console.log(prefix, `[deleteCachedModelViaDB] Deleting model: ${modelInfo.modelId}/${modelInfo.modelPath}`);
+    
+    // Delete all chunks via DB worker
+    const deletePromises = modelInfo.chunkKeys.map(chunkKey => 
+      dbWorker.postMessage({
+        action: 'DELETE_MODEL_FILE',
+        payload: { key: chunkKey }
+      })
+    );
+    
+    // Delete metadata if it exists
+    deletePromises.push(
+      dbWorker.postMessage({
+        action: 'DELETE_MODEL_FILE',
+        payload: { key: modelInfo.metadataKey }
+      })
+    );
+    
+    await Promise.all(deletePromises);
+    
+    if (LOG_GENERAL) console.log(prefix, `[deleteCachedModelViaDB] Successfully deleted model: ${modelInfo.modelId}/${modelInfo.modelPath}`);
+  } catch (error) {
+    if (LOG_ERROR) console.error(prefix, '[deleteCachedModelViaDB] Error:', error);
+    throw error;
+  }
+}
 
 export async function openModelCacheDB(): Promise<IDBDatabase> {
    if (LOG_OPEN_DB) console.log(prefix, '[openModelCacheDB] Opening TabAgentModels DB');
@@ -277,7 +636,8 @@ export async function fetchRepoFiles(repo: string): Promise<{ siblings: { rfilen
     if (LOG_GENERAL) console.log(prefix, '[fetchRepoFiles] Fetching', repo);
     const url = `https://huggingface.co/api/models/${repo}`;
     try {
-        const resp = await fetch(url);
+        const headers = await getAuthenticatedHeaders();
+        const resp = await fetch(url, { headers });
         if (!resp.ok) {
             if (LOG_ERROR) console.error(prefix, '[fetchRepoFiles] Failed for', repo, resp.status, resp.statusText);
             throw new Error(`Failed to fetch repo files for ${repo}: ${resp.status} ${resp.statusText}`);
@@ -320,7 +680,8 @@ export async function fetchModelMetadataInternal(modelId: string) {
     const apiUrl = `https://huggingface.co/api/models/${encodeURIComponent(modelId)}`;
     if (LOG_GENERAL) console.log(prefix, `[fetchModelMetadataInternal] Fetching model metadata from: ${apiUrl}`);
     try {
-        const response = await fetch(apiUrl);
+        const headers = await getAuthenticatedHeaders();
+        const response = await fetch(apiUrl, { headers });
         if (!response.ok) {
             const errorText = await response.text();
             if (LOG_ERROR) console.error(prefix, `[fetchModelMetadataInternal] Failed to fetch model file list for ${modelId}: ${response.status} ${response.statusText}`, errorText);
@@ -507,5 +868,31 @@ export async function addQuantToManifest(repo: string, modelPath: string, status
         }
     }
     await addManifestEntry(repo, manifest);
+}
+
+export async function deleteFromIndexedDB(url: string) {
+    if (LOG_GENERAL) console.log(prefix, '[deleteFromIndexedDB] Deleting', url);
+    const db = await openModelCacheDB();
+    return new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        const store = tx.objectStore('files');
+        const req = store.delete(url);
+        req.onsuccess = () => {
+            if (LOG_DEBUG) console.log(prefix, '[deleteFromIndexedDB] Deleted', url);
+            resolve(undefined);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR) console.error(prefix, '[deleteFromIndexedDB] Error deleting', url, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG) console.log(prefix, '[deleteFromIndexedDB] Transaction complete for', url);
+            db.close();
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR) console.error(prefix, '[deleteFromIndexedDB] Transaction error for', url, e);
+            db.close();
+        };
+    });
 }
 

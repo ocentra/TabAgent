@@ -1,21 +1,26 @@
 // src/Controllers/SpacesController.js
 
-
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[SpacesController]';
 
 let isInitialized = false;
 
 
 export function initializeSpacesController(/* Pass necessary elements or functions if needed */): any {
     if (isInitialized) {
-        console.log("[SpacesController] Already initialized.");
+        if (LOG_DEBUG) console.log(`${prefix} Already initialized.`);
         return;
     }
-    console.log("[SpacesController] Initializing...");
+    if (LOG_DEBUG) console.log(`${prefix} Initializing...`);
     
 
 
     isInitialized = true;
-    console.log("[SpacesController] Initialized successfully.");
+    if (LOG_DEBUG) console.log(`${prefix} Initialized successfully.`);
 
 
     return {}; 

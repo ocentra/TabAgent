@@ -1232,292 +1232,6 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 
 /***/ }),
 
-/***/ "./src/Components/GoogleTermsDialog.ts":
-/*!*********************************************!*\
-  !*** ./src/Components/GoogleTermsDialog.ts ***!
-  \*********************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   GoogleTermsDialog: () => (/* binding */ GoogleTermsDialog)
-/* harmony export */ });
-class GoogleTermsDialog {
-    constructor() {
-        this.dialog = null;
-        this.resolve = null;
-    }
-    show(modelId) {
-        return new Promise((resolve) => {
-            this.resolve = resolve;
-            this.createDialog(modelId);
-            this.dialog?.showModal();
-        });
-    }
-    createDialog(modelId) {
-        // Remove existing dialog if any
-        this.dialog?.remove();
-        this.dialog = document.createElement('dialog');
-        this.dialog.className = 'google-terms-dialog';
-        this.dialog.innerHTML = `
-            <div class="dialog-content">
-                <div class="dialog-header">
-                    <h3>Google Gemma License Agreement</h3>
-                    <button class="close-btn" type="button">&times;</button>
-                </div>
-                <div class="dialog-body">
-                    <div class="model-info">
-                        <p><strong>Model:</strong> ${modelId}</p>
-                        <p>Before downloading Google Gemma models, you must accept their license terms.</p>
-                    </div>
-                    
-                    <div class="terms-content">
-                        <h4>Key Terms:</h4>
-                        <ul>
-                            <li><strong>Commercial Use:</strong> Subject to Google's Gemma license restrictions</li>
-                            <li><strong>Attribution:</strong> Must provide proper attribution to Google</li>
-                            <li><strong>Usage Limitations:</strong> Follow Google's acceptable use policy</li>
-                            <li><strong>Data Privacy:</strong> Your data may be processed by Google services</li>
-                        </ul>
-                        
-                        <div class="terms-links">
-                            <a href="https://huggingface.co/${modelId}" target="_blank" class="terms-link">
-                                📄 Read Full Terms on HuggingFace
-                            </a>
-                            <a href="https://ai.google.dev/gemma/terms" target="_blank" class="terms-link">
-                                📄 Google's Official Terms
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <div class="warning-box">
-                        <p><strong>⚠️ Important:</strong> This is a one-time requirement. After accepting, you can download from any source without re-accepting.</p>
-                    </div>
-                </div>
-                <div class="dialog-footer">
-                    <button class="btn btn-secondary" id="decline-terms">Cancel</button>
-                    <button class="btn btn-primary" id="accept-terms">I Accept Terms</button>
-                </div>
-            </div>
-        `;
-        // Add styles
-        this.addStyles();
-        // Add event listeners
-        this.addEventListeners();
-        document.body.appendChild(this.dialog);
-    }
-    addStyles() {
-        if (document.getElementById('google-terms-dialog-styles'))
-            return;
-        const style = document.createElement('style');
-        style.id = 'google-terms-dialog-styles';
-        style.textContent = `
-            .google-terms-dialog {
-                border: none;
-                border-radius: 12px;
-                padding: 0;
-                max-width: 600px;
-                width: 90vw;
-                max-height: 80vh;
-                background: var(--bg-primary);
-                color: var(--text-primary);
-                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            }
-            
-            .google-terms-dialog::backdrop {
-                background: rgba(0, 0, 0, 0.5);
-                backdrop-filter: blur(4px);
-            }
-            
-            .dialog-content {
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }
-            
-            .dialog-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 20px 24px;
-                border-bottom: 1px solid var(--border-color);
-            }
-            
-            .dialog-header h3 {
-                margin: 0;
-                font-size: 1.25rem;
-                font-weight: 600;
-                color: var(--text-primary);
-            }
-            
-            .close-btn {
-                background: none;
-                border: none;
-                font-size: 1.5rem;
-                cursor: pointer;
-                color: var(--text-secondary);
-                padding: 4px;
-                border-radius: 4px;
-                transition: background-color 0.2s;
-            }
-            
-            .close-btn:hover {
-                background-color: var(--bg-secondary);
-            }
-            
-            .dialog-body {
-                flex: 1;
-                padding: 24px;
-                overflow-y: auto;
-            }
-            
-            .model-info {
-                background: var(--bg-secondary);
-                padding: 16px;
-                border-radius: 8px;
-                margin-bottom: 20px;
-            }
-            
-            .model-info p {
-                margin: 0 0 8px 0;
-            }
-            
-            .model-info p:last-child {
-                margin-bottom: 0;
-            }
-            
-            .terms-content h4 {
-                margin: 0 0 12px 0;
-                color: var(--text-primary);
-            }
-            
-            .terms-content ul {
-                margin: 0 0 20px 0;
-                padding-left: 20px;
-            }
-            
-            .terms-content li {
-                margin-bottom: 8px;
-                line-height: 1.5;
-            }
-            
-            .terms-links {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                margin-bottom: 20px;
-            }
-            
-            .terms-link {
-                color: var(--accent-color);
-                text-decoration: none;
-                padding: 8px 12px;
-                border: 1px solid var(--accent-color);
-                border-radius: 6px;
-                transition: all 0.2s;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            
-            .terms-link:hover {
-                background-color: var(--accent-color);
-                color: white;
-            }
-            
-            .warning-box {
-                background: #fef3cd;
-                border: 1px solid #fecaca;
-                border-radius: 8px;
-                padding: 16px;
-                color: #92400e;
-            }
-            
-            .warning-box p {
-                margin: 0;
-                font-weight: 500;
-            }
-            
-            .dialog-footer {
-                display: flex;
-                justify-content: flex-end;
-                gap: 12px;
-                padding: 20px 24px;
-                border-top: 1px solid var(--border-color);
-            }
-            
-            .btn {
-                padding: 10px 20px;
-                border: none;
-                border-radius: 6px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.2s;
-                font-size: 0.875rem;
-            }
-            
-            .btn-secondary {
-                background: var(--bg-secondary);
-                color: var(--text-primary);
-                border: 1px solid var(--border-color);
-            }
-            
-            .btn-secondary:hover {
-                background: var(--bg-tertiary);
-            }
-            
-            .btn-primary {
-                background: var(--accent-color);
-                color: white;
-            }
-            
-            .btn-primary:hover {
-                background: var(--accent-hover);
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    addEventListeners() {
-        if (!this.dialog)
-            return;
-        const acceptBtn = this.dialog.querySelector('#accept-terms');
-        const declineBtn = this.dialog.querySelector('#decline-terms');
-        const closeBtn = this.dialog.querySelector('.close-btn');
-        acceptBtn?.addEventListener('click', () => {
-            this.close(true);
-        });
-        declineBtn?.addEventListener('click', () => {
-            this.close(false);
-        });
-        closeBtn?.addEventListener('click', () => {
-            this.close(false);
-        });
-        this.dialog.addEventListener('click', (e) => {
-            if (e.target === this.dialog) {
-                this.close(false);
-            }
-        });
-        this.dialog.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.close(false);
-            }
-        });
-    }
-    close(accepted) {
-        this.dialog?.close();
-        this.dialog?.remove();
-        this.dialog = null;
-        if (this.resolve) {
-            this.resolve(accepted);
-            this.resolve = null;
-        }
-    }
-}
-
-
-/***/ }),
-
 /***/ "./src/Components/HistoryItem.ts":
 /*!***************************************!*\
   !*** ./src/Components/HistoryItem.ts ***!
@@ -1822,7 +1536,8 @@ class HuggingFaceLoginDialog {
                 <div class="dialog-body">
                     <div class="model-info">
                         <p><strong>Model:</strong> ${modelId}</p>
-                        <p>To download this model, you need to authenticate with HuggingFace.</p>
+                        <p>This Google model requires HuggingFace authentication to access.</p>
+                        <p><strong>Important:</strong> You must accept Google's terms on HuggingFace first!</p>
                     </div>
                     
                     <div class="auth-methods">
@@ -1832,32 +1547,20 @@ class HuggingFaceLoginDialog {
                                 <span class="method-badge recommended">Recommended</span>
                             </div>
                             <div class="method-content">
-                                <p>Use your HuggingFace API token for secure authentication.</p>
+                                <p>Enter your HuggingFace API token to access this model.</p>
                                 <div class="token-form">
                                     <label for="hf-token">API Token:</label>
                                     <input type="password" id="hf-token" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
                                     <div class="token-help">
-                                        <p>Get your token from <a href="https://huggingface.co/settings/tokens" target="_blank">HuggingFace Settings</a></p>
-                                        <p>Make sure to select "Read" permissions for the token.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="auth-method" data-method="username">
-                            <div class="method-header">
-                                <h4>👤 Username & Password</h4>
-                                <span class="method-badge alternative">Alternative</span>
-                            </div>
-                            <div class="method-content">
-                                <p>Login with your HuggingFace username and password.</p>
-                                <div class="username-form">
-                                    <label for="hf-username">Username:</label>
-                                    <input type="text" id="hf-username" placeholder="your-username" />
-                                    <label for="hf-password">Password:</label>
-                                    <input type="password" id="hf-password" placeholder="your-password" />
-                                    <div class="username-help">
-                                        <p>Your HuggingFace account credentials will be used to generate an API token.</p>
+                                        <p><strong>Step 1: Accept Google Terms</strong></p>
+                                        <p>1. Go to <a href="https://huggingface.co/${modelId}" target="_blank">this Google model on HuggingFace</a></p>
+                                        <p>2. Click "Accept Google's Terms" and sign in to your HF account</p>
+                                        <p>3. Complete the terms acceptance process</p>
+                                        <br>
+                                        <p><strong>Step 2: Get Your API Token</strong></p>
+                                        <p>4. Go to <a href="https://huggingface.co/settings/tokens" target="_blank">HuggingFace Settings → Tokens</a></p>
+                                        <p>5. Create a new token with "Read" permissions</p>
+                                        <p>6. Copy the token and paste it here</p>
                                     </div>
                                 </div>
                             </div>
@@ -1870,7 +1573,7 @@ class HuggingFaceLoginDialog {
                 </div>
                 <div class="dialog-footer">
                     <button class="btn btn-secondary" id="cancel-login">Cancel</button>
-                    <button class="btn btn-primary" id="submit-token">Connect to HuggingFace</button>
+                    <button class="btn btn-primary" id="submit-login">Connect to HuggingFace</button>
                 </div>
             </div>
         `;
@@ -2168,44 +1871,19 @@ class HuggingFaceLoginDialog {
     addEventListeners() {
         if (!this.dialog)
             return;
-        const submitBtn = this.dialog.querySelector('#submit-token');
+        const submitBtn = this.dialog.querySelector('#submit-login');
         const cancelBtn = this.dialog.querySelector('#cancel-login');
         const closeBtn = this.dialog.querySelector('.close-btn');
         const tokenInput = this.dialog.querySelector('#hf-token');
-        const usernameInput = this.dialog.querySelector('#hf-username');
-        const passwordInput = this.dialog.querySelector('#hf-password');
         submitBtn?.addEventListener('click', () => {
-            const activeMethod = this.dialog?.querySelector('.auth-method.active')?.getAttribute('data-method');
-            if (activeMethod === 'token') {
-                const token = tokenInput?.value?.trim();
-                if (token && token.startsWith('hf_')) {
-                    this.close(token);
-                }
-                else {
-                    // Show error
-                    tokenInput?.setCustomValidity('Please enter a valid HuggingFace token starting with "hf_"');
-                    tokenInput?.reportValidity();
-                }
+            const token = tokenInput?.value?.trim();
+            if (token && token.startsWith('hf_')) {
+                this.close(token);
             }
-            else if (activeMethod === 'username') {
-                const username = usernameInput?.value?.trim();
-                const password = passwordInput?.value?.trim();
-                if (username && password) {
-                    // For now, we'll use the username/password to generate a token
-                    // In a real implementation, you'd call HuggingFace API to get a token
-                    this.close(`hf_${username}_${password}`); // Placeholder token format
-                }
-                else {
-                    // Show error
-                    if (!username) {
-                        usernameInput?.setCustomValidity('Please enter your HuggingFace username');
-                        usernameInput?.reportValidity();
-                    }
-                    if (!password) {
-                        passwordInput?.setCustomValidity('Please enter your HuggingFace password');
-                        passwordInput?.reportValidity();
-                    }
-                }
+            else {
+                // Show error
+                tokenInput?.setCustomValidity('Please enter a valid HuggingFace API token (starts with hf_)');
+                tokenInput?.reportValidity();
             }
         });
         cancelBtn?.addEventListener('click', () => {
@@ -2216,12 +1894,6 @@ class HuggingFaceLoginDialog {
         });
         tokenInput?.addEventListener('input', () => {
             tokenInput.setCustomValidity('');
-        });
-        usernameInput?.addEventListener('input', () => {
-            usernameInput.setCustomValidity('');
-        });
-        passwordInput?.addEventListener('input', () => {
-            passwordInput.setCustomValidity('');
         });
         // Add event listeners for auth method selection
         const authMethods = this.dialog.querySelectorAll('.auth-method');
@@ -2242,370 +1914,17 @@ class HuggingFaceLoginDialog {
             if (e.key === 'Escape') {
                 this.close(null);
             }
-            if (e.key === 'Enter' && (e.target === tokenInput || e.target === usernameInput || e.target === passwordInput)) {
+            if (e.key === 'Enter' && e.target === tokenInput) {
                 submitBtn?.click();
             }
         });
     }
-    close(token) {
+    close(result) {
         this.dialog?.close();
         this.dialog?.remove();
         this.dialog = null;
         if (this.resolve) {
-            this.resolve(token);
-            this.resolve = null;
-        }
-    }
-}
-
-
-/***/ }),
-
-/***/ "./src/Components/ModelSourceDialog.ts":
-/*!*********************************************!*\
-  !*** ./src/Components/ModelSourceDialog.ts ***!
-  \*********************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   ModelSourceDialog: () => (/* binding */ ModelSourceDialog)
-/* harmony export */ });
-class ModelSourceDialog {
-    constructor() {
-        this.dialog = null;
-        this.resolve = null;
-    }
-    show(modelId) {
-        return new Promise((resolve) => {
-            this.resolve = resolve;
-            this.createDialog(modelId);
-            this.dialog?.showModal();
-        });
-    }
-    createDialog(modelId) {
-        // Remove existing dialog if any
-        this.dialog?.remove();
-        this.dialog = document.createElement('dialog');
-        this.dialog.className = 'model-source-dialog';
-        this.dialog.innerHTML = `
-            <div class="dialog-content">
-                <div class="dialog-header">
-                    <h3>Download ${modelId}</h3>
-                    <button class="close-btn" type="button">&times;</button>
-                </div>
-                <div class="dialog-body">
-                    <div class="model-info">
-                        <p>This model requires authentication and accepting Google's terms.</p>
-                        <p>Choose your preferred source to download from:</p>
-                    </div>
-                    
-                    <div class="source-options">
-                        <div class="source-option" data-source="huggingface">
-                            <div class="source-icon">🤗</div>
-                            <div class="source-info">
-                                <h4>HuggingFace</h4>
-                                <p>Most popular platform with extensive model collection</p>
-                                <small>Requires HuggingFace account and API token</small>
-                            </div>
-                            <div class="source-status">
-                                <span class="status-badge recommended">Recommended</span>
-                            </div>
-                        </div>
-                        
-                        <div class="source-option" data-source="kaggle">
-                            <div class="source-icon">🏆</div>
-                            <div class="source-info">
-                                <h4>Kaggle</h4>
-                                <p>Alternative source with competitive datasets</p>
-                                <small>Requires Kaggle account and API key</small>
-                            </div>
-                            <div class="source-status">
-                                <span class="status-badge alternative">Alternative</span>
-                            </div>
-                        </div>
-                        
-                        <div class="source-option" data-source="google">
-                            <div class="source-icon">🔍</div>
-                            <div class="source-info">
-                                <h4>Google AI Studio</h4>
-                                <p>Direct from Google with native integration</p>
-                                <small>Requires Google account and API key</small>
-                            </div>
-                            <div class="source-status">
-                                <span class="status-badge official">Official</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="info-box">
-                        <p><strong>💡 Tip:</strong> Your choice will be remembered for future downloads. You can change it anytime in settings.</p>
-                    </div>
-                </div>
-                <div class="dialog-footer">
-                    <button class="btn btn-secondary" id="cancel-source">Cancel</button>
-                </div>
-            </div>
-        `;
-        // Add styles
-        this.addStyles();
-        // Add event listeners
-        this.addEventListeners();
-        document.body.appendChild(this.dialog);
-    }
-    addStyles() {
-        if (document.getElementById('model-source-dialog-styles'))
-            return;
-        const style = document.createElement('style');
-        style.id = 'model-source-dialog-styles';
-        style.textContent = `
-            .model-source-dialog {
-                border: none;
-                border-radius: 12px;
-                padding: 0;
-                max-width: 700px;
-                width: 90vw;
-                max-height: 80vh;
-                background: var(--bg-primary);
-                color: var(--text-primary);
-                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            }
-            
-            .model-source-dialog::backdrop {
-                background: rgba(0, 0, 0, 0.5);
-                backdrop-filter: blur(4px);
-            }
-            
-            .dialog-content {
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }
-            
-            .dialog-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 20px 24px;
-                border-bottom: 1px solid var(--border-color);
-            }
-            
-            .dialog-header h3 {
-                margin: 0;
-                font-size: 1.25rem;
-                font-weight: 600;
-                color: var(--text-primary);
-            }
-            
-            .close-btn {
-                background: none;
-                border: none;
-                font-size: 1.5rem;
-                cursor: pointer;
-                color: var(--text-secondary);
-                padding: 4px;
-                border-radius: 4px;
-                transition: background-color 0.2s;
-            }
-            
-            .close-btn:hover {
-                background-color: var(--bg-secondary);
-            }
-            
-            .dialog-body {
-                flex: 1;
-                padding: 24px;
-                overflow-y: auto;
-            }
-            
-            .model-info {
-                background: var(--bg-secondary);
-                padding: 16px;
-                border-radius: 8px;
-                margin-bottom: 24px;
-            }
-            
-            .model-info p {
-                margin: 0 0 8px 0;
-            }
-            
-            .model-info p:last-child {
-                margin-bottom: 0;
-            }
-            
-            .source-options {
-                display: flex;
-                flex-direction: column;
-                gap: 16px;
-                margin-bottom: 24px;
-            }
-            
-            .source-option {
-                display: flex;
-                align-items: center;
-                padding: 20px;
-                border: 2px solid var(--border-color);
-                border-radius: 12px;
-                cursor: pointer;
-                transition: all 0.2s;
-                background: var(--bg-primary);
-            }
-            
-            .source-option:hover {
-                border-color: var(--accent-color);
-                background: var(--bg-secondary);
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            }
-            
-            .source-option.selected {
-                border-color: var(--accent-color);
-                background: var(--accent-color);
-                color: white;
-            }
-            
-            .source-icon {
-                font-size: 2rem;
-                margin-right: 16px;
-                min-width: 48px;
-                text-align: center;
-            }
-            
-            .source-info {
-                flex: 1;
-            }
-            
-            .source-info h4 {
-                margin: 0 0 8px 0;
-                font-size: 1.125rem;
-                font-weight: 600;
-            }
-            
-            .source-info p {
-                margin: 0 0 4px 0;
-                color: var(--text-secondary);
-                font-size: 0.875rem;
-            }
-            
-            .source-info small {
-                color: var(--text-tertiary);
-                font-size: 0.75rem;
-            }
-            
-            .source-status {
-                margin-left: 16px;
-            }
-            
-            .status-badge {
-                padding: 4px 8px;
-                border-radius: 12px;
-                font-size: 0.75rem;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .status-badge.recommended {
-                background: #10b981;
-                color: white;
-            }
-            
-            .status-badge.alternative {
-                background: #f59e0b;
-                color: white;
-            }
-            
-            .status-badge.official {
-                background: #3b82f6;
-                color: white;
-            }
-            
-            .info-box {
-                background: #dbeafe;
-                border: 1px solid #93c5fd;
-                border-radius: 8px;
-                padding: 16px;
-                color: #1e40af;
-            }
-            
-            .info-box p {
-                margin: 0;
-                font-size: 0.875rem;
-            }
-            
-            .dialog-footer {
-                display: flex;
-                justify-content: flex-end;
-                gap: 12px;
-                padding: 20px 24px;
-                border-top: 1px solid var(--border-color);
-            }
-            
-            .btn {
-                padding: 10px 20px;
-                border: none;
-                border-radius: 6px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.2s;
-                font-size: 0.875rem;
-            }
-            
-            .btn-secondary {
-                background: var(--bg-secondary);
-                color: var(--text-primary);
-                border: 1px solid var(--border-color);
-            }
-            
-            .btn-secondary:hover {
-                background: var(--bg-tertiary);
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    addEventListeners() {
-        if (!this.dialog)
-            return;
-        const sourceOptions = this.dialog.querySelectorAll('.source-option');
-        const cancelBtn = this.dialog.querySelector('#cancel-source');
-        const closeBtn = this.dialog.querySelector('.close-btn');
-        sourceOptions.forEach(option => {
-            option.addEventListener('click', () => {
-                // Remove previous selection
-                sourceOptions.forEach(opt => opt.classList.remove('selected'));
-                // Add selection to clicked option
-                option.classList.add('selected');
-                // Get the source value
-                const source = option.getAttribute('data-source');
-                if (source) {
-                    setTimeout(() => this.close(source), 200); // Small delay for visual feedback
-                }
-            });
-        });
-        cancelBtn?.addEventListener('click', () => {
-            this.close(null);
-        });
-        closeBtn?.addEventListener('click', () => {
-            this.close(null);
-        });
-        this.dialog.addEventListener('click', (e) => {
-            if (e.target === this.dialog) {
-                this.close(null);
-            }
-        });
-        this.dialog.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.close(null);
-            }
-        });
-    }
-    close(source) {
-        this.dialog?.close();
-        this.dialog?.remove();
-        this.dialog = null;
-        if (this.resolve) {
-            this.resolve(source);
+            this.resolve(result);
             this.resolve = null;
         }
     }
@@ -2733,15 +2052,24 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeDiscoverController: () => (/* binding */ initializeDiscoverController)
 /* harmony export */ });
 // src/Controllers/DiscoverController.js
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[DiscoverController]';
 let isInitialized = false;
 function initializeDiscoverController( /* Pass necessary elements or functions if needed */) {
     if (isInitialized) {
-        console.log("[DiscoverController] Already initialized.");
+        if (LOG_DEBUG)
+            console.log(`${prefix} Already initialized.`);
         return;
     }
-    console.log("[DiscoverController] Initializing...");
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing...`);
     isInitialized = true;
-    console.log("[DiscoverController] Initialized successfully.");
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initialized successfully.`);
     return {};
 }
 
@@ -2766,6 +2094,12 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[DriveController]';
 const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 let driveButton;
 let driveViewerModal, driveViewerClose, driveViewerList, driveViewerCancel, driveViewerInsert, driveViewerSearch, driveViewerSelectedArea, driveViewerBreadcrumbsContainer, driveViewerBack;
@@ -2885,7 +2219,8 @@ function fetchAndDisplayViewerFolderContent(folderId) {
         .then((response) => {
         isFetchingDriveList = false;
         if (response && response.success && response.files) {
-            console.log(`[DriveController] Success! Caching and rendering ${response.files.length} files.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Success! Caching and rendering ${response.files.length} files.`);
             driveFilesCache[folderId] = response.files;
             renderDriveViewerItems(response.files);
         }
@@ -4555,11 +3890,19 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../sidepanel */ "./src/sidepanel.ts");
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
 /* harmony import */ var _InferenceSettings__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
 // src/Controllers/SettingsController.js
 
 
 
 
+
+// Logging constants
+const LOG_GENERAL = true;
+const LOG_DEBUG = true;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const prefix = '[SettingsController]';
 let isInitialized = false;
 // Helper to create a foldout section (matching Inference Settings style)
 function createFoldoutSection({ title, contentHTML, sectionClass = '', initiallyOpen = true }) {
@@ -4642,6 +3985,42 @@ function createLogManagementFoldout() {
         initiallyOpen: false
     });
 }
+function createModelManagementFoldout() {
+    const contentHTML = `
+        <div class="space-y-4 text-sm">
+            <div class="flex items-center justify-between">
+                <h4 class="font-medium text-gray-800 dark:text-gray-200">Cached Models</h4>
+                <div class="flex gap-2">
+                    <button id="refreshModelsButton" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">Refresh</button>
+                    <button id="deleteAllModelsButton" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs">Delete All</button>
+                </div>
+            </div>
+            
+            <div id="modelsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                    Loading cached models...
+                </div>
+            </div>
+            
+            <div id="totalStorageInfo" class="text-xs text-gray-500 dark:text-gray-400 border-t pt-2">
+                Total storage used: <span id="totalStorageValue">0 MB</span>
+            </div>
+            
+            <div class="mt-4">
+                <h5 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Available Models</h5>
+                <div id="availableModelsList" class="space-y-1 max-h-32 overflow-y-auto text-xs text-gray-600 dark:text-gray-400">
+                    <div class="text-center py-2">Loading available models...</div>
+                </div>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Model Management',
+        contentHTML,
+        sectionClass: 'model-management-section',
+        initiallyOpen: true
+    });
+}
 function createModelLoadingSettingsFoldout() {
     const contentHTML = `
         <div class="space-y-4 text-sm">
@@ -4676,6 +4055,12 @@ function createModelLoadingSettingsFoldout() {
                         <input type="checkbox" id="bypassSmolLM2" class="rounded border-gray-300">
                         <label for="bypassSmolLM2" class="text-sm text-gray-700 dark:text-gray-300">
                             SmolLM2-1.7B-Instruct
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassSmolLM3" class="rounded border-gray-300">
+                        <label for="bypassSmolLM3" class="text-sm text-gray-700 dark:text-gray-300">
+                            SmolLM3-3B-ONNX
                         </label>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -4735,11 +4120,14 @@ function setupModelLoadingSettings(container) {
     }
     // Setup checkboxes
     const bypassSmolLM2 = container.querySelector('#bypassSmolLM2');
+    const bypassSmolLM3 = container.querySelector('#bypassSmolLM3');
     const bypassPhi35 = container.querySelector('#bypassPhi35');
     const bypassBitnet2B = container.querySelector('#bypassBitnet2B');
     const bypassQwen3 = container.querySelector('#bypassQwen3');
     if (bypassSmolLM2)
         bypassSmolLM2.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+    if (bypassSmolLM3)
+        bypassSmolLM3.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
     if (bypassPhi35)
         bypassPhi35.checked = currentSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
     if (bypassBitnet2B)
@@ -4750,36 +4138,45 @@ function setupModelLoadingSettings(container) {
     const saveButton = container.querySelector('#saveModelSettings');
     if (saveButton) {
         saveButton.addEventListener('click', () => {
-            console.log('[SettingsController] Save button clicked');
-            console.log('[SettingsController] Current settings:', currentSettings);
-            console.log('[SettingsController] Checkbox states:', {
-                bypassSmolLM2: bypassSmolLM2?.checked,
-                bypassPhi35: bypassPhi35?.checked,
-                bypassBitnet2B: bypassBitnet2B?.checked,
-                bypassQwen3: bypassQwen3?.checked
-            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Save button clicked`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Current settings:`, currentSettings);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Checkbox states:`, {
+                    bypassSmolLM2: bypassSmolLM2?.checked,
+                    bypassPhi35: bypassPhi35?.checked,
+                    bypassBitnet2B: bypassBitnet2B?.checked,
+                    bypassQwen3: bypassQwen3?.checked
+                });
             // Preserve existing bypass models and only update the ones we're managing in the UI
             const newSettings = {
                 maxModelSize: parseFloat(maxModelSizeSlider?.value || '2.1'),
                 bypassModels: new Set(Array.from(currentSettings.bypassModels)) // Copy existing bypass models
             };
-            console.log('[SettingsController] New settings before clearing:', newSettings);
+            if (LOG_DEBUG)
+                console.log(`${prefix} New settings before clearing:`, newSettings);
             // Clear the specific models we manage in this UI first
             newSettings.bypassModels.delete('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            newSettings.bypassModels.delete('HuggingFaceTB/SmolLM3-3B-ONNX');
             newSettings.bypassModels.delete('microsoft/Phi-3.5-mini-instruct-onnx');
             newSettings.bypassModels.delete('microsoft/bitnet-b1.58-2B-4T-gguf');
             newSettings.bypassModels.delete('onnx-community/Qwen3-1.7B-ONNX');
-            console.log('[SettingsController] After clearing managed models:', newSettings);
+            if (LOG_DEBUG)
+                console.log(`${prefix} After clearing managed models:`, newSettings);
             // Add back only the ones that are checked
             if (bypassSmolLM2?.checked)
                 newSettings.bypassModels.add('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            if (bypassSmolLM3?.checked)
+                newSettings.bypassModels.add('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35?.checked)
                 newSettings.bypassModels.add('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassBitnet2B?.checked)
                 newSettings.bypassModels.add('microsoft/bitnet-b1.58-2B-4T-gguf');
             if (bypassQwen3?.checked)
                 newSettings.bypassModels.add('onnx-community/Qwen3-1.7B-ONNX');
-            console.log('[SettingsController] Final new settings before saving:', newSettings);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Final new settings before saving:`, newSettings);
             saveModelLoadingSettings(newSettings);
             // Trigger manifest refresh to apply new settings
             try {
@@ -4805,6 +4202,8 @@ function setupModelLoadingSettings(container) {
                 maxModelSizeValue.textContent = `${defaultSettings.maxModelSize} GB`;
             if (bypassSmolLM2)
                 bypassSmolLM2.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            if (bypassSmolLM3)
+                bypassSmolLM3.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35)
                 bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassBitnet2B)
@@ -4837,18 +4236,22 @@ function getDefaultModelLoadingSettings() {
 }
 function saveModelLoadingSettings(settings) {
     const bypassArray = Array.from(settings.bypassModels);
-    console.log('[SettingsController] saveModelLoadingSettings - bypassModels Set:', settings.bypassModels);
-    console.log('[SettingsController] saveModelLoadingSettings - bypassModels Array:', bypassArray);
-    console.log('[SettingsController] saveModelLoadingSettings - full settings to save:', {
-        maxModelSize: settings.maxModelSize,
-        bypassModels: bypassArray
-    });
+    if (LOG_DEBUG)
+        console.log(`${prefix} saveModelLoadingSettings - bypassModels Set:`, settings.bypassModels);
+    if (LOG_DEBUG)
+        console.log(`${prefix} saveModelLoadingSettings - bypassModels Array:`, bypassArray);
+    if (LOG_DEBUG)
+        console.log(`${prefix} saveModelLoadingSettings - full settings to save:`, {
+            maxModelSize: settings.maxModelSize,
+            bypassModels: bypassArray
+        });
     const settingsToSave = {
         maxModelSize: settings.maxModelSize,
         bypassModels: bypassArray
     };
     localStorage.setItem('modelLoadingSettings', JSON.stringify(settingsToSave));
-    console.log('[SettingsController] saveModelLoadingSettings - saved to localStorage:', localStorage.getItem('modelLoadingSettings'));
+    if (LOG_DEBUG)
+        console.log(`${prefix} saveModelLoadingSettings - saved to localStorage:`, localStorage.getItem('modelLoadingSettings'));
 }
 // Export functions for use in other modules
 function getCurrentModelLoadingSettings() {
@@ -4864,10 +4267,12 @@ function updateModelLoadingSettings(settings) {
 }
 function initializeSettingsController() {
     if (isInitialized) {
-        console.log("[SettingsController] Already initialized.");
+        if (LOG_DEBUG)
+            console.log(`${prefix} Already initialized.`);
         return;
     }
-    console.log("[SettingsController] Initializing...");
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing...`);
     // Remove the old Settings heading if present
     const settingsPageContainer = document.getElementById('page-settings');
     if (!settingsPageContainer) {
@@ -4888,17 +4293,23 @@ function initializeSettingsController() {
     // Inject Common Settings foldout (theme toggle)
     const commonSettingsFoldout = createCommonSettingsFoldout();
     settingsPageContainer.appendChild(commonSettingsFoldout);
+    // Inject Model Management foldout
+    const modelManagementFoldout = createModelManagementFoldout();
+    settingsPageContainer.appendChild(modelManagementFoldout);
     // Inject Log Management foldout
     const logManagementFoldout = createLogManagementFoldout();
     settingsPageContainer.appendChild(logManagementFoldout);
     // Inject Model Loading Settings foldout
     const modelLoadingSettingsFoldout = createModelLoadingSettingsFoldout();
     settingsPageContainer.appendChild(modelLoadingSettingsFoldout);
+    // Setup model management functionality
+    setupModelManagement(settingsPageContainer);
     // Setup listeners for log management buttons
     const viewLogsButton = settingsPageContainer.querySelector('#viewLogsButton');
     if (viewLogsButton) {
         viewLogsButton.addEventListener('click', () => {
-            console.log('[SettingsController] View Logs button clicked. Opening log viewer popup...');
+            if (LOG_DEBUG)
+                console.log(`${prefix} View Logs button clicked. Opening log viewer popup...`);
             try {
                 const viewerUrl = 'sidepanel.html?view=logs';
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.create({
@@ -4916,7 +4327,8 @@ function initializeSettingsController() {
     const resetDbButton = settingsPageContainer.querySelector('#resetDbButton');
     if (resetDbButton) {
         resetDbButton.addEventListener('click', async () => {
-            console.log('[SettingsController] Reset DB button clicked.');
+            if (LOG_DEBUG)
+                console.log(`${prefix} Reset DB button clicked.`);
             try {
                 const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DbResetDatabaseRequest();
                 const result = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_1__.sendDbRequestSmart)(request);
@@ -4926,7 +4338,8 @@ function initializeSettingsController() {
                 else {
                     alert('Database reset failed.');
                 }
-                console.log('[SettingsController] Reset DB result:', result);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Reset DB result:`, result);
             }
             catch (e) {
                 alert('Failed to reset database: ' + (e.message || e));
@@ -4939,8 +4352,148 @@ function initializeSettingsController() {
     // Inject Inference Settings foldout (already styled)
     (0,_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.setupInferenceSettings)();
     isInitialized = true;
-    console.log("[SettingsController] Initialized successfully.");
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initialized successfully.`);
     return {};
+}
+function setupModelManagement(container) {
+    const modelsList = container.querySelector('#modelsList');
+    const availableModelsList = container.querySelector('#availableModelsList');
+    const refreshButton = container.querySelector('#refreshModelsButton');
+    const deleteAllButton = container.querySelector('#deleteAllModelsButton');
+    const totalStorageValue = container.querySelector('#totalStorageValue');
+    // Load models on initialization
+    loadCachedModels();
+    loadAvailableModels();
+    // Refresh button
+    refreshButton?.addEventListener('click', () => {
+        loadCachedModels();
+        loadAvailableModels();
+    });
+    // Delete all button
+    deleteAllButton?.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete all cached models? This action cannot be undone.')) {
+            try {
+                await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.deleteAllCachedModels)();
+                loadCachedModels();
+                if (LOG_GENERAL)
+                    console.log(`${prefix} All cached models deleted successfully.`);
+            }
+            catch (error) {
+                if (LOG_ERROR)
+                    console.error(`${prefix} Failed to delete all models:`, error);
+                alert('Failed to delete all models. Please try again.');
+            }
+        }
+    });
+    async function loadCachedModels() {
+        try {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loading cached models...`);
+            modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">Loading cached models...</div>';
+            const models = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getAllCachedModels)();
+            if (models.length === 0) {
+                modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">No cached models found.</div>';
+                totalStorageValue.textContent = '0 MB';
+                return;
+            }
+            // Calculate total storage
+            const totalSize = models.reduce((sum, model) => sum + model.totalSize, 0);
+            totalStorageValue.textContent = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
+            // Render models
+            modelsList.innerHTML = '';
+            models.forEach(model => {
+                const modelElement = createModelElement(model);
+                modelsList.appendChild(modelElement);
+            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loaded ${models.length} cached models.`);
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to load cached models:`, error);
+            modelsList.innerHTML = '<div class="text-center text-red-500 py-4">Failed to load cached models.</div>';
+        }
+    }
+    function createModelElement(model) {
+        const div = document.createElement('div');
+        div.className = 'border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700';
+        const sizeInMB = (model.totalSize / (1024 * 1024)).toFixed(1);
+        const sizeInGB = (model.totalSize / (1024 * 1024 * 1024)).toFixed(2);
+        const displaySize = model.totalSize > 1024 * 1024 * 1024 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
+        div.innerHTML = `
+            <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                    <h5 class="font-medium text-gray-800 dark:text-gray-200 truncate">${model.modelId}</h5>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${model.modelPath}</p>
+                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>${displaySize}</span>
+                        <span>${model.numChunks} chunks</span>
+                        <span>${new Date(model.downloadDate).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                <button class="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs delete-model-btn" data-model-id="${model.modelId}" data-model-path="${model.modelPath}">
+                    Delete
+                </button>
+            </div>
+        `;
+        // Add delete button event listener
+        const deleteButton = div.querySelector('.delete-model-btn');
+        deleteButton.addEventListener('click', async () => {
+            if (confirm(`Are you sure you want to delete ${model.modelId}? This action cannot be undone.`)) {
+                try {
+                    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.deleteCachedModel)(model);
+                    loadCachedModels(); // Refresh the list
+                    if (LOG_GENERAL)
+                        console.log(`${prefix} Model deleted: ${model.modelId}`);
+                }
+                catch (error) {
+                    if (LOG_ERROR)
+                        console.error(`${prefix} Failed to delete model:`, error);
+                    alert('Failed to delete model. Please try again.');
+                }
+            }
+        });
+        return div;
+    }
+    async function loadAvailableModels() {
+        try {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loading available models...`);
+            availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">Loading available models...</div>';
+            // Import the manifest function
+            const { getAllManifestEntries } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../DB/idbModel */ "./src/DB/idbModel.ts"));
+            const manifests = await getAllManifestEntries();
+            if (manifests.length === 0) {
+                availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">No models available.</div>';
+                return;
+            }
+            // Render available models
+            availableModelsList.innerHTML = '';
+            manifests.forEach(manifest => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between py-1 px-2 rounded bg-gray-50 dark:bg-gray-800';
+                const modelId = manifest.repo;
+                const files = Object.keys(manifest.quants || {});
+                const fileCount = files.length;
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">${modelId}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${fileCount} files</span>
+                    </div>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Available</span>
+                `;
+                availableModelsList.appendChild(div);
+            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loaded ${manifests.length} available models.`);
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to load available models:`, error);
+            availableModelsList.innerHTML = '<div class="text-center text-red-500 py-2">Failed to load available models.</div>';
+        }
+    }
 }
 
 
@@ -4958,15 +4511,24 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeSpacesController: () => (/* binding */ initializeSpacesController)
 /* harmony export */ });
 // src/Controllers/SpacesController.js
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[SpacesController]';
 let isInitialized = false;
 function initializeSpacesController( /* Pass necessary elements or functions if needed */) {
     if (isInitialized) {
-        console.log("[SpacesController] Already initialized.");
+        if (LOG_DEBUG)
+            console.log(`${prefix} Already initialized.`);
         return;
     }
-    console.log("[SpacesController] Initializing...");
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing...`);
     isInitialized = true;
-    console.log("[SpacesController] Initialized successfully.");
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initialized successfully.`);
     return {};
 }
 
@@ -5803,6 +5365,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
 /* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
 /* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
+/* harmony export */   DbDeleteAllCachedModelsRequest: () => (/* binding */ DbDeleteAllCachedModelsRequest),
+/* harmony export */   DbDeleteAllCachedModelsResponse: () => (/* binding */ DbDeleteAllCachedModelsResponse),
+/* harmony export */   DbDeleteCachedModelRequest: () => (/* binding */ DbDeleteCachedModelRequest),
+/* harmony export */   DbDeleteCachedModelResponse: () => (/* binding */ DbDeleteCachedModelResponse),
 /* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
 /* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
 /* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
@@ -5812,6 +5378,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
 /* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
 /* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
+/* harmony export */   DbGetCachedModelsRequest: () => (/* binding */ DbGetCachedModelsRequest),
+/* harmony export */   DbGetCachedModelsResponse: () => (/* binding */ DbGetCachedModelsResponse),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
 /* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
@@ -6268,6 +5836,50 @@ class DbWorkerCreatedNotification {
     }
 }
 DbWorkerCreatedNotification.type = 'DbWorkerCreatedNotification';
+// Model Management Requests/Responses
+const DbGetCachedModelsRequest = {
+    type: 'db:getCachedModels',
+    create: (requestId) => ({ type: DbGetCachedModelsRequest.type, requestId: requestId || crypto.randomUUID() })
+};
+class DbGetCachedModelsResponse {
+    constructor(requestId, success, data, error = null) {
+        this.type = 'db:getCachedModels_response';
+        this.requestId = requestId;
+        this.success = success;
+        this.data = data;
+        this.error = error;
+    }
+}
+const DbDeleteCachedModelRequest = {
+    type: 'db:deleteCachedModel',
+    create: (modelInfo, requestId) => ({
+        type: DbDeleteCachedModelRequest.type,
+        payload: { modelInfo },
+        requestId: requestId || crypto.randomUUID()
+    })
+};
+class DbDeleteCachedModelResponse {
+    constructor(requestId, success, data, error = null) {
+        this.type = 'db:deleteCachedModel_response';
+        this.requestId = requestId;
+        this.success = success;
+        this.data = data;
+        this.error = error;
+    }
+}
+const DbDeleteAllCachedModelsRequest = {
+    type: 'db:deleteAllCachedModels',
+    create: (requestId) => ({ type: DbDeleteAllCachedModelsRequest.type, requestId: requestId || crypto.randomUUID() })
+};
+class DbDeleteAllCachedModelsResponse {
+    constructor(requestId, success, data, error = null) {
+        this.type = 'db:deleteAllCachedModels_response';
+        this.requestId = requestId;
+        this.success = success;
+        this.data = data;
+        this.error = error;
+    }
+}
 
 
 /***/ }),
@@ -8300,12 +7912,20 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
 /* harmony export */   addManifestEntry: () => (/* binding */ addManifestEntry),
 /* harmony export */   addQuantToManifest: () => (/* binding */ addQuantToManifest),
+/* harmony export */   deleteAllCachedModels: () => (/* binding */ deleteAllCachedModels),
+/* harmony export */   deleteCachedModel: () => (/* binding */ deleteCachedModel),
+/* harmony export */   deleteCachedModelViaDB: () => (/* binding */ deleteCachedModelViaDB),
+/* harmony export */   deleteFromIndexedDB: () => (/* binding */ deleteFromIndexedDB),
 /* harmony export */   fetchModelMetadataInternal: () => (/* binding */ fetchModelMetadataInternal),
 /* harmony export */   fetchRepoFiles: () => (/* binding */ fetchRepoFiles),
 /* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
+/* harmony export */   getAllCachedModels: () => (/* binding */ getAllCachedModels),
 /* harmony export */   getAllManifestEntries: () => (/* binding */ getAllManifestEntries),
+/* harmony export */   getAuthenticatedHeaders: () => (/* binding */ getAuthenticatedHeaders),
 /* harmony export */   getBypassSizeLimitModels: () => (/* binding */ getBypassSizeLimitModels),
+/* harmony export */   getCachedModelsViaDB: () => (/* binding */ getCachedModelsViaDB),
 /* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
+/* harmony export */   getHuggingFaceToken: () => (/* binding */ getHuggingFaceToken),
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
 /* harmony export */   getServerOnlySizeLimit: () => (/* binding */ getServerOnlySizeLimit),
@@ -8337,49 +7957,59 @@ const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
 function getServerOnlySizeLimit() {
     try {
         const stored = localStorage.getItem('modelLoadingSettings');
-        console.log('[IDBModel] getServerOnlySizeLimit - stored settings:', stored);
+        if (LOG_DEBUG)
+            console.log(`${prefix} getServerOnlySizeLimit - stored settings:`, stored);
         if (stored) {
             const parsed = JSON.parse(stored);
-            console.log('[IDBModel] getServerOnlySizeLimit - parsed settings:', parsed);
+            if (LOG_DEBUG)
+                console.log(`${prefix} getServerOnlySizeLimit - parsed settings:`, parsed);
             const limit = (parsed.maxModelSize || 2.1) * 1024 * 1024 * 1024;
-            console.log('[IDBModel] getServerOnlySizeLimit - calculated limit:', limit / (1024 * 1024 * 1024), 'GB');
+            if (LOG_DEBUG)
+                console.log(`${prefix} getServerOnlySizeLimit - calculated limit:`, limit / (1024 * 1024 * 1024), 'GB');
             return limit;
         }
     }
     catch (e) {
-        console.error('[IDBModel] Error parsing model loading settings:', e);
+        if (LOG_ERROR)
+            console.error(`${prefix} Error parsing model loading settings:`, e);
     }
-    console.log('[IDBModel] getServerOnlySizeLimit - using default:', DEFAULT_SERVER_ONLY_SIZE / (1024 * 1024 * 1024), 'GB');
+    if (LOG_DEBUG)
+        console.log(`${prefix} getServerOnlySizeLimit - using default:`, DEFAULT_SERVER_ONLY_SIZE / (1024 * 1024 * 1024), 'GB');
     return DEFAULT_SERVER_ONLY_SIZE;
 }
 // Function to get the current bypass models from settings
 function getBypassSizeLimitModels() {
     try {
         const stored = localStorage.getItem('modelLoadingSettings');
-        console.log('[IDBModel] getBypassSizeLimitModels - stored settings:', stored);
+        if (LOG_DEBUG)
+            console.log(`${prefix} getBypassSizeLimitModels - stored settings:`, stored);
         if (stored) {
             const parsed = JSON.parse(stored);
-            console.log('[IDBModel] getBypassSizeLimitModels - parsed settings:', parsed);
+            if (LOG_DEBUG)
+                console.log(`${prefix} getBypassSizeLimitModels - parsed settings:`, parsed);
             const bypassSet = new Set(parsed.bypassModels || []);
-            console.log('[IDBModel] getBypassSizeLimitModels - bypass models:', Array.from(bypassSet));
+            if (LOG_DEBUG)
+                console.log(`${prefix} getBypassSizeLimitModels - bypass models:`, Array.from(bypassSet));
             return bypassSet;
         }
     }
     catch (e) {
-        console.error('[IDBModel] Error parsing model loading settings:', e);
+        if (LOG_ERROR)
+            console.error(`${prefix} Error parsing model loading settings:`, e);
     }
     // Default bypass models (MediaPipe models that need to bypass size limits)
     const defaultBypassModels = new Set([
         'google/gemma-3n-E4B-it-litert-lm'
     ]);
-    console.log('[IDBModel] getBypassSizeLimitModels - using default bypass models:', Array.from(defaultBypassModels));
+    if (LOG_DEBUG)
+        console.log(`${prefix} getBypassSizeLimitModels - using default bypass models:`, Array.from(defaultBypassModels));
     return defaultBypassModels;
 }
 const prefix = '[IDBModel]';
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
+const LOG_GENERAL = true;
+const LOG_DEBUG = true;
 const LOG_ERROR = true;
-const LOG_WARN = false;
+const LOG_WARN = true;
 const LOG_INFERENCE_SETTINGS = false;
 const LOG_OPEN_DB = false;
 const modelCacheSchema = {
@@ -8401,6 +8031,333 @@ const modelCacheSchema = {
         }
     }
 };
+// Helper function to get HuggingFace token from IndexedDB
+async function getHuggingFaceToken() {
+    try {
+        const tokenBlob = await getFromIndexedDB('huggingface_token');
+        return tokenBlob ? await tokenBlob.text() : null;
+    }
+    catch (error) {
+        if (LOG_WARN)
+            console.warn(prefix, '[getHuggingFaceToken] Failed to get token:', error);
+        return null;
+    }
+}
+// Helper function to create authenticated fetch headers
+async function getAuthenticatedHeaders() {
+    const token = await getHuggingFaceToken();
+    const headers = {
+        'Accept': 'application/json',
+    };
+    if (token && token.startsWith('hf_')) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+async function getAllCachedModels() {
+    const models = [];
+    try {
+        if (LOG_DEBUG)
+            console.log(prefix, '[getAllCachedModels] Starting to retrieve cached models...');
+        // Get all keys from IndexedDB
+        const db = await openModelCacheDB();
+        const transaction = db.transaction(['files'], 'readonly');
+        const store = transaction.objectStore('files');
+        const request = store.getAll();
+        const allData = await new Promise((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        if (LOG_DEBUG)
+            console.log(prefix, `[getAllCachedModels] Found ${allData.length} total entries in IndexedDB`);
+        // Group by model ID and collect chunks
+        const modelGroups = new Map();
+        for (const item of allData) {
+            const key = item.url;
+            if (LOG_DEBUG && key.includes('chunk')) {
+                console.log(prefix, `[getAllCachedModels] Processing chunk: ${key}`);
+            }
+            if (key.includes('_chunk_')) {
+                // This is a chunk file - extract the base model path
+                const modelKey = key.replace(/_chunk_\d+$/, '');
+                if (!modelGroups.has(modelKey)) {
+                    modelGroups.set(modelKey, { chunks: [], totalSize: 0, chunkSizes: [] });
+                }
+                const group = modelGroups.get(modelKey);
+                group.chunks.push(key);
+                // Get the blob size from the item - try different possible structures
+                let blobSize = 0;
+                if (item.data && item.data.size) {
+                    blobSize = item.data.size;
+                }
+                else if (item.blob && item.blob.size) {
+                    blobSize = item.blob.size;
+                }
+                else if (item.size) {
+                    blobSize = item.size;
+                }
+                else if (item.data instanceof Blob) {
+                    blobSize = item.data.size;
+                }
+                else if (item.data instanceof Uint8Array) {
+                    blobSize = item.data.length;
+                }
+                if (blobSize > 0) {
+                    group.totalSize += blobSize;
+                    group.chunkSizes.push(blobSize);
+                    if (LOG_DEBUG)
+                        console.log(prefix, `[getAllCachedModels] Chunk ${key}: ${blobSize} bytes`);
+                }
+                else {
+                    if (LOG_WARN)
+                        console.warn(prefix, `[getAllCachedModels] Could not determine size for chunk: ${key}`, item);
+                }
+            }
+            else if (key.includes('_metadata')) {
+                // Skip metadata files for now - we'll calculate from chunks
+                if (LOG_DEBUG)
+                    console.log(prefix, `[getAllCachedModels] Found metadata file: ${key}`);
+            }
+            else if ((key.startsWith('models/') || key.includes('/model.') || key.includes('/onnx/')) && !key.includes('huggingface_token')) {
+                // Handle non-chunked models - be more inclusive in detection
+                let modelId = '';
+                let modelPath = '';
+                if (key.startsWith('models/')) {
+                    // Traditional models/ path
+                    const pathParts = key.replace('models/', '').split('/');
+                    if (pathParts.length >= 2) {
+                        modelId = pathParts[0];
+                        modelPath = pathParts.slice(1).join('/');
+                    }
+                }
+                else if (key.includes('huggingface.co/')) {
+                    // HuggingFace URL format: https://huggingface.co/ModelName/repo/resolve/main/path/file.ext
+                    const urlParts = key.split('/');
+                    const modelIndex = urlParts.findIndex((part) => part === 'huggingface.co') + 1;
+                    if (modelIndex > 0 && urlParts[modelIndex]) {
+                        modelId = urlParts[modelIndex];
+                        const filePath = urlParts.slice(modelIndex + 3).join('/'); // Skip 'repo/resolve/main'
+                        modelPath = filePath;
+                    }
+                }
+                if (modelId && modelPath) {
+                    // Get size for non-chunked models
+                    let modelSize = 0;
+                    if (item.data && item.data.size) {
+                        modelSize = item.data.size;
+                    }
+                    else if (item.blob && item.blob.size) {
+                        modelSize = item.blob.size;
+                    }
+                    else if (item.size) {
+                        modelSize = item.size;
+                    }
+                    else if (item.data instanceof Blob) {
+                        modelSize = item.data.size;
+                    }
+                    else if (item.data instanceof Uint8Array) {
+                        modelSize = item.data.length;
+                    }
+                    models.push({
+                        modelId,
+                        modelPath,
+                        totalSize: modelSize,
+                        numChunks: 1,
+                        chunkSize: modelSize,
+                        downloadDate: new Date().toISOString(),
+                        cacheKey: key,
+                        metadataKey: key,
+                        chunkKeys: [key]
+                    });
+                    if (LOG_DEBUG)
+                        console.log(prefix, `[getAllCachedModels] Non-chunked model ${key}: ${modelSize} bytes (${modelId}/${modelPath})`);
+                }
+            }
+        }
+        if (LOG_DEBUG)
+            console.log(prefix, `[getAllCachedModels] Found ${modelGroups.size} chunked model groups`);
+        // Convert chunked models to CachedModelInfo
+        for (const [cacheKey, data] of modelGroups) {
+            if (data.chunks.length > 0) {
+                // Extract model info from cache key
+                const pathParts = cacheKey.replace('models/', '').split('/');
+                if (pathParts.length >= 2) {
+                    const modelId = pathParts[0];
+                    const modelPath = pathParts.slice(1).join('/');
+                    // Calculate average chunk size
+                    const avgChunkSize = data.chunkSizes.length > 0 ?
+                        Math.round(data.totalSize / data.chunkSizes.length) : 0;
+                    models.push({
+                        modelId,
+                        modelPath,
+                        totalSize: data.totalSize,
+                        numChunks: data.chunks.length,
+                        chunkSize: avgChunkSize,
+                        downloadDate: new Date().toISOString(), // We don't store this yet
+                        cacheKey,
+                        metadataKey: `${cacheKey}_metadata`,
+                        chunkKeys: data.chunks.sort((a, b) => {
+                            const aNum = parseInt(a.match(/_chunk_(\d+)$/)?.[1] || '0');
+                            const bNum = parseInt(b.match(/_chunk_(\d+)$/)?.[1] || '0');
+                            return aNum - bNum;
+                        })
+                    });
+                    if (LOG_DEBUG)
+                        console.log(prefix, `[getAllCachedModels] Added model: ${modelId}/${modelPath}, ${data.chunks.length} chunks, ${(data.totalSize / 1024 / 1024).toFixed(1)}MB`);
+                }
+            }
+        }
+        db.close();
+        if (LOG_DEBUG)
+            console.log(prefix, `[getAllCachedModels] Returning ${models.length} models`);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[getAllCachedModels] Error:', error);
+    }
+    return models;
+}
+async function deleteCachedModel(modelInfo) {
+    try {
+        // Delete all chunks
+        for (const chunkKey of modelInfo.chunkKeys) {
+            await deleteFromIndexedDB(chunkKey);
+        }
+        // Delete metadata
+        await deleteFromIndexedDB(modelInfo.metadataKey);
+        if (LOG_GENERAL)
+            console.log(prefix, `[deleteCachedModel] Deleted model: ${modelInfo.modelId}/${modelInfo.modelPath}`);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[deleteCachedModel] Error:', error);
+        throw error;
+    }
+}
+async function deleteAllCachedModels() {
+    const models = await getAllCachedModels();
+    for (const model of models) {
+        await deleteCachedModel(model);
+    }
+    if (LOG_GENERAL)
+        console.log(prefix, '[deleteAllCachedModels] Deleted all cached models');
+}
+// DB system compatible functions for model management
+async function getCachedModelsViaDB(dbWorker) {
+    try {
+        if (LOG_DEBUG)
+            console.log(prefix, '[getCachedModelsViaDB] Getting cached models via DB system...');
+        // Use the DB worker to get all files from the model cache
+        const result = await dbWorker.postMessage({
+            action: 'GET_ALL_MODEL_FILES',
+            payload: {}
+        });
+        if (!result || !result.success) {
+            throw new Error('Failed to get model files from DB worker');
+        }
+        const allFiles = result.data || [];
+        if (LOG_DEBUG)
+            console.log(prefix, `[getCachedModelsViaDB] Found ${allFiles.length} files in model cache`);
+        // Group files by model
+        const modelGroups = new Map();
+        for (const file of allFiles) {
+            const key = file.url || file.key;
+            if (key.includes('_chunk_')) {
+                // This is a chunk file
+                const modelKey = key.replace(/_chunk_\d+$/, '');
+                if (!modelGroups.has(modelKey)) {
+                    modelGroups.set(modelKey, { chunks: [], totalSize: 0, chunkSizes: [] });
+                }
+                const group = modelGroups.get(modelKey);
+                group.chunks.push(file);
+                // Get size from the file data
+                const size = file.data?.size || file.blob?.size || 0;
+                group.totalSize += size;
+                group.chunkSizes.push(size);
+            }
+            else if (key.startsWith('models/') && !key.includes('huggingface_token') && !key.includes('_metadata')) {
+                // Handle non-chunked models
+                const pathParts = key.replace('models/', '').split('/');
+                if (pathParts.length >= 2) {
+                    const modelId = pathParts[0];
+                    const modelPath = pathParts.slice(1).join('/');
+                    const size = file.data?.size || file.blob?.size || 0;
+                    return [{
+                            modelId,
+                            modelPath,
+                            totalSize: size,
+                            numChunks: 1,
+                            chunkSize: size,
+                            downloadDate: new Date().toISOString(),
+                            cacheKey: key,
+                            metadataKey: key,
+                            chunkKeys: [key]
+                        }];
+                }
+            }
+        }
+        // Convert chunked models to CachedModelInfo
+        const models = [];
+        for (const [cacheKey, data] of modelGroups) {
+            if (data.chunks.length > 0) {
+                const pathParts = cacheKey.replace('models/', '').split('/');
+                if (pathParts.length >= 2) {
+                    const modelId = pathParts[0];
+                    const modelPath = pathParts.slice(1).join('/');
+                    const avgChunkSize = data.chunkSizes.length > 0 ?
+                        Math.round(data.totalSize / data.chunkSizes.length) : 0;
+                    models.push({
+                        modelId,
+                        modelPath,
+                        totalSize: data.totalSize,
+                        numChunks: data.chunks.length,
+                        chunkSize: avgChunkSize,
+                        downloadDate: new Date().toISOString(),
+                        cacheKey,
+                        metadataKey: `${cacheKey}_metadata`,
+                        chunkKeys: data.chunks.map((c) => c.url || c.key).sort((a, b) => {
+                            const aNum = parseInt(a.match(/_chunk_(\d+)$/)?.[1] || '0');
+                            const bNum = parseInt(b.match(/_chunk_(\d+)$/)?.[1] || '0');
+                            return aNum - bNum;
+                        })
+                    });
+                }
+            }
+        }
+        if (LOG_DEBUG)
+            console.log(prefix, `[getCachedModelsViaDB] Returning ${models.length} models`);
+        return models;
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[getCachedModelsViaDB] Error:', error);
+        return [];
+    }
+}
+async function deleteCachedModelViaDB(modelInfo, dbWorker) {
+    try {
+        if (LOG_DEBUG)
+            console.log(prefix, `[deleteCachedModelViaDB] Deleting model: ${modelInfo.modelId}/${modelInfo.modelPath}`);
+        // Delete all chunks via DB worker
+        const deletePromises = modelInfo.chunkKeys.map(chunkKey => dbWorker.postMessage({
+            action: 'DELETE_MODEL_FILE',
+            payload: { key: chunkKey }
+        }));
+        // Delete metadata if it exists
+        deletePromises.push(dbWorker.postMessage({
+            action: 'DELETE_MODEL_FILE',
+            payload: { key: modelInfo.metadataKey }
+        }));
+        await Promise.all(deletePromises);
+        if (LOG_GENERAL)
+            console.log(prefix, `[deleteCachedModelViaDB] Successfully deleted model: ${modelInfo.modelId}/${modelInfo.modelPath}`);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[deleteCachedModelViaDB] Error:', error);
+        throw error;
+    }
+}
 async function openModelCacheDB() {
     if (LOG_OPEN_DB)
         console.log(prefix, '[openModelCacheDB] Opening TabAgentModels DB');
@@ -8610,7 +8567,8 @@ async function fetchRepoFiles(repo) {
         console.log(prefix, '[fetchRepoFiles] Fetching', repo);
     const url = `https://huggingface.co/api/models/${repo}`;
     try {
-        const resp = await fetch(url);
+        const headers = await getAuthenticatedHeaders();
+        const resp = await fetch(url, { headers });
         if (!resp.ok) {
             if (LOG_ERROR)
                 console.error(prefix, '[fetchRepoFiles] Failed for', repo, resp.status, resp.statusText);
@@ -8661,7 +8619,8 @@ async function fetchModelMetadataInternal(modelId) {
     if (LOG_GENERAL)
         console.log(prefix, `[fetchModelMetadataInternal] Fetching model metadata from: ${apiUrl}`);
     try {
-        const response = await fetch(apiUrl);
+        const headers = await getAuthenticatedHeaders();
+        const response = await fetch(apiUrl, { headers });
         if (!response.ok) {
             const errorText = await response.text();
             if (LOG_ERROR)
@@ -8862,6 +8821,36 @@ async function addQuantToManifest(repo, modelPath, status, files) {
         }
     }
     await addManifestEntry(repo, manifest);
+}
+async function deleteFromIndexedDB(url) {
+    if (LOG_GENERAL)
+        console.log(prefix, '[deleteFromIndexedDB] Deleting', url);
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        const store = tx.objectStore('files');
+        const req = store.delete(url);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[deleteFromIndexedDB] Deleted', url);
+            resolve(undefined);
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[deleteFromIndexedDB] Error deleting', url, req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[deleteFromIndexedDB] Transaction complete for', url);
+            db.close();
+        };
+        tx.onerror = (e) => {
+            if (LOG_ERROR)
+                console.error(prefix, '[deleteFromIndexedDB] Transaction error for', url, e);
+            db.close();
+        };
+    });
 }
 
 
@@ -9849,6 +9838,12 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[FileHandler]';
 let getActiveSessionIdFunc = null;
 function initializeFileHandling(dependencies) {
     getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
@@ -9856,7 +9851,8 @@ function initializeFileHandling(dependencies) {
         console.error("FileHandler: Missing getActiveSessionIdFunc dependency!");
     }
     else {
-        console.log("[FileHandler] Initialized (Note: DB/Renderer interaction via events assumed).");
+        if (LOG_DEBUG)
+            console.log(`${prefix} Initialized (Note: DB/Renderer interaction via events assumed).`);
     }
 }
 async function handleFileSelected(event) {
@@ -9887,7 +9883,8 @@ async function handleFileSelected(event) {
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest(sessionId, fileMessage);
         eventBus.publish(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type, request);
-        console.log("[FileHandler] Published DbAddMessageRequest for file attachment.");
+        if (LOG_DEBUG)
+            console.log(`${prefix} Published DbAddMessageRequest for file attachment.`);
     }
     catch (error) {
         console.error("FileHandler: Error publishing file attachment message event:", error);
@@ -10233,6 +10230,7 @@ class ChatOrchestrator {
                 try {
                     // Notify sidepanel that generation is starting
                     document.dispatchEvent(new CustomEvent('generationStarting'));
+                    // Send query to model worker
                     (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendToModelWorker)({ type: 'generate', payload: messagePayload });
                 }
                 catch (error) {
@@ -10426,6 +10424,7 @@ function initializeOrchestrator(dependencies) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   AVAILABLE_MODELS: () => (/* binding */ AVAILABLE_MODELS),
+/* harmony export */   GOOGLE_MODELS: () => (/* binding */ GOOGLE_MODELS),
 /* harmony export */   adjustTextareaHeight: () => (/* binding */ adjustTextareaHeight),
 /* harmony export */   checkInitialized: () => (/* binding */ checkInitialized),
 /* harmony export */   clearInput: () => (/* binding */ clearInput),
@@ -10436,6 +10435,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   initializeUI: () => (/* binding */ initializeUI),
 /* harmony export */   onModelDropdownChange: () => (/* binding */ onModelDropdownChange),
 /* harmony export */   quantKeyToLabel: () => (/* binding */ quantKeyToLabel),
+/* harmony export */   refreshModelDropdown: () => (/* binding */ refreshModelDropdown),
 /* harmony export */   setActiveSession: () => (/* binding */ setActiveSession),
 /* harmony export */   triggerFileInputClick: () => (/* binding */ triggerFileInputClick),
 /* harmony export */   updateGenerationState: () => (/* binding */ updateGenerationState),
@@ -10467,19 +10467,23 @@ let currentLoadId = null;
 let lastSeenLoadId = null;
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
-const LOG_ERROR = true;
+const LOG_ERROR = false;
 const LOG_WARN = false;
-const LOG_INFO = true;
+const LOG_INFO = false;
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
+    "HuggingFaceTB/SmolLM3-3B-ONNX": "SmolLM3-3B ONNX",
     "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
+    // Google models will be added dynamically after authentication
+};
+const GOOGLE_MODELS = {
     "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
-    // Add more models here as needed
+    // Add more Google models here as needed
 };
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
     const customEvent = e;
@@ -10732,6 +10736,93 @@ function getCurrentlySelectedModel() {
         modelPath: quantSelectorDropdown.value || null,
     };
 }
+// Check if user is authenticated with HuggingFace
+async function isHuggingFaceAuthenticated() {
+    try {
+        const tokenBlob = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getFromIndexedDB)('huggingface_token');
+        const token = tokenBlob ? await tokenBlob.text() : null;
+        return !!(token && token.startsWith('hf_'));
+    }
+    catch (error) {
+        if (LOG_WARN)
+            console.warn(prefix, 'Error checking HF authentication:', error);
+        return false;
+    }
+}
+// Update model dropdown with available models based on authentication
+async function updateModelDropdown() {
+    const modelSelector = document.getElementById('model-selector');
+    if (!modelSelector)
+        return;
+    const isAuthenticated = await isHuggingFaceAuthenticated();
+    // Clear existing options
+    modelSelector.innerHTML = '';
+    // Add regular models
+    for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
+        const option = document.createElement('option');
+        option.value = modelId;
+        option.textContent = displayName;
+        modelSelector.appendChild(option);
+    }
+    // Add Google models (always visible and selectable)
+    for (const [modelId, displayName] of Object.entries(GOOGLE_MODELS)) {
+        const option = document.createElement('option');
+        option.value = modelId;
+        option.textContent = displayName;
+        if (!isAuthenticated) {
+            option.textContent += ' (Authentication Required)';
+        }
+        // Don't disable the option - let users select it to trigger auth
+        modelSelector.appendChild(option);
+    }
+    // Enable/disable based on available models
+    const hasModels = modelSelector.children.length > 0;
+    modelSelector.disabled = !hasModels;
+    // Update load button and quant dropdown based on selection
+    updateLoadButtonAndQuantDropdown();
+}
+// Update load button and quant dropdown based on current selection
+async function updateLoadButtonAndQuantDropdown() {
+    const modelSelector = document.getElementById('model-selector');
+    const quantSelector = document.getElementById('onnx-variant-selector');
+    if (!modelSelector || !loadModelButton)
+        return;
+    const selectedModel = modelSelector.value;
+    const isGoogleModel = selectedModel.toLowerCase().startsWith('google/');
+    const isAuthenticated = await isHuggingFaceAuthenticated();
+    if (loadModelButton) {
+        const loadBtn = loadModelButton;
+        if (selectedModel && (!isGoogleModel || isAuthenticated)) {
+            loadBtn.style.display = '';
+            loadBtn.disabled = false;
+            loadBtn.textContent = 'Load Model';
+        }
+        else {
+            loadBtn.style.display = '';
+            loadBtn.disabled = true;
+            if (isGoogleModel && !isAuthenticated) {
+                loadBtn.textContent = 'Authentication Required';
+            }
+            else {
+                loadBtn.textContent = 'Load Model';
+            }
+        }
+    }
+    // Show/hide quant dropdown based on model type and auth
+    if (quantSelector) {
+        if (isGoogleModel && !isAuthenticated) {
+            quantSelector.style.display = 'none';
+        }
+        else {
+            quantSelector.style.display = '';
+        }
+    }
+}
+// Export function to refresh model dropdown (called after authentication)
+async function refreshModelDropdown() {
+    await updateModelDropdown();
+    await updateLoadButtonAndQuantDropdown();
+}
 async function initializeUI(callbacks) {
     if (LOG_INFO)
         console.log(prefix, "Initializing...");
@@ -10765,50 +10856,11 @@ async function initializeUI(callbacks) {
     if (LOG_INFO)
         console.log(prefix, modelSelector ? "Model selector found." : "WARNING: Model selector NOT found!");
     if (modelSelector) {
-        modelSelector.innerHTML = ''; // Clear existing options
-        if (LOG_INFO)
-            console.log(prefix, "Populating model selector. Available models:", AVAILABLE_MODELS);
-        let hasModel = false;
-        for (const [modelId, displayName] of Object.entries(AVAILABLE_MODELS)) {
-            if (LOG_INFO)
-                console.log(prefix, `Adding option: ${displayName} (${modelId})`);
-            const option = document.createElement('option');
-            option.value = modelId;
-            option.textContent = displayName;
-            modelSelector.appendChild(option);
-            hasModel = true;
-        }
-        if (!hasModel) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No models available';
-            option.disabled = true;
-            option.selected = true;
-            modelSelector.appendChild(option);
-        }
-        modelSelector.disabled = !hasModel;
+        // Use the new updateModelDropdown function
+        await updateModelDropdown();
         if (loadModelButton) {
-            const loadBtn = loadModelButton;
-            if (hasModel && modelSelector.value) {
-                loadBtn.style.display = '';
-                loadBtn.disabled = false;
-            }
-            else {
-                loadBtn.style.display = 'none';
-                loadBtn.disabled = true;
-            }
-            modelSelector.addEventListener('change', () => {
-                if (loadModelButton) {
-                    const loadBtn = loadModelButton;
-                    if (modelSelector.value) {
-                        loadBtn.style.display = '';
-                        loadBtn.disabled = false;
-                    }
-                    else {
-                        loadBtn.style.display = 'none';
-                        loadBtn.disabled = true;
-                    }
-                }
+            modelSelector.addEventListener('change', async () => {
+                await updateLoadButtonAndQuantDropdown();
             });
         }
     }
@@ -10938,13 +10990,45 @@ function enableInput() {
     queryInput.placeholder = "Ask Tab Agent...";
     sendButton.disabled = queryInput.value.trim() === '';
 }
-function _handleModelOrVariantChange() {
+async function _handleModelOrVariantChange() {
     if (!modelSelectorDropdown || !quantSelectorDropdown)
         return;
     const modelId = modelSelectorDropdown.value;
-    const modelPath = quantSelectorDropdown.value;
+    let modelPath = quantSelectorDropdown.value;
+    // For Google models, set the correct quant path (always use the "web" file)
+    if (modelId.toLowerCase().startsWith('google/')) {
+        // For Google models, we always need to set the quant path to the "web" file
+        // The manifest should have the "web" file available
+        try {
+            const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getManifestEntry)(modelId);
+            if (manifest && manifest.quants) {
+                // Find the web quant (should be the only one for Google models)
+                const webQuant = Object.keys(manifest.quants).find(quant => quant.includes('Web'));
+                if (webQuant) {
+                    modelPath = webQuant;
+                }
+            }
+        }
+        catch (error) {
+            if (LOG_WARN)
+                console.warn(prefix, 'Error getting manifest for Google model:', error);
+        }
+    }
     if (LOG_INFO)
         console.log(prefix, `Model or variant changed by user. Dispatching ${_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
+    // Update UI elements based on selection
+    await updateLoadButtonAndQuantDropdown();
+    // Check if this is a Google model that needs authentication
+    if (modelId.toLowerCase().startsWith('google/')) {
+        const isAuthenticated = await isHuggingFaceAuthenticated();
+        if (!isAuthenticated) {
+            // For Google models, check authentication on dropdown selection
+            document.dispatchEvent(new CustomEvent('GOOGLE_MODEL_AUTHENTICATION', {
+                detail: { modelId, modelPath, loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
+            }));
+            return;
+        }
+    }
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED, {
         detail: { modelId, modelPath }
     }));
@@ -10962,7 +11046,7 @@ function handleServerOnlyModelLoad(modelId, modelPath) {
     // For now, just show the temporary chat message
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
-function _handleLoadModelButtonClick() {
+async function _handleLoadModelButtonClick() {
     if (!modelSelectorDropdown || !loadModelButton)
         return;
     const modelId = modelSelectorDropdown.value;
@@ -10973,9 +11057,37 @@ function _handleLoadModelButtonClick() {
     }
     if (isLoadingModel)
         return;
+    // Check if this is a Google model that needs authentication
+    if (modelId.toLowerCase().startsWith('google/')) {
+        const isAuthenticated = await isHuggingFaceAuthenticated();
+        if (!isAuthenticated) {
+            // Show authentication dialog
+            document.dispatchEvent(new CustomEvent('GOOGLE_MODEL_AUTHENTICATION', {
+                detail: { modelId, modelPath: '', loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
+            }));
+            return;
+        }
+    }
     // Check for ServerOnly status
     const quantDropdown = document.getElementById('onnx-variant-selector');
-    const modelPath = quantDropdown ? quantDropdown.value : '';
+    let modelPath = quantDropdown ? quantDropdown.value : '';
+    // For Google models, set the correct quant path (always use the "web" file)
+    if (modelId.toLowerCase().startsWith('google/')) {
+        try {
+            const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getManifestEntry)(modelId);
+            if (manifest && manifest.quants) {
+                // Find the web quant (should be the only one for Google models)
+                const webQuant = Object.keys(manifest.quants).find(quant => quant.includes('Web'));
+                if (webQuant) {
+                    modelPath = webQuant;
+                }
+            }
+        }
+        catch (error) {
+            if (LOG_WARN)
+                console.warn(prefix, 'Error getting manifest for Google model:', error);
+        }
+    }
     const manifestEntry = repoQuantsCache[modelId];
     if (manifestEntry && manifestEntry.quants[modelPath] && manifestEntry.quants[modelPath].status === _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.ServerOnly) {
         handleServerOnlyModelLoad(modelId, modelPath);
@@ -11036,11 +11148,22 @@ function populateQuantDropdownForSelectedRepo() {
         quantDropdown.disabled = true;
         return;
     }
-    // Hide quant dropdown for MediaPipe models (Google models)
+    // For Google models, show the quant dropdown with the "web" option
     if (selectedRepo.startsWith('google/')) {
         quantDropdown.innerHTML = '';
-        quantDropdown.disabled = true;
-        quantDropdown.style.display = 'none';
+        quantDropdown.disabled = false;
+        quantDropdown.style.display = 'block';
+        // Add the "web" quant option for Google models
+        const manifestEntry = repoQuantsCache[selectedRepo];
+        if (manifestEntry && manifestEntry.quants) {
+            const webQuant = Object.keys(manifestEntry.quants).find(quant => quant.includes('Web'));
+            if (webQuant) {
+                const option = document.createElement('option');
+                option.value = webQuant;
+                option.textContent = 'Web (MediaPipe)';
+                quantDropdown.appendChild(option);
+            }
+        }
         return;
     }
     else {
@@ -11833,6 +11956,7 @@ const WorkerEventNames = Object.freeze({
     HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
     MODEL_SOURCE_SELECTION: 'modelSourceSelection',
     GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
+    MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -12093,27 +12217,23 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/SettingsController */ "./src/Controllers/SettingsController.ts");
 /* harmony import */ var _Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SpacesController */ "./src/Controllers/SpacesController.ts");
 /* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
-/* harmony import */ var _Components_GoogleTermsDialog__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Components/GoogleTermsDialog */ "./src/Components/GoogleTermsDialog.ts");
-/* harmony import */ var _Components_ModelSourceDialog__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Components/ModelSourceDialog */ "./src/Components/ModelSourceDialog.ts");
-/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
-/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
-/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
-/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
-/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
-/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
-/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
-/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
-/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
-/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
+/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
+/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
+/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
+/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
 // --- Imports ---
-
-
 
 
 
@@ -12169,7 +12289,7 @@ let logQueue = [];
 const prefix = '[Sidepanel]';
 let modelWorker = undefined;
 let currentModelIdInWorker = null;
-let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
 let isModelWorkerEnvReady = false;
 let isGenerating = false;
 // Track the currently loaded model and quant (onnx variant)
@@ -12205,13 +12325,13 @@ function syncToggleLoadButton() {
         const viewParam = urlParams.get('view');
         window.EXTENSION_CONTEXT =
             contextParam === 'popup'
-                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.POPUP
+                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.POPUP
                 : viewParam === 'logs'
-                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.OTHERS
-                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI;
+                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.OTHERS
+                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI;
     }
     catch (e) {
-        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.UNKNOWN;
+        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.UNKNOWN;
         if (LOG_ERROR)
             console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
     }
@@ -12280,7 +12400,7 @@ async function sendDbRequestSmart(request) {
     return response;
 }
 function sendDbRequestViaChannel(request) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage(request);
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage(request);
 }
 function requestDbAndWait(requestEvent) {
     return new Promise((resolve, reject) => {
@@ -12315,7 +12435,7 @@ function bufferOrWriteLog(logPayload) {
         sendDbRequestViaChannel(req);
     }
 }
-_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.logChannel.onmessage = (event) => {
+_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.logChannel.onmessage = (event) => {
     const { type, payload } = event.data;
     if (type === 'LOG_TO_DB' && payload) {
         bufferOrWriteLog(payload);
@@ -12373,7 +12493,7 @@ function handleStopGeneration() {
     console.log(`${prefix} handleStopGeneration called. modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
     if (modelWorker && isGenerating) {
         console.log(`${prefix} Sending stop generation request to worker.`);
-        sendToModelWorker({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.STOP_GENERATION });
+        sendToModelWorker({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.STOP_GENERATION });
     }
     else {
         console.log(`${prefix} Cannot send stop request - modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
@@ -12383,7 +12503,7 @@ function handleSendButtonClick() {
     // This will be handled by the UI controller
     const queryInput = document.getElementById('query-input');
     if (queryInput && queryInput.value.trim() && !queryInput.disabled) {
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.QUERY_SUBMITTED, {
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.QUERY_SUBMITTED, {
             detail: { text: queryInput.value.trim() }
         }));
         // Clear input after sending
@@ -12400,24 +12520,24 @@ function handleModelWorkerMessage(event) {
     const quantDropdown = document.getElementById('onnx-variant-selector');
     const loadBtn = document.getElementById('load-model-button');
     switch (type) {
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY;
             if (LOG_DEBUG)
                 console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_ENV_READY:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_ENV_READY:
             isModelWorkerEnvReady = true;
             if (LOG_DEBUG)
                 console.log(`${prefix} Model worker environment is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
             if (LOG_DEBUG)
                 console.log(`${prefix} Worker loading status:`, payload);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY: {
             const { modelId, modelPath, task, fallback, executionProvider, warning } = payload;
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
             currentModelIdInWorker = modelId;
             currentLoadedModel = {
                 modelId: modelId,
@@ -12442,8 +12562,8 @@ function handleModelWorkerMessage(event) {
                 console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
             isModelWorkerEnvReady = false;
             hideDeviceBadge();
             if (LOG_ERROR)
@@ -12451,18 +12571,18 @@ function handleModelWorkerMessage(event) {
             (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Worker Error: ${payload}`);
             currentModelIdInWorker = null;
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE:
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
             isModelWorkerEnvReady = false;
             currentModelIdInWorker = null;
             hideDeviceBadge();
             if (LOG_DEBUG)
                 console.log(`${prefix} Model worker reset complete.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_UPDATE:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_UPDATE:
             // Streaming token update from worker
             if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
                 // Set generating state when we receive first token
@@ -12481,7 +12601,7 @@ function handleModelWorkerMessage(event) {
                 }));
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_COMPLETE: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_COMPLETE: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
             // Reset generating state
@@ -12498,7 +12618,7 @@ function handleModelWorkerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_STOPPED: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_STOPPED: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
             // Reset generating state
@@ -12515,11 +12635,11 @@ function handleModelWorkerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_ERROR:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_ERROR:
             // Reset generating state on error
             isGenerating = false;
             updateSendButtonForGeneration(false);
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
                 detail: {
                     chatId: payload.chatId,
                     messageId: payload.messageId,
@@ -12527,14 +12647,14 @@ function handleModelWorkerMessage(event) {
                 }
             }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.REQUEST_MEMORY_STATS:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.REQUEST_MEMORY_STATS:
             if (performance && performance.memory && modelWorker) {
                 const mem = performance.memory;
                 modelWorker.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MEMORY_STATS,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MEMORY_STATS,
                     label,
                     payload: {
                         usedJSHeapSize: mem.usedJSHeapSize,
@@ -12544,20 +12664,20 @@ function handleModelWorkerMessage(event) {
                 });
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
             break;
         default:
             console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
@@ -12580,7 +12700,7 @@ function handleModelWorkerError(error) {
         if (LOG_ERROR)
             console.error(`${prefix} Uncaught error in model worker:`, error);
     }
-    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
+    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
     currentModelIdInWorker = null;
     (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Critical Worker Failure: ${errorMessage}`);
     if (modelWorker) {
@@ -12589,7 +12709,7 @@ function handleModelWorkerError(error) {
     }
 }
 function initializeModelWorker() {
-    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED) {
+    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED) {
         if (LOG_DEBUG)
             console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
         return;
@@ -12606,7 +12726,7 @@ function initializeModelWorker() {
     try {
         const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.getURL('modelworker.js');
         modelWorker = new Worker(workerUrl, { type: 'module' });
-        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CREATING_WORKER;
+        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CREATING_WORKER;
         modelWorker.onmessage = handleModelWorkerMessage;
         modelWorker.onerror = handleModelWorkerError;
         if (LOG_DEBUG)
@@ -12615,12 +12735,12 @@ function initializeModelWorker() {
     catch (error) {
         if (LOG_ERROR)
             console.error(`${prefix} Failed to create model worker:`, error);
-        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
+        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to initialize model worker: ${error.message}`);
     }
-    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR) {
+    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR) {
         const extensionBaseUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.getURL('');
-        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.SET_BASE_URL, baseUrl: extensionBaseUrl });
+        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.SET_BASE_URL, baseUrl: extensionBaseUrl });
     }
 }
 function terminateModelWorker() {
@@ -12631,14 +12751,14 @@ function terminateModelWorker() {
         modelWorker = undefined;
     }
     currentModelIdInWorker = null;
-    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
     isModelWorkerEnvReady = false;
     hideDeviceBadge();
     if (LOG_DEBUG)
         console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
 }
 function sendToModelWorker(message) {
-    if (!modelWorker || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CREATING_WORKER && message.type !== _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.INIT) {
+    if (!modelWorker || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CREATING_WORKER && message.type !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.INIT) {
         console.warn(`${prefix} Model worker not ready to receive message type '${message.type}'. State: ${modelWorkerState}`);
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)("Model worker is not ready. Please wait or try reloading.");
         return;
@@ -12673,8 +12793,8 @@ async function setActiveChatSessionId(newSessionId) {
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.setActiveSession)(newSessionId);
 }
 // --- Channel Handlers ---
-if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.onmessage = async (event) => {
+if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI) {
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
         if (!isDbRequest(type))
             return;
@@ -12686,11 +12806,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
                 senderId: reqSenderId,
             });
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
         }
         catch (err) {
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage({
                 type: respType,
                 payload: { success: false, error: err.message },
                 requestId,
@@ -12698,7 +12818,7 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
             });
         }
     };
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.onmessage = async (event) => {
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: msgSenderId } = event.data;
         if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
             if (LOG_DEBUG)
@@ -12706,40 +12826,40 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
             return;
         }
         if ([
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE
         ].includes(type)) {
             return;
         }
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
             sendToModelWorker({ type: 'generate', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
             sendToModelWorker({ type: 'interrupt', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
             terminateModelWorker();
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
                 payload: { success: true, message: "Worker reset." },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
             });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL) {
             if (LOG_WARN)
                 console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
             const modelToLoad = payload.modelId || payload.model;
             const onnxToLoad = payload.quant;
             if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_EXECUTION, {
                     detail: { modelId: modelToLoad, quant: onnxToLoad }
                 }));
             }
@@ -12747,16 +12867,16 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
                 const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
                 if (LOG_ERROR)
                     console.error(`${prefix} ${errorMsg}`);
-                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
                     payload: { success: false, error: errorMsg },
                     requestId, senderId: 'sidepanel', timestamp: Date.now(),
                 });
             }
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
                 payload: { state: modelWorkerState, modelId: currentModelIdInWorker },
                 requestId,
                 senderId: 'sidepanel',
@@ -12777,27 +12897,27 @@ function handleMessage(message, sender, sendResponse) {
     if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DBEventNames).includes(type)) {
         return false;
     }
-    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             text: message.text,
         });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             error: message.error,
         });
         sendResponse({});
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({ status: 'received', type });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS) {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS) {
         // No action needed
     }
     else {
@@ -12907,7 +13027,7 @@ async function handleDetach() {
     }
 }
 function isModelLoaded() {
-    return modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
+    return modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
 }
 function isGenerationActive() {
     return isGenerating;
@@ -12993,11 +13113,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_navigation__WEBPACK_IMPORTED_MODULE_2__.initializeNavigation)();
         if (LOG_DEBUG)
             console.log(`${prefix} Navigation Initialized.`);
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
         // Initialize dialog instances
-        const googleTermsDialog = new _Components_GoogleTermsDialog__WEBPACK_IMPORTED_MODULE_16__.GoogleTermsDialog();
-        const modelSourceDialog = new _Components_ModelSourceDialog__WEBPACK_IMPORTED_MODULE_17__.ModelSourceDialog();
-        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__.HuggingFaceLoginDialog();
+        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_16__.HuggingFaceLoginDialog();
         (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.initializeFileHandling)({
             getActiveSessionIdFunc: getActiveChatSessionId,
         });
@@ -13076,13 +13194,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (LOG_WARN)
                 console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
             const { modelId, modelPath, loadId } = e.detail;
             if (!modelId) {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No model selected.');
                 return;
             }
-            if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR)) {
+            if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR)) {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
                 terminateModelWorker();
@@ -13092,7 +13210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (!modelWorker) {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)("Failed to create/initialize model worker. Cannot load model.");
-                modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
+                modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
                 return;
             }
             const waitForEnvReady = async (timeoutMs = 5000) => {
@@ -13119,58 +13237,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             // Get the task from the manifest
-            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(modelId);
+            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(modelId);
             const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
             if (LOG_DEBUG)
                 console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
+            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
             currentModelIdInWorker = modelId;
             modelWorker.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.INIT,
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.INIT,
                 payload: { modelId, modelPath, task, loadId }
             });
         });
         // Dialog event handlers
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, async (e) => {
-            const { modelId, modelPath, task, loadId } = e.detail;
-            const accepted = await googleTermsDialog.show(modelId);
-            if (accepted) {
-                // Send terms accepted event to model worker
-                if (modelWorker) {
-                    modelWorker.postMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GOOGLE_TERMS_ACCEPTED,
-                        payload: { modelId, modelPath, task, loadId }
-                    });
-                }
-            }
-            else {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Google terms not accepted. Cannot load model.');
-            }
-        });
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, async (e) => {
-            const { modelId, modelPath, task, loadId } = e.detail;
-            const source = await modelSourceDialog.show(modelId);
-            if (source) {
-                // Send source selection event to model worker
-                if (modelWorker) {
-                    modelWorker.postMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_SOURCE_SELECTION,
-                        payload: { modelId, modelPath, task, loadId, source }
-                    });
-                }
-            }
-            else {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No source selected. Cannot load model.');
-            }
-        });
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
             const { modelId, modelPath, task, loadId } = e.detail;
             const token = await huggingFaceLoginDialog.show(modelId);
             if (token) {
                 // Send login event to model worker
                 if (modelWorker) {
                     modelWorker.postMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.HUGGINGFACE_LOGIN,
+                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.HUGGINGFACE_LOGIN,
                         payload: { modelId, modelPath, task, loadId, token }
                     });
                 }
@@ -13223,7 +13309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadAndDisplaySession(null);
         }
         // Check if we have bypass settings that might affect manifest status
-        const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)().size > 0;
+        const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getBypassSizeLimitModels)().size > 0;
         await ensureManifestForDropdownRepos(hasBypassSettings);
         const dbInitSuccess = await initializeDatabase();
         if (!dbInitSuccess)
@@ -13249,7 +13335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (modelWorker) {
             const originalOnMessage = modelWorker.onmessage;
             modelWorker.onmessage = function (event) {
-                if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED) {
+                if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED) {
                     syncToggleLoadButton();
                 }
                 if (typeof originalOnMessage === 'function') {
@@ -13259,18 +13345,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         // Set icon srcs via imports
         const iconMap = [
-            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__],
-            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__],
-            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__],
-            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__],
-            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
-            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
-            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
-            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
-            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
-            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
-            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__],
-            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_33__],
+            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_21__],
+            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_22__],
+            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_23__],
+            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_24__],
+            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__],
+            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__],
+            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__],
+            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
+            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
+            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
+            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
         ];
         for (const [id, src] of iconMap) {
             const el = document.getElementById(id);
@@ -13368,7 +13454,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
     for (const repo of dropdownRepos) {
         // --- Check if we should skip existing manifests ---
         if (!forceRebuild) {
-            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
+            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(repo);
             if (existingManifest) {
                 if (LOG_MANIFEST_GENERATION)
                     console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
@@ -13382,10 +13468,10 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         }
         let oldManifest = null;
         try {
-            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
-            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION) {
+            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(repo);
+            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.CURRENT_MANIFEST_VERSION) {
                 if (LOG_WARN)
-                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
+                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
                 oldManifest = null; // Force re-creation
             }
         }
@@ -13394,7 +13480,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 console.warn(`${prefix} [ensureManifestForDropdownRepos] Error fetching existing manifest for ${repo}, will create anew if possible.`, e);
         }
         try {
-            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.fetchRepoFiles)(repo);
+            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.fetchRepoFiles)(repo);
             if (!siblings || siblings.length === 0) {
                 if (LOG_WARN)
                     console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
@@ -13445,8 +13531,8 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                     }
                     // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
-                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getServerOnlySizeLimit)();
-                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)();
+                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getServerOnlySizeLimit)();
+                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getBypassSizeLimitModels)();
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Processing ${quantKey} for ${repo}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Size limit: ${serverOnlySizeLimit / (1024 * 1024 * 1024)} GB`);
@@ -13526,7 +13612,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                         }
                     }
                     const oldStatus = oldManifest?.quants[quantKey]?.status;
-                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.Available;
+                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.QuantStatus.Available;
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Status calculation for ${quantKey}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] - isServerOnly: ${isServerOnly}`);
@@ -13564,9 +13650,9 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 repo,
                 quants: quantMap,
                 task,
-                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION
+                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.CURRENT_MANIFEST_VERSION
             };
-            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.addManifestEntry)(repo, newManifestEntry);
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.addManifestEntry)(repo, newManifestEntry);
             processedRepos.push(repo);
             if (LOG_MANIFEST_GENERATION)
                 console.log(`${prefix} [ensureManifestForDropdownRepos] Successfully created/updated manifest for repo: ${repo}`, newManifestEntry);
@@ -13585,7 +13671,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         if (errorRepos.length > 0)
             console.error(`${prefix} [ensureManifestForDropdownRepos] Repos with errors:`, errorRepos);
     }
-    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
 }
 // Listen for manifest refresh requests from settings
 document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
@@ -13597,7 +13683,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
         if (LOG_GENERAL)
             console.log('[Sidepanel] Manifest refreshed successfully');
         // Dispatch MANIFEST_UPDATED event AFTER the manifest update is complete
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
     }
     catch (e) {
         console.error('[Sidepanel] Error refreshing manifest:', e);
@@ -13679,7 +13765,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "bb56856d3f27813dcc5e" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "bff3ceebfd6460aed7e0" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

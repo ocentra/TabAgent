@@ -54,6 +54,7 @@ export const WorkerEventNames = Object.freeze({
   HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
   MODEL_SOURCE_SELECTION: 'modelSourceSelection',
   GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
+  MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
 });
 
 export const ModelWorkerStates = Object.freeze({

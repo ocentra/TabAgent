@@ -3,6 +3,14 @@ import browser from 'webextension-polyfill';
 import { sendDbRequestSmart } from '../sidepanel';
 import { DbResetDatabaseRequest } from '../DB/dbEvents';
 import { setupInferenceSettings } from './InferenceSettings';
+import { getAllCachedModels, deleteCachedModel, deleteAllCachedModels, CachedModelInfo } from '../DB/idbModel';
+
+// Logging constants
+const LOG_GENERAL = true;
+const LOG_DEBUG = true;
+const LOG_ERROR = true;
+const LOG_WARN = true;
+const prefix = '[SettingsController]';
 
 let isInitialized = false;
 
@@ -99,6 +107,43 @@ function createLogManagementFoldout(): HTMLElement {
     });
 }
 
+function createModelManagementFoldout(): HTMLElement {
+    const contentHTML = `
+        <div class="space-y-4 text-sm">
+            <div class="flex items-center justify-between">
+                <h4 class="font-medium text-gray-800 dark:text-gray-200">Cached Models</h4>
+                <div class="flex gap-2">
+                    <button id="refreshModelsButton" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">Refresh</button>
+                    <button id="deleteAllModelsButton" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs">Delete All</button>
+                </div>
+            </div>
+            
+            <div id="modelsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                    Loading cached models...
+                </div>
+            </div>
+            
+            <div id="totalStorageInfo" class="text-xs text-gray-500 dark:text-gray-400 border-t pt-2">
+                Total storage used: <span id="totalStorageValue">0 MB</span>
+            </div>
+            
+            <div class="mt-4">
+                <h5 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Available Models</h5>
+                <div id="availableModelsList" class="space-y-1 max-h-32 overflow-y-auto text-xs text-gray-600 dark:text-gray-400">
+                    <div class="text-center py-2">Loading available models...</div>
+                </div>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Model Management',
+        contentHTML,
+        sectionClass: 'model-management-section',
+        initiallyOpen: true
+    });
+}
+
 function createModelLoadingSettingsFoldout(): HTMLElement {
     const contentHTML = `
         <div class="space-y-4 text-sm">
@@ -133,6 +178,12 @@ function createModelLoadingSettingsFoldout(): HTMLElement {
                         <input type="checkbox" id="bypassSmolLM2" class="rounded border-gray-300">
                         <label for="bypassSmolLM2" class="text-sm text-gray-700 dark:text-gray-300">
                             SmolLM2-1.7B-Instruct
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="bypassSmolLM3" class="rounded border-gray-300">
+                        <label for="bypassSmolLM3" class="text-sm text-gray-700 dark:text-gray-300">
+                            SmolLM3-3B-ONNX
                         </label>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -197,11 +248,13 @@ function setupModelLoadingSettings(container: HTMLElement) {
     
     // Setup checkboxes
     const bypassSmolLM2 = container.querySelector('#bypassSmolLM2') as HTMLInputElement;
+    const bypassSmolLM3 = container.querySelector('#bypassSmolLM3') as HTMLInputElement;
     const bypassPhi35 = container.querySelector('#bypassPhi35') as HTMLInputElement;
     const bypassBitnet2B = container.querySelector('#bypassBitnet2B') as HTMLInputElement;
     const bypassQwen3 = container.querySelector('#bypassQwen3') as HTMLInputElement;
     
     if (bypassSmolLM2) bypassSmolLM2.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+    if (bypassSmolLM3) bypassSmolLM3.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
     if (bypassPhi35) bypassPhi35.checked = currentSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
     if (bypassBitnet2B) bypassBitnet2B.checked = currentSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
     if (bypassQwen3) bypassQwen3.checked = currentSettings.bypassModels.has('onnx-community/Qwen3-1.7B-ONNX');
@@ -210,9 +263,9 @@ function setupModelLoadingSettings(container: HTMLElement) {
     const saveButton = container.querySelector('#saveModelSettings') as HTMLButtonElement;
     if (saveButton) {
         saveButton.addEventListener('click', () => {
-            console.log('[SettingsController] Save button clicked');
-            console.log('[SettingsController] Current settings:', currentSettings);
-            console.log('[SettingsController] Checkbox states:', {
+            if (LOG_DEBUG) console.log(`${prefix} Save button clicked`);
+            if (LOG_DEBUG) console.log(`${prefix} Current settings:`, currentSettings);
+            if (LOG_DEBUG) console.log(`${prefix} Checkbox states:`, {
                 bypassSmolLM2: bypassSmolLM2?.checked,
                 bypassPhi35: bypassPhi35?.checked,
                 bypassBitnet2B: bypassBitnet2B?.checked,
@@ -225,23 +278,25 @@ function setupModelLoadingSettings(container: HTMLElement) {
                 bypassModels: new Set<string>(Array.from(currentSettings.bypassModels) as string[]) // Copy existing bypass models
             };
             
-            console.log('[SettingsController] New settings before clearing:', newSettings);
+            if (LOG_DEBUG) console.log(`${prefix} New settings before clearing:`, newSettings);
             
             // Clear the specific models we manage in this UI first
             newSettings.bypassModels.delete('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            newSettings.bypassModels.delete('HuggingFaceTB/SmolLM3-3B-ONNX');
             newSettings.bypassModels.delete('microsoft/Phi-3.5-mini-instruct-onnx');
             newSettings.bypassModels.delete('microsoft/bitnet-b1.58-2B-4T-gguf');
             newSettings.bypassModels.delete('onnx-community/Qwen3-1.7B-ONNX');
             
-            console.log('[SettingsController] After clearing managed models:', newSettings);
+            if (LOG_DEBUG) console.log(`${prefix} After clearing managed models:`, newSettings);
             
             // Add back only the ones that are checked
             if (bypassSmolLM2?.checked) newSettings.bypassModels.add('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            if (bypassSmolLM3?.checked) newSettings.bypassModels.add('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35?.checked) newSettings.bypassModels.add('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassBitnet2B?.checked) newSettings.bypassModels.add('microsoft/bitnet-b1.58-2B-4T-gguf');
             if (bypassQwen3?.checked) newSettings.bypassModels.add('onnx-community/Qwen3-1.7B-ONNX');
             
-            console.log('[SettingsController] Final new settings before saving:', newSettings);
+            if (LOG_DEBUG) console.log(`${prefix} Final new settings before saving:`, newSettings);
             
             saveModelLoadingSettings(newSettings);
             
@@ -267,6 +322,7 @@ function setupModelLoadingSettings(container: HTMLElement) {
             if (maxModelSizeSlider) maxModelSizeSlider.value = defaultSettings.maxModelSize.toString();
             if (maxModelSizeValue) maxModelSizeValue.textContent = `${defaultSettings.maxModelSize} GB`;
             if (bypassSmolLM2) bypassSmolLM2.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM2-1.7B-Instruct');
+            if (bypassSmolLM3) bypassSmolLM3.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35) bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassBitnet2B) bypassBitnet2B.checked = defaultSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
             
@@ -300,9 +356,9 @@ function getDefaultModelLoadingSettings() {
 
 function saveModelLoadingSettings(settings: { maxModelSize: number; bypassModels: Set<string> }) {
     const bypassArray = Array.from(settings.bypassModels);
-    console.log('[SettingsController] saveModelLoadingSettings - bypassModels Set:', settings.bypassModels);
-    console.log('[SettingsController] saveModelLoadingSettings - bypassModels Array:', bypassArray);
-    console.log('[SettingsController] saveModelLoadingSettings - full settings to save:', {
+    if (LOG_DEBUG) console.log(`${prefix} saveModelLoadingSettings - bypassModels Set:`, settings.bypassModels);
+    if (LOG_DEBUG) console.log(`${prefix} saveModelLoadingSettings - bypassModels Array:`, bypassArray);
+    if (LOG_DEBUG) console.log(`${prefix} saveModelLoadingSettings - full settings to save:`, {
         maxModelSize: settings.maxModelSize,
         bypassModels: bypassArray
     });
@@ -313,7 +369,7 @@ function saveModelLoadingSettings(settings: { maxModelSize: number; bypassModels
     };
     
     localStorage.setItem('modelLoadingSettings', JSON.stringify(settingsToSave));
-    console.log('[SettingsController] saveModelLoadingSettings - saved to localStorage:', localStorage.getItem('modelLoadingSettings'));
+    if (LOG_DEBUG) console.log(`${prefix} saveModelLoadingSettings - saved to localStorage:`, localStorage.getItem('modelLoadingSettings'));
 }
 
 // Export functions for use in other modules
@@ -332,10 +388,10 @@ export function updateModelLoadingSettings(settings: { maxModelSize?: number; by
 
 export function initializeSettingsController(): any {
     if (isInitialized) {
-        console.log("[SettingsController] Already initialized.");
+        if (LOG_DEBUG) console.log(`${prefix} Already initialized.`);
         return;
     }
-    console.log("[SettingsController] Initializing...");
+    if (LOG_DEBUG) console.log(`${prefix} Initializing...`);
 
     // Remove the old Settings heading if present
     const settingsPageContainer = document.getElementById('page-settings');
@@ -358,6 +414,10 @@ export function initializeSettingsController(): any {
     const commonSettingsFoldout = createCommonSettingsFoldout();
     settingsPageContainer.appendChild(commonSettingsFoldout);
 
+    // Inject Model Management foldout
+    const modelManagementFoldout = createModelManagementFoldout();
+    settingsPageContainer.appendChild(modelManagementFoldout);
+
     // Inject Log Management foldout
     const logManagementFoldout = createLogManagementFoldout();
     settingsPageContainer.appendChild(logManagementFoldout);
@@ -366,11 +426,14 @@ export function initializeSettingsController(): any {
     const modelLoadingSettingsFoldout = createModelLoadingSettingsFoldout();
     settingsPageContainer.appendChild(modelLoadingSettingsFoldout);
 
+    // Setup model management functionality
+    setupModelManagement(settingsPageContainer);
+
     // Setup listeners for log management buttons
     const viewLogsButton = settingsPageContainer.querySelector('#viewLogsButton');
     if (viewLogsButton) {
         viewLogsButton.addEventListener('click', () => {
-            console.log('[SettingsController] View Logs button clicked. Opening log viewer popup...');
+            if (LOG_DEBUG) console.log(`${prefix} View Logs button clicked. Opening log viewer popup...`);
             try {
                 const viewerUrl = 'sidepanel.html?view=logs'; 
                 browser.windows.create({
@@ -387,7 +450,7 @@ export function initializeSettingsController(): any {
     const resetDbButton = settingsPageContainer.querySelector('#resetDbButton');
     if (resetDbButton) {
         resetDbButton.addEventListener('click', async () => {
-            console.log('[SettingsController] Reset DB button clicked.');
+            if (LOG_DEBUG) console.log(`${prefix} Reset DB button clicked.`);
             try {
                 const request = new DbResetDatabaseRequest();
                 const result = await sendDbRequestSmart(request);
@@ -396,7 +459,7 @@ export function initializeSettingsController(): any {
                 } else {
                     alert('Database reset failed.');
                 }
-                console.log('[SettingsController] Reset DB result:', result);
+                if (LOG_DEBUG) console.log(`${prefix} Reset DB result:`, result);
             } catch (e: any) {
                 alert('Failed to reset database: ' + (e.message || e));
                 console.error('[SettingsController] Reset DB error:', e);
@@ -411,6 +474,156 @@ export function initializeSettingsController(): any {
     setupInferenceSettings();
 
     isInitialized = true;
-    console.log("[SettingsController] Initialized successfully.");
+    if (LOG_DEBUG) console.log(`${prefix} Initialized successfully.`);
     return {}; 
+}
+
+function setupModelManagement(container: HTMLElement): void {
+    const modelsList = container.querySelector('#modelsList') as HTMLElement;
+    const availableModelsList = container.querySelector('#availableModelsList') as HTMLElement;
+    const refreshButton = container.querySelector('#refreshModelsButton') as HTMLButtonElement;
+    const deleteAllButton = container.querySelector('#deleteAllModelsButton') as HTMLButtonElement;
+    const totalStorageValue = container.querySelector('#totalStorageValue') as HTMLElement;
+
+    // Load models on initialization
+    loadCachedModels();
+    loadAvailableModels();
+
+    // Refresh button
+    refreshButton?.addEventListener('click', () => {
+        loadCachedModels();
+        loadAvailableModels();
+    });
+
+    // Delete all button
+    deleteAllButton?.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete all cached models? This action cannot be undone.')) {
+            try {
+                await deleteAllCachedModels();
+                loadCachedModels();
+                if (LOG_GENERAL) console.log(`${prefix} All cached models deleted successfully.`);
+            } catch (error) {
+                if (LOG_ERROR) console.error(`${prefix} Failed to delete all models:`, error);
+                alert('Failed to delete all models. Please try again.');
+            }
+        }
+    });
+
+    async function loadCachedModels(): Promise<void> {
+        try {
+            if (LOG_DEBUG) console.log(`${prefix} Loading cached models...`);
+            
+            modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">Loading cached models...</div>';
+            
+            const models = await getAllCachedModels();
+            
+            if (models.length === 0) {
+                modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">No cached models found.</div>';
+                totalStorageValue.textContent = '0 MB';
+                return;
+            }
+
+            // Calculate total storage
+            const totalSize = models.reduce((sum, model) => sum + model.totalSize, 0);
+            totalStorageValue.textContent = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
+
+            // Render models
+            modelsList.innerHTML = '';
+            models.forEach(model => {
+                const modelElement = createModelElement(model);
+                modelsList.appendChild(modelElement);
+            });
+
+            if (LOG_DEBUG) console.log(`${prefix} Loaded ${models.length} cached models.`);
+        } catch (error) {
+            if (LOG_ERROR) console.error(`${prefix} Failed to load cached models:`, error);
+            modelsList.innerHTML = '<div class="text-center text-red-500 py-4">Failed to load cached models.</div>';
+        }
+    }
+
+    function createModelElement(model: CachedModelInfo): HTMLElement {
+        const div = document.createElement('div');
+        div.className = 'border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700';
+        
+        const sizeInMB = (model.totalSize / (1024 * 1024)).toFixed(1);
+        const sizeInGB = (model.totalSize / (1024 * 1024 * 1024)).toFixed(2);
+        const displaySize = model.totalSize > 1024 * 1024 * 1024 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
+        
+        div.innerHTML = `
+            <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                    <h5 class="font-medium text-gray-800 dark:text-gray-200 truncate">${model.modelId}</h5>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${model.modelPath}</p>
+                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>${displaySize}</span>
+                        <span>${model.numChunks} chunks</span>
+                        <span>${new Date(model.downloadDate).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                <button class="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs delete-model-btn" data-model-id="${model.modelId}" data-model-path="${model.modelPath}">
+                    Delete
+                </button>
+            </div>
+        `;
+
+        // Add delete button event listener
+        const deleteButton = div.querySelector('.delete-model-btn') as HTMLButtonElement;
+        deleteButton.addEventListener('click', async () => {
+            if (confirm(`Are you sure you want to delete ${model.modelId}? This action cannot be undone.`)) {
+                try {
+                    await deleteCachedModel(model);
+                    loadCachedModels(); // Refresh the list
+                    if (LOG_GENERAL) console.log(`${prefix} Model deleted: ${model.modelId}`);
+                } catch (error) {
+                    if (LOG_ERROR) console.error(`${prefix} Failed to delete model:`, error);
+                    alert('Failed to delete model. Please try again.');
+                }
+            }
+        });
+
+        return div;
+    }
+
+    async function loadAvailableModels(): Promise<void> {
+        try {
+            if (LOG_DEBUG) console.log(`${prefix} Loading available models...`);
+            
+            availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">Loading available models...</div>';
+            
+            // Import the manifest function
+            const { getAllManifestEntries } = await import('../DB/idbModel');
+            const manifests = await getAllManifestEntries();
+            
+            if (manifests.length === 0) {
+                availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">No models available.</div>';
+                return;
+            }
+
+            // Render available models
+            availableModelsList.innerHTML = '';
+            manifests.forEach(manifest => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between py-1 px-2 rounded bg-gray-50 dark:bg-gray-800';
+                
+                const modelId = manifest.repo;
+                const files = Object.keys(manifest.quants || {});
+                const fileCount = files.length;
+                
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">${modelId}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${fileCount} files</span>
+                    </div>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Available</span>
+                `;
+
+                availableModelsList.appendChild(div);
+            });
+
+            if (LOG_DEBUG) console.log(`${prefix} Loaded ${manifests.length} available models.`);
+        } catch (error) {
+            if (LOG_ERROR) console.error(`${prefix} Failed to load available models:`, error);
+            availableModelsList.innerHTML = '<div class="text-center text-red-500 py-2">Failed to load available models.</div>';
+        }
+    }
 } 

@@ -503,5 +503,70 @@ export class DbWorkerCreatedNotification {
   }
 }
 
+// Model Management Requests/Responses
+export const DbGetCachedModelsRequest = {
+  type: 'db:getCachedModels',
+  create: (requestId?: string) => ({ type: DbGetCachedModelsRequest.type, requestId: requestId || crypto.randomUUID() })
+};
+
+export class DbGetCachedModelsResponse {
+  type: string;
+  requestId: string;
+  success: boolean;
+  data: any;
+  error: any;
+  constructor(requestId: string, success: boolean, data: any, error: any = null) {
+    this.type = 'db:getCachedModels_response';
+    this.requestId = requestId;
+    this.success = success;
+    this.data = data;
+    this.error = error;
+  }
+}
+
+export const DbDeleteCachedModelRequest = {
+  type: 'db:deleteCachedModel',
+  create: (modelInfo: any, requestId?: string) => ({ 
+    type: DbDeleteCachedModelRequest.type, 
+    payload: { modelInfo },
+    requestId: requestId || crypto.randomUUID() 
+  })
+};
+
+export class DbDeleteCachedModelResponse {
+  type: string;
+  requestId: string;
+  success: boolean;
+  data: any;
+  error: any;
+  constructor(requestId: string, success: boolean, data: any, error: any = null) {
+    this.type = 'db:deleteCachedModel_response';
+    this.requestId = requestId;
+    this.success = success;
+    this.data = data;
+    this.error = error;
+  }
+}
+
+export const DbDeleteAllCachedModelsRequest = {
+  type: 'db:deleteAllCachedModels',
+  create: (requestId?: string) => ({ type: DbDeleteAllCachedModelsRequest.type, requestId: requestId || crypto.randomUUID() })
+};
+
+export class DbDeleteAllCachedModelsResponse {
+  type: string;
+  requestId: string;
+  success: boolean;
+  data: any;
+  error: any;
+  constructor(requestId: string, success: boolean, data: any, error: any = null) {
+    this.type = 'db:deleteAllCachedModels_response';
+    this.requestId = requestId;
+    this.success = success;
+    this.data = data;
+    this.error = error;
+  }
+}
+
 
 

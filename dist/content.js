@@ -1250,6 +1250,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbClearLogsResponse: () => (/* binding */ DbClearLogsResponse),
 /* harmony export */   DbCreateSessionRequest: () => (/* binding */ DbCreateSessionRequest),
 /* harmony export */   DbCreateSessionResponse: () => (/* binding */ DbCreateSessionResponse),
+/* harmony export */   DbDeleteAllCachedModelsRequest: () => (/* binding */ DbDeleteAllCachedModelsRequest),
+/* harmony export */   DbDeleteAllCachedModelsResponse: () => (/* binding */ DbDeleteAllCachedModelsResponse),
+/* harmony export */   DbDeleteCachedModelRequest: () => (/* binding */ DbDeleteCachedModelRequest),
+/* harmony export */   DbDeleteCachedModelResponse: () => (/* binding */ DbDeleteCachedModelResponse),
 /* harmony export */   DbDeleteMessageRequest: () => (/* binding */ DbDeleteMessageRequest),
 /* harmony export */   DbDeleteMessageResponse: () => (/* binding */ DbDeleteMessageResponse),
 /* harmony export */   DbDeleteSessionRequest: () => (/* binding */ DbDeleteSessionRequest),
@@ -1259,6 +1263,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DbEventBase: () => (/* binding */ DbEventBase),
 /* harmony export */   DbGetAllSessionsRequest: () => (/* binding */ DbGetAllSessionsRequest),
 /* harmony export */   DbGetAllSessionsResponse: () => (/* binding */ DbGetAllSessionsResponse),
+/* harmony export */   DbGetCachedModelsRequest: () => (/* binding */ DbGetCachedModelsRequest),
+/* harmony export */   DbGetCachedModelsResponse: () => (/* binding */ DbGetCachedModelsResponse),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsRequest: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsRequest),
 /* harmony export */   DbGetCurrentAndLastLogSessionIdsResponse: () => (/* binding */ DbGetCurrentAndLastLogSessionIdsResponse),
 /* harmony export */   DbGetLogsRequest: () => (/* binding */ DbGetLogsRequest),
@@ -1715,6 +1721,50 @@ class DbWorkerCreatedNotification {
     }
 }
 DbWorkerCreatedNotification.type = 'DbWorkerCreatedNotification';
+// Model Management Requests/Responses
+const DbGetCachedModelsRequest = {
+    type: 'db:getCachedModels',
+    create: (requestId) => ({ type: DbGetCachedModelsRequest.type, requestId: requestId || crypto.randomUUID() })
+};
+class DbGetCachedModelsResponse {
+    constructor(requestId, success, data, error = null) {
+        this.type = 'db:getCachedModels_response';
+        this.requestId = requestId;
+        this.success = success;
+        this.data = data;
+        this.error = error;
+    }
+}
+const DbDeleteCachedModelRequest = {
+    type: 'db:deleteCachedModel',
+    create: (modelInfo, requestId) => ({
+        type: DbDeleteCachedModelRequest.type,
+        payload: { modelInfo },
+        requestId: requestId || crypto.randomUUID()
+    })
+};
+class DbDeleteCachedModelResponse {
+    constructor(requestId, success, data, error = null) {
+        this.type = 'db:deleteCachedModel_response';
+        this.requestId = requestId;
+        this.success = success;
+        this.data = data;
+        this.error = error;
+    }
+}
+const DbDeleteAllCachedModelsRequest = {
+    type: 'db:deleteAllCachedModels',
+    create: (requestId) => ({ type: DbDeleteAllCachedModelsRequest.type, requestId: requestId || crypto.randomUUID() })
+};
+class DbDeleteAllCachedModelsResponse {
+    constructor(requestId, success, data, error = null) {
+        this.type = 'db:deleteAllCachedModels_response';
+        this.requestId = requestId;
+        this.success = success;
+        this.data = data;
+        this.error = error;
+    }
+}
 
 
 /***/ }),
@@ -1796,6 +1846,7 @@ const WorkerEventNames = Object.freeze({
     HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
     MODEL_SOURCE_SELECTION: 'modelSourceSelection',
     GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
+    MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',

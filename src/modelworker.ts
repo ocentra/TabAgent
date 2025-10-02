@@ -27,6 +27,7 @@ const LOG_SELF = false;   // Keep self logs disabled
 const LOG_GENERATION = false; // Keep generation logs disabled
 const LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
 const LOG_TRANSFORMERS = true; // Enable transformers.js specific debugging
+const LOG_TRANSFORMERS_SETTINGS = true; // Enable settings comparison logging
 let currentLoadId: string | undefined = undefined;
 let isGenerating = false;
 let shouldStopGeneration = false;
@@ -37,6 +38,49 @@ let transformersModel: any = null;
 let isTransformersModelReady = false;
 let isTransformersModelLoading = false;
 
+/**
+ * Log all supported transformers.js generate parameters for debugging
+ */
+function logSupportedTransformersParameters() {
+    if (LOG_TRANSFORMERS) {
+        console.log(prefix, '[Transformers.js] Supported generate() parameters:');
+        console.log(prefix, '[Transformers.js] Core Generation Parameters:');
+        console.log(prefix, '  - do_sample: boolean (whether to use sampling)');
+        console.log(prefix, '  - temperature: number (sampling temperature)');
+        console.log(prefix, '  - top_k: number (top-k sampling)');
+        console.log(prefix, '  - top_p: number (nucleus sampling)');
+        console.log(prefix, '  - repetition_penalty: number (penalty for repetition)');
+        console.log(prefix, '  - max_new_tokens: number (maximum new tokens to generate)');
+        console.log(prefix, '  - min_length: number (minimum length)');
+        console.log(prefix, '  - max_length: number (maximum length)');
+        console.log(prefix, '[Transformers.js] Advanced Parameters:');
+        console.log(prefix, '  - no_repeat_ngram_size: number (prevent n-gram repetition)');
+        console.log(prefix, '  - num_beams: number (beam search)');
+        console.log(prefix, '  - diversity_penalty: number (beam search diversity)');
+        console.log(prefix, '  - length_penalty: number (length penalty)');
+        console.log(prefix, '  - early_stopping: boolean (early stopping)');
+        console.log(prefix, '  - num_beam_groups: number (beam groups)');
+        console.log(prefix, '  - penalty_alpha: number (contrastive search)');
+        console.log(prefix, '[Transformers.js] Output Parameters:');
+        console.log(prefix, '  - return_dict_in_generate: boolean (return dict)');
+        console.log(prefix, '  - output_attentions: boolean (output attention)');
+        console.log(prefix, '  - output_hidden_states: boolean (output hidden states)');
+        console.log(prefix, '  - output_scores: boolean (output scores)');
+        console.log(prefix, '  - use_cache: boolean (use KV cache)');
+        console.log(prefix, '[Transformers.js] Token Parameters:');
+        console.log(prefix, '  - pad_token_id: number (padding token)');
+        console.log(prefix, '  - bos_token_id: number (beginning of sequence)');
+        console.log(prefix, '  - eos_token_id: number (end of sequence)');
+        console.log(prefix, '  - forced_bos_token_id: number (forced BOS)');
+        console.log(prefix, '  - forced_eos_token_id: number (forced EOS)');
+        console.log(prefix, '[Transformers.js] Special Parameters:');
+        console.log(prefix, '  - streamer: BaseStreamer (for streaming output)');
+        console.log(prefix, '  - stopping_criteria: StoppingCriteriaList (custom stopping)');
+        console.log(prefix, '  - logits_processor: LogitsProcessorList (custom logits)');
+        console.log(prefix, '[Transformers.js] Reference: https://huggingface.co/docs/transformers.js/en/api/generation/parameters');
+    }
+}
+
 // Log transformers.js imports to verify what we have available
 if (LOG_TRANSFORMERS) {
     console.log('[ModelWorker] transformers.js env:', env);
@@ -46,6 +90,9 @@ if (LOG_TRANSFORMERS) {
     console.log('[ModelWorker] transformers.js env.allowLocalModels:', env.allowLocalModels);
     console.log('[ModelWorker] transformers.js env.allowRemoteModels:', env.allowRemoteModels);
     console.log('[ModelWorker] transformers.js env keys:', Object.keys(env));
+    
+    // Log all supported parameters
+    logSupportedTransformersParameters();
     
     // Let transformers.js use normal flow, but intercept fetch requests
     // (Our custom fetch override will handle IndexedDB serving)
@@ -581,10 +628,8 @@ async function loadModelInternal(payload: { modelId: string, dtype: string, task
             executionProviders: hasWebGPU ? ['webgpu', 'wasm'] : ['wasm'],
             graphOptimizationLevel: 'all',
         };
-        if (inferenceSettings.threads && inferenceSettings.threads > 0) {
-            ortSessionOptions.intraOpNumThreads = inferenceSettings.threads;
-            ortSessionOptions.interOpNumThreads = inferenceSettings.threads;
-        }
+        // Note: threads setting is not supported by transformers.js
+        // Threading is handled automatically by the browser/Node.js runtime
 
         onnxSession = await ort.InferenceSession.create(onnxModelArrayBuffer, { ...ortSessionOptions, ...externalDataConfig });
         inputNames = onnxSession.inputNames;
@@ -999,6 +1044,17 @@ self.onmessage = async (event: MessageEvent) => {
             const settings = await getInferenceSettings();
             if(settings) {
                 inferenceSettings = { ...inferenceSettings, ...settings };
+                if (LOG_TRANSFORMERS) {
+                    console.log(prefix, '[INFERENCE_SETTINGS_UPDATE] Updated inference settings for transformers.js:', {
+                        temperature: settings.temperature,
+                        top_k: settings.top_k,
+                        top_p: settings.top_p,
+                        repetition_penalty: settings.repetition_penalty,
+                        max_new_tokens: settings.max_new_tokens,
+                        do_sample: settings.do_sample,
+                        system_prompt: settings.system_prompt ? 'present' : 'not set'
+                    });
+                }
             }
             break;
         }
@@ -1466,10 +1522,10 @@ async function loadTransformersModel(payload: { modelId: string, dtype: string, 
 }
 
 /**
- * Generate text using transformers.js (similar to the examples)
+ * Generate text using transformers.js with inference settings
  */
 async function generateTransformersResponse(payload: any) {
-    const { messages, settings } = payload;
+    const { messages, message, input, chatId, messageId } = payload;
     
     if (LOG_TRANSFORMERS) {
         console.log(prefix, `[generateTransformersResponse] Starting generation with payload:`, payload);
@@ -1493,19 +1549,124 @@ async function generateTransformersResponse(payload: any) {
         
         if (LOG_GENERAL) console.log(prefix, '[generateTransformersResponse] Starting generation');
         
+        // Load current inference settings
+        const currentSettings = await getInferenceSettings();
+        const settings = currentSettings || DEFAULT_INFERENCE_SETTINGS;
+        
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 📊 LOADED INFERENCE SETTINGS:`, {
+                // Core generation parameters
+                temperature: settings.temperature,
+                max_length: settings.max_length,
+                max_new_tokens: settings.max_new_tokens,
+                min_length: settings.min_length,
+                min_new_tokens: settings.min_new_tokens,
+                top_k: settings.top_k,
+                top_p: settings.top_p,
+                typical_p: settings.typical_p,
+                epsilon_cutoff: settings.epsilon_cutoff,
+                eta_cutoff: settings.eta_cutoff,
+                repetition_penalty: settings.repetition_penalty,
+                encoder_repetition_penalty: settings.encoder_repetition_penalty,
+                do_sample: settings.do_sample,
+                
+                // Beam search parameters
+                num_beams: settings.num_beams,
+                num_beam_groups: settings.num_beam_groups,
+                diversity_penalty: settings.diversity_penalty,
+                early_stopping: settings.early_stopping,
+                length_penalty: settings.length_penalty,
+                penalty_alpha: settings.penalty_alpha,
+                
+                // N-gram control
+                no_repeat_ngram_size: settings.no_repeat_ngram_size,
+                encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+                
+                // Token control
+                pad_token_id: settings.pad_token_id,
+                bos_token_id: settings.bos_token_id,
+                eos_token_id: settings.eos_token_id,
+                decoder_start_token_id: settings.decoder_start_token_id,
+                forced_bos_token_id: settings.forced_bos_token_id,
+                forced_eos_token_id: settings.forced_eos_token_id,
+                
+                // Advanced filtering
+                bad_words_ids: settings.bad_words_ids,
+                force_words_ids: settings.force_words_ids,
+                suppress_tokens: settings.suppress_tokens,
+                begin_suppress_tokens: settings.begin_suppress_tokens,
+                
+                // Output control
+                num_return_sequences: settings.num_return_sequences,
+                output_attentions: settings.output_attentions,
+                output_hidden_states: settings.output_hidden_states,
+                output_scores: settings.output_scores,
+                return_dict_in_generate: settings.return_dict_in_generate,
+                
+                // Performance
+                use_cache: settings.use_cache,
+                remove_invalid_values: settings.remove_invalid_values,
+                renormalize_logits: settings.renormalize_logits,
+                
+                // Advanced features
+                guidance_scale: settings.guidance_scale,
+                max_time: settings.max_time,
+                
+                // System prompt
+                system_prompt: settings.system_prompt ? 'present' : 'not set'
+            });
+        }
+        
+        // Prepare messages array
+        let messagesForTemplate: Array<{role: string, content: string}> = [];
+        
+        // Add system prompt if not already present
+        if (settings.system_prompt && typeof settings.system_prompt === 'string' && settings.system_prompt.trim().length > 0) {
+            if (!(Array.isArray(messages) && messages.some(msg => msg.role === 'system'))) {
+                messagesForTemplate.push({ role: 'system', content: settings.system_prompt });
+            }
+        }
+        
+        // Add user messages
+        if (Array.isArray(messages)) {
+            messagesForTemplate.push(...messages);
+        } else if (message) {
+            messagesForTemplate.push({ role: 'user', content: message });
+        } else if (input) {
+            messagesForTemplate.push({ role: 'user', content: input });
+        }
+        
         // Filter scraped content to reduce context size
-        const filteredMessages = filterScrapedContent(messages);
+        const filteredMessages = filterScrapedContent(messagesForTemplate);
         
         if (LOG_TRANSFORMERS) {
-            console.log(prefix, `[generateTransformersResponse] Original messages:`, messages.length);
+            console.log(prefix, `[generateTransformersResponse] Original messages:`, messagesForTemplate.length);
             console.log(prefix, `[generateTransformersResponse] Filtered messages:`, filteredMessages.length);
         }
         
         // Apply chat template with filtered messages
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 📝 MESSAGES FOR CHAT TEMPLATE:`, filteredMessages.map((msg, i) => ({
+                index: i,
+                role: msg.role,
+                contentLength: msg.content.length,
+                contentPreview: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+            })));
+        }
+        
         const inputs = transformersTokenizer.apply_chat_template(filteredMessages, {
             add_generation_prompt: true,
             return_dict: true,
         });
+        
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 🎭 CHAT TEMPLATE RESULT:`, {
+                inputIdsLength: inputs.input_ids ? inputs.input_ids.length : 'unknown',
+                attentionMaskLength: inputs.attention_mask ? inputs.attention_mask.length : 'unknown',
+                hasInputIds: !!inputs.input_ids,
+                hasAttentionMask: !!inputs.attention_mask
+            });
+        }
         
         // Accumulate the full generated text for the completion event
         let fullGeneratedText = '';
@@ -1522,20 +1683,139 @@ async function generateTransformersResponse(payload: any) {
                 // Don't log every token to reduce spam
                 self.postMessage({
                     type: WorkerEventNames.GENERATION_UPDATE,
-                    payload: { chatId: payload.chatId, messageId: payload.messageId, token: output }
+                    payload: { chatId, messageId, token: output }
                 });
             }
         });
         
-        // Generate with the model
-        const result = await transformersModel.generate({
+        // Map our inference settings to transformers.js generate parameters
+        const generateParams = {
             ...inputs,
-            do_sample: true,
-            top_k: 3,
-            temperature: 0.2,
-            max_new_tokens: 512,
+            // Core generation parameters
+            do_sample: settings.do_sample,
+            temperature: settings.temperature,
+            top_k: settings.top_k,
+            top_p: settings.top_p,
+            repetition_penalty: settings.repetition_penalty,
+            max_new_tokens: settings.max_new_tokens,
+            min_length: settings.min_length,
+            max_length: settings.max_length,
+            
+            // Advanced parameters
+            no_repeat_ngram_size: settings.no_repeat_ngram_size,
+            encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+            num_beams: settings.num_beams,
+            num_beam_groups: settings.num_beam_groups,
+            diversity_penalty: settings.diversity_penalty,
+            length_penalty: settings.length_penalty,
+            early_stopping: settings.early_stopping,
+            penalty_alpha: settings.penalty_alpha,
+            
+            // Additional sampling parameters
+            typical_p: settings.typical_p,
+            epsilon_cutoff: settings.epsilon_cutoff,
+            eta_cutoff: settings.eta_cutoff,
+            encoder_repetition_penalty: settings.encoder_repetition_penalty,
+            min_new_tokens: settings.min_new_tokens,
+            guidance_scale: settings.guidance_scale,
+            max_time: settings.max_time,
+            
+            // Token control parameters
+            pad_token_id: settings.pad_token_id,
+            bos_token_id: settings.bos_token_id,
+            eos_token_id: settings.eos_token_id,
+            decoder_start_token_id: settings.decoder_start_token_id,
+            forced_bos_token_id: settings.forced_bos_token_id,
+            forced_eos_token_id: settings.forced_eos_token_id,
+            
+            // Advanced filtering
+            bad_words_ids: settings.bad_words_ids,
+            force_words_ids: settings.force_words_ids,
+            suppress_tokens: settings.suppress_tokens,
+            begin_suppress_tokens: settings.begin_suppress_tokens,
+            
+            // Output parameters
+            return_dict_in_generate: settings.return_dict_in_generate,
+            output_attentions: settings.output_attentions,
+            output_hidden_states: settings.output_hidden_states,
+            output_scores: settings.output_scores,
+            
+            // Cache and performance
+            use_cache: settings.use_cache,
+            
+            // Streamer for real-time output
             streamer: streamer,
+        };
+        
+        // Remove undefined values to avoid passing them to the model
+        // But keep null values as they are valid parameters
+        Object.keys(generateParams).forEach(key => {
+            if (generateParams[key] === undefined) {
+                delete generateParams[key];
+            }
         });
+        
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 🚀 SENDING TO TRANSFORMERS.JS:`, {
+                // Core generation parameters
+                do_sample: generateParams.do_sample,
+                temperature: generateParams.temperature,
+                top_k: generateParams.top_k,
+                top_p: generateParams.top_p,
+                repetition_penalty: generateParams.repetition_penalty,
+                max_new_tokens: generateParams.max_new_tokens,
+                min_length: generateParams.min_length,
+                max_length: generateParams.max_length,
+                
+                // Advanced parameters
+                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
+                encoder_no_repeat_ngram_size: generateParams.encoder_no_repeat_ngram_size,
+                num_beams: generateParams.num_beams,
+                num_beam_groups: generateParams.num_beam_groups,
+                diversity_penalty: generateParams.diversity_penalty,
+                length_penalty: generateParams.length_penalty,
+                early_stopping: generateParams.early_stopping,
+                penalty_alpha: generateParams.penalty_alpha,
+                
+                // Additional sampling parameters
+                typical_p: generateParams.typical_p,
+                epsilon_cutoff: generateParams.epsilon_cutoff,
+                eta_cutoff: generateParams.eta_cutoff,
+                encoder_repetition_penalty: generateParams.encoder_repetition_penalty,
+                min_new_tokens: generateParams.min_new_tokens,
+                guidance_scale: generateParams.guidance_scale,
+                max_time: generateParams.max_time,
+                
+                // Token control parameters
+                pad_token_id: generateParams.pad_token_id,
+                bos_token_id: generateParams.bos_token_id,
+                eos_token_id: generateParams.eos_token_id,
+                decoder_start_token_id: generateParams.decoder_start_token_id,
+                forced_bos_token_id: generateParams.forced_bos_token_id,
+                forced_eos_token_id: generateParams.forced_eos_token_id,
+                
+                // Advanced filtering
+                bad_words_ids: generateParams.bad_words_ids,
+                force_words_ids: generateParams.force_words_ids,
+                suppress_tokens: generateParams.suppress_tokens,
+                begin_suppress_tokens: generateParams.begin_suppress_tokens,
+                
+                // Output parameters
+                return_dict_in_generate: generateParams.return_dict_in_generate,
+                output_attentions: generateParams.output_attentions,
+                output_hidden_states: generateParams.output_hidden_states,
+                output_scores: generateParams.output_scores,
+                
+                // Cache and performance
+                use_cache: generateParams.use_cache,
+                
+                // Special
+                streamer: generateParams.streamer ? 'present' : 'not set'
+            });
+        }
+        
+        // Generate with the model using our settings
+        const result = await transformersModel.generate(generateParams);
         
         // Only log the final completion, not every token
         if (LOG_TRANSFORMERS) console.log(prefix, `[generateTransformersResponse] Generation completed successfully`);

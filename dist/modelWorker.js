@@ -8538,82 +8538,116 @@ const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
 if (LOG_GENERAL)
     console.log(prefix, 'popupIcon import resolves to:', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_4__);
 const INFERENCE_SETTING_KEYS = {
+    // Core generation parameters
     temperature: 'temperature',
     max_length: 'max_length',
     max_new_tokens: 'max_new_tokens',
     min_length: 'min_length',
+    min_new_tokens: 'min_new_tokens',
     top_k: 'top_k',
     top_p: 'top_p',
+    typical_p: 'typical_p',
+    epsilon_cutoff: 'epsilon_cutoff',
+    eta_cutoff: 'eta_cutoff',
     repetition_penalty: 'repetition_penalty',
-    attention_mask: 'attention_mask',
-    batch_size: 'batch_size',
+    encoder_repetition_penalty: 'encoder_repetition_penalty',
     do_sample: 'do_sample',
-    eos_token_id: 'eos_token_id',
+    // Beam search parameters
     num_beams: 'num_beams',
-    num_return_sequences: 'num_return_sequences',
-    pad_token_id: 'pad_token_id',
+    num_beam_groups: 'num_beam_groups',
     diversity_penalty: 'diversity_penalty',
     early_stopping: 'early_stopping',
     length_penalty: 'length_penalty',
+    penalty_alpha: 'penalty_alpha',
+    // N-gram and repetition control
     no_repeat_ngram_size: 'no_repeat_ngram_size',
-    num_beam_groups: 'num_beam_groups',
-    threads: 'threads',
-    bad_words_ids: 'bad_words_ids',
+    encoder_no_repeat_ngram_size: 'encoder_no_repeat_ngram_size',
+    // Token control
+    pad_token_id: 'pad_token_id',
     bos_token_id: 'bos_token_id',
+    eos_token_id: 'eos_token_id',
     decoder_start_token_id: 'decoder_start_token_id',
     forced_bos_token_id: 'forced_bos_token_id',
     forced_eos_token_id: 'forced_eos_token_id',
-    max_time: 'max_time',
-    min_new_tokens: 'min_new_tokens',
+    // Advanced filtering
+    bad_words_ids: 'bad_words_ids',
+    force_words_ids: 'force_words_ids',
+    suppress_tokens: 'suppress_tokens',
+    begin_suppress_tokens: 'begin_suppress_tokens',
+    // Output control
+    num_return_sequences: 'num_return_sequences',
     output_attentions: 'output_attentions',
     output_hidden_states: 'output_hidden_states',
     output_scores: 'output_scores',
-    penalty_alpha: 'penalty_alpha',
-    prefix: 'prefix',
-    remove_invalid_values: 'remove_invalid_values',
     return_dict_in_generate: 'return_dict_in_generate',
-    suppress_tokens: 'suppress_tokens',
+    // Performance and caching
     use_cache: 'use_cache',
+    remove_invalid_values: 'remove_invalid_values',
+    renormalize_logits: 'renormalize_logits',
+    // Advanced features
+    guidance_scale: 'guidance_scale',
+    max_time: 'max_time',
+    exponential_decay_length_penalty: 'exponential_decay_length_penalty',
+    constraints: 'constraints',
+    forced_decoder_ids: 'forced_decoder_ids',
+    // System prompt
     system_prompt: 'system_prompt',
 };
 const DEFAULT_INFERENCE_SETTINGS = {
-    temperature: 0.7,
-    max_length: 2048,
-    max_new_tokens: 512,
-    min_length: 0,
-    top_k: 50,
-    top_p: 0.9,
-    repetition_penalty: 1.1,
-    attention_mask: true,
-    batch_size: 1,
-    do_sample: true,
-    eos_token_id: null,
-    num_beams: 1,
-    num_return_sequences: 1,
-    pad_token_id: null,
-    diversity_penalty: 0.0,
-    early_stopping: false,
-    length_penalty: 1.0,
-    no_repeat_ngram_size: 0,
-    num_beam_groups: 1,
-    threads: 2,
-    bad_words_ids: null,
-    bos_token_id: null,
-    decoder_start_token_id: null,
-    forced_bos_token_id: null,
-    forced_eos_token_id: null,
-    max_time: null,
-    min_new_tokens: 0,
-    output_attentions: false,
-    output_hidden_states: false,
-    output_scores: false,
-    penalty_alpha: 0.0,
-    prefix: null,
-    remove_invalid_values: false,
-    return_dict_in_generate: false,
-    suppress_tokens: null,
-    use_cache: true,
-    system_prompt: `You are a helpful AI assistant.\nAlways provide clear, concise, and accurate answers.\nIf you are unsure, say so honestly.\nBe friendly, professional, and supportive.\nFormat lists and steps with bullet points when helpful.\nIf the user asks for code, provide well-commented examples.\nIf the user asks for advice, consider pros and cons.\nNever include harmful, unethical, or illegal content.\nIf the user asks for a summary, keep it brief and focused.\nIf the user asks for a translation, be accurate and note the language.\nIf the user asks for a joke, keep it light and appropriate.\n`,
+    // Core generation parameters
+    temperature: 1.0, // Default: 1.0 (from docs)
+    max_length: 2048, // Default: 20 (from docs) - we override with user-friendly 2048
+    max_new_tokens: 25, // Default: null (from docs) - we use 25 for very brief responses
+    min_length: 0, // Default: 0 (from docs)
+    min_new_tokens: 0, // Default: null (from docs) - we use 0 for user experience
+    top_k: 50, // Default: 50 (from docs)
+    top_p: 0.9, // Default: 1.0 (from docs) - we use 0.9 for user experience
+    typical_p: 1.0, // Default: 1.0 (from docs)
+    epsilon_cutoff: 0.0, // Default: 0.0 (from docs)
+    eta_cutoff: 0.0, // Default: 0.0 (from docs)
+    repetition_penalty: 1.2, // Default: 1.0 (from docs) - we use 1.2 to prevent rambling
+    encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
+    do_sample: true, // Default: false (from docs) - we use true for user experience
+    // Beam search parameters
+    num_beams: 1, // Default: 1 (from docs)
+    num_beam_groups: 1, // Default: 1 (from docs)
+    diversity_penalty: 0.0, // Default: 0.0 (from docs)
+    early_stopping: true, // Default: false (from docs) - we use true for better stopping
+    length_penalty: 1.0, // Default: 1.0 (from docs)
+    penalty_alpha: 0.0, // Default: null (from docs) - we use 0.0 for user experience
+    // N-gram and repetition control
+    no_repeat_ngram_size: 3, // Default: 0 (from docs) - we use 3 to prevent phrase repetition
+    encoder_no_repeat_ngram_size: 0, // Default: 0 (from docs)
+    // Token control
+    pad_token_id: null, // Default: null (from docs)
+    bos_token_id: null, // Default: null (from docs)
+    eos_token_id: null, // Default: null (from docs)
+    decoder_start_token_id: null, // Default: null (from docs)
+    forced_bos_token_id: null, // Default: null (from docs)
+    forced_eos_token_id: null, // Default: null (from docs)
+    // Advanced filtering
+    bad_words_ids: null, // Default: null (from docs)
+    force_words_ids: null, // Default: null (from docs)
+    suppress_tokens: null, // Default: null (from docs)
+    begin_suppress_tokens: null, // Default: null (from docs)
+    // Output control
+    num_return_sequences: 1, // Default: 1 (from docs)
+    output_attentions: false, // Default: false (from docs)
+    output_hidden_states: false, // Default: false (from docs)
+    output_scores: false, // Default: false (from docs)
+    return_dict_in_generate: false, // Default: false (from docs)
+    // Performance and caching
+    use_cache: true, // Default: true (from docs)
+    remove_invalid_values: false, // Default: false (from docs)
+    renormalize_logits: false, // Default: false (from docs)
+    // Advanced features
+    guidance_scale: 1.0, // Default: null (from docs) - we use 1.0 for user experience
+    max_time: null, // Default: null (from docs)
+    exponential_decay_length_penalty: null, // Default: null (from docs)
+    constraints: null, // Default: null (from docs)
+    forced_decoder_ids: null, // Default: null (from docs)
+    // System prompt
+    system_prompt: `You are a helpful AI assistant. Be brief and direct. For greetings, respond with just "Hello! How can I help?" Keep responses under 20 words.\n`,
 };
 const SYSTEM_PROMPT_SETTING = {
     key: INFERENCE_SETTING_KEYS.system_prompt,
@@ -8637,7 +8671,7 @@ const COMMON_SETTINGS = [
         min: 0.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 0.7,
+        defaultValue: 1.0,
         description: `Controls how creative or predictable the AI's responses are. Lower values make the AI more strict and focused—great for coding, technical answers, or when you want fewer made-up (hallucinated) details. Higher values make the AI more creative and varied—useful for brainstorming, stories, or blog posts, but can sometimes lead to less accurate or more imaginative answers.`,
         example: `Use 0.1–0.3 for precise tasks like code or factual Q&A. 0.7–1.0 for balanced conversation. 1.2–1.8 for creative writing or idea generation.`
     },
@@ -8647,13 +8681,13 @@ const COMMON_SETTINGS = [
         type: 'input',
         defaultValue: 2048,
         description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
-        example: `Use 512 for short answers, 2048 for medium, 4096+ for long explanations or stories.`
+        example: `Use 20 for very short answers, 100 for short, 2048 for medium, 4096+ for long explanations or stories.`
     },
     {
         key: INFERENCE_SETTING_KEYS.max_new_tokens,
         label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
         type: 'input',
-        defaultValue: 512,
+        defaultValue: 25, // We use 25 for very brief responses (official default is null)
         description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
         example: `Try 50 for brief replies, 200 for paragraphs, 500+ for essays or stories.`
     },
@@ -8661,7 +8695,7 @@ const COMMON_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.min_length,
         label: keyToLabel(INFERENCE_SETTING_KEYS.min_length),
         type: 'input',
-        defaultValue: 0,
+        defaultValue: 0, // Official default: 0
         description: `Sets the minimum length (in tokens) for the AI's answer. Use this if you want to make sure the response is at least a certain size (for example, always a full sentence or paragraph).`,
         example: `10 for at least a sentence, 50 for a paragraph. 0 means no minimum.`
     },
@@ -8669,7 +8703,7 @@ const COMMON_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.top_k,
         label: keyToLabel(INFERENCE_SETTING_KEYS.top_k),
         type: 'input',
-        defaultValue: 50,
+        defaultValue: 50, // Official default: 50
         description: `Controls how many word choices the AI considers at each step. Lower values make the AI more focused and repetitive. Higher values allow for more variety and creativity, but can sometimes make answers less predictable.`,
         example: `1 = most focused (greedy), 10 = focused, 50 = balanced, 0 = unlimited variety.`
     },
@@ -8680,9 +8714,20 @@ const COMMON_SETTINGS = [
         min: 0.0,
         max: 1.0,
         step: 0.01,
-        defaultValue: 0.9,
+        defaultValue: 0.9, // Official default: 1.0
         description: `Lets the AI pick from the most likely words until their combined probability reaches P. Lower values make answers more predictable and safe. Higher values allow for more diverse and surprising responses.`,
-        example: `0.5 = very focused, 0.9 = balanced, 0.95 = more creative. Use lower for technical tasks, higher for creative writing.`
+        example: `0.5 = very focused, 0.9 = balanced, 1.0 = most creative. Use lower for technical tasks, higher for creative writing.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.typical_p,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.typical_p),
+        type: 'slider',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        defaultValue: 1.0, // Official default: 1.0
+        description: `Controls the typicality of generated tokens. Lower values make the AI choose more typical/common words, while higher values allow for more unusual word choices. Works alongside top_p for better control.`,
+        example: `0.5 = more typical/common words, 1.0 = balanced, 0.95 = more unusual word choices.`
     },
     {
         key: INFERENCE_SETTING_KEYS.repetition_penalty,
@@ -8691,7 +8736,7 @@ const COMMON_SETTINGS = [
         min: 1.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.1,
+        defaultValue: 1.2, // Official default: 1.0
         description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
         example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
     },
@@ -8699,7 +8744,7 @@ const COMMON_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.do_sample,
         label: keyToLabel(INFERENCE_SETTING_KEYS.do_sample),
         type: 'checkbox',
-        defaultValue: true,
+        defaultValue: true, // Official default: false
         description: `When ON, the AI will generate more varied and creative answers by sampling from possible words. When OFF, the AI will always pick the most likely next word, making answers more predictable and less creative.`,
         example: `ON = creative, varied output. OFF = more predictable, sometimes repetitive.`
     },
@@ -8707,20 +8752,55 @@ const COMMON_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.num_beams,
         label: keyToLabel(INFERENCE_SETTING_KEYS.num_beams),
         type: 'input',
-        defaultValue: 1,
+        defaultValue: 1, // Official default: 1
         description: `Controls how many different answer paths the AI explores before picking the best one. Higher values can improve answer quality but may take longer.`,
         example: `1 = no beam search (faster), 3–5 = better quality, 10+ = very thorough (slower).`
-    },
-    {
-        key: INFERENCE_SETTING_KEYS.batch_size,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.batch_size),
-        type: 'input',
-        defaultValue: 1,
-        description: `How many answers the AI generates at once. Use more than 1 if you want to see several different responses to the same question.`,
-        example: `1 = single answer, 4 = four different options.`
     }
 ];
 const ADVANCED_SETTINGS = [
+    // Core generation parameters
+    {
+        key: INFERENCE_SETTING_KEYS.min_new_tokens,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.min_new_tokens),
+        type: 'input',
+        defaultValue: 0, // Official default: null, we use 0 for user experience
+        description: `The minimum number of new words or pieces (tokens) the AI must generate. Use this to ensure answers are not too short.`,
+        example: `0 = no minimum, 10 = at least 10 new words.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.epsilon_cutoff,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.epsilon_cutoff),
+        type: 'slider',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        defaultValue: 0.0, // Official default: 0.0
+        description: `Filters out tokens with probability less than this value. Lower values allow more diverse tokens, higher values filter out less likely tokens.`,
+        example: `0.0 = no filtering, 0.1 = filter very unlikely tokens, 0.5 = filter moderately unlikely tokens.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.eta_cutoff,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.eta_cutoff),
+        type: 'slider',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01,
+        defaultValue: 0.0, // Official default: 0.0
+        description: `Similar to epsilon_cutoff but uses a different filtering method. Can be used alongside epsilon_cutoff for more precise control.`,
+        example: `0.0 = no filtering, 0.1 = light filtering, 0.5 = strong filtering.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.encoder_repetition_penalty,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.encoder_repetition_penalty),
+        type: 'slider',
+        min: 1.0,
+        max: 2.0,
+        step: 0.01,
+        defaultValue: 1.0, // Official default: 1.0
+        description: `Penalty for repetition in the input/encoder part. Higher values reduce repetition in the source text influence.`,
+        example: `1.0 = no penalty, 1.1 = mild penalty, 1.3 = strong penalty.`
+    },
+    // Beam search parameters
     {
         key: INFERENCE_SETTING_KEYS.diversity_penalty,
         label: keyToLabel(INFERENCE_SETTING_KEYS.diversity_penalty),
@@ -8728,7 +8808,7 @@ const ADVANCED_SETTINGS = [
         min: 0.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 0.0,
+        defaultValue: 0.0, // Official default: 0.0
         description: `Encourages the AI to make each answer in a batch more different from the others. Useful if you want a variety of ideas or styles in multiple responses.`,
         example: `0.0 = no penalty, 0.5 = some variety, 1.0 = high diversity. Use higher values when generating many answers at once.`
     },
@@ -8736,7 +8816,7 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.early_stopping,
         label: keyToLabel(INFERENCE_SETTING_KEYS.early_stopping),
         type: 'checkbox',
-        defaultValue: false,
+        defaultValue: false, // Official default: false
         description: `When ON, the AI will stop generating as soon as it thinks the answer is complete. When OFF, it will keep going until the maximum length is reached.`,
         example: `ON = shorter, more natural endings. OFF = longer, may run on.`
     },
@@ -8747,41 +8827,17 @@ const ADVANCED_SETTINGS = [
         min: -2.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.0,
+        defaultValue: 1.0, // Official default: 1.0
         description: `Controls whether the AI prefers shorter or longer answers. Lower values make answers shorter, higher values make them longer.`,
         example: `<1.0 = shorter, 1.0 = neutral, >1.0 = longer answers.`
-    },
-    {
-        key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
-        type: 'input',
-        defaultValue: 0,
-        description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
-        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets.`
     },
     {
         key: INFERENCE_SETTING_KEYS.num_beam_groups,
         label: keyToLabel(INFERENCE_SETTING_KEYS.num_beam_groups),
         type: 'input',
-        defaultValue: 1,
+        defaultValue: 1, // Official default: 1
         description: `Splits the answer search into groups for more variety. Useful for getting different styles or ideas in multiple answers.`,
         example: `1 = standard, 2+ = more diverse answers (when batch size > 1).`
-    },
-    {
-        key: INFERENCE_SETTING_KEYS.threads,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.threads),
-        type: 'input',
-        defaultValue: 2,
-        description: `How many CPU threads to use for generating answers. More threads can be faster on powerful computers, but may use more resources.`,
-        example: `1 = single thread, 4 = quad core, 8 = octa core.`
-    },
-    {
-        key: INFERENCE_SETTING_KEYS.min_new_tokens,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.min_new_tokens),
-        type: 'input',
-        defaultValue: 0,
-        description: `The minimum number of new words or pieces (tokens) the AI must generate. Use this to ensure answers are not too short.`,
-        example: `0 = no minimum, 10 = at least 10 new words.`
     },
     {
         key: INFERENCE_SETTING_KEYS.penalty_alpha,
@@ -8790,15 +8846,41 @@ const ADVANCED_SETTINGS = [
         min: 0.0,
         max: 1.0,
         step: 0.01,
-        defaultValue: 0.0,
+        defaultValue: 0.0, // Official default: null, we use 0.0 for user experience
         description: `Affects how much the AI penalizes less likely words. Higher values can make answers more focused, but may reduce creativity.`,
         example: `0.0 = disabled, 0.6 = balanced, 0.9 = strong penalty.`
+    },
+    // N-gram and repetition control
+    {
+        key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
+        type: 'input',
+        defaultValue: 0, // Official default: 0
+        description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
+        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size),
+        type: 'input',
+        defaultValue: 0, // Official default: 0
+        description: `Prevents the AI from repeating n-grams that appear in the input text. Useful for avoiding copying from the source.`,
+        example: `0 = allow repeats, 2 = no repeated pairs from input, 3 = no repeated triplets from input.`
+    },
+    // Output control
+    {
+        key: INFERENCE_SETTING_KEYS.num_return_sequences,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.num_return_sequences),
+        type: 'input',
+        defaultValue: 1, // Official default: 1
+        description: `How many different answers the AI should return for your question. Use more than 1 to see a variety of responses.`,
+        example: `1 = single answer, 3 = three options, 5+ = many choices.`
     },
     {
         key: INFERENCE_SETTING_KEYS.output_attentions,
         label: keyToLabel(INFERENCE_SETTING_KEYS.output_attentions),
         type: 'checkbox',
-        defaultValue: false,
+        defaultValue: false, // Official default: false
         description: `When ON, the AI will include extra data about how it paid attention to each word. Useful for advanced users or debugging, but not needed for most people.`,
         example: `ON = include attention data (slower), OFF = text only.`
     },
@@ -8806,7 +8888,7 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.output_hidden_states,
         label: keyToLabel(INFERENCE_SETTING_KEYS.output_hidden_states),
         type: 'checkbox',
-        defaultValue: false,
+        defaultValue: false, // Official default: false
         description: `When ON, the AI will include its internal state data. Useful for research or advanced analysis, but not needed for most users.`,
         example: `ON = include internal states (memory intensive), OFF = text only.`
     },
@@ -8814,15 +8896,24 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.output_scores,
         label: keyToLabel(INFERENCE_SETTING_KEYS.output_scores),
         type: 'checkbox',
-        defaultValue: false,
+        defaultValue: false, // Official default: false
         description: `When ON, the AI will include confidence scores for each word it generates. Useful for advanced users or debugging.`,
         example: `ON = include confidence scores, OFF = text only.`
     },
     {
+        key: INFERENCE_SETTING_KEYS.return_dict_in_generate,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.return_dict_in_generate),
+        type: 'checkbox',
+        defaultValue: false, // Official default: false
+        description: `When ON, the AI will return a detailed object with extra info about the answer. Useful for advanced users or developers.`,
+        example: `ON = detailed output, OFF = simple text.`
+    },
+    // Performance and caching
+    {
         key: INFERENCE_SETTING_KEYS.use_cache,
         label: keyToLabel(INFERENCE_SETTING_KEYS.use_cache),
         type: 'checkbox',
-        defaultValue: true,
+        defaultValue: true, // Official default: true
         description: `When ON, the AI remembers previous answers to speed up follow-up responses. Uses more memory, but makes things faster.`,
         example: `ON = faster, OFF = slower but uses less memory.`
     },
@@ -8830,33 +8921,37 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.remove_invalid_values,
         label: keyToLabel(INFERENCE_SETTING_KEYS.remove_invalid_values),
         type: 'checkbox',
-        defaultValue: false,
+        defaultValue: false, // Official default: false
         description: `When ON, the AI will remove any invalid or strange values from its output. Useful if you see weird symbols or errors in answers.`,
         example: `ON = clean output, OFF = allow all values.`
     },
     {
-        key: INFERENCE_SETTING_KEYS.return_dict_in_generate,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.return_dict_in_generate),
+        key: INFERENCE_SETTING_KEYS.renormalize_logits,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.renormalize_logits),
         type: 'checkbox',
-        defaultValue: false,
-        description: `When ON, the AI will return a detailed object with extra info about the answer. Useful for advanced users or developers.`,
-        example: `ON = detailed output, OFF = simple text.`
+        defaultValue: false, // Official default: false
+        description: `When ON, the AI will normalize the probability scores to ensure they add up to 1.0. Can help with numerical stability.`,
+        example: `ON = normalized probabilities, OFF = raw probabilities.`
+    },
+    // Advanced features
+    {
+        key: INFERENCE_SETTING_KEYS.guidance_scale,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.guidance_scale),
+        type: 'slider',
+        min: 1.0,
+        max: 20.0,
+        step: 0.1,
+        defaultValue: 1.0, // Official default: null, we use 1.0 for user experience
+        description: `Controls how closely the AI follows the input prompt. Higher values make the AI stick more closely to the prompt, but may reduce creativity.`,
+        example: `1.0 = normal guidance, 3.0 = strong guidance, 7.5 = very strong guidance.`
     },
     {
-        key: INFERENCE_SETTING_KEYS.attention_mask,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.attention_mask),
-        type: 'checkbox',
-        defaultValue: true,
-        description: `When ON, the AI will ignore padding (empty) parts of your input for better accuracy. Usually best to leave ON.`,
-        example: `ON = proper masking (recommended), OFF = no masking.`
-    },
-    {
-        key: INFERENCE_SETTING_KEYS.num_return_sequences,
-        label: keyToLabel(INFERENCE_SETTING_KEYS.num_return_sequences),
+        key: INFERENCE_SETTING_KEYS.max_time,
+        label: keyToLabel(INFERENCE_SETTING_KEYS.max_time),
         type: 'input',
-        defaultValue: 1,
-        description: `How many different answers the AI should return for your question. Use more than 1 to see a variety of responses.`,
-        example: `1 = single answer, 3 = three options, 5+ = many choices.`
+        defaultValue: null, // Official default: null
+        description: `Maximum time (in seconds) to spend generating the response. Useful for preventing very long generation times.`,
+        example: `null = no limit, 30 = 30 seconds max, 120 = 2 minutes max.`
     }
 ];
 function setupInferenceSettings() {
@@ -10686,6 +10781,7 @@ const LOG_SELF = false; // Keep self logs disabled
 const LOG_GENERATION = false; // Keep generation logs disabled
 const LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
 const LOG_TRANSFORMERS = true; // Enable transformers.js specific debugging
+const LOG_TRANSFORMERS_SETTINGS = true; // Enable settings comparison logging
 let currentLoadId = undefined;
 let isGenerating = false;
 let shouldStopGeneration = false;
@@ -10694,6 +10790,48 @@ let transformersTokenizer = null;
 let transformersModel = null;
 let isTransformersModelReady = false;
 let isTransformersModelLoading = false;
+/**
+ * Log all supported transformers.js generate parameters for debugging
+ */
+function logSupportedTransformersParameters() {
+    if (LOG_TRANSFORMERS) {
+        console.log(prefix, '[Transformers.js] Supported generate() parameters:');
+        console.log(prefix, '[Transformers.js] Core Generation Parameters:');
+        console.log(prefix, '  - do_sample: boolean (whether to use sampling)');
+        console.log(prefix, '  - temperature: number (sampling temperature)');
+        console.log(prefix, '  - top_k: number (top-k sampling)');
+        console.log(prefix, '  - top_p: number (nucleus sampling)');
+        console.log(prefix, '  - repetition_penalty: number (penalty for repetition)');
+        console.log(prefix, '  - max_new_tokens: number (maximum new tokens to generate)');
+        console.log(prefix, '  - min_length: number (minimum length)');
+        console.log(prefix, '  - max_length: number (maximum length)');
+        console.log(prefix, '[Transformers.js] Advanced Parameters:');
+        console.log(prefix, '  - no_repeat_ngram_size: number (prevent n-gram repetition)');
+        console.log(prefix, '  - num_beams: number (beam search)');
+        console.log(prefix, '  - diversity_penalty: number (beam search diversity)');
+        console.log(prefix, '  - length_penalty: number (length penalty)');
+        console.log(prefix, '  - early_stopping: boolean (early stopping)');
+        console.log(prefix, '  - num_beam_groups: number (beam groups)');
+        console.log(prefix, '  - penalty_alpha: number (contrastive search)');
+        console.log(prefix, '[Transformers.js] Output Parameters:');
+        console.log(prefix, '  - return_dict_in_generate: boolean (return dict)');
+        console.log(prefix, '  - output_attentions: boolean (output attention)');
+        console.log(prefix, '  - output_hidden_states: boolean (output hidden states)');
+        console.log(prefix, '  - output_scores: boolean (output scores)');
+        console.log(prefix, '  - use_cache: boolean (use KV cache)');
+        console.log(prefix, '[Transformers.js] Token Parameters:');
+        console.log(prefix, '  - pad_token_id: number (padding token)');
+        console.log(prefix, '  - bos_token_id: number (beginning of sequence)');
+        console.log(prefix, '  - eos_token_id: number (end of sequence)');
+        console.log(prefix, '  - forced_bos_token_id: number (forced BOS)');
+        console.log(prefix, '  - forced_eos_token_id: number (forced EOS)');
+        console.log(prefix, '[Transformers.js] Special Parameters:');
+        console.log(prefix, '  - streamer: BaseStreamer (for streaming output)');
+        console.log(prefix, '  - stopping_criteria: StoppingCriteriaList (custom stopping)');
+        console.log(prefix, '  - logits_processor: LogitsProcessorList (custom logits)');
+        console.log(prefix, '[Transformers.js] Reference: https://huggingface.co/docs/transformers.js/en/api/generation/parameters');
+    }
+}
 // Log transformers.js imports to verify what we have available
 if (LOG_TRANSFORMERS) {
     console.log('[ModelWorker] transformers.js env:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env);
@@ -10703,6 +10841,8 @@ if (LOG_TRANSFORMERS) {
     console.log('[ModelWorker] transformers.js env.allowLocalModels:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels);
     console.log('[ModelWorker] transformers.js env.allowRemoteModels:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels);
     console.log('[ModelWorker] transformers.js env keys:', Object.keys(_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env));
+    // Log all supported parameters
+    logSupportedTransformersParameters();
     // Let transformers.js use normal flow, but intercept fetch requests
     // (Our custom fetch override will handle IndexedDB serving)
     console.log('[ModelWorker] transformers.js will use fetch interception for IndexedDB');
@@ -11215,10 +11355,8 @@ async function loadModelInternal(payload) {
             executionProviders: hasWebGPU ? ['webgpu', 'wasm'] : ['wasm'],
             graphOptimizationLevel: 'all',
         };
-        if (inferenceSettings.threads && inferenceSettings.threads > 0) {
-            ortSessionOptions.intraOpNumThreads = inferenceSettings.threads;
-            ortSessionOptions.interOpNumThreads = inferenceSettings.threads;
-        }
+        // Note: threads setting is not supported by transformers.js
+        // Threading is handled automatically by the browser/Node.js runtime
         onnxSession = await onnxruntime_web__WEBPACK_IMPORTED_MODULE_5__["default"].InferenceSession.create(onnxModelArrayBuffer, { ...ortSessionOptions, ...externalDataConfig });
         inputNames = onnxSession.inputNames;
         outputNames = onnxSession.outputNames;
@@ -11605,6 +11743,17 @@ self.onmessage = async (event) => {
             const settings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getInferenceSettings)();
             if (settings) {
                 inferenceSettings = { ...inferenceSettings, ...settings };
+                if (LOG_TRANSFORMERS) {
+                    console.log(prefix, '[INFERENCE_SETTINGS_UPDATE] Updated inference settings for transformers.js:', {
+                        temperature: settings.temperature,
+                        top_k: settings.top_k,
+                        top_p: settings.top_p,
+                        repetition_penalty: settings.repetition_penalty,
+                        max_new_tokens: settings.max_new_tokens,
+                        do_sample: settings.do_sample,
+                        system_prompt: settings.system_prompt ? 'present' : 'not set'
+                    });
+                }
             }
             break;
         }
@@ -12024,10 +12173,10 @@ async function loadTransformersModel(payload) {
     }
 }
 /**
- * Generate text using transformers.js (similar to the examples)
+ * Generate text using transformers.js with inference settings
  */
 async function generateTransformersResponse(payload) {
-    const { messages, settings } = payload;
+    const { messages, message, input, chatId, messageId } = payload;
     if (LOG_TRANSFORMERS) {
         console.log(prefix, `[generateTransformersResponse] Starting generation with payload:`, payload);
         console.log(prefix, `[generateTransformersResponse] isTransformersModelReady:`, isTransformersModelReady);
@@ -12048,17 +12197,109 @@ async function generateTransformersResponse(payload) {
         shouldStopGeneration = false;
         if (LOG_GENERAL)
             console.log(prefix, '[generateTransformersResponse] Starting generation');
+        // Load current inference settings
+        const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getInferenceSettings)();
+        const settings = currentSettings || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS;
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 📊 LOADED INFERENCE SETTINGS:`, {
+                // Core generation parameters
+                temperature: settings.temperature,
+                max_length: settings.max_length,
+                max_new_tokens: settings.max_new_tokens,
+                min_length: settings.min_length,
+                min_new_tokens: settings.min_new_tokens,
+                top_k: settings.top_k,
+                top_p: settings.top_p,
+                typical_p: settings.typical_p,
+                epsilon_cutoff: settings.epsilon_cutoff,
+                eta_cutoff: settings.eta_cutoff,
+                repetition_penalty: settings.repetition_penalty,
+                encoder_repetition_penalty: settings.encoder_repetition_penalty,
+                do_sample: settings.do_sample,
+                // Beam search parameters
+                num_beams: settings.num_beams,
+                num_beam_groups: settings.num_beam_groups,
+                diversity_penalty: settings.diversity_penalty,
+                early_stopping: settings.early_stopping,
+                length_penalty: settings.length_penalty,
+                penalty_alpha: settings.penalty_alpha,
+                // N-gram control
+                no_repeat_ngram_size: settings.no_repeat_ngram_size,
+                encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+                // Token control
+                pad_token_id: settings.pad_token_id,
+                bos_token_id: settings.bos_token_id,
+                eos_token_id: settings.eos_token_id,
+                decoder_start_token_id: settings.decoder_start_token_id,
+                forced_bos_token_id: settings.forced_bos_token_id,
+                forced_eos_token_id: settings.forced_eos_token_id,
+                // Advanced filtering
+                bad_words_ids: settings.bad_words_ids,
+                force_words_ids: settings.force_words_ids,
+                suppress_tokens: settings.suppress_tokens,
+                begin_suppress_tokens: settings.begin_suppress_tokens,
+                // Output control
+                num_return_sequences: settings.num_return_sequences,
+                output_attentions: settings.output_attentions,
+                output_hidden_states: settings.output_hidden_states,
+                output_scores: settings.output_scores,
+                return_dict_in_generate: settings.return_dict_in_generate,
+                // Performance
+                use_cache: settings.use_cache,
+                remove_invalid_values: settings.remove_invalid_values,
+                renormalize_logits: settings.renormalize_logits,
+                // Advanced features
+                guidance_scale: settings.guidance_scale,
+                max_time: settings.max_time,
+                // System prompt
+                system_prompt: settings.system_prompt ? 'present' : 'not set'
+            });
+        }
+        // Prepare messages array
+        let messagesForTemplate = [];
+        // Add system prompt if not already present
+        if (settings.system_prompt && typeof settings.system_prompt === 'string' && settings.system_prompt.trim().length > 0) {
+            if (!(Array.isArray(messages) && messages.some(msg => msg.role === 'system'))) {
+                messagesForTemplate.push({ role: 'system', content: settings.system_prompt });
+            }
+        }
+        // Add user messages
+        if (Array.isArray(messages)) {
+            messagesForTemplate.push(...messages);
+        }
+        else if (message) {
+            messagesForTemplate.push({ role: 'user', content: message });
+        }
+        else if (input) {
+            messagesForTemplate.push({ role: 'user', content: input });
+        }
         // Filter scraped content to reduce context size
-        const filteredMessages = filterScrapedContent(messages);
+        const filteredMessages = filterScrapedContent(messagesForTemplate);
         if (LOG_TRANSFORMERS) {
-            console.log(prefix, `[generateTransformersResponse] Original messages:`, messages.length);
+            console.log(prefix, `[generateTransformersResponse] Original messages:`, messagesForTemplate.length);
             console.log(prefix, `[generateTransformersResponse] Filtered messages:`, filteredMessages.length);
         }
         // Apply chat template with filtered messages
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 📝 MESSAGES FOR CHAT TEMPLATE:`, filteredMessages.map((msg, i) => ({
+                index: i,
+                role: msg.role,
+                contentLength: msg.content.length,
+                contentPreview: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
+            })));
+        }
         const inputs = transformersTokenizer.apply_chat_template(filteredMessages, {
             add_generation_prompt: true,
             return_dict: true,
         });
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 🎭 CHAT TEMPLATE RESULT:`, {
+                inputIdsLength: inputs.input_ids ? inputs.input_ids.length : 'unknown',
+                attentionMaskLength: inputs.attention_mask ? inputs.attention_mask.length : 'unknown',
+                hasInputIds: !!inputs.input_ids,
+                hasAttentionMask: !!inputs.attention_mask
+            });
+        }
         // Accumulate the full generated text for the completion event
         let fullGeneratedText = '';
         // Create streamer for incremental updates
@@ -12072,19 +12313,121 @@ async function generateTransformersResponse(payload) {
                 // Don't log every token to reduce spam
                 self.postMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_UPDATE,
-                    payload: { chatId: payload.chatId, messageId: payload.messageId, token: output }
+                    payload: { chatId, messageId, token: output }
                 });
             }
         });
-        // Generate with the model
-        const result = await transformersModel.generate({
+        // Map our inference settings to transformers.js generate parameters
+        const generateParams = {
             ...inputs,
-            do_sample: true,
-            top_k: 3,
-            temperature: 0.2,
-            max_new_tokens: 512,
+            // Core generation parameters
+            do_sample: settings.do_sample,
+            temperature: settings.temperature,
+            top_k: settings.top_k,
+            top_p: settings.top_p,
+            repetition_penalty: settings.repetition_penalty,
+            max_new_tokens: settings.max_new_tokens,
+            min_length: settings.min_length,
+            max_length: settings.max_length,
+            // Advanced parameters
+            no_repeat_ngram_size: settings.no_repeat_ngram_size,
+            encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+            num_beams: settings.num_beams,
+            num_beam_groups: settings.num_beam_groups,
+            diversity_penalty: settings.diversity_penalty,
+            length_penalty: settings.length_penalty,
+            early_stopping: settings.early_stopping,
+            penalty_alpha: settings.penalty_alpha,
+            // Additional sampling parameters
+            typical_p: settings.typical_p,
+            epsilon_cutoff: settings.epsilon_cutoff,
+            eta_cutoff: settings.eta_cutoff,
+            encoder_repetition_penalty: settings.encoder_repetition_penalty,
+            min_new_tokens: settings.min_new_tokens,
+            guidance_scale: settings.guidance_scale,
+            max_time: settings.max_time,
+            // Token control parameters
+            pad_token_id: settings.pad_token_id,
+            bos_token_id: settings.bos_token_id,
+            eos_token_id: settings.eos_token_id,
+            decoder_start_token_id: settings.decoder_start_token_id,
+            forced_bos_token_id: settings.forced_bos_token_id,
+            forced_eos_token_id: settings.forced_eos_token_id,
+            // Advanced filtering
+            bad_words_ids: settings.bad_words_ids,
+            force_words_ids: settings.force_words_ids,
+            suppress_tokens: settings.suppress_tokens,
+            begin_suppress_tokens: settings.begin_suppress_tokens,
+            // Output parameters
+            return_dict_in_generate: settings.return_dict_in_generate,
+            output_attentions: settings.output_attentions,
+            output_hidden_states: settings.output_hidden_states,
+            output_scores: settings.output_scores,
+            // Cache and performance
+            use_cache: settings.use_cache,
+            // Streamer for real-time output
             streamer: streamer,
+        };
+        // Remove undefined values to avoid passing them to the model
+        // But keep null values as they are valid parameters
+        Object.keys(generateParams).forEach(key => {
+            if (generateParams[key] === undefined) {
+                delete generateParams[key];
+            }
         });
+        if (LOG_TRANSFORMERS_SETTINGS) {
+            console.log(prefix, `[generateTransformersResponse] 🚀 SENDING TO TRANSFORMERS.JS:`, {
+                // Core generation parameters
+                do_sample: generateParams.do_sample,
+                temperature: generateParams.temperature,
+                top_k: generateParams.top_k,
+                top_p: generateParams.top_p,
+                repetition_penalty: generateParams.repetition_penalty,
+                max_new_tokens: generateParams.max_new_tokens,
+                min_length: generateParams.min_length,
+                max_length: generateParams.max_length,
+                // Advanced parameters
+                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
+                encoder_no_repeat_ngram_size: generateParams.encoder_no_repeat_ngram_size,
+                num_beams: generateParams.num_beams,
+                num_beam_groups: generateParams.num_beam_groups,
+                diversity_penalty: generateParams.diversity_penalty,
+                length_penalty: generateParams.length_penalty,
+                early_stopping: generateParams.early_stopping,
+                penalty_alpha: generateParams.penalty_alpha,
+                // Additional sampling parameters
+                typical_p: generateParams.typical_p,
+                epsilon_cutoff: generateParams.epsilon_cutoff,
+                eta_cutoff: generateParams.eta_cutoff,
+                encoder_repetition_penalty: generateParams.encoder_repetition_penalty,
+                min_new_tokens: generateParams.min_new_tokens,
+                guidance_scale: generateParams.guidance_scale,
+                max_time: generateParams.max_time,
+                // Token control parameters
+                pad_token_id: generateParams.pad_token_id,
+                bos_token_id: generateParams.bos_token_id,
+                eos_token_id: generateParams.eos_token_id,
+                decoder_start_token_id: generateParams.decoder_start_token_id,
+                forced_bos_token_id: generateParams.forced_bos_token_id,
+                forced_eos_token_id: generateParams.forced_eos_token_id,
+                // Advanced filtering
+                bad_words_ids: generateParams.bad_words_ids,
+                force_words_ids: generateParams.force_words_ids,
+                suppress_tokens: generateParams.suppress_tokens,
+                begin_suppress_tokens: generateParams.begin_suppress_tokens,
+                // Output parameters
+                return_dict_in_generate: generateParams.return_dict_in_generate,
+                output_attentions: generateParams.output_attentions,
+                output_hidden_states: generateParams.output_hidden_states,
+                output_scores: generateParams.output_scores,
+                // Cache and performance
+                use_cache: generateParams.use_cache,
+                // Special
+                streamer: generateParams.streamer ? 'present' : 'not set'
+            });
+        }
+        // Generate with the model using our settings
+        const result = await transformersModel.generate(generateParams);
         // Only log the final completion, not every token
         if (LOG_TRANSFORMERS)
             console.log(prefix, `[generateTransformersResponse] Generation completed successfully`);

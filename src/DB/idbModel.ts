@@ -15,11 +15,48 @@ export enum QuantStatus {
 export type QuantInfo = {
   files: string[]; // Full paths (rfilename) to all required files for this quant
   status: QuantStatus;
+  dtype: string; // Clean quantization type: "q4f16", "fp16", "fp32", etc.
+  hasExternalData: boolean; // Whether this quant uses external data format (split files)
 };
 
 export const CURRENT_MANIFEST_VERSION = 1;
 // Default size limit - will be overridden by settings
 export const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
+
+/**
+ * Extract clean quantization type from file path
+ * @param filePath - File path like "onnx/model_q4f16.onnx" or "onnx/model.onnx"
+ * @returns Clean dtype like "q4f16", "fp16", "fp32", etc.
+ */
+function extractCleanDtype(filePath: string): string {
+    if (!filePath || typeof filePath !== 'string') {
+        console.log('[extractCleanDtype] Invalid filePath:', filePath);
+        return 'fp32';
+    }
+    
+    // Extract filename from path
+    const filename = filePath.split('/').pop() || filePath;
+    
+    // Remove .onnx extension
+    const nameWithoutExt = filename.replace(/\.onnx$/, '');
+    
+    console.log('[extractCleanDtype] Processing:', filePath, '-> filename:', filename, '-> nameWithoutExt:', nameWithoutExt);
+    
+    // Extract quantization type from filename (check longer patterns first)
+    if (nameWithoutExt.includes('q4f16')) return 'q4f16';
+    if (nameWithoutExt.includes('uint8')) return 'uint8';  // Check uint8 before int8
+    if (nameWithoutExt.includes('int8')) return 'int8';
+    if (nameWithoutExt.includes('bnb4')) return 'bnb4';
+    if (nameWithoutExt.includes('q4')) return 'q4';
+    if (nameWithoutExt.includes('q8')) return 'q8';
+    if (nameWithoutExt.includes('fp16')) return 'fp16';
+    if (nameWithoutExt.includes('fp32')) return 'fp32';
+    if (nameWithoutExt.includes('quantized')) return 'quantized';
+    
+    // Default to fp32 if no match (for "model.onnx" files)
+    console.log('[extractCleanDtype] No match found, defaulting to fp32 for:', filePath);
+    return 'fp32';
+}
 
 // Function to get the current server-only size limit from settings
 export function getServerOnlySizeLimit(): number {
@@ -860,11 +897,21 @@ export async function addQuantToManifest(repo: string, modelPath: string, status
         manifest.quants[modelPath] = {
             files: files && files.length ? files : [modelPath],
             status,
+            dtype: extractCleanDtype(modelPath),
+            hasExternalData: false, // Default to false, will be updated by sidepanel.ts
         };
     } else {
         manifest.quants[modelPath].status = status;
         if (files && files.length) {
             manifest.quants[modelPath].files = files;
+        }
+        // Ensure dtype is set for existing entries
+        if (!manifest.quants[modelPath].dtype) {
+            manifest.quants[modelPath].dtype = extractCleanDtype(modelPath);
+        }
+        // Ensure hasExternalData is set for existing entries
+        if (manifest.quants[modelPath].hasExternalData === undefined) {
+            manifest.quants[modelPath].hasExternalData = false;
         }
     }
     await addManifestEntry(repo, manifest);

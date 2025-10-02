@@ -264,7 +264,6 @@ function setupModelLoadingSettings(container: HTMLElement) {
     if (bypassSmolLM3) bypassSmolLM3.checked = currentSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
     if (bypassPhi35) bypassPhi35.checked = currentSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
     if (bypassPhi35Transformers) bypassPhi35Transformers.checked = currentSettings.bypassModels.has('onnx-community/Phi-3.5-mini-instruct-onnx-web');
-    if (bypassBitnet2B) bypassBitnet2B.checked = currentSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
     if (bypassQwen3) bypassQwen3.checked = currentSettings.bypassModels.has('onnx-community/Qwen3-1.7B-ONNX');
     
     // Setup save button
@@ -294,7 +293,6 @@ function setupModelLoadingSettings(container: HTMLElement) {
             newSettings.bypassModels.delete('HuggingFaceTB/SmolLM3-3B-ONNX');
             newSettings.bypassModels.delete('microsoft/Phi-3.5-mini-instruct-onnx');
             newSettings.bypassModels.delete('onnx-community/Phi-3.5-mini-instruct-onnx-web');
-            newSettings.bypassModels.delete('microsoft/bitnet-b1.58-2B-4T-gguf');
             newSettings.bypassModels.delete('onnx-community/Qwen3-1.7B-ONNX');
             
             if (LOG_DEBUG) console.log(`${prefix} After clearing managed models:`, newSettings);
@@ -304,7 +302,6 @@ function setupModelLoadingSettings(container: HTMLElement) {
             if (bypassSmolLM3?.checked) newSettings.bypassModels.add('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35?.checked) newSettings.bypassModels.add('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassPhi35Transformers?.checked) newSettings.bypassModels.add('onnx-community/Phi-3.5-mini-instruct-onnx-web');
-            if (bypassBitnet2B?.checked) newSettings.bypassModels.add('microsoft/bitnet-b1.58-2B-4T-gguf');
             if (bypassQwen3?.checked) newSettings.bypassModels.add('onnx-community/Qwen3-1.7B-ONNX');
             
             if (LOG_DEBUG) console.log(`${prefix} Final new settings before saving:`, newSettings);
@@ -336,7 +333,6 @@ function setupModelLoadingSettings(container: HTMLElement) {
             if (bypassSmolLM3) bypassSmolLM3.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35) bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassPhi35Transformers) bypassPhi35Transformers.checked = defaultSettings.bypassModels.has('onnx-community/Phi-3.5-mini-instruct-onnx-web');
-            if (bypassBitnet2B) bypassBitnet2B.checked = defaultSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
             
             alert('Model loading settings reset to default!');
         });

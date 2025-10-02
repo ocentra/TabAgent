@@ -7,6 +7,194 @@ body {
 
 }
 
+/* Model Status Colors for Dropdown Options */
+.quant-option-downloaded {
+    background-color: #dcfce7 !important; /* green-100 */
+    color: #166534 !important; /* green-800 */
+    font-weight: 500;
+}
+
+.dark .quant-option-downloaded {
+    background-color: #14532d !important; /* green-900 */
+    color: #bbf7d0 !important; /* green-200 */
+}
+
+/* Currently loaded model - also green but with border */
+.quant-option-currently-loaded {
+    background-color: #dcfce7 !important; /* green-100 */
+    color: #166534 !important; /* green-800 */
+    font-weight: 600;
+    border: 2px solid #10b981 !important; /* emerald-500 */
+}
+
+.dark .quant-option-currently-loaded {
+    background-color: #14532d !important; /* green-900 */
+    color: #bbf7d0 !important; /* green-200 */
+    border: 2px solid #10b981 !important; /* emerald-500 */
+}
+
+/* Force dropdown option styling - more specific selectors */
+#onnx-variant-selector option.quant-option-downloaded {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 500;
+}
+
+#onnx-variant-selector option.quant-option-available {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+#onnx-variant-selector option.quant-option-failed {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    opacity: 0.7;
+}
+
+#onnx-variant-selector option.quant-option-server-only {
+    background-color: #e0e7ff !important;
+    color: #3730a3 !important;
+    font-style: italic;
+}
+
+#onnx-variant-selector option.quant-option-unavailable {
+    background-color: #f3f4f6 !important;
+    color: #6b7280 !important;
+    opacity: 0.6;
+}
+
+#onnx-variant-selector option.quant-option-currently-loaded {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 600;
+    border: 2px solid #10b981 !important;
+}
+
+/* Nuclear option - force all non-status options to be transparent */
+#onnx-variant-selector option {
+    background-color: transparent !important;
+}
+
+#onnx-variant-selector option:not(.quant-option-downloaded):not(.quant-option-available):not(.quant-option-failed):not(.quant-option-server-only):not(.quant-option-unavailable):not(.quant-option-currently-loaded) {
+    background-color: transparent !important;
+    background: transparent !important;
+}
+
+/* Dark mode dropdown options */
+.dark #onnx-variant-selector option.quant-option-downloaded {
+    background-color: #14532d !important;
+    color: #bbf7d0 !important;
+}
+
+.dark #onnx-variant-selector option.quant-option-available {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+.dark #onnx-variant-selector option.quant-option-failed {
+    background-color: #7f1d1d !important;
+    color: #fecaca !important;
+}
+
+.dark #onnx-variant-selector option.quant-option-server-only {
+    background-color: #312e81 !important;
+    color: #c7d2fe !important;
+}
+
+.dark #onnx-variant-selector option.quant-option-unavailable {
+    background-color: #374151 !important;
+    color: #9ca3af !important;
+}
+
+.dark #onnx-variant-selector option.quant-option-currently-loaded {
+    background-color: #14532d !important;
+    color: #bbf7d0 !important;
+    border: 2px solid #10b981 !important;
+}
+
+/* Nuclear option for dark mode - force all non-status options to be transparent */
+.dark #onnx-variant-selector option {
+    background-color: transparent !important;
+}
+
+.dark #onnx-variant-selector option:not(.quant-option-downloaded):not(.quant-option-available):not(.quant-option-failed):not(.quant-option-server-only):not(.quant-option-unavailable):not(.quant-option-currently-loaded) {
+    background-color: transparent !important;
+    background: transparent !important;
+}
+
+/* Override default dropdown styling - remove brown background */
+#onnx-variant-selector {
+    background-color: var(--popup-bg) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Default option styling - transparent background */
+#onnx-variant-selector option {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+/* Force transparent background for all options by default */
+#onnx-variant-selector option:not([class*="quant-option-"]) {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+/* Dark mode default options */
+.dark #onnx-variant-selector option {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+.dark #onnx-variant-selector option:not([class*="quant-option-"]) {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+.quant-option-available {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+.dark .quant-option-available {
+    background-color: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+.quant-option-failed {
+    background-color: #fee2e2 !important; /* red-100 */
+    color: #991b1b !important; /* red-800 */
+    opacity: 0.7;
+}
+
+.dark .quant-option-failed {
+    background-color: #7f1d1d !important; /* red-900 */
+    color: #fecaca !important; /* red-200 */
+}
+
+.quant-option-server-only {
+    background-color: #e0e7ff !important; /* indigo-100 */
+    color: #3730a3 !important; /* indigo-800 */
+    font-style: italic;
+}
+
+.dark .quant-option-server-only {
+    background-color: #312e81 !important; /* indigo-900 */
+    color: #c7d2fe !important; /* indigo-200 */
+}
+
+.quant-option-unavailable {
+    background-color: #f3f4f6 !important; /* gray-100 */
+    color: #6b7280 !important; /* gray-500 */
+    opacity: 0.6;
+}
+
+.dark .quant-option-unavailable {
+    background-color: #374151 !important; /* gray-700 */
+    color: #9ca3af !important; /* gray-400 */
+}
+
+
 
 
 /* Custom scrollbar styling for WebKit browsers (Chrome, Safari) */

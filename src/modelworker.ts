@@ -8,9 +8,7 @@ import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry,
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings } from './Controllers/InferenceSettings';
 import { MESSAGE_EVENT } from './Utilities/eventConstants';
 import ort from 'onnxruntime-web';
-import Module from './wasm/llama_bitnet_inference.js';
-// MediaPipe imports
-import * as MediaPipeGenAI from './assets/mediapipe/genai_bundle.mjs';
+
 
 // Feature flag to switch between ONNX/MediaPipe and transformers.js
 const USE_TRANSFORMERS = true;
@@ -39,13 +37,6 @@ let transformersModel: any = null;
 let isTransformersModelReady = false;
 let isTransformersModelLoading = false;
 
-// Log the imported Module to verify import and see available keys
-console.log('[ModelWorker] llama_bitnet_inference Module:', Module);
-if (Module) {
-    console.log('[ModelWorker] llama_bitnet_inference Module keys:', Object.keys(Module));
-    console.log('[ModelWorker] llama_bitnet_inference typeof:', typeof Module);
-}
-
 // Log transformers.js imports to verify what we have available
 if (LOG_TRANSFORMERS) {
     console.log('[ModelWorker] transformers.js env:', env);
@@ -55,6 +46,10 @@ if (LOG_TRANSFORMERS) {
     console.log('[ModelWorker] transformers.js env.allowLocalModels:', env.allowLocalModels);
     console.log('[ModelWorker] transformers.js env.allowRemoteModels:', env.allowRemoteModels);
     console.log('[ModelWorker] transformers.js env keys:', Object.keys(env));
+    
+    // Let transformers.js use normal flow, but intercept fetch requests
+    // (Our custom fetch override will handle IndexedDB serving)
+    console.log('[ModelWorker] transformers.js will use fetch interception for IndexedDB');
 }
 
 if (_isNavigatorGpuAvailable) {
@@ -98,7 +93,7 @@ const ONNX_ASSETS_ROOT_PATH = 'assets/onnxruntime-web/';
 const ONNX_WASM_FILE_NAME = 'ort-wasm-simd-threaded.jsep.wasm';
 const ONNX_LOADER_FILE_NAME = 'ort-wasm-simd-threaded.jsep.mjs';
 
-const GGUF_WASM_FILE_NAME = 'wasm/llama_bitnet_inference.wasm';
+
 
 async function getOnnxWasmFilePath() {
     const baseUrl = await extBaseUrlReady;
@@ -113,10 +108,6 @@ async function getOnnxWasmRootPath() {
     return baseUrl + ONNX_ASSETS_ROOT_PATH;
 }
 
-async function getLlamaBitnetWasmFilePath() {
-    const baseUrl = await extBaseUrlReady;
-    return baseUrl + GGUF_WASM_FILE_NAME;
-}
 
 (async () => {
     await extBaseUrlReady;
@@ -186,10 +177,6 @@ let eosTokenId: number | undefined = undefined;
 let modelContextLength: number = 2048; // A reasonable default
 let modelInputMetadata: Map<string, { type: string; dims: number[] }> = new Map();
 
-// MediaPipe state variables
-let mediaPipeGenai: any | null = null;
-let mediaPipeLlmInference: any | null = null;
-let isMediaPipeModel: boolean = false;
 
 (async () => {
     const settings = await getInferenceSettings();
@@ -249,7 +236,7 @@ async function handleModelFileRewriting(resourceUrl: string): Promise<string> {
 
     const manifest = await getManifestEntry(currentModelRepoId);
     if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
-        if (resourceUrl.match(/\.(onnx|onnx_data|gguf|bin|pt)$/i)) {
+        if (resourceUrl.match(/\.(onnx|onnx_data|bin|pt)$/i)) {
             await addQuantToManifest(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
         }
         return resourceUrl;
@@ -270,14 +257,14 @@ async function handleModelFileRewriting(resourceUrl: string): Promise<string> {
 }
 
 async function rewriteMainModelFilePath(resourceUrl: string, resourceFileName: string, files: string[]): Promise<string> {
-    if (!resourceFileName.endsWith('.onnx') && !resourceFileName.endsWith('.gguf')) {
+    if (!resourceFileName.endsWith('.onnx')) {
         return resourceUrl;
     }
     const manifestFile = files.find(f => f.endsWith(resourceFileName));
     if (manifestFile && resourceUrl.endsWith(manifestFile)) {
         return resourceUrl;
     }
-    const quantFile = files.find(f => f.endsWith('.onnx') || f.endsWith('.gguf'));
+    const quantFile = files.find(f => f.endsWith('.onnx'));
     if (quantFile) {
         return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${quantFile}`);
     }
@@ -352,7 +339,7 @@ async function saveToDualIndexedDB(resourceUrl: string, blob: Blob, originalInpu
     else if (originalInput instanceof Request) originalUrl = originalInput.url;
     else if (originalInput instanceof URL) originalUrl = originalInput.href;
     
-    const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|gguf|bin|pt)$/i;
+    const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|bin|pt)$/i;
     if (originalUrl && resourceUrl !== originalUrl && !LARGE_FILE_REGEX.test(resourceUrl)) {
         await saveToIndexedDB(originalUrl, blob);
     }
@@ -381,352 +368,84 @@ async function fetchFromNetworkAndCache(input: RequestInfo | URL, resourceUrl: s
 self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Promise<Response> {
     const { url: resourceUrl } = extractResourceUrl(input);
 
+    // Enhanced logging for transformers.js requests
+    if (resourceUrl && (resourceUrl.includes('huggingface.co') || resourceUrl.includes('/resolve/'))) {
+        console.log(prefix, `[Custom Fetch] Transformers.js requesting: ${resourceUrl}`);
+    }
+
     if (resourceUrl) {
-        const finalResourceUrl = await handleModelFileRewriting(resourceUrl);
+        let finalResourceUrl = await handleModelFileRewriting(resourceUrl);
+        
+        // Map transformers.js requests to actual files for ONNX models
+        if (currentModelQuantPath && currentModelQuantPath.includes('.onnx')) {
+            const actualModelFile = currentModelQuantPath.split('/').pop(); // e.g., "model_q4f16.onnx"
+            
+            // Map generic model requests to the actual quantized file
+            if (finalResourceUrl.includes('/model.onnx') || finalResourceUrl.includes('/model.onnx_data')) {
+                const originalUrl = finalResourceUrl;
+                finalResourceUrl = finalResourceUrl.replace('/model.onnx', `/${actualModelFile}`);
+                finalResourceUrl = finalResourceUrl.replace('/model.onnx_data', `/${actualModelFile}`);
+                console.log(prefix, `[Custom Fetch] Mapped ONNX request: ${originalUrl} -> ${finalResourceUrl}`);
+            }
+        }
+        
+        if (finalResourceUrl !== resourceUrl) {
+            console.log(prefix, `[Custom Fetch] URL rewritten: ${resourceUrl} -> ${finalResourceUrl}`);
+        }
         
         if (finalResourceUrl.endsWith('generation_config.json') && finalResourceUrl !== resourceUrl) {
             const configFiles = ['generation_config.json', 'genai_config.json', 'config.json'];
             const fileName = finalResourceUrl.split('/').pop() || '';
             if (!configFiles.includes(fileName)) {
+                console.log(prefix, `[Custom Fetch] Creating empty generation config for: ${fileName}`);
                 return createEmptyGenerationConfig();
             }
         }
         
         if (finalResourceUrl.includes(ONNX_WASM_FILE_NAME)) {
             const wasmPath = await getOnnxWasmFilePath();
+            console.log(prefix, `[Custom Fetch] Serving ONNX WASM from: ${wasmPath}`);
             return originalFetch.call(self, wasmPath, options);
         }
-
+        
+        console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
         const cachedResponse = await tryServeFromIndexedDB(finalResourceUrl);
         if (cachedResponse) {
-            if (LOG_DEBUG) console.log(prefix, `[Custom Fetch] Serving from cache: ${finalResourceUrl}`);
+            console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl}`);
             return cachedResponse;
         } else {
-            if (LOG_DEBUG) console.log(prefix, `[Custom Fetch] Cache miss, proceeding to network fetch: ${finalResourceUrl}`);
+            console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
         }
 
-        if (finalResourceUrl.includes('/resolve/main/') || finalResourceUrl.includes('/resolve/')) {
+        // For any HuggingFace request, download and cache it
+        if (finalResourceUrl.includes('huggingface.co') || finalResourceUrl.includes('/resolve/')) {
+            console.log(prefix, `[Custom Fetch] Downloading and caching HuggingFace file: ${finalResourceUrl}`);
             return await fetchFromNetworkAndCache(input, finalResourceUrl, options);
         }
     }
 
+    console.log(prefix, `[Custom Fetch] Using original fetch for: ${resourceUrl || 'non-URL request'}`);
     return originalFetch.call(self, input, options);
 };
 
-async function handleGgufModel(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
-    const { modelId, modelPath, loadId } = payload;
-    currentLoadId = loadId;
-    currentModelRepoId = modelId;
-    currentModelQuantPath = modelPath;
-    currentTask = payload.task || 'text-generation';
-    isModelReady = false;
 
-    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
 
-    try {
-        const manifest = await getManifestEntry(currentModelRepoId);
-        if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
-            throw new Error(`Manifest or quant path ${currentModelQuantPath} not found for model ${currentModelRepoId}`);
-        }
-        const quantFiles = manifest.quants[currentModelQuantPath].files;
 
-        // Download GGUF model file
-        const ggufFile = quantFiles.find(f => f.endsWith('.gguf'));
-        if (!ggufFile) {
-            throw new Error(`No .gguf file found in manifest for ${currentModelRepoId}/${currentModelQuantPath}`);
-        }
-        const ggufUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${ggufFile}`;
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: ggufFile, progress: 60, loadId } });
-        const ggufResponse = await self.fetch(ggufUrl);
-        if (!ggufResponse.ok) {
-            throw new Error(`Failed to fetch GGUF model ${ggufFile}: ${ggufResponse.statusText}`);
-        }
-        const ggufArrayBuffer = await ggufResponse.arrayBuffer();
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: ggufFile, progress: 80, loaded: ggufArrayBuffer.byteLength, total: ggufArrayBuffer.byteLength, loadId } });
 
-        // Download config.json if present
-        const configJsonPath = quantFiles.find(f => f.endsWith('config.json'));
-        if (configJsonPath) {
-            const configUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${configJsonPath}`;
-            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'config.json', progress: 85, loadId } });
-            const configResponse = await self.fetch(configUrl);
-            if (!configResponse.ok) {
-                throw new Error(`Failed to fetch config.json from ${configUrl}: ${configResponse.statusText}`);
-            }
-            // Optionally parse config if needed in future
-            await configResponse.arrayBuffer();
-        }
-
-        // Download tokenizer if present
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'tokenizer', progress: 90, loadId } });
-        try {
-            await AutoTokenizer.from_pretrained(currentModelRepoId, {
-                revision: 'main',
-                progress_callback: (progressData: any) => {
-                    if (progressData.status === 'progress') {
-                        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...progressData, progress: 90 + (progressData.progress * 0.05), loadId } });
-                    } else if (progressData.status === 'ready' || progressData.status === 'done') {
-                        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: progressData.file || 'tokenizer files', progress: 95, loadId } });
-                    }
-                }
-            });
-        } catch (e) {
-            // Tokenizer is optional for GGUF, so just warn
-            if (LOG_WARN) console.warn(prefix, '[handleGgufModel] Tokenizer not found or failed to load:', e);
-        }
-
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: ggufFile, progress: 100, loadId } });
-        self.postMessage({
-            type: WorkerEventNames.WORKER_READY,
-            payload: { modelId, modelPath, task: currentTask, executionProvider: 'wasm', warning: 'GGUF model loaded (downloaded), but inference is not yet supported.' }
-        });
-        await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
-    } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, `[handleGgufModel] Error loading GGUF model ${modelId} (${modelPath}):`, error);
-        isModelReady = false;
-        currentModelRepoId = null;
-        currentModelQuantPath = null;
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load GGUF model ${modelPath}: ${error.message}` });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: modelPath, error: error.message, loadId } });
-        if (modelId && modelPath) {
-            try {
-                await setManifestQuantStatus(modelId, modelPath, QuantStatus.Failed);
-            } catch (manifestError) {
-                if (LOG_ERROR) console.error(prefix, `[handleGgufModel] Failed to update manifest status on error:`, manifestError);
-            }
-        }
-    } finally {
-        currentLoadId = undefined;
-    }
-}
-
-async function handleGgufGeneration(payload: any) {
-    self.postMessage({
-        type: WorkerEventNames.GENERATION_ERROR,
-        payload: { ...payload, error: 'GGUF model generation is not yet supported (WIP).' }
-    });
-}
-
-async function generateMediaPipeResponse(payload: any): Promise<void> {
-    if (!isModelReady || !mediaPipeLlmInference) {
-        if (LOG_ERROR) console.error(prefix, '[generateMediaPipeResponse] MediaPipe model not ready or missing.');
-        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'MediaPipe model not ready. Please load a model first.' } });
-        return;
-    }
-    
-    // Set generation state
-    isGenerating = true;
-    shouldStopGeneration = false;
-    console.log(prefix, '[generateMediaPipeResponse] MediaPipe generation started. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
-    
-    const { chatId, messageId, messages, message, input } = payload;
-    if (LOG_GENERATION) console.log(prefix, '[generateMediaPipeResponse] Received payload:', JSON.stringify(payload));
-
-    try {
-        // Prepare input prompt
-        let inputPrompt = '';
-        if (Array.isArray(messages)) {
-            // Convert messages to a simple prompt format for MediaPipe
-            inputPrompt = messages.map(msg => `${msg.role}: ${msg.content}`).join('\n');
-        } else if (message) {
-            inputPrompt = message;
-        } else if (input) {
-            inputPrompt = input;
-        }
-
-        if (LOG_GENERATION) console.log(prefix, '[generateMediaPipeResponse] Input prompt:', inputPrompt);
-
-        // Generate response with streaming
-        let fullResponse = '';
-        const response = await mediaPipeLlmInference.generateResponse(
-            inputPrompt,
-            (partialResult: string, done: boolean) => {
-                if (LOG_GENERATION) console.log(prefix, '[generateMediaPipeResponse] Partial result:', partialResult, 'Done:', done);
-                
-                // Check if generation should be stopped
-                if (shouldStopGeneration) {
-                    console.log(prefix, '[generateMediaPipeResponse] Generation stopped by user request');
-                    return;
-                }
-                
-                fullResponse += partialResult;
-                
-                // Send partial result to UI
-                if (partialResult) {
-                    self.postMessage({ 
-                        type: WorkerEventNames.GENERATION_UPDATE, 
-                        payload: { chatId, messageId, token: partialResult } 
-                    });
-                }
-                
-                if (done) {
-                    console.log(prefix, '[generateMediaPipeResponse] MediaPipe generation completed');
-                }
-            }
-        );
-
-        // Handle non-streaming response (fallback)
-        if (!response && fullResponse) {
-            if (LOG_GENERATION) console.log(prefix, '[generateMediaPipeResponse] Using accumulated response:', fullResponse);
-        } else if (response && typeof response === 'string') {
-            fullResponse = response;
-            if (LOG_GENERATION) console.log(prefix, '[generateMediaPipeResponse] Using direct response:', fullResponse);
-        }
-
-        // Send completion message
-        console.log(prefix, '[generateMediaPipeResponse] Generation finished. shouldStopGeneration:', shouldStopGeneration, 'fullResponse length:', fullResponse.length);
-        if (shouldStopGeneration) {
-            console.log(prefix, '[generateMediaPipeResponse] Sending GENERATION_STOPPED message');
-            self.postMessage({ type: WorkerEventNames.GENERATION_STOPPED, payload: { ...payload, output: fullResponse, generatedText: fullResponse } });
-        } else {
-            console.log(prefix, '[generateMediaPipeResponse] Sending GENERATION_COMPLETE message');
-            self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: fullResponse, generatedText: fullResponse } });
-        }
-
-    } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, '[generateMediaPipeResponse] Error during MediaPipe generation:', error, error.stack);
-        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: error.message || String(error) } });
-    } finally {
-        // Reset generation state
-        console.log(prefix, '[generateMediaPipeResponse] Resetting generation state. isGenerating: false, shouldStopGeneration: false');
-        isGenerating = false;
-        shouldStopGeneration = false;
-    }
-}
-
-async function loadMediaPipeModel(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
-    const { modelId, modelPath, loadId } = payload;
-        currentLoadId = loadId;
-        currentModelRepoId = modelId;
-        currentModelQuantPath = modelPath;
-    currentTask = payload.task || 'text-generation';
-    isModelReady = false;
-    isMediaPipeModel = true;
-        
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
-        
-    try {
-        // Initialize MediaPipe with local WASM files
-        if (LOG_GENERAL) console.log(prefix, `[loadMediaPipeModel] Initializing MediaPipe with local WASM files`);
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'mediapipe-wasm', progress: 10, loadId } });
-        
-        // Get extension base URL from the message we receive
-        const extensionBaseUrl = await extBaseUrlReady;
-        mediaPipeGenai = await MediaPipeGenAI.FilesetResolver.forGenAiTasks(
-            extensionBaseUrl + 'assets/mediapipe/wasm/'
-        );
-        
-        if (LOG_GENERAL) console.log(prefix, `[loadMediaPipeModel] MediaPipe FilesetResolver initialized successfully`);
-
-        // Get manifest entry for model files
-        const manifest = await getManifestEntry(currentModelRepoId);
-        if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
-            throw new Error(`Manifest or quant path ${currentModelQuantPath} not found for model ${currentModelRepoId}`);
-        }
-        const quantFiles = manifest.quants[currentModelQuantPath].files;
-        
-        // Find the model file (.litertlm or .task)
-        const modelFile = quantFiles.find(f => f.endsWith('.litertlm') || f.endsWith('.task'));
-        if (!modelFile) {
-            throw new Error(`No .litertlm or .task file found in manifest for ${currentModelRepoId}/${currentModelQuantPath}`);
-        }
-
-        // Download model file using existing caching system
-        const modelUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${modelFile}`;
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: modelFile, progress: 30, loadId } });
-        
-        if (LOG_DEBUG) console.log(prefix, `[loadMediaPipeModel] Downloading model from: ${modelUrl}`);
-        const modelResponse = await self.fetch(modelUrl);
-        if (!modelResponse.ok) {
-            throw new Error(`Failed to fetch MediaPipe model ${modelFile}: ${modelResponse.statusText}`);
-        }
-        
-        const modelArrayBuffer = await modelResponse.arrayBuffer();
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: modelFile, progress: 60, loaded: modelArrayBuffer.byteLength, total: modelArrayBuffer.byteLength, loadId } });
-
-        // Create blob URL for MediaPipe to load
-        const modelBlob = new Blob([modelArrayBuffer]);
-        const modelBlobUrl = URL.createObjectURL(modelBlob);
-        
-        if (LOG_DEBUG) console.log(prefix, `[loadMediaPipeModel] Created blob URL for model: ${modelBlobUrl}`);
-
-        // Initialize MediaPipe LLM Inference
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'mediapipe-init', progress: 80, loadId } });
-        
-        const {
-            temperature = 0.8, top_k = 40, max_new_tokens = 1000,
-        } = inferenceSettings;
-
-        mediaPipeLlmInference = await MediaPipeGenAI.LlmInference.createFromOptions(mediaPipeGenai, {
-            baseOptions: {
-                modelAssetPath: modelBlobUrl
-            },
-            maxTokens: max_new_tokens,
-            topK: top_k,
-            temperature: temperature,
-            randomSeed: 101
-        });
-
-        if (LOG_GENERAL) console.log(prefix, `[loadMediaPipeModel] MediaPipe LLM Inference initialized successfully`);
-
-        isModelReady = true;
-        self.postMessage({
-            type: WorkerEventNames.WORKER_READY,
-            payload: { modelId, modelPath, task: currentTask, executionProvider: 'mediapipe', warning: 'MediaPipe model loaded successfully.' }
-        });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: modelFile, progress: 100, loadId } });
-        await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
-
-    } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, `[loadMediaPipeModel] Error loading MediaPipe model ${modelId} (${modelPath}):`, error);
-        isModelReady = false;
-        isMediaPipeModel = false;
-        currentModelRepoId = null;
-        currentModelQuantPath = null;
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load MediaPipe model ${modelPath}: ${error.message}` });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: modelPath, error: error.message, loadId } });
-        if (modelId && modelPath) {
-            try {
-                await setManifestQuantStatus(modelId, modelPath, QuantStatus.Failed);
-            } catch (manifestError) {
-                if (LOG_ERROR) console.error(prefix, `[loadMediaPipeModel] Failed to update manifest status on error:`, manifestError);
-            }
-        }
-    } finally {
-        currentLoadId = undefined;
-    }
-}
-
-async function loadModelInternal(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }): Promise<void> {
+async function loadModelInternal(payload: { modelId: string, dtype: string, task?: string, loadId?: string }): Promise<void> {
     // Feature flag: Use transformers.js implementation
     if (USE_TRANSFORMERS) {
-        await loadTransformersModel(payload);
+        await loadTransformersModel({ modelId: payload.modelId, dtype: payload.dtype, task: payload.task, loadId: payload.loadId });
         return;
     }
     
-    // Check if this is a Google model that needs authentication
-    if (isGoogleModel(payload.modelId)) {
-        await handleGoogleModelLoad(payload);
-        return;
-    }
-    
-    if (payload.modelPath && payload.modelPath.endsWith('.gguf')) {
-        await handleGgufModel(payload);
-        return;
-    }
-    
-    // Check if this is a MediaPipe-compatible model
-    if (isMediaPipeCompatibleModel(payload.modelId, payload.modelPath)) {
-        await loadMediaPipeModel(payload);
-        return;
-    }
-    await webgpuCheckPromise; 
-    const { modelId, modelPath, task, loadId } = payload;
-    if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Starting to load. Model ID: ${modelId}, Quant Path: ${modelPath}, Task: ${task}, Load ID: ${loadId}`);
+        await webgpuCheckPromise;
+    const { modelId, dtype, task, loadId } = payload;
+    if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Starting to load. Model ID: ${modelId}, Dtype: ${dtype}, Task: ${task}, Load ID: ${loadId}`);
 
     currentLoadId = loadId;
     currentModelRepoId = modelId;
-    currentModelQuantPath = modelPath;
+    currentModelQuantPath = dtype;
     currentTask = task || 'text-generation';
     isModelReady = false; 
 
@@ -743,7 +462,7 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
     inputNames = [];
     outputNames = [];
 
-    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: modelPath, progress: 0, loadId } });
+    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: dtype, progress: 0, loadId } });
 
     try {
         const manifest = await getManifestEntry(currentModelRepoId);
@@ -901,21 +620,21 @@ async function loadModelInternal(payload: { modelId: string, modelPath: string, 
         isModelReady = true;
         self.postMessage({
             type: WorkerEventNames.WORKER_READY,
-            payload: { modelId, modelPath, task, executionProvider: actualExecutionProvider, warning: providerNote }
+            payload: { modelId, modelPath: dtype, task, executionProvider: actualExecutionProvider, warning: providerNote }
         });
         self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: 'session', progress: 100, loadId } });
         await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
 
     } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Error loading model ${modelId} (${modelPath}):`, error);
+        if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Error loading model ${modelId} (${dtype}):`, error);
         isModelReady = false;
         currentModelRepoId = null;
         currentModelQuantPath = null;
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model ${modelPath}: ${error.message}` });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: modelPath, error: error.message, loadId } });
-        if (modelId && modelPath) {
+        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model ${dtype}: ${error.message}` });
+        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: dtype, error: error.message, loadId } });
+        if (modelId && dtype) {
             try {
-                await setManifestQuantStatus(modelId, modelPath, QuantStatus.Failed);
+                await setManifestQuantStatus(modelId, dtype, QuantStatus.Failed);
             } catch (manifestError) {
                 if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Failed to update manifest status on error:`, manifestError);
             }
@@ -932,16 +651,6 @@ async function generateInternal(payload: any): Promise<void> {
         return;
     }
     
-    if (currentModelQuantPath && currentModelQuantPath.endsWith('.gguf')) {
-        await handleGgufGeneration(payload);
-        return;
-    }
-    
-    // Check if this is a MediaPipe model
-    if (isMediaPipeModel && mediaPipeLlmInference) {
-        await generateMediaPipeResponse(payload);
-        return;
-    }
     if (!isModelReady || !onnxSession || !tokenizer || !modelConfig) {
         if (LOG_ERROR) console.error(prefix, '[generateInternal] Model not ready or core components missing.');
         self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'Model not ready. Please load a model first.' } });
@@ -1294,22 +1003,21 @@ self.onmessage = async (event: MessageEvent) => {
             break;
         }
         case WorkerEventNames.INIT: {
-            const { modelId, modelPath, task, loadId } = payload;
+            const { modelId, dtype, task, loadId } = payload;
             if (!modelId) {
                 if(LOG_ERROR) console.error(prefix, `[onmessage] INIT event missing modelId. Payload:`, payload);
                 self.postMessage({ type: WorkerEventNames.ERROR, payload: `Model ID missing in INIT event.` });
                 return;
             }
             
-            // For MediaPipe models, modelPath might be empty since they don't use quantization
-            // We'll determine the correct model path in loadModelInternal
-            if (!modelPath && !isGoogleModel(modelId)) {
-                if(LOG_ERROR) console.error(prefix, `[onmessage] INIT event missing modelPath for non-Google model. Payload:`, payload);
-                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Quant Path missing in INIT event for non-Google model.` });
+
+            if (!dtype) {
+                if(LOG_ERROR) console.error(prefix, `[onmessage] INIT event missing dtype for non-Google model. Payload:`, payload);
+                self.postMessage({ type: WorkerEventNames.ERROR, payload: `Dtype missing in INIT event for non-Google model.` });
                 return;
             }
             
-            await loadModelInternal({ modelId, modelPath, task, loadId });
+            await loadModelInternal({ modelId, dtype, task, loadId });
             return;
         }
         case WorkerEventNames.GENERATE:
@@ -1328,11 +1036,7 @@ self.onmessage = async (event: MessageEvent) => {
             if (onnxSession) {
                 try { await onnxSession.release(); } catch(e) { if (LOG_WARN) console.warn(prefix, "Error releasing ONNX session on reset:", e); }
             }
-            if (mediaPipeLlmInference) {
-                try { await mediaPipeLlmInference.close(); } catch(e) { if (LOG_WARN) console.warn(prefix, "Error closing MediaPipe inference on reset:", e); }
-            }
             onnxSession = null; tokenizer = null; modelConfig = null;
-            mediaPipeGenai = null; mediaPipeLlmInference = null; isMediaPipeModel = false;
             inputNames = []; outputNames = []; isModelReady = false;
             currentModelRepoId = null; currentModelQuantPath = null; currentTask = null;
             numAttentionHeads = undefined; numKeyValueHeads = undefined; headDim = undefined; eosTokenId = undefined;
@@ -1349,7 +1053,8 @@ self.onmessage = async (event: MessageEvent) => {
             await handleModelSourceSelection(payload);
             break;
         case WorkerEventNames.GOOGLE_TERMS_ACCEPTED:
-            await handleGoogleTermsAccepted(payload);
+            // Google authentication removed
+            self.postMessage({ type: WorkerEventNames.ERROR, payload: 'Google authentication is no longer supported.' });
             break;
         default:
             self.postMessage({ type: WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
@@ -1357,31 +1062,14 @@ self.onmessage = async (event: MessageEvent) => {
     }
 };
 
-// Google model detection
-function isGoogleModel(modelId: string): boolean {
-    return modelId.toLowerCase().startsWith('google/');
-}
 
-// MediaPipe model detection
-function isMediaPipeCompatibleModel(modelId: string, modelPath: string): boolean {
-    // Check for Gemma models or .litertlm/.task files
-    const isGemmaModel = modelId.toLowerCase().includes('gemma');
-    const isLitertlmFile = modelPath.toLowerCase().endsWith('.litertlm');
-    const isTaskFile = modelPath.toLowerCase().endsWith('.task');
-    
-    // Prefer Web versions for MediaPipe
-    const isWebVersion = modelPath.toLowerCase().includes('-web');
-    
-    if (LOG_DEBUG) console.log(prefix, `[isMediaPipeCompatibleModel] Model: ${modelId}, Path: ${modelPath}, Gemma: ${isGemmaModel}, Litertlm: ${isLitertlmFile}, Web: ${isWebVersion}`);
-    
-    return (isGemmaModel || isLitertlmFile || isTaskFile) && isWebVersion;
-}
+
 
 async function setManifestQuantStatus(repo: string, quant: string, status: QuantStatus) {
   let manifest = await getManifestEntry(repo);
   if (!manifest) return;
   if (!manifest.quants[quant]) {
-    manifest.quants[quant] = { files: [], status };
+    manifest.quants[quant] = { files: [], status, dtype: 'fp32', hasExternalData: false }; // Default values for modelworker-created entries
   } else {
     manifest.quants[quant].status = status;
   }
@@ -1498,67 +1186,10 @@ function sample(logits: Float32Array, generatedIds: number[], options: {
     }
 }
 
-// Google model handling functions
-async function handleGoogleModelLoad(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
-    // If modelPath is empty, determine it from the manifest
-    let actualModelPath = payload.modelPath;
-    if (!actualModelPath) {
-        const manifest = await getManifestEntry(payload.modelId);
-        if (manifest && manifest.quants) {
-            // Find the first available quant (prefer Web versions for MediaPipe)
-            const availableQuants = Object.keys(manifest.quants).filter(quant => 
-                manifest.quants[quant].status === QuantStatus.Available
-            );
-            
-            // Prefer Web versions for MediaPipe models
-            const webQuant = availableQuants.find(quant => quant.toLowerCase().includes('-web'));
-            actualModelPath = webQuant || availableQuants[0];
-            
-            if (LOG_DEBUG) console.log(prefix, `[handleGoogleModelLoad] Determined model path from manifest: ${actualModelPath}`);
-        }
-        
-        if (!actualModelPath) {
-            if (LOG_ERROR) console.error(prefix, `[handleGoogleModelLoad] No available quants found for Google model: ${payload.modelId}`);
-            self.postMessage({ type: WorkerEventNames.ERROR, payload: `No available model variants found for ${payload.modelId}` });
-            return;
-        }
-    }
-    
-    // Update payload with actual model path
-    const updatedPayload = { ...payload, modelPath: actualModelPath };
-    
-    // Check if user has already accepted Google terms
-    const termsAcceptedBlob = await getFromIndexedDB('google_terms_accepted');
-    const termsAccepted = termsAcceptedBlob ? await termsAcceptedBlob.text() === 'true' : false;
-    
-    if (!termsAccepted) {
-        // Show terms acceptance dialog
-        self.postMessage({
-            type: UIEventNames.SHOW_GOOGLE_TERMS_DIALOG,
-            payload: { modelId: updatedPayload.modelId, modelPath: updatedPayload.modelPath, task: updatedPayload.task, loadId: updatedPayload.loadId }
-        });
-        return;
-    }
-    
-    // Check if user has selected a source
-    const selectedSourceBlob = await getFromIndexedDB('selected_model_source');
-    const selectedSource = selectedSourceBlob ? await selectedSourceBlob.text() : null;
-    
-    if (!selectedSource) {
-        // Show source selection dialog
-        self.postMessage({
-            type: UIEventNames.SHOW_MODEL_SOURCE_DIALOG,
-            payload: { modelId: updatedPayload.modelId, modelPath: updatedPayload.modelPath, task: updatedPayload.task, loadId: updatedPayload.loadId }
-        });
-        return;
-    }
-    
-    // Proceed with model loading based on selected source
-    await loadModelFromSource(updatedPayload, selectedSource);
-}
 
-async function handleModelSourceSelection(payload: { modelId: string, source: string, modelPath: string, task?: string, loadId?: string }) {
-    const { modelId, source, modelPath, task, loadId } = payload;
+
+async function handleModelSourceSelection(payload: { modelId: string, source: string, dtype: string, task?: string, loadId?: string }) {
+    const { modelId, source, dtype, task, loadId } = payload;
     
     // Store user's source preference
     await saveToIndexedDB('selected_model_source', new Blob([source], { type: 'text/plain' }));
@@ -1566,13 +1197,7 @@ async function handleModelSourceSelection(payload: { modelId: string, source: st
     // Handle authentication based on source
     switch (source) {
         case 'huggingface':
-            await handleHuggingFaceAuth(modelId, modelPath, task, loadId);
-            break;
-        case 'kaggle':
-            await handleKaggleAuth(modelId, modelPath, task, loadId);
-            break;
-        case 'google':
-            await handleGoogleAuth(modelId, modelPath, task, loadId);
+            await handleHuggingFaceAuth(modelId, dtype, task, loadId);
             break;
         default:
             if (LOG_ERROR) console.error(prefix, `[handleModelSourceSelection] Unknown source: ${source}`);
@@ -1583,7 +1208,7 @@ async function handleModelSourceSelection(payload: { modelId: string, source: st
     }
 }
 
-async function handleHuggingFaceAuth(modelId: string, modelPath: string, task?: string, loadId?: string) {
+async function handleHuggingFaceAuth(modelId: string, dtype: string, task?: string, loadId?: string) {
     // Check if user is already authenticated
     const hfTokenBlob = await getFromIndexedDB('huggingface_token');
     const hfToken = hfTokenBlob ? await hfTokenBlob.text() : null;
@@ -1592,23 +1217,23 @@ async function handleHuggingFaceAuth(modelId: string, modelPath: string, task?: 
         // Show HuggingFace login dialog
         self.postMessage({
             type: UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG,
-            payload: { modelId, modelPath, task, loadId }
+            payload: { modelId, modelPath: dtype, task, loadId }
         });
         return;
     }
     
     // Proceed with model loading
-    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, hfToken);
+    await loadModelFromHuggingFace(modelId, dtype, task, loadId, hfToken);
 }
 
 async function handleHuggingFaceLogin(payload: { token: string, modelId: string, modelPath: string, task?: string, loadId?: string }) {
-    const { token, modelId, modelPath, task, loadId } = payload;
+    const { token, modelId, modelPath: dtype, task, loadId } = payload;
     
     // Store the token
     await saveToIndexedDB('huggingface_token', new Blob([token], { type: 'text/plain' }));
     
     // Proceed with model loading
-    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, token);
+    await loadModelFromHuggingFace(modelId, dtype, task, loadId, token);
 }
 
 async function handleHuggingFaceLogout() {
@@ -1617,103 +1242,28 @@ async function handleHuggingFaceLogout() {
     if (LOG_GENERAL) console.log(prefix, '[handleHuggingFaceLogout] HuggingFace token removed');
 }
 
-async function handleKaggleAuth(modelId: string, modelPath: string, task?: string, loadId?: string) {
-    // Check if user is already authenticated
-    const kaggleTokenBlob = await getFromIndexedDB('kaggle_token');
-    const kaggleToken = kaggleTokenBlob ? await kaggleTokenBlob.text() : null;
-    
-    if (!kaggleToken) {
-        // Show Kaggle login dialog
-        self.postMessage({
-            type: UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG,
-            payload: { modelId, modelPath, task, loadId }
-        });
-        return;
-    }
-    
-    // Proceed with model loading
-    await loadModelFromKaggle(modelId, modelPath, task, loadId, kaggleToken);
-}
 
-async function handleGoogleAuth(modelId: string, modelPath: string, task?: string, loadId?: string) {
-    // Check if user is already authenticated
-    const googleTokenBlob = await getFromIndexedDB('google_token');
-    const googleToken = googleTokenBlob ? await googleTokenBlob.text() : null;
-    
-    if (!googleToken) {
-        // Show Google login dialog
-        self.postMessage({
-            type: UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG,
-            payload: { modelId, modelPath, task, loadId }
-        });
-        return;
-    }
-    
-    // Proceed with model loading
-    await loadModelFromGoogle(modelId, modelPath, task, loadId, googleToken);
-}
 
-async function loadModelFromSource(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }, source: string) {
-    switch (source) {
-        case 'huggingface':
-            await loadModelFromHuggingFace(payload.modelId, payload.modelPath, payload.task, payload.loadId);
-            break;
-        case 'kaggle':
-            await loadModelFromKaggle(payload.modelId, payload.modelPath, payload.task, payload.loadId);
-            break;
-        case 'google':
-            await loadModelFromGoogle(payload.modelId, payload.modelPath, payload.task, payload.loadId);
-            break;
-        default:
-            if (LOG_ERROR) console.error(prefix, `[loadModelFromSource] Unknown source: ${source}`);
-    }
-}
 
-async function loadModelFromHuggingFace(modelId: string, modelPath: string, task?: string, loadId?: string, token?: string) {
+async function loadModelFromHuggingFace(modelId: string, dtype: string, task?: string, loadId?: string, token?: string) {
     // Add token to your existing fetch interceptor
     if (token) {
         // Update your fetch interceptor to include the token
         // This will be handled in your existing fetch logic
     }
     
-    // Proceed with MediaPipe model loading
-    await loadMediaPipeModel({ modelId, modelPath, task, loadId });
+    // MediaPipe model loading removed
+    self.postMessage({ type: WorkerEventNames.ERROR, payload: 'MediaPipe model loading is no longer supported.' });
 }
 
-async function loadModelFromKaggle(modelId: string, modelPath: string, task?: string, loadId?: string, token?: string) {
-    // Add Kaggle-specific logic here
-    if (LOG_GENERAL) console.log(prefix, `[loadModelFromKaggle] Loading from Kaggle: ${modelId}`);
-    // For now, fallback to HuggingFace
-    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, token);
-}
 
-async function loadModelFromGoogle(modelId: string, modelPath: string, task?: string, loadId?: string, token?: string) {
-    // Add Google-specific logic here
-    if (LOG_GENERAL) console.log(prefix, `[loadModelFromGoogle] Loading from Google: ${modelId}`);
-    // For now, fallback to HuggingFace
-    await loadModelFromHuggingFace(modelId, modelPath, task, loadId, token);
-}
 
-async function handleGoogleTermsAccepted(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
-    // Store terms acceptance
-    await saveToIndexedDB('google_terms_accepted', new Blob(['true'], { type: 'text/plain' }));
-    
-    // Show source selection dialog
-    self.postMessage({
-        type: UIEventNames.SHOW_MODEL_SOURCE_DIALOG,
-        payload: { modelId: payload.modelId, modelPath: payload.modelPath, task: payload.task, loadId: payload.loadId }
-    });
-}
 
 // ============================================================================
 // TRANSFORMERS.JS IMPLEMENTATION
 // ============================================================================
 
-/**
- * Filter scraped content to reduce context size for model inference
- * Extracts only essential fields (title, text, url) from scraped data
- * Handles both direct JSON and markdown-wrapped JSON (```json ... ```)
- */
+
 function filterScrapedContent(messages: Array<{role: string, content: string}>): Array<{role: string, content: string}> {
     if (LOG_TRANSFORMERS) {
         console.log(prefix, `[filterScrapedContent] Processing ${messages.length} messages`);
@@ -1826,139 +1376,91 @@ function filterScrapedContent(messages: Array<{role: string, content: string}>):
 /**
  * Load model using transformers.js (similar to the examples)
  */
-async function loadTransformersModel(payload: { modelId: string, modelPath: string, task?: string, loadId?: string }) {
-    const { modelId, modelPath, task, loadId } = payload;
-    
-    if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Loading model: ${modelId}`);
-    if (LOG_TRANSFORMERS) {
-        console.log(prefix, `[loadTransformersModel] Payload:`, payload);
-        console.log(prefix, `[loadTransformersModel] hasWebGPU:`, hasWebGPU);
-        console.log(prefix, `[loadTransformersModel] env.allowLocalModels:`, env.allowLocalModels);
-        console.log(prefix, `[loadTransformersModel] env.allowRemoteModels:`, env.allowRemoteModels);
-    }
+async function loadTransformersModel(payload: { modelId: string, dtype: string, task?: string, loadId?: string }) {
+    const { modelId, dtype, task, loadId } = payload;
     
     try {
         isTransformersModelLoading = true;
         currentLoadId = loadId;
+        currentModelRepoId = modelId;
         
-        // Try using IndexedDB + blob URL approach first
-        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Trying IndexedDB + blob URL approach for transformers.js`);
+        console.log(prefix, `[loadTransformersModel] Loading: ${modelId}, dtype: ${dtype}`);
         
-        // Send loading started event
-        self.postMessage({ 
-            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-            payload: { status: 'initiate', file: modelPath, progress: 0, loadId } 
-        });
+        // Validate dtype is one of the supported types
+        const validDtypes = ['auto', 'fp32', 'fp16', 'q8', 'int8', 'uint8', 'q4', 'bnb4', 'q4f16', 'quantized'];
+        const modelDtype = validDtypes.includes(dtype) ? dtype as any : 'auto';
         
-        // Load tokenizer
-        if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Loading tokenizer for: ${modelId}`);
-        if (LOG_TRANSFORMERS) {
-            console.log(prefix, `[loadTransformersModel] About to call AutoTokenizer.from_pretrained with modelId: ${modelId}`);
-            console.log(prefix, `[loadTransformersModel] This will trigger fetch requests through your custom fetch override`);
+        // Get hasExternalData from manifest
+        const manifestEntry = await getManifestEntry(modelId);
+        let hasExternalData = false;
+        if (manifestEntry && manifestEntry.quants) {
+            console.log(prefix, `[loadTransformersModel] Available quants in manifest:`, Object.keys(manifestEntry.quants));
+            // Find the quant info for this dtype
+            for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
+                console.log(prefix, `[loadTransformersModel] Checking quant: ${modelPath}, dtype: ${quantInfo.dtype}, hasExternalData: ${quantInfo.hasExternalData}`);
+                if (quantInfo.dtype === dtype) {
+                    hasExternalData = quantInfo.hasExternalData || false;
+                    console.log(prefix, `[loadTransformersModel] Found quant info for ${dtype}: hasExternalData=${hasExternalData} (from ${modelPath})`);
+                    break;
+                }
+            }
+        } else {
+            console.log(prefix, `[loadTransformersModel] No manifest entry found for ${modelId}`);
         }
         
-        // Track last logged percentage for tokenizer
-        let lastTokenizerLoggedPercent = -1;
-        
+        // Load tokenizer and model (like the example)
         transformersTokenizer = await AutoTokenizer.from_pretrained(modelId, {
             progress_callback: (data: any) => {
-                // Always send progress to UI for progress bar updates
                 self.postMessage({ 
                     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
                     payload: { ...data, file: "tokenizer", progress: 10 + (data.progress * 0.15), loadId } 
                 });
-                
-                // Calculate percentage and only log every 10% to reduce console spam
-                if (data.progress !== undefined && data.total !== undefined) {
-                    const percent = Math.round((data.progress / data.total) * 100);
-                    const tensPercent = Math.floor(percent / 10) * 10;
-                    
-                    if (tensPercent > lastTokenizerLoggedPercent) {
-                        // Throttled logging - only every 10% to reduce spam
-                        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Tokenizer progress:`, data);
-                        lastTokenizerLoggedPercent = tensPercent;
-                    }
-                } else if (data.status !== 'progress') {
-                    // Log non-progress status updates (initiate, download, done, etc.)
-                    if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Tokenizer progress:`, data);
-                }
             }
         });
         
-        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Tokenizer loaded:`, transformersTokenizer);
-        
-        // Load model
-        if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Loading model for: ${modelId}`);
-        if (LOG_TRANSFORMERS) {
-            console.log(prefix, `[loadTransformersModel] About to call AutoModelForCausalLM.from_pretrained with modelId: ${modelId}`);
-            console.log(prefix, `[loadTransformersModel] Device: ${hasWebGPU ? "webgpu" : "cpu"}`);
-            console.log(prefix, `[loadTransformersModel] Dtype: q4f16`);
-            console.log(prefix, `[loadTransformersModel] This will also trigger fetch requests through your custom fetch override`);
-        }
-        
-        // Track last logged percentage for model
-        let lastModelLoggedPercent = -1;
-        
-        transformersModel = await AutoModelForCausalLM.from_pretrained(modelId, {
-            dtype: "q4f16",
-            device: hasWebGPU ? "webgpu" : "cpu",
-            use_external_data_format: true,
+        const modelOptions = {
+            ...(modelDtype !== 'auto' && { dtype: modelDtype }),
+            device: (hasWebGPU ? "webgpu" : "cpu") as "webgpu" | "cpu",
+            use_external_data_format: hasExternalData,
             progress_callback: (data: any) => {
-                // Always send progress to UI for progress bar updates
                 self.postMessage({ 
                     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
                     payload: { ...data, file: "model", progress: 30 + (data.progress * 0.6), loadId } 
                 });
-                
-                // Calculate percentage and only log every 10% to reduce console spam
-                if (data.progress !== undefined && data.total !== undefined) {
-                    const percent = Math.round((data.progress / data.total) * 100);
-                    const tensPercent = Math.floor(percent / 10) * 10;
-                    
-                    if (tensPercent > lastModelLoggedPercent) {
-                        // Throttled logging - only every 10% to reduce spam
-                        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Model progress:`, data);
-                        lastModelLoggedPercent = tensPercent;
-                    }
-                } else if (data.status !== 'progress') {
-                    // Log non-progress status updates (initiate, download, done, etc.)
-                    if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Model progress:`, data);
-                }
             }
-        });
+        };
         
-        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Model loaded:`, transformersModel);
+        console.log(prefix, `[loadTransformersModel] Calling AutoModelForCausalLM.from_pretrained with options:`, modelOptions);
+        
+        transformersModel = await AutoModelForCausalLM.from_pretrained(modelId, modelOptions);
         
         isTransformersModelReady = true;
         isTransformersModelLoading = false;
         
-        if (LOG_GENERAL) console.log(prefix, `[loadTransformersModel] Model loaded successfully: ${modelId}`);
-        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] Successfully used IndexedDB + blob URL approach!`);
+        console.log(prefix, `[loadTransformersModel] Model loaded successfully: ${modelId}`);
         
-        // Send loading complete event
+ 
         self.postMessage({
             type: WorkerEventNames.WORKER_READY,
-            payload: { modelId, modelPath, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
+            payload: { modelId, modelPath: dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
         });
         self.postMessage({ 
             type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-            payload: { status: 'done', file: modelPath, progress: 100, loadId } 
+            payload: { status: 'done', file: dtype, progress: 100, loadId } 
         });
         
     } catch (error: any) {
         isTransformersModelLoading = false;
         isTransformersModelReady = false;
         
-        if (LOG_ERROR) console.error(prefix, `[loadTransformersModel] Error loading model:`, error);
-        if (LOG_TRANSFORMERS) console.log(prefix, `[loadTransformersModel] IndexedDB + blob URL approach failed, error:`, error.message);
-        
+        console.error(prefix, `[loadTransformersModel] Error loading model:`, error);
         self.postMessage({ 
             type: WorkerEventNames.ERROR, 
-            payload: `Failed to load model ${modelPath}: ${error.message}` 
+            payload: `Failed to load model ${dtype}: ${error.message}` 
         });
         self.postMessage({ 
             type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-            payload: { status: 'error', file: modelPath, error: error.message, loadId } 
+            payload: { status: 'error', file: dtype, error: error.message, loadId } 
         });
     }
 }

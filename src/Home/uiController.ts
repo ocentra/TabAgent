@@ -5,6 +5,7 @@ import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification, DbMessagesUpdatedNotification } from '../DB/dbEvents';
 import {  QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry } from '../DB/idbModel';
+import { getCurrentLoadedModel } from '../sidepanel';
 
 
 let queryInput: HTMLTextAreaElement | null,
@@ -40,9 +41,9 @@ export const AVAILABLE_MODELS = {
     "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",   
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "HuggingFaceTB/SmolLM3-3B-ONNX": "SmolLM3-3B ONNX",
-    "microsoft/bitnet-b1.58-2B-4T-gguf": "Bitnet2B",
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
-    // Google models will be added dynamically after authentication
+    
+    
 };
 
 export const GOOGLE_MODELS = {
@@ -113,8 +114,8 @@ function attachListeners() {
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
 
-    modelSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
-    quantSelectorDropdown?.addEventListener('change', _handleModelOrVariantChange);
+    modelSelectorDropdown?.addEventListener('change', _handleModelChange);
+    quantSelectorDropdown?.addEventListener('change', _handleQuantizationChange);
     loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
 }
 
@@ -124,8 +125,8 @@ function removeListeners() {
     sendButton?.removeEventListener('click', handleSendButtonClick);
     attachButton?.removeEventListener('click', handleAttachClick);
 
-    modelSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
-    quantSelectorDropdown?.removeEventListener('change', _handleModelOrVariantChange);
+    modelSelectorDropdown?.removeEventListener('change', _handleModelChange);
+    quantSelectorDropdown?.removeEventListener('change', _handleQuantizationChange);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
 }
 
@@ -206,6 +207,21 @@ function handleStatusUpdate(notification: any) {
 document.addEventListener(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e: Event) => {
     handleModelWorkerLoadingProgress((e as CustomEvent).detail);
 });
+
+document.addEventListener(UIEventNames.MODEL_ALREADY_LOADED, (e: Event) => {
+    handleModelAlreadyLoaded((e as CustomEvent).detail);
+});
+
+document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async () => {
+    // This event is now dispatched by both model and quantization change handlers
+    // The dropdown rebuilding is handled by the model change handler
+    // The status updating is handled by both handlers
+    // This listener is kept for any other components that need to respond to selection changes
+    if (LOG_DEBUG) console.log(prefix, 'MODEL_SELECTION_CHANGED event received');
+});
+
+// The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
+// No need for additional event listeners here
 function handleModelWorkerLoadingProgress(payload: any) {
     if (!payload) return;
     if (payload.loadId !== lastSeenLoadId) {
@@ -296,12 +312,131 @@ function handleModelWorkerLoadingProgress(payload: any) {
     }
 }
 
+function handleModelAlreadyLoaded(payload: any) {
+    if (!payload) return;
+    
+    // Reset loading state since the model is already loaded
+    isLoadingModel = false;
+    if (loadModelButton) {
+        loadModelButton.disabled = false;
+        setLoadModelButtonText('Load Model');
+    }
+    enableInput();
+    
+    // Hide the loading status
+    const statusDiv = document.getElementById('model-load-status');
+    if (statusDiv) statusDiv.style.display = 'none';
+    
+    // Reset load tracking
+    lastSeenLoadId = null;
+    
+    if (LOG_GENERAL) console.log(prefix, `Model ${payload.modelId} (${payload.dtype}) is already loaded. UI state reset.`);
+}
 
-export function getCurrentlySelectedModel(): { modelId: string | null; modelPath: string | null } {
-    if (!modelSelectorDropdown || !quantSelectorDropdown) return { modelId: null, modelPath: null };
+// Check IndexedDB status and update dropdown colors in real-time
+async function updateQuantDropdownStatusFromDB() {
+    console.log('[UIController] updateQuantDropdownStatusFromDB called');
+    const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
+    const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+    
+    if (!modelDropdown || !quantDropdown) {
+        console.log('[UIController] Dropdowns not found');
+        return;
+    }
+    
+    const selectedModel = modelDropdown.value;
+    console.log('[UIController] Selected model:', selectedModel);
+    if (!selectedModel || !repoQuantsCache[selectedModel]) {
+        console.log('[UIController] No model selected or not in cache');
+        return;
+    }
+    
+    const manifestEntry = repoQuantsCache[selectedModel];
+    console.log('[UIController] Manifest entry found, checking', Object.keys(manifestEntry.quants).length, 'quants');
+    
+    // Check each quant option's actual IndexedDB status
+    const options = Array.from(quantDropdown.options);
+    console.log('[UIController] Found', options.length, 'quant options to check');
+    
+    for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        const dtype = option.value;
+        console.log('[UIController] Checking quant option', i + 1, 'of', options.length, ':', dtype);
+        
+        const modelPath = Object.keys(manifestEntry.quants).find(path => {
+            const quantInfo = manifestEntry.quants[path];
+            const extractedDtype = quantInfo.dtype || extractCleanDtypeFromPath(path);
+            return extractedDtype === dtype;
+        });
+        
+        console.log('[UIController] Found modelPath for', dtype, ':', modelPath);
+        
+        if (modelPath) {
+            const quantInfo = manifestEntry.quants[modelPath];
+            
+            // Check if files are actually in IndexedDB
+            const isInIndexedDB = await checkQuantInIndexedDB(selectedModel, modelPath);
+            console.log('[UIController] Quant', dtype, 'modelPath:', modelPath, 'isInIndexedDB:', isInIndexedDB);
+            
+            // Update the option's class and appearance
+            option.className = ''; // Clear existing classes
+            
+            if (isInIndexedDB) {
+                option.classList.add('quant-option-downloaded');
+                // Update the text to show downloaded status
+                const label = quantKeyToLabel(dtype);
+                option.textContent = `${label} 💾 (Downloaded)`;
+                console.log('[UIController] Set', dtype, 'to downloaded status');
+            } else {
+                // Use the original status from manifest
+                switch (quantInfo.status) {
+                    case QuantStatus.Available:
+                        option.classList.add('quant-option-available');
+                        break;
+                    case QuantStatus.Failed:
+                        option.classList.add('quant-option-failed');
+                        break;
+                    case QuantStatus.ServerOnly:
+                        option.classList.add('quant-option-server-only');
+                        break;
+                    case QuantStatus.Unavailable:
+                        option.classList.add('quant-option-unavailable');
+                        break;
+                }
+            }
+            
+            // Check if this is currently loaded
+            const currentLoadedModel = getCurrentLoadedModel();
+            if (currentLoadedModel && currentLoadedModel.modelId === selectedModel && currentLoadedModel.quant === dtype) {
+                option.classList.add('quant-option-currently-loaded');
+                const label = quantKeyToLabel(dtype);
+                option.textContent = `${label} ▶️ (Currently Loaded)`;
+            }
+        } else {
+            console.log('[UIController] No modelPath found for dtype:', dtype);
+        }
+    }
+    
+    console.log('[UIController] Finished checking all quant options');
+}
+
+// Helper function to check if quant files are in IndexedDB
+async function checkQuantInIndexedDB(modelId: string, modelPath: string): Promise<boolean> {
+    try {
+        // Check if the main model file exists in IndexedDB
+        const modelUrl = `https://huggingface.co/${modelId}/resolve/main/${modelPath}`;
+        const cached = await getFromIndexedDB(modelUrl);
+        return !!cached;
+    } catch (error) {
+        return false;
+    }
+}
+
+export function getCurrentlySelectedModel(): { modelId: string | null; dtype: string | null } {
+    if (!modelSelectorDropdown || !quantSelectorDropdown) return { modelId: null, dtype: null };
     return {
         modelId: modelSelectorDropdown.value || null,
-        modelPath: quantSelectorDropdown.value || null,
+        dtype: quantSelectorDropdown.value || null,
     };
 }
 
@@ -365,12 +500,22 @@ async function updateLoadButtonAndQuantDropdown() {
     if (!modelSelector || !loadModelButton) return;
     
     const selectedModel = modelSelector.value;
+    const selectedQuant = quantSelector?.value;
     const isGoogleModel = selectedModel.toLowerCase().startsWith('google/');
     const isAuthenticated = await isHuggingFaceAuthenticated();
     
+    // Check if this model is already loaded
+    const currentLoadedModel = getCurrentLoadedModel();
+    const isAlreadyLoaded = currentLoadedModel && 
+        currentLoadedModel.modelId === selectedModel && 
+        currentLoadedModel.quant === selectedQuant;
+    
     if (loadModelButton) {
         const loadBtn = loadModelButton as HTMLButtonElement;
-        if (selectedModel && (!isGoogleModel || isAuthenticated)) {
+        if (isAlreadyLoaded) {
+            // Hide button if model is already loaded
+            loadBtn.style.display = 'none';
+        } else if (selectedModel && (!isGoogleModel || isAuthenticated)) {
             loadBtn.style.display = '';
             loadBtn.disabled = false;
             loadBtn.textContent = 'Load Model';
@@ -440,6 +585,9 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
         // Use the new updateModelDropdown function
         await updateModelDropdown();
         
+        // Don't populate quant dropdown here - wait for MANIFEST_UPDATED event
+        // The sidepanel is still processing manifests, so the cache will be empty
+        
         if (loadModelButton) {
             modelSelector.addEventListener('change', async () => {
                 await updateLoadButtonAndQuantDropdown();
@@ -451,6 +599,11 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
     }
 
     if (LOG_INFO) console.log(prefix, "UI Initialization complete.");
+    
+    // Check IndexedDB status for initial dropdown state
+    setTimeout(async () => {
+        await updateQuantDropdownStatusFromDB();
+    }, 1000); // Wait 1 second for everything to be ready
     return { chatBody, queryInput, sendButton, attachButton, fileInput };
 }
 
@@ -570,10 +723,11 @@ function enableInput() {
 
 
 
-async function _handleModelOrVariantChange() { 
+// Handle model changes - rebuild dropdown and update status
+async function _handleModelChange() { 
     if (!modelSelectorDropdown || !quantSelectorDropdown) return;
     const modelId = modelSelectorDropdown.value;
-    let modelPath = quantSelectorDropdown.value;
+    let dtype = quantSelectorDropdown.value;
     
     // For Google models, set the correct quant path (always use the "web" file)
     if (modelId.toLowerCase().startsWith('google/')) {
@@ -585,7 +739,7 @@ async function _handleModelOrVariantChange() {
                 // Find the web quant (should be the only one for Google models)
                 const webQuant = Object.keys(manifest.quants).find(quant => quant.includes('Web'));
                 if (webQuant) {
-                    modelPath = webQuant;
+                    dtype = webQuant;
                 }
             }
         } catch (error) {
@@ -593,7 +747,13 @@ async function _handleModelOrVariantChange() {
         }
     }
     
-    if (LOG_INFO) console.log(prefix, `Model or variant changed by user. Dispatching ${UIEventNames.MODEL_SELECTION_CHANGED}`, { modelId, modelPath });
+    if (LOG_INFO) console.log(prefix, `Model changed by user. Rebuilding dropdown and updating status.`, { modelId, dtype });
+    
+    // Rebuild dropdown for new model (options change)
+    populateQuantDropdownForSelectedRepo();
+    
+    // Update status colors
+    await updateQuantDropdownStatusFromDB();
     
     // Update UI elements based on selection
     await updateLoadButtonAndQuantDropdown();
@@ -604,16 +764,34 @@ async function _handleModelOrVariantChange() {
         if (!isAuthenticated) {
             // For Google models, check authentication on dropdown selection
             document.dispatchEvent(new CustomEvent('GOOGLE_MODEL_AUTHENTICATION', {
-                detail: { modelId, modelPath, loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
+                detail: { modelId, dtype, loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
             }));
             return;
         }
     }
     
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
-        detail: { modelId, modelPath } 
+        detail: { modelId, dtype } 
     }));
+}
 
+// Handle quantization changes - only update status, don't rebuild dropdown
+async function _handleQuantizationChange() { 
+    if (!modelSelectorDropdown || !quantSelectorDropdown) return;
+    const modelId = modelSelectorDropdown.value;
+    const dtype = quantSelectorDropdown.value;
+    
+    if (LOG_INFO) console.log(prefix, `Quantization changed by user. Updating status only.`, { modelId, dtype });
+    
+    // Only update status colors, don't rebuild dropdown (options are the same)
+    await updateQuantDropdownStatusFromDB();
+    
+    // Update UI elements based on selection
+    await updateLoadButtonAndQuantDropdown();
+    
+    document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
+        detail: { modelId, dtype } 
+    }));
 }
 
 // Stub for native app detection
@@ -623,59 +801,35 @@ function isNativeAppAvailable(): boolean {
 }
 
 // Placeholder for future native app/server integration
-function handleServerOnlyModelLoad(modelId: string, modelPath: string) {
+function handleServerOnlyModelLoad(modelId: string, dtype: string) {
     // TODO: Implement native app/server-side model loading logic here
-    if (LOG_INFO) console.log(prefix, `handleServerOnlyModelLoad called for modelId: ${modelId}, modelPath: ${modelPath}`);
+    if (LOG_INFO) console.log(prefix, `handleServerOnlyModelLoad called for modelId: ${modelId}, dtype: ${dtype}`);
     // For now, just show the temporary chat message
     renderTemporaryMessage('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
 
 async function _handleLoadModelButtonClick() {
-    if (!modelSelectorDropdown || !loadModelButton) return;
+    if (!modelSelectorDropdown || !loadModelButton || isLoadingModel) return;
+    
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
         if (LOG_WARN) console.warn(prefix, "Load Model button clicked, but no model selected.");
         return;
     }
-    if (isLoadingModel) return;
-    
-    // Check if this is a Google model that needs authentication
-    if (modelId.toLowerCase().startsWith('google/')) {
-        const isAuthenticated = await isHuggingFaceAuthenticated();
-        if (!isAuthenticated) {
-            // Show authentication dialog
-            document.dispatchEvent(new CustomEvent('GOOGLE_MODEL_AUTHENTICATION', {
-                detail: { modelId, modelPath: '', loadId: Date.now().toString() + Math.random().toString(36).slice(2) }
-            }));
-            return;
-        }
-    }
-    
-    // Check for ServerOnly status
+
     const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
-    let modelPath = quantDropdown ? quantDropdown.value : '';
-    
-    // For Google models, set the correct quant path (always use the "web" file)
-    if (modelId.toLowerCase().startsWith('google/')) {
-        try {
-            const manifest = await getManifestEntry(modelId);
-            if (manifest && manifest.quants) {
-                // Find the web quant (should be the only one for Google models)
-                const webQuant = Object.keys(manifest.quants).find(quant => quant.includes('Web'));
-                if (webQuant) {
-                    modelPath = webQuant;
-                }
-            }
-        } catch (error) {
-            if (LOG_WARN) console.warn(prefix, 'Error getting manifest for Google model:', error);
-        }
-    }
-    
-    const manifestEntry = repoQuantsCache[modelId];
-    if (manifestEntry && manifestEntry.quants[modelPath] && manifestEntry.quants[modelPath].status === QuantStatus.ServerOnly) {
-        handleServerOnlyModelLoad(modelId, modelPath);
+    let dtype = quantDropdown ? quantDropdown.value : '';
+    if (!dtype) {
+        if (LOG_WARN) console.warn(prefix, "Load Model button clicked, but no quantization selected.");
         return;
     }
+    const manifestEntry = repoQuantsCache[modelId];
+    if (manifestEntry && manifestEntry.quants[dtype] && manifestEntry.quants[dtype].status === QuantStatus.ServerOnly) {
+        handleServerOnlyModelLoad(modelId, dtype);
+        return;
+    }
+    
+    // Set loading state
     isLoadingModel = true;
     currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
     const statusDiv = document.getElementById('model-load-status');
@@ -685,10 +839,10 @@ async function _handleLoadModelButtonClick() {
     setLoadModelButtonText('Loading...');
     const badge = document.getElementById('device-badge');
     if (badge) badge.style.display = 'none';
-    const modelPathDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
-    const modelPathFinal = modelPathDropdown ? modelPathDropdown.value : '';
+
+    // Dispatch the request - the sidepanel will handle the "already loaded" check
     document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
-        detail: { modelId, modelPath: modelPathFinal, loadId: currentLoadId }
+        detail: { modelId, dtype, loadId: currentLoadId }
     }));
 }
 
@@ -718,6 +872,8 @@ export async function updateQuantDropdown() {
     }
   }  
   populateQuantDropdownForSelectedRepo();
+  // Update status after populating dropdown
+  await updateQuantDropdownStatusFromDB();
 }
 
 function populateQuantDropdownForSelectedRepo() {
@@ -736,27 +892,7 @@ function populateQuantDropdownForSelectedRepo() {
     return;
   }
 
-  // For Google models, show the quant dropdown with the "web" option
-  if (selectedRepo.startsWith('google/')) {
-    quantDropdown.innerHTML = '';
-    quantDropdown.disabled = false;
-    quantDropdown.style.display = 'block';
-    
-    // Add the "web" quant option for Google models
-    const manifestEntry = repoQuantsCache[selectedRepo];
-    if (manifestEntry && manifestEntry.quants) {
-      const webQuant = Object.keys(manifestEntry.quants).find(quant => quant.includes('Web'));
-      if (webQuant) {
-        const option = document.createElement('option');
-        option.value = webQuant;
-        option.textContent = 'Web (MediaPipe)';
-        quantDropdown.appendChild(option);
-      }
-    }
-    return;
-  } else {
-    quantDropdown.style.display = 'block';
-  }
+  quantDropdown.style.display = 'block';
   
   const manifestEntry = repoQuantsCache[selectedRepo];  
   const prevSelectedModelPath = quantDropdown.value;
@@ -787,23 +923,57 @@ function populateQuantDropdownForSelectedRepo() {
   }
   
   for (const modelPath in manifestEntry.quants) {
+    const quantInfo = manifestEntry.quants[modelPath];
     const option = document.createElement('option');
-    option.value = modelPath;
-    let label = quantKeyToLabel(modelPath);
+    
+    // Handle legacy manifests that don't have dtype field
+    const dtype = quantInfo.dtype || extractCleanDtypeFromPath(modelPath);
+    console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
+    option.value = dtype; // Use clean dtype instead of modelPath
+    let label = quantKeyToLabel(dtype);
     let dot = '⚪'; // default gray
     let statusLabel = '';
-    const status = manifestEntry.quants[modelPath].status;
+    const status = quantInfo.status;
     
-    if (LOG_INFO) console.log(prefix, `populateQuantDropdown: ${modelPath} status:`, status);
+    if (LOG_INFO) console.log(prefix, `populateQuantDropdown: ${dtype} status:`, status);
     
     switch (status) {
-      case QuantStatus.Downloaded: dot = '🟢'; break;
-      case QuantStatus.Available: dot = '🟡'; break;
-      case QuantStatus.Failed: dot = '⛔'; break;
-      case QuantStatus.NotFound: dot = '❌'; break;
-      case QuantStatus.Unavailable: dot = '🚫'; break;
-      case QuantStatus.ServerOnly: dot = '🖥️'; statusLabel = ' (Requires Server)'; break;
+      case QuantStatus.Downloaded: 
+        dot = '💾'; // Downloaded to IndexedDB
+        option.classList.add('quant-option-downloaded');
+        break;
+      case QuantStatus.Available: 
+        dot = '🟡'; 
+        option.classList.add('quant-option-available');
+        break;
+      case QuantStatus.Failed: 
+        dot = '⛔'; 
+        option.classList.add('quant-option-failed');
+        break;
+      case QuantStatus.NotFound: 
+        dot = '❌'; 
+        option.classList.add('quant-option-unavailable');
+        break;
+      case QuantStatus.Unavailable: 
+        dot = '🚫'; 
+        option.classList.add('quant-option-unavailable');
+        break;
+      case QuantStatus.ServerOnly: 
+        dot = '🖥️'; 
+        statusLabel = ' (Requires Server)';
+        option.classList.add('quant-option-server-only');
+        break;
     }
+    
+    // Check if this is the currently loaded model
+    const currentLoadedModel = getCurrentLoadedModel();
+    if (currentLoadedModel && currentLoadedModel.modelId === selectedRepo && currentLoadedModel.quant === dtype) {
+      option.classList.add('quant-option-currently-loaded');
+      // Override the status label to show it's loaded
+      statusLabel = ' (Currently Loaded)';
+      dot = '▶️'; // Use play button for loaded models (active in memory)
+    }
+    
     option.textContent = `${label} ${dot}${statusLabel}`;
     if (status === QuantStatus.ServerOnly) {
       option.disabled = false; // allow selection, but block load
@@ -815,12 +985,19 @@ function populateQuantDropdownForSelectedRepo() {
   if (prevSelectedModelPath && manifestEntry.quants[prevSelectedModelPath]) {
     quantDropdown.value = prevSelectedModelPath;
   }
+  
+  // Update status after populating dropdown
+  setTimeout(async () => {
+    await updateQuantDropdownStatusFromDB();
+  }, 100); // Small delay to ensure DOM is updated
 }
 document.getElementById('model-selector')?.addEventListener('change', onModelDropdownChange);
 
-export function onModelDropdownChange() {
+export async function onModelDropdownChange() {
   // Just populate the dropdown with current cached data - updateQuantDropdown() should have already refreshed it
   populateQuantDropdownForSelectedRepo();
+  // Update status after populating dropdown
+  await updateQuantDropdownStatusFromDB();
 }
 
 
@@ -831,58 +1008,67 @@ window.addEventListener('message', (event: MessageEvent) => {
   }
 });
 
-document.addEventListener(WorkerEventNames.MANIFEST_UPDATED, () => {
+document.addEventListener(WorkerEventNames.MANIFEST_UPDATED, async () => {
     if (LOG_INFO) console.log(prefix, "Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
-    updateQuantDropdown();
+    await updateQuantDropdown();
+    
+    // After manifests are processed, trigger model change logic for initial state
+    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
+    if (modelSelector && modelSelector.value) {
+        await _handleModelChange();
+    }
   });
 
 function setLoadModelButtonText(text: string) {
     if (loadModelButton) loadModelButton.textContent = text;
 }
 
-export function quantKeyToLabel(modelPath: string): string {
-    if (!modelPath || typeof modelPath !== 'string') return String(modelPath);
+/**
+ * Extract clean quantization type from file path (for legacy manifests)
+ * @param filePath - File path like "onnx/model_q4f16.onnx" or "onnx/model.onnx"
+ * @returns Clean dtype like "q4f16", "fp16", "fp32", etc.
+ */
+function extractCleanDtypeFromPath(filePath: string): string {
+    if (!filePath || typeof filePath !== 'string') return 'fp32';
+    
+    // Extract filename from path
+    const filename = filePath.split('/').pop() || filePath;
+    
+    // Remove .onnx extension
+    const nameWithoutExt = filename.replace(/\.onnx$/, '');
+    
+    // Extract quantization type from filename (check longer patterns first)
+    if (nameWithoutExt.includes('q4f16')) return 'q4f16';
+    if (nameWithoutExt.includes('uint8')) return 'uint8';  // Check uint8 before int8
+    if (nameWithoutExt.includes('int8')) return 'int8';
+    if (nameWithoutExt.includes('bnb4')) return 'bnb4';
+    if (nameWithoutExt.includes('q4')) return 'q4';
+    if (nameWithoutExt.includes('q8')) return 'q8';
+    if (nameWithoutExt.includes('fp16')) return 'fp16';
+    if (nameWithoutExt.includes('fp32')) return 'fp32';
+    if (nameWithoutExt.includes('quantized')) return 'quantized';
+    
+    // Default to fp32 if no match (for "model.onnx" files)
+    return 'fp32';
+}
 
-    if (modelPath === 'model.onnx' || modelPath.toLowerCase() === 'onnx') {
-        return 'FP32';
+export function quantKeyToLabel(dtype: string): string {
+    if (!dtype || typeof dtype !== 'string') return String(dtype);
+
+    // Now we work with clean dtypes like "q4f16", "fp16", etc.
+    const cleanDtype = dtype.toLowerCase();
+    
+    switch (cleanDtype) {
+        case 'q4f16': return 'Q4F16';
+        case 'q4': return 'Q4';
+        case 'q8': return 'Q8';
+        case 'bnb4': return 'BNB4';
+        case 'int8': return 'INT8';
+        case 'uint8': return 'UINT8';
+        case 'fp16': return 'FP16';
+        case 'fp32': return 'FP32';
+        case 'quantized': return 'QUANTIZED';
+        default: return 'FP32';
     }
-
-    if (modelPath.endsWith('.gguf')) return 'GGUF';
-
-    const pathParts = modelPath.split('/');
-    let last = pathParts[pathParts.length - 1].toLowerCase();
-    let parent = pathParts.length > 1 ? pathParts[pathParts.length - 2].toLowerCase() : '';
-
-    let device = '';
-    if (parent.includes('cpu')) device = 'CPU';
-    else if (parent.includes('gpu')) device = 'GPU';
-    else if (modelPath.toLowerCase().includes('cpu')) device = 'CPU';
-    else if (modelPath.toLowerCase().includes('gpu')) device = 'GPU';
-
-    let quant = '';
-    let match;
-    if ((match = parent.match(/fp(16|32)/))) quant = 'FP' + match[1];
-    else if ((match = parent.match(/int(4|8)/))) quant = 'INT' + match[1];
-    else if ((match = parent.match(/q4f16/))) quant = 'Q4F16';
-    else if ((match = parent.match(/bnb4/))) quant = 'BNB4';
-    else if ((match = parent.match(/q4/))) quant = 'Q4';
-    else if ((match = parent.match(/uint8/))) quant = 'UINT8';
-    else if ((match = parent.match(/quant/))) quant = 'QUANTIZED';
-    else if ((match = last.match(/fp(16|32)/))) quant = 'FP' + match[1];
-    else if ((match = last.match(/int(4|8)/))) quant = 'INT' + match[1];
-    else if ((match = last.match(/q4f16/))) quant = 'Q4F16';
-    else if ((match = last.match(/bnb4/))) quant = 'BNB4';
-    else if ((match = last.match(/q4/))) quant = 'Q4';
-    else if ((match = last.match(/uint8/))) quant = 'UINT8';
-    else if ((match = last.match(/quant/))) quant = 'QUANTIZED';
-    else if ((match = last.match(/onnx/))) quant = 'FP32';
-
-    let label = '';
-    if (device && quant) label = `${device} ${quant}`;
-    else if (device) label = device;
-    else if (quant) label = quant;
-    else label = 'FP32';
-
-    return label;
 }
 

@@ -45,6 +45,35 @@ import { DBEventNames } from './DB/dbEvents';
 import { llmChannel, logChannel } from './Utilities/dbChannels';
 import { dbChannel } from './DB/idbSchema';
 import { getManifestEntry, fetchRepoFiles, ManifestEntry,CURRENT_MANIFEST_VERSION, QuantStatus, addManifestEntry, getServerOnlySizeLimit, getBypassSizeLimitModels } from './DB/idbModel';
+
+/**
+ * Extract clean quantization type from file path (for legacy manifests)
+ * @param filePath - File path like "onnx/model_q4f16.onnx" or "onnx/model.onnx"
+ * @returns Clean dtype like "q4f16", "fp16", "fp32", etc.
+ */
+function extractCleanDtypeFromPath(filePath: string): string {
+    if (!filePath || typeof filePath !== 'string') return 'fp32';
+    
+    // Extract filename from path
+    const filename = filePath.split('/').pop() || filePath;
+    
+    // Remove .onnx extension
+    const nameWithoutExt = filename.replace(/\.onnx$/, '');
+    
+    // Extract quantization type from filename (check longer patterns first)
+    if (nameWithoutExt.includes('q4f16')) return 'q4f16';
+    if (nameWithoutExt.includes('uint8')) return 'uint8';  // Check uint8 before int8
+    if (nameWithoutExt.includes('int8')) return 'int8';
+    if (nameWithoutExt.includes('bnb4')) return 'bnb4';
+    if (nameWithoutExt.includes('q4')) return 'q4';
+    if (nameWithoutExt.includes('q8')) return 'q8';
+    if (nameWithoutExt.includes('fp16')) return 'fp16';
+    if (nameWithoutExt.includes('fp32')) return 'fp32';
+    if (nameWithoutExt.includes('quantized')) return 'quantized';
+    
+    // Default to fp32 if no match (for "model.onnx" files)
+    return 'fp32';
+}
 import { DbUpdateMessageRequest } from './DB/dbEvents';
 
 import newChatIcon from './assets/icons/NewChat.png';
@@ -312,8 +341,7 @@ function handleModelWorkerMessage(event: MessageEvent) {
   // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
 
   // For use in WORKER_READY case
-  const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
-  const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+
   const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement | null;
 
   switch (type) {
@@ -330,27 +358,34 @@ function handleModelWorkerMessage(event: MessageEvent) {
           if (LOG_DEBUG) console.log(`${prefix} Worker loading status:`, payload);
           break;
       case WorkerEventNames.WORKER_READY: {
-          const { modelId, modelPath, task, fallback, executionProvider, warning } = payload;
+          const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
           modelWorkerState = WorkerEventNames.MODEL_READY;
           currentModelIdInWorker = modelId;
           currentLoadedModel = {
             modelId: modelId,
-            quant: modelPath
+            quant: dtype
           };
           syncToggleLoadButton();
           if (loadBtn) loadBtn.style.display = 'none';
           showDeviceBadge(executionProvider, warning);
+          
+          // Update dropdown to show current model status
+          document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED));
           // Always show what quantization was actually loaded
-          let quantMsg = `Model loaded with quantization: '${modelPath}'.`;
+          let quantMsg = `Model loaded with quantization: '${dtype}'.`;
           if (fallback) {
-            quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${modelPath}' was used.`;
+            quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${dtype}' was used.`;
           }
           utilShowWarning(quantMsg);
           if (warning) {
             utilShowWarning(warning);
           }
           if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} loaded successfully!`);
-          if (LOG_DEBUG) console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${modelPath}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
+          if (LOG_DEBUG) console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${dtype}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
+          
+          // Show success notification
+          const modelDisplayName = modelId.split('/').pop() || modelId;
+          showNotification(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
           break;
       }
       case WorkerEventNames.ERROR:
@@ -372,16 +407,12 @@ function handleModelWorkerMessage(event: MessageEvent) {
           document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
           break;
       case WorkerEventNames.GENERATION_UPDATE:
-          // Streaming token update from worker
           if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
-              // Set generating state when we receive first token
+
               if (!isGenerating) {
                   isGenerating = true;
-                  // Update UI to show stop button
                   updateSendButtonForGeneration(true);
               }
-              // Fetch the current message from the DB (optional, or just append)
-              // For now, just append the token to the message text/content
               sendDbRequestSmart(new DbUpdateMessageRequest(payload.chatId, payload.messageId, {
                   isLoading: true,
                   sender: 'ai',
@@ -392,10 +423,8 @@ function handleModelWorkerMessage(event: MessageEvent) {
           break;
       case WorkerEventNames.GENERATION_COMPLETE: {
           if (LOG_DEBUG) console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
-          // Reset generating state
           isGenerating = false;
           updateSendButtonForGeneration(false);
-          // Use only the clean generatedText from the worker
           if (payload.messageId && activeSessionId) {
               sendDbRequestSmart(new DbUpdateMessageRequest(activeSessionId, payload.messageId, {
                   isLoading: false,
@@ -408,10 +437,8 @@ function handleModelWorkerMessage(event: MessageEvent) {
       }
       case WorkerEventNames.GENERATION_STOPPED: {
           if (LOG_DEBUG) console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
-          // Reset generating state
           isGenerating = false;
           updateSendButtonForGeneration(false);
-          // Handle stopped generation the same as complete, but could add UI indication
           if (payload.messageId && activeSessionId) {
               sendDbRequestSmart(new DbUpdateMessageRequest(activeSessionId, payload.messageId, {
                   isLoading: false,
@@ -423,7 +450,6 @@ function handleModelWorkerMessage(event: MessageEvent) {
           break;
       }
       case WorkerEventNames.GENERATION_ERROR:
-          // Reset generating state on error
           isGenerating = false;
           updateSendButtonForGeneration(false);
           document.dispatchEvent(new CustomEvent(UIEventNames.BACKGROUND_ERROR_RECEIVED, {
@@ -792,6 +818,10 @@ export function isModelLoaded() {
   return modelWorkerState === WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
 }
 
+export function getCurrentLoadedModel() {
+  return currentLoadedModel;
+}
+
 export function isGenerationActive() {
   return isGenerating;
 }
@@ -954,11 +984,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.addEventListener(UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
-      const { modelId, modelPath, loadId } = (e as CustomEvent).detail;
+      const { modelId, dtype, loadId } = (e as CustomEvent).detail;
       if (!modelId) {
           utilShowError('No model selected.');
           return;
       }
+      
+      // Check if the same model is already loaded
+      if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelWorkerState === WorkerEventNames.MODEL_READY) {
+          if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded. Skipping reload.`);
+          showNotification(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
+          
+          // Reset UI loading state since we're not actually loading
+          document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_ALREADY_LOADED, { 
+              detail: { modelId, dtype, loadId } 
+          }));
+          return;
+      }
+      
       if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === WorkerEventNames.ERROR)) {
           if (LOG_DEBUG) console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
           terminateModelWorker();
@@ -994,26 +1037,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       const manifestEntry = await getManifestEntry(modelId);
       const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
 
-      if (LOG_DEBUG) console.log(`${prefix} UI would show: Initializing worker for ${modelId} with modelPath: ${modelPath}, task: ${task}...`);
+      if (LOG_DEBUG) console.log(`${prefix} UI would show: Initializing worker for ${modelId} with dtype: ${dtype}, task: ${task}...`);
       modelWorkerState = WorkerEventNames.LOADING_MODEL;
       currentModelIdInWorker = modelId;
       modelWorker.postMessage({
           type: WorkerEventNames.INIT,
-          payload: { modelId, modelPath, task, loadId }
+          payload: { modelId, dtype, task, loadId }
       });
+    });
+
+    // Handle model selection changes (when user changes dropdown)
+    document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
+      const { modelId, dtype } = (e as CustomEvent).detail || {};
+      console.log(`${prefix} [DEBUG] Model selection changed:`, { modelId, dtype, currentLoadedModel });
+      
+      // This is just a selection change, not a load request
+      // The UI controller will handle updating the dropdown status
+      if (modelId && dtype) {
+        console.log(`${prefix} [DEBUG] Model selection updated to: ${modelId} (${dtype})`);
+        console.log(`${prefix} [DEBUG] Current loaded model:`, currentLoadedModel);
+      }
     });
 
     // Dialog event handlers
 
     document.addEventListener(UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
-      const { modelId, modelPath, task, loadId } = (e as CustomEvent).detail;
+      const { modelId, modelPath: dtype, task, loadId } = (e as CustomEvent).detail;
       const token = await huggingFaceLoginDialog.show(modelId);
       if (token) {
         // Send login event to model worker
         if (modelWorker) {
           modelWorker.postMessage({
             type: WorkerEventNames.HUGGINGFACE_LOGIN,
-            payload: { modelId, modelPath, task, loadId, token }
+            payload: { modelId, modelPath: dtype, task, loadId, token }
           });
         }
       } else {
@@ -1194,14 +1250,13 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
   const dropdownRepos = getModelSelectorOptions(); 
   if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] Dropdown repos to check/update:`, dropdownRepos);
 
-  const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model|litertlm)$/i;
+  const SUPPORTING_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|json|bin|pt|txt|model)$/i;
 
   const processedRepos: string[] = [];
   const skippedRepos: string[] = [];
   const errorRepos: string[] = [];
 
   for (const repo of dropdownRepos) {
-    // --- Check if we should skip existing manifests ---
     if (!forceRebuild) {
       const existingManifest = await getManifestEntry(repo);
       if (existingManifest) {
@@ -1238,7 +1293,7 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
       const quantMap: Record<string, any> = {};
 
       for (const file of siblings) {
-        if (file.rfilename && (file.rfilename.endsWith('.onnx') || file.rfilename.endsWith('.gguf') || file.rfilename.endsWith('.litertlm'))) {
+        if (file.rfilename && file.rfilename.endsWith('.onnx')) {
           const quantKey = file.rfilename; 
           if (!allFileNamesInRepo.has(quantKey)) {
             if (LOG_WARN) console.warn(`${prefix} [ensureManifestForDropdownRepos] Quant model file missing for quantKey: ${quantKey} in repo ${repo}. Skipping this quant.`);
@@ -1323,38 +1378,8 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
                 }
               }
             }
-          } else if (quantKey.endsWith('.gguf')) {
-            const entry = siblings.find(f => f.rfilename === quantKey);
-            if (entry && typeof entry.size === 'number' && entry.size > serverOnlySizeLimit) {
-              // Check if this model is in the bypass list
-              if (!bypassModels.has(repo)) {
-                isServerOnly = true;
-              }
-            }
-          } else if (quantKey.endsWith('.litertlm')) {
-            // For MediaPipe .litertlm files, check the file size directly
-            const entry = siblings.find(f => f.rfilename === quantKey);
-            if (entry && typeof entry.size === 'number' && entry.size > serverOnlySizeLimit) {
-              // Check if this model is in the bypass list
-              if (!bypassModels.has(repo)) {
-                isServerOnly = true;
-                if (LOG_MANIFEST_GENERATION) {
-                  console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} size check:`);
-                  console.log(`${prefix} [ensureManifestForDropdownRepos] - File size: ${entry.size} bytes (${(entry.size / (1024*1024*1024)).toFixed(2)} GB)`);
-                  console.log(`${prefix} [ensureManifestForDropdownRepos] - Size limit: ${serverOnlySizeLimit} bytes (${(serverOnlySizeLimit / (1024*1024*1024)).toFixed(2)} GB)`);
-                  console.log(`${prefix} [ensureManifestForDropdownRepos] - Setting server_only=true (over limit and not bypassed)`);
-                }
-              } else {
-                if (LOG_MANIFEST_GENERATION) {
-                  console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (over limit but bypassed)`);
-                }
-              }
-            } else {
-              if (LOG_MANIFEST_GENERATION) {
-                console.log(`${prefix} [ensureManifestForDropdownRepos] - NOT setting server_only (under limit)`);
-              }
-            }
           }
+          
           const oldStatus = oldManifest?.quants[quantKey]?.status;
           const status = isServerOnly ? QuantStatus.ServerOnly : QuantStatus.Available;
           
@@ -1376,10 +1401,16 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
               fileSizes[fname] = size;
             }
           }
+          // Check if external data file exists for this quant
+          const hasExternalData = allFileNamesInRepo.has(`${quantKey}_data`);
+          console.log(`[ensureManifestForDropdownRepos] ${quantKey} hasExternalData: ${hasExternalData}`);
+          
           quantMap[quantKey] = {
             files: Array.from(currentQuantRequiredFiles).sort(),
             status,
-            fileSizes
+            fileSizes,
+            dtype: extractCleanDtypeFromPath(quantKey),
+            hasExternalData
           };
           if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] For quantKey ${quantKey}, required files:`, quantMap[quantKey].files, `Status: ${status}`, `fileSizes:`, fileSizes);
         }

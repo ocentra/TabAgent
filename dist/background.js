@@ -1807,6 +1807,7 @@ const UIEventNames = Object.freeze({
     MODEL_SELECTION_CHANGED: 'ui:modelSelectionChanged', // When model or ONNX variant dropdown changes
     REQUEST_MODEL_DOWNLOAD_ACTION: 'ui:requestModelDownloadAction', // When user clicks "Download Model" button
     REQUEST_MODEL_EXECUTION: 'ui:requestModelExecution', // When user clicks "Load Model" button (to load into worker)
+    MODEL_ALREADY_LOADED: 'ui:modelAlreadyLoaded', // When model is already loaded and no reload is needed
     WORKER_STATE_CHANGED: 'worker:stateChanged', // Generic event for worker state updates (ready, error, etc.)
     SHOW_GOOGLE_TERMS_DIALOG: 'ui:showGoogleTermsDialog',
     SHOW_MODEL_SOURCE_DIALOG: 'ui:showModelSourceDialog',

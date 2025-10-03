@@ -248,9 +248,22 @@ export class Message extends KnowledgeGraphNode {
   async update(updates: Partial<Omit<Message, 'dbWorker' | 'modelWorker' | 'id' | 'chat_id' | 'timestamp' | 'created_at' | 'type' | 'label' | 'edgesOut' | 'edgesIn' | '_embedding' >>): Promise<void> {
     assertDbWorker(this, 'update', this.constructor.name);
     const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates as any;
-    if (allowedUpdates.appendContent !== undefined) {
-      this.content = (this.content || '') + allowedUpdates.appendContent;
+    // Handle appendText and appendContent together (they're sent with same value)
+    if (allowedUpdates.appendText !== undefined || allowedUpdates.appendContent !== undefined) {
+      const token = allowedUpdates.appendText || allowedUpdates.appendContent;
+      
+      // Handle "Thinking..." replacement logic
+      if (this.content === 'Thinking...' && token) {
+        // First token: replace "Thinking..." with the token
+        this.content = token;
+      } else {
+        // Subsequent tokens: append to existing content
+        this.content = (this.content || '') + token;
+      }
       this.label = this.content;
+      
+      // Clean up both fields
+      delete allowedUpdates.appendText;
       delete allowedUpdates.appendContent;
     }
     if (allowedUpdates.content !== undefined) {

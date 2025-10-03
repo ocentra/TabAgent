@@ -2,47 +2,83 @@
 /* global RequestInfo, RequestInit */
 export {};
 
-import { env, AutoTokenizer, AutoModelForCausalLM, TextStreamer } from '@huggingface/transformers';
+import { env, AutoTokenizer, AutoModelForCausalLM, TextStreamer, InterruptableStoppingCriteria } from '@huggingface/transformers';
 import { WorkerEventNames, UIEventNames } from './events/eventNames';
-import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, addQuantToManifest,  QuantStatus, getInferenceSettings } from './DB/idbModel';
+import {  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, addQuantToManifest,  QuantStatus, getInferenceSettings, CHUNK_SIZE, shouldChunkFile, saveChunkedFileSafe, getChunkInfo, assembleChunks, createStreamingResponseFromChunks } from './DB/idbModel';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings } from './Controllers/InferenceSettings';
 import { MESSAGE_EVENT } from './Utilities/eventConstants';
-import ort from 'onnxruntime-web';
-
-
-// Feature flag to switch between ONNX/MediaPipe and transformers.js
-const USE_TRANSFORMERS = true;
-
 
 
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!(navigator as any).gpu;
 let hasWebGPU: boolean = _isNavigatorGpuAvailable;
 let webgpuCheckPromise: Promise<void> = Promise.resolve();
 const prefix = '[ModelWorker]';
-const LOG_GENERAL = true; // Enable general logs for model loading debugging
-const LOG_DEBUG = true;   // Enable debug logs for model loading debugging
+// Core logging flags
 const LOG_ERROR = true;   // Keep error logs enabled
-const LOG_WARN = true;    // Enable warning logs for model loading debugging
-const LOG_SELF = false;   // Keep self logs disabled
-const LOG_GENERATION = false; // Keep generation logs disabled
-const LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
-const LOG_TRANSFORMERS = true; // Enable transformers.js specific debugging
-const LOG_TRANSFORMERS_SETTINGS = true; // Enable settings comparison logging
+const LOG_WARN = false;   // Disable warning logs
+
+// CORE GENERATION FUNCTIONALITY (what we're focusing on)
+
+const LOG_GEN_PARAMS = false;        // Generation parameters being used
+const LOG_GEN_DETAILED = false;      // Detailed generation process logs
+const LOG_GEN_COMPARISON = false;    // Parameter comparison logs
+const LOG_GEN_ANALYSIS = false;      // Detailed analysis logs
+
+// Legacy Q&A flags (for backward compatibility)
+const LOG_QA_START = true;
+const LOG_QA_OUTPUT = true;
+const LOG_QA_STATS = true;
+
+// Model loading and configuration
+const LOG_MODEL_LOADING = false; // Disable model loading progress
+const LOG_MODEL_CONFIG = false; // Disable detailed model configuration
+const LOG_TOKEN_IDS = false;    // Disable token ID extraction
+
+// Transformers.js specific
+const LOG_TRANSFORMERS = false; // Disable transformers.js debugging
+const LOG_TRANSFORMERS_SETTINGS = false; // Disable settings comparison
+const LOG_GENERATION = false;   // Disable detailed generation parameters
+const LOG_CACHE = false;        // Disable cache operations
+
+// Network and storage
+const LOG_FETCH = false;   // Disable fetch interception logs
+const LOG_CHUNKED = false; // Disable chunked download logs 
+
+// Message processing
+const LOG_MESSAGES = false; 
+
+// Legacy flags (for backward compatibility)
+const LOG_GENERAL = false; 
+const LOG_DEBUG = false;    
+
+// Throttling for high-frequency manifest logs
+let manifestLogCount = 0;
+const MANIFEST_LOG_THROTTLE_INTERVAL = 5; // Log every 5 manifest updates
+
 let currentLoadId: string | undefined = undefined;
 let isGenerating = false;
 let shouldStopGeneration = false;
 
-// Transformers.js specific variables
 let transformersTokenizer: any = null;
 let transformersModel: any = null;
+
+// Example-style global variables (like the working example)
+const stopping_criteria = new InterruptableStoppingCriteria();
+let past_key_values_cache: any = null;
 let isTransformersModelReady = false;
-let isTransformersModelLoading = false;
+
+// Model configuration variables (from workingmodelworker.ts)
+let modelContextLength: number = 2048; // Default context length
+let numAttentionHeads: number | undefined;
+let numKeyValueHeads: number | undefined;
+let headDim: number | undefined;
 
 /**
  * Log all supported transformers.js generate parameters for debugging
  */
 function logSupportedTransformersParameters() {
-    if (LOG_TRANSFORMERS) {
+    if (LOG_TRANSFORMERS_SETTINGS) {
+        if (LOG_TRANSFORMERS) {
         console.log(prefix, '[Transformers.js] Supported generate() parameters:');
         console.log(prefix, '[Transformers.js] Core Generation Parameters:');
         console.log(prefix, '  - do_sample: boolean (whether to use sampling)');
@@ -78,25 +114,26 @@ function logSupportedTransformersParameters() {
         console.log(prefix, '  - stopping_criteria: StoppingCriteriaList (custom stopping)');
         console.log(prefix, '  - logits_processor: LogitsProcessorList (custom logits)');
         console.log(prefix, '[Transformers.js] Reference: https://huggingface.co/docs/transformers.js/en/api/generation/parameters');
+        }
     }
 }
 
 // Log transformers.js imports to verify what we have available
 if (LOG_TRANSFORMERS) {
-    console.log('[ModelWorker] transformers.js env:', env);
-    console.log('[ModelWorker] transformers.js AutoTokenizer:', AutoTokenizer);
-    console.log('[ModelWorker] transformers.js AutoModelForCausalLM:', AutoModelForCausalLM);
-    console.log('[ModelWorker] transformers.js TextStreamer:', TextStreamer);
-    console.log('[ModelWorker] transformers.js env.allowLocalModels:', env.allowLocalModels);
-    console.log('[ModelWorker] transformers.js env.allowRemoteModels:', env.allowRemoteModels);
-    console.log('[ModelWorker] transformers.js env keys:', Object.keys(env));
+    console.log(prefix, '[ModelWorker] transformers.js env:', env);
+    console.log(prefix, '[ModelWorker] transformers.js AutoTokenizer:', AutoTokenizer);
+    console.log(prefix, '[ModelWorker] transformers.js AutoModelForCausalLM:', AutoModelForCausalLM);
+    console.log(prefix, '[ModelWorker] transformers.js TextStreamer:', TextStreamer);
+    console.log(prefix, '[ModelWorker] transformers.js env.allowLocalModels:', env.allowLocalModels);
+    console.log(prefix, '[ModelWorker] transformers.js env.allowRemoteModels:', env.allowRemoteModels);
+    console.log(prefix, '[ModelWorker] transformers.js env keys:', Object.keys(env));
     
-    // Log all supported parameters
     logSupportedTransformersParameters();
     
-    // Let transformers.js use normal flow, but intercept fetch requests
-    // (Our custom fetch override will handle IndexedDB serving)
-    console.log('[ModelWorker] transformers.js will use fetch interception for IndexedDB');
+
+    if (LOG_FETCH) {
+        console.log(prefix, '[ModelWorker] transformers.js will use fetch interception for IndexedDB');
+    }
 }
 
 if (_isNavigatorGpuAvailable) {
@@ -117,8 +154,6 @@ if (_isNavigatorGpuAvailable) {
 }
 
 if(LOG_GENERAL)console.log(prefix, 'WebGPU available in worker (navigator.gpu):', _isNavigatorGpuAvailable);
-console.log('[ModelWorker] ORT:', ort);
-console.log('[ModelWorker] ORT keys:', Object.keys(ort));
 
 env.useBrowserCache = false;
 
@@ -140,8 +175,6 @@ const ONNX_ASSETS_ROOT_PATH = 'assets/onnxruntime-web/';
 const ONNX_WASM_FILE_NAME = 'ort-wasm-simd-threaded.jsep.wasm';
 const ONNX_LOADER_FILE_NAME = 'ort-wasm-simd-threaded.jsep.mjs';
 
-
-
 async function getOnnxWasmFilePath() {
     const baseUrl = await extBaseUrlReady;
     return baseUrl + ONNX_ASSETS_ROOT_PATH + ONNX_WASM_FILE_NAME;
@@ -154,7 +187,6 @@ async function getOnnxWasmRootPath() {
     const baseUrl = await extBaseUrlReady;
     return baseUrl + ONNX_ASSETS_ROOT_PATH;
 }
-
 
 (async () => {
     await extBaseUrlReady;
@@ -208,21 +240,9 @@ self.addEventListener('unhandledrejection', function(e: PromiseRejectionEvent) {
 
 let currentModelRepoId: string | null = null;
 let currentModelQuantPath: string | null = null;
-let onnxSession: any | null = null;
-let tokenizer: any | null = null;
-let modelConfig: Record<string, any> | null = null;
-let inputNames: readonly string[] = [];
-let outputNames: readonly string[] = [];
-let isModelReady: boolean = false;
 let currentTask: string | null = null;
 let envConfig: any = {};
 let inferenceSettings: InferenceSettings = DEFAULT_INFERENCE_SETTINGS;
-let numAttentionHeads: number | undefined;
-let numKeyValueHeads: number | undefined;
-let headDim: number | undefined;
-let eosTokenId: number | undefined = undefined;
-let modelContextLength: number = 2048; // A reasonable default
-let modelInputMetadata: Map<string, { type: string; dims: number[] }> = new Map();
 
 
 (async () => {
@@ -339,6 +359,46 @@ async function tryServeFromIndexedDB(resourceUrl: string): Promise<Response | nu
     
     try {
         if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] Checking cache for: ${resourceUrl}`);
+        
+        const urlParts = resourceUrl.split('/');
+        const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
+        const modelId = currentModelRepoId;
+        
+        if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] DEBUG - Extracted fileName: "${fileName}" from URL: ${resourceUrl}`);
+        
+        if (modelId) {
+            const chunkedInfo = await getChunkInfo(modelId, fileName);
+            if (chunkedInfo.isChunked && chunkedInfo.totalChunks && chunkedInfo.totalSize) {
+                if (LOG_CHUNKED) console.log(prefix, `[tryServeFromIndexedDB] File is chunked: ${chunkedInfo.totalChunks} chunks, ${chunkedInfo.totalSize} bytes`);
+                
+                try {
+                    // For files over 100MB, use streaming to avoid RAM issues
+                    if (chunkedInfo.totalSize > 100 * 1024 * 1024) {
+                        if (LOG_CHUNKED) console.log(prefix, `[tryServeFromIndexedDB] Large file detected (${chunkedInfo.totalSize} bytes), using streaming response`);
+                        return await createStreamingResponseFromChunks(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
+                    } else {
+                        // For smaller chunked files, assemble in memory
+                        const assembledBuffer = await assembleChunks(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
+                        
+                        const headers = new Headers();
+                        if (resourceUrl.endsWith('.json')) {
+                            headers.set('Content-Type', 'application/json');
+                        } else {
+                            headers.set('Content-Type', 'application/octet-stream');
+                        }
+                        headers.set('Content-Length', assembledBuffer.byteLength.toString());
+                        
+                        if (LOG_CHUNKED) console.log(prefix, `[tryServeFromIndexedDB] ✅ SERVING CHUNKED FILE: ${resourceUrl}, size: ${assembledBuffer.byteLength} bytes`);
+                        return new Response(assembledBuffer, { headers });
+                    }
+                } catch (assembleError) {
+                    if (LOG_ERROR) console.error(prefix, `[tryServeFromIndexedDB] Error assembling chunks for ${resourceUrl}:`, assembleError);
+                    // Fall through to regular cache check
+                }
+            }
+        }
+        
+        // Fall back to regular cache check
         const cached = await getFromIndexedDB(resourceUrl);
         if (cached) {
             if (LOG_DEBUG) console.log(prefix, `[tryServeFromIndexedDB] Found cached response for: ${resourceUrl}, size: ${cached.size} bytes`);
@@ -396,17 +456,216 @@ async function fetchFromNetworkAndCache(input: RequestInfo | URL, resourceUrl: s
     const { fetchInput } = determineFetchInput(input, resourceUrl);
     if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] Fetching from: ${resourceUrl}, fetchInput: ${fetchInput}`);
     
+    // Send download start event (progress range: 0-25%)
+    const fileName = resourceUrl.split('/').pop() || 'file';
+    self.postMessage({ 
+        type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+        payload: { 
+            status: 'downloading', 
+            file: fileName, 
+            progress: 0, 
+            loadId: currentLoadId,
+            message: `Starting download of ${fileName}...`
+        } 
+    });
+    
+    // Update manifest status to indicate download started
+    if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
+        if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - Updating manifest status: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}", status=Available`);
+        try {
+            await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Available);
+        } catch (manifestError) {
+            if (LOG_ERROR) console.error(prefix, '[fetchFromNetworkAndCache] Failed to update manifest status on download start:', manifestError);
+        }
+    }
+    
     const resp = await originalFetch.call(self, fetchInput, options);
     if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] Response: status=${resp.status}, statusText=${resp.statusText}, ok=${resp.ok}`);
     if (!resp.ok) {
         return resp;
     }
 
+    // Get content length for progress tracking
+    const contentLength = resp.headers.get('content-length');
+    const totalBytes = contentLength ? parseInt(contentLength, 10) : null;
+    
+    if (totalBytes && totalBytes > 0) {
+        // Stream the response with progress tracking
+        const reader = resp.body?.getReader();
+        if (reader) {
+            const chunks: Uint8Array[] = [];
+            let receivedBytes = 0;
+            
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedBytes += value.length;
+                    
+                    // Calculate progress percentage (map to 0-25% range for downloads)
+                    const downloadProgress = Math.round((receivedBytes / totalBytes) * 25);
+                    
+                    // Send progress update every 5% or every 10MB
+                    if (downloadProgress % 5 === 0 || receivedBytes % (10 * 1024 * 1024) === 0) {
+                        self.postMessage({ 
+                            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+                            payload: { 
+                                status: 'downloading', 
+                                file: fileName, 
+                                progress: downloadProgress, 
+                                loadId: currentLoadId,
+                                loaded: receivedBytes,
+                                total: totalBytes,
+                                message: `Downloading ${fileName}... ${Math.round((receivedBytes / totalBytes) * 100)}% (${(receivedBytes / 1024 / 1024).toFixed(1)}MB / ${(totalBytes / 1024 / 1024).toFixed(1)}MB)`
+                            } 
+                        });
+                    }
+                }
+                
+                // Reconstruct the response from chunks
+                const allChunks = new Uint8Array(receivedBytes);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    allChunks.set(chunk, offset);
+                    offset += chunk.length;
+                }
+                
+                // Send download complete event (25% for download completion)
+                self.postMessage({ 
+                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+                    payload: { 
+                        status: 'downloading', 
+                        file: fileName, 
+                        progress: 25, 
+                        loadId: currentLoadId,
+                        loaded: receivedBytes,
+                        total: totalBytes,
+                        message: `Downloaded ${fileName} (${(receivedBytes / 1024 / 1024).toFixed(1)}MB)`
+                    } 
+                });
+                
+                // Update manifest status to indicate download completed
+                // Note: Manifest status will be updated by loadModelInternal when model loading completes
+                
+                // Create new response with the reconstructed body
+                const blob = new Blob([allChunks]);
+                const fileSize = blob.size;
+                if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - File size detection (streaming): blob.size=${fileSize} bytes (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+                
+                // Check if file should be chunked (large files) - STREAMING PATH
+                if (shouldChunkFile(fileSize)) {
+                    if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Large file detected (${fileSize} bytes), will chunk: ${resourceUrl}`);
+                    if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - File size: ${fileSize}, CHUNK_SIZE: ${CHUNK_SIZE}, shouldChunk: ${shouldChunkFile(fileSize)}`);
+                    
+                    try {
+                        await saveChunkedFileSafe(resourceUrl, blob, currentModelRepoId!);
+                        if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved chunked file: ${resourceUrl}`);
+                        
+                        // Verify chunks were saved
+                        const fileName = resourceUrl.split('/').slice(resourceUrl.split('/').indexOf('main') + 1).join('/');
+                        const manifest = await getFromIndexedDB(`${currentModelRepoId}/${fileName}:manifest`);
+                        if (manifest) {
+                            const manifestData = await manifest.text();
+                            const manifestObj = JSON.parse(manifestData);
+                            if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Chunking verification: ${manifestObj.totalChunks} chunks saved for ${fileName}`);
+                        } else {
+                            if (LOG_ERROR) console.error(prefix, `[fetchFromNetworkAndCache] DEBUG - Chunking verification failed: No manifest found for ${fileName}`);
+                        }
+                    } catch (chunkError) {
+                        if (LOG_ERROR) console.error(prefix, '[fetchFromNetworkAndCache] Error saving chunked file:', resourceUrl, chunkError);
+                        // Fall back to regular storage
+                        await saveToDualIndexedDB(resourceUrl, blob, input);
+                    }
+                } else {
+                    // Regular file storage - STREAMING PATH
+                    if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - Small file (${fileSize} bytes), using regular storage: ${resourceUrl}`);
+                    try {
+                        await saveToDualIndexedDB(resourceUrl, blob, input);
+                        if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - Successfully saved regular file: ${resourceUrl}`);
+                    } catch (dbError) {
+                        if (LOG_ERROR) console.error(prefix, '[IDB TRACE] Error saving to IndexedDB:', resourceUrl, dbError);
+                    }
+                }
+                
+                return new Response(blob, {
+                    status: resp.status,
+                    statusText: resp.statusText,
+                    headers: resp.headers
+                });
+                
+            } finally {
+                reader.releaseLock();
+            }
+        }
+    }
+    
+    // Fallback: if we can't track progress, just download normally
     const blob = await resp.clone().blob();
-    try {
-        await saveToDualIndexedDB(resourceUrl, blob, input);
-    } catch (dbError) {
-        if (LOG_ERROR) console.error(prefix, '[IDB TRACE] Error saving to IndexedDB:', resourceUrl, dbError);
+    const fileSize = blob.size;
+    if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - File size detection: blob.size=${fileSize} bytes (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+    
+    // Send download complete event (25% for download completion)
+    self.postMessage({ 
+        type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+        payload: { 
+            status: 'downloading', 
+            file: fileName, 
+            progress: 25, 
+            loadId: currentLoadId,
+            message: `Downloaded ${fileName} (${(fileSize / 1024 / 1024).toFixed(1)}MB)`
+        } 
+    });
+    
+    // Update manifest status to indicate download completed
+    if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
+        try {
+            await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
+        } catch (manifestError) {
+            if (LOG_ERROR) console.error(prefix, '[fetchFromNetworkAndCache] Failed to update manifest status on download complete:', manifestError);
+        }
+    }
+    
+    // Check if file should be chunked (large files)
+    if (shouldChunkFile(fileSize)) {
+        if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Large file detected (${fileSize} bytes), will chunk: ${resourceUrl}`);
+        if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - File size: ${fileSize}, CHUNK_SIZE: ${CHUNK_SIZE}, shouldChunk: ${shouldChunkFile(fileSize)}`);
+        
+        try {
+            await saveChunkedFileSafe(resourceUrl, blob, currentModelRepoId!);
+            if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved chunked file: ${resourceUrl}`);
+            
+            // Verify chunks were saved
+
+            const urlParts = resourceUrl.split('/');
+            const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
+            const modelId = currentModelRepoId;
+            if (modelId) {
+                const manifestKey = `${modelId}/${fileName}:manifest`;
+                const manifest = await getFromIndexedDB(manifestKey);
+                if (manifest) {
+                    const manifestData = await manifest.text();
+                    const manifestObj = JSON.parse(manifestData);
+                    if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Chunking verification: ${manifestObj.totalChunks} chunks saved for ${fileName}`);
+                } else {
+                    if (LOG_ERROR) console.error(prefix, `[fetchFromNetworkAndCache] DEBUG - Chunking verification failed: No manifest found for ${fileName}`);
+                }
+            }
+        } catch (chunkError) {
+            if (LOG_ERROR) console.error(prefix, '[fetchFromNetworkAndCache] Error saving chunked file:', resourceUrl, chunkError);
+            // Fall back to regular storage
+            await saveToDualIndexedDB(resourceUrl, blob, input);
+        }
+    } else {
+        // Regular file storage
+        if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - Small file (${fileSize} bytes), using regular storage: ${resourceUrl}`);
+        try {
+            await saveToDualIndexedDB(resourceUrl, blob, input);
+            if (LOG_DEBUG) console.log(prefix, `[fetchFromNetworkAndCache] DEBUG - Successfully saved regular file: ${resourceUrl}`);
+        } catch (dbError) {
+            if (LOG_ERROR) console.error(prefix, '[IDB TRACE] Error saving to IndexedDB:', resourceUrl, dbError);
+        }
     }
     
     return resp;
@@ -416,27 +675,30 @@ self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Pr
     const { url: resourceUrl } = extractResourceUrl(input);
 
     // Enhanced logging for transformers.js requests
-    if (resourceUrl && (resourceUrl.includes('huggingface.co') || resourceUrl.includes('/resolve/'))) {
+    if (LOG_FETCH && resourceUrl && (resourceUrl.includes('huggingface.co') || resourceUrl.includes('/resolve/'))) {
         console.log(prefix, `[Custom Fetch] Transformers.js requesting: ${resourceUrl}`);
     }
 
     if (resourceUrl) {
         let finalResourceUrl = await handleModelFileRewriting(resourceUrl);
+        if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
+            if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - Original URL: ${resourceUrl}`);
+            if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - Final URL: ${finalResourceUrl}`);
+        }
         
-        // Map transformers.js requests to actual files for ONNX models
+
         if (currentModelQuantPath && currentModelQuantPath.includes('.onnx')) {
             const actualModelFile = currentModelQuantPath.split('/').pop(); // e.g., "model_q4f16.onnx"
             
-            // Map generic model requests to the actual quantized file
             if (finalResourceUrl.includes('/model.onnx') || finalResourceUrl.includes('/model.onnx_data')) {
                 const originalUrl = finalResourceUrl;
                 finalResourceUrl = finalResourceUrl.replace('/model.onnx', `/${actualModelFile}`);
                 finalResourceUrl = finalResourceUrl.replace('/model.onnx_data', `/${actualModelFile}`);
-                console.log(prefix, `[Custom Fetch] Mapped ONNX request: ${originalUrl} -> ${finalResourceUrl}`);
+                if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Mapped ONNX request: ${originalUrl} -> ${finalResourceUrl}`);
             }
         }
         
-        if (finalResourceUrl !== resourceUrl) {
+        if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
             console.log(prefix, `[Custom Fetch] URL rewritten: ${resourceUrl} -> ${finalResourceUrl}`);
         }
         
@@ -444,589 +706,962 @@ self.fetch = async function(input: RequestInfo | URL, options?: RequestInit): Pr
             const configFiles = ['generation_config.json', 'genai_config.json', 'config.json'];
             const fileName = finalResourceUrl.split('/').pop() || '';
             if (!configFiles.includes(fileName)) {
-                console.log(prefix, `[Custom Fetch] Creating empty generation config for: ${fileName}`);
+                if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Creating empty generation config for: ${fileName}`);
                 return createEmptyGenerationConfig();
             }
         }
         
         if (finalResourceUrl.includes(ONNX_WASM_FILE_NAME)) {
             const wasmPath = await getOnnxWasmFilePath();
-            console.log(prefix, `[Custom Fetch] Serving ONNX WASM from: ${wasmPath}`);
+            if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Serving ONNX WASM from: ${wasmPath}`);
             return originalFetch.call(self, wasmPath, options);
         }
         
-        console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
+        if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
         const cachedResponse = await tryServeFromIndexedDB(finalResourceUrl);
         if (cachedResponse) {
-            console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl}`);
+            if (LOG_FETCH) console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl}`);
             return cachedResponse;
         } else {
-            console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
+            if (LOG_FETCH) console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
         }
 
-        // For any HuggingFace request, download and cache it
         if (finalResourceUrl.includes('huggingface.co') || finalResourceUrl.includes('/resolve/')) {
-            console.log(prefix, `[Custom Fetch] Downloading and caching HuggingFace file: ${finalResourceUrl}`);
+            if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Downloading and caching HuggingFace file: ${finalResourceUrl}`);
             return await fetchFromNetworkAndCache(input, finalResourceUrl, options);
+        } else {
+            if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
+                if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - HuggingFace condition NOT met for: ${finalResourceUrl}`);
+                if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - Contains 'huggingface.co': ${finalResourceUrl.includes('huggingface.co')}`);
+                if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - Contains '/resolve/': ${finalResourceUrl.includes('/resolve/')}`);
+            }
         }
     }
 
-    console.log(prefix, `[Custom Fetch] Using original fetch for: ${resourceUrl || 'non-URL request'}`);
+    if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Using original fetch for: ${resourceUrl || 'non-URL request'}`);
     return originalFetch.call(self, input, options);
 };
 
 
-
-
-
 async function loadModelInternal(payload: { modelId: string, dtype: string, task?: string, loadId?: string }): Promise<void> {
-    // Feature flag: Use transformers.js implementation
-    if (USE_TRANSFORMERS) {
-        await loadTransformersModel({ modelId: payload.modelId, dtype: payload.dtype, task: payload.task, loadId: payload.loadId });
-        return;
-    }
-    
-        await webgpuCheckPromise;
     const { modelId, dtype, task, loadId } = payload;
-    if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Starting to load. Model ID: ${modelId}, Dtype: ${dtype}, Task: ${task}, Load ID: ${loadId}`);
 
+    try {
     currentLoadId = loadId;
     currentModelRepoId = modelId;
     currentModelQuantPath = dtype;
-    currentTask = task || 'text-generation';
-    isModelReady = false; 
-
-    if (onnxSession) {
-        try {
-            await onnxSession.release();
-        } catch (e) {
-            if (LOG_WARN) console.warn(prefix, '[loadModelInternal] Error releasing previous ONNX session:', e);
+        currentTask = task || null;
+        
+        if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Loading: ${modelId}, dtype: ${dtype}`);
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] DEBUG - Full payload received:`, payload);
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] DEBUG - dtype type: ${typeof dtype}, value: "${dtype}"`);
+        
+        // Send initial progress message
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { status: 'initiate', file: dtype, progress: 0, loadId } 
+        });
+        
+        
+        const validDtypes = ['auto', 'fp32', 'fp16', 'q8', 'int8', 'uint8', 'q4', 'bnb4', 'q4f16', 'quantized'];
+        const modelDtype = validDtypes.includes(dtype) ? dtype as any : 'auto';
+        
+        // Get hasExternalData from manifest
+        const manifestEntry = await getManifestEntry(modelId);
+        let hasExternalData = false;
+        if (manifestEntry && manifestEntry.quants) {
+            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Available quants in manifest:`, Object.keys(manifestEntry.quants));
+            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] DEBUG - Looking for dtype: "${dtype}" in manifest entries`);
+            
+            // Find the quant info for this dtype
+            for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
+                if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] DEBUG - Checking quant: "${modelPath}", quantInfo.dtype: "${quantInfo.dtype}", hasExternalData: ${quantInfo.hasExternalData}`);
+                if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] DEBUG - dtype comparison: "${quantInfo.dtype}" === "${dtype}" ? ${quantInfo.dtype === dtype}`);
+                
+                if (quantInfo.dtype === dtype) {
+                    hasExternalData = quantInfo.hasExternalData || false;
+                    if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ✅ Found quant info for ${dtype}: hasExternalData=${hasExternalData} (from ${modelPath})`);
+                    break;
+                }
+            }
+        } else {
+            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] No manifest entry found for ${modelId}`);
         }
-        onnxSession = null;
-    }
-    tokenizer = null;
-    modelConfig = null;
-    inputNames = [];
-    outputNames = [];
+        
+        // Load tokenizer and model with detailed progress tracking
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { 
+                status: 'loading', 
+                file: 'tokenizer', 
+                progress: 10, 
+                loadId,
+                message: 'Loading tokenizer from cache...'
+            } 
+        });
+        
+        transformersTokenizer = await AutoTokenizer.from_pretrained(modelId, {
+            progress_callback: (data: any) => {
 
-    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'initiate', file: dtype, progress: 0, loadId } });
-
-    try {
-        const manifest = await getManifestEntry(currentModelRepoId);
-        if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
-            throw new Error(`Manifest or quant path ${currentModelQuantPath} not found for model ${currentModelRepoId}`);
-        }
-        const quantFiles = manifest.quants[currentModelQuantPath].files;
-
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'tokenizer', progress: 10, loadId } });
-        tokenizer = await AutoTokenizer.from_pretrained(currentModelRepoId, {
-            revision: 'main', 
-            progress_callback: (progressData: any) => {
-                 if (progressData.status === 'progress') {
-                    self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { ...progressData, progress: 10 + (progressData.progress * 0.15), loadId } });
-                 } else if (progressData.status === 'ready' || progressData.status === 'done') {
-                     self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: progressData.file || 'tokenizer files', progress: 25, loadId } });
-                 }
+                let progress = 10; 
+                let status = 'loading';
+                let message = 'Loading tokenizer from cache...';
+                
+                if (data.status === 'progress') {
+                    progress = 25 + (data.progress * 0.15); // 25-40% range for tokenizer
+                    status = 'loading';
+                    message = `Loading tokenizer from cache... ${Math.round(progress)}%`;
+                } else if (data.status === 'ready' || data.status === 'done') {
+                    progress = 40;
+                    status = 'done';
+                    message = 'Tokenizer ready';
+                }
+                
+                self.postMessage({ 
+                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+                    payload: { 
+                        status, 
+                        file: data.file || 'tokenizer', 
+                        progress, 
+                        loadId,
+                        loaded: data.loaded,
+                        total: data.total,
+                        message
+                    } 
+                });
             }
         });
-
-        const configJsonPath = quantFiles.find(f => f.endsWith('config.json'));
-        if (!configJsonPath) {
-            throw new Error(`config.json not found in manifest files for ${currentModelRepoId}/${currentModelQuantPath}`);
-        }
-        const configUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${configJsonPath}`;
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'config.json', progress: 30, loadId } });
-        const configResponse = await self.fetch(configUrl);
-        if (!configResponse.ok) {
-            throw new Error(`Failed to fetch model config.json from ${configUrl}: ${configResponse.statusText}`);
-        }
-        modelConfig = await configResponse.json();
-
-        modelContextLength = modelConfig?.max_position_embeddings || modelConfig?.n_positions || 2048;
-        if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Model context length set to: ${modelContextLength}`);
         
-        // Log model quantization type for debugging
-        if (LOG_GENERAL) {
-            const quantType = currentModelQuantPath ? 
-                (currentModelQuantPath.includes('fp16') ? 'FP16' : 
-                 currentModelQuantPath.includes('bnb4') ? 'BNB4' :
-                 currentModelQuantPath.includes('int8') ? 'INT8' : 'Unknown') : 'Unknown';
-            console.log(prefix, `[loadModelInternal] Model quantization type: ${quantType}`);
+        // Load model configuration to get context length and token IDs
+        let modelConfig: any = null;
+        try {
+            const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
+            if (LOG_TRANSFORMERS) console.log(prefix, '[loadModelInternal] Loading model config from:', configUrl);
+            const configResponse = await self.fetch(configUrl);
+            if (configResponse.ok) {
+                modelConfig = await configResponse.json();
+        if (LOG_TRANSFORMERS) {
+            if (LOG_MODEL_LOADING) console.log(prefix, '[loadModelInternal] Model config loaded:', {
+                max_position_embeddings: modelConfig?.max_position_embeddings,
+                n_positions: modelConfig?.n_positions,
+                max_sequence_length: modelConfig?.max_sequence_length,
+                n_ctx: modelConfig?.n_ctx,
+                context_length: modelConfig?.context_length,
+                eos_token_id: modelConfig?.eos_token_id,
+                pad_token_id: modelConfig?.pad_token_id,
+                bos_token_id: modelConfig?.bos_token_id,
+                tokenizer_class: modelConfig?.tokenizer_class,
+                num_attention_heads: modelConfig?.num_attention_heads,
+                num_key_value_heads: modelConfig?.num_key_value_heads,
+                hidden_size: modelConfig?.hidden_size,
+                n_embd: modelConfig?.n_embd,
+                head_dim: modelConfig?.head_dim,
+                vocab_size: modelConfig?.vocab_size,
+                model_type: modelConfig?.model_type,
+                architectures: modelConfig?.architectures
+            });
         }
-
-        if (modelConfig) {
-            if (tokenizer?.eos_token_id !== null && tokenizer?.eos_token_id !== undefined) {
-                eosTokenId = tokenizer.eos_token_id;
-            } else if (typeof modelConfig.eos_token_id === 'number') {
-                eosTokenId = modelConfig.eos_token_id;
-            } else if (Array.isArray((modelConfig as any).eos_token_ids) && typeof (modelConfig as any).eos_token_ids[0] === 'number') {
-                eosTokenId = (modelConfig as any).eos_token_ids[0];
-            } else if (modelConfig?.tokenizer_class?.includes("LlamaTokenizer")) {
-                eosTokenId = 2;
-            } else if (modelConfig?.tokenizer_class?.includes("GPT2Tokenizer")) {
-                eosTokenId = 50256;
             }
-            if (tokenizer && (tokenizer.pad_token_id === null || tokenizer.pad_token_id === undefined) && eosTokenId !== undefined) {
-                tokenizer.pad_token_id = eosTokenId;
-            }
+        } catch (configError) {
+            if (LOG_ERROR) console.error(prefix, '[loadModelInternal] Failed to load model config:', configError);
         }
+        
 
+        const modelConfigContextLength = modelConfig?.max_position_embeddings || 
+                                       modelConfig?.n_positions || 
+                                       modelConfig?.max_sequence_length ||
+                                       modelConfig?.n_ctx ||
+                                       modelConfig?.context_length;
+        
+        // Get user's current settings as fallback
+        const currentSettings = await getInferenceSettings();
+        const userMaxLength = currentSettings?.max_length || DEFAULT_INFERENCE_SETTINGS.max_length;
+        
+        // Use model config if available, otherwise use user's setting
+        modelContextLength = modelConfigContextLength || userMaxLength;
+        if (LOG_TRANSFORMERS) console.log(prefix, '[loadModelInternal] Model context length extracted:', {
+            modelConfigContextLength: modelConfigContextLength,
+            userMaxLength: userMaxLength,
+            final: modelContextLength,
+            source: modelConfigContextLength ? 'model-config' : 'user-settings'
+        });
+        
+        // Extract model architecture details and store globally
         numAttentionHeads = modelConfig?.num_attention_heads || modelConfig?.n_head || modelConfig?.num_heads;
         const hiddenSize = modelConfig?.hidden_size || modelConfig?.n_embd;
         numKeyValueHeads = modelConfig?.num_key_value_heads || numAttentionHeads;
-
-        if (hiddenSize && numAttentionHeads) {
-            headDim = modelConfig?.head_dim || hiddenSize / numAttentionHeads;
-        }
-
-        const onnxModelFile = currentModelQuantPath;
-        const onnxModelUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${onnxModelFile}`;
-        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Attempting to fetch ONNX model from: ${onnxModelUrl}`);
-        const onnxModelResponse = await self.fetch(onnxModelUrl);
-        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ONNX model fetch response: status=${onnxModelResponse.status}, statusText=${onnxModelResponse.statusText}, ok=${onnxModelResponse.ok}`);
-        if (!onnxModelResponse.ok) {
-            throw new Error(`Failed to fetch ONNX model ${onnxModelFile}: ${onnxModelResponse.statusText}`);
-        }
-        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Converting response to ArrayBuffer...`);
-        let onnxModelArrayBuffer: ArrayBuffer;
-        try {
-            onnxModelArrayBuffer = await onnxModelResponse.arrayBuffer();
-            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ArrayBuffer created successfully, size: ${onnxModelArrayBuffer.byteLength} bytes`);
-        } catch (arrayBufferError) {
-            if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Error converting response to ArrayBuffer:`, arrayBufferError);
-            throw arrayBufferError;
-        }
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: onnxModelFile, progress: 70, loaded: onnxModelArrayBuffer.byteLength, total: onnxModelArrayBuffer.byteLength, loadId } });
-
-        let externalDataConfig: { externalData?: any[] } = {};
-        const onnxDataFilePattern = onnxModelFile.replace(/\.onnx$/, String.raw`\.onnx_data`);
-        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Looking for external data file with pattern: ${onnxDataFilePattern}`);
-        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Available quant files:`, quantFiles);
-        const onnxDataFile = quantFiles.find(f => f.match(new RegExp(onnxDataFilePattern + '$')) || f.match(new RegExp(onnxModelFile + String.raw`.data` + '$')));
-        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Found external data file: ${onnxDataFile}`);
-
-        if (onnxDataFile) {
-            const onnxDataUrl = `https://huggingface.co/${currentModelRepoId}/resolve/main/${onnxDataFile}`;
-            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Attempting to fetch ONNX external data from: ${onnxDataUrl}`);
-            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: onnxDataFile, progress: 75, loadId } });
-            const onnxDataResponse = await self.fetch(onnxDataUrl);
-            if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] ONNX external data fetch response: status=${onnxDataResponse.status}, statusText=${onnxDataResponse.statusText}, ok=${onnxDataResponse.ok}`);
-            if (!onnxDataResponse.ok) {
-                throw new Error(`Failed to fetch ONNX external data ${onnxDataFile}: ${onnxDataResponse.statusText}`);
-            }
-            const onnxDataArrayBuffer = await onnxDataResponse.arrayBuffer();
-            const onnxDataName = onnxDataFile.split('/').pop() || onnxDataFile;
-            
-            if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] External data file: ${onnxDataFile}, name: ${onnxDataName}, size: ${onnxDataArrayBuffer.byteLength} bytes`);
-            
-            externalDataConfig.externalData = [{ path: onnxDataName, data: onnxDataArrayBuffer }];
-            self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: onnxDataFile, progress: 85, loaded: onnxDataArrayBuffer.byteLength, total: onnxDataArrayBuffer.byteLength, loadId } });
-        }
-
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'progress', file: 'session', progress: 90, loadId } });
-        const ortSessionOptions: any = {
-            executionProviders: hasWebGPU ? ['webgpu', 'wasm'] : ['wasm'],
-            graphOptimizationLevel: 'all',
-        };
-        // Note: threads setting is not supported by transformers.js
-        // Threading is handled automatically by the browser/Node.js runtime
-
-        onnxSession = await ort.InferenceSession.create(onnxModelArrayBuffer, { ...ortSessionOptions, ...externalDataConfig });
-        inputNames = onnxSession.inputNames;
-        outputNames = onnxSession.outputNames;
+        headDim = (hiddenSize && numAttentionHeads) ? (modelConfig?.head_dim || hiddenSize / numAttentionHeads) : undefined;
         
-        // Store input metadata for tensor type detection
-        modelInputMetadata.clear();
-        if (onnxSession.inputNames && onnxSession.inputNames.length > 0) {
-            // Try to get input metadata from the session
-            try {
-                // Check if getInputMetadata method exists
-                if (typeof onnxSession.getInputMetadata === 'function') {
-                    const sessionMetadata = await onnxSession.getInputMetadata();
-                    for (const [name, metadata] of Object.entries(sessionMetadata)) {
-                        if (metadata && typeof metadata === 'object' && 'type' in metadata) {
-                            modelInputMetadata.set(name, metadata as { type: string; dims: number[] });
-                        }
-                    }
-                } else {
-                    if (LOG_WARN) console.warn(prefix, '[loadModelInternal] getInputMetadata method not available, using fallback detection');
-                }
-            } catch (e) {
-                if (LOG_WARN) console.warn(prefix, '[loadModelInternal] Could not get input metadata, using fallback detection:', e);
+        if (LOG_TRANSFORMERS) console.log(prefix, '[loadModelInternal] Model architecture:', {
+            numAttentionHeads,
+            hiddenSize,
+            numKeyValueHeads,
+            headDim
+        });
+        
+        // Extract token IDs from tokenizer and config with advanced fallback logic
+        let eosTokenId: number | undefined = undefined;
+        let padTokenId: number | undefined = undefined;
+        let bosTokenId: number | undefined = undefined;
+        
+        if (transformersTokenizer) {
+            // Try tokenizer first
+            eosTokenId = transformersTokenizer.eos_token_id;
+            padTokenId = transformersTokenizer.pad_token_id;
+            bosTokenId = transformersTokenizer.bos_token_id;
+            
+            if (LOG_TRANSFORMERS) {
+                if (LOG_TOKEN_IDS) console.log(prefix, '[loadModelInternal] Tokenizer token IDs:');
+                if (LOG_TOKEN_IDS) console.log(prefix, '  eos_token_id:', eosTokenId);
+                if (LOG_TOKEN_IDS) console.log(prefix, '  pad_token_id:', padTokenId);
+                if (LOG_TOKEN_IDS) console.log(prefix, '  bos_token_id:', bosTokenId);
             }
         }
-
-        let actualExecutionProvider = onnxSession.executionProvider;
-        let providerNote: string | undefined = undefined;
-        if (ortSessionOptions.executionProviders?.includes('webgpu') && actualExecutionProvider !== 'webgpu') {
-            providerNote = 'WebGPU was requested but a different provider was used. Check console for ORT warnings.';
+        
+        // Fallback to model config if tokenizer doesn't have the IDs
+        if (modelConfig) {
+            if (eosTokenId === null || eosTokenId === undefined) {
+                if (typeof modelConfig.eos_token_id === 'number') {
+                    eosTokenId = modelConfig.eos_token_id;
+                } else if (Array.isArray(modelConfig.eos_token_ids) && typeof modelConfig.eos_token_ids[0] === 'number') {
+                    eosTokenId = modelConfig.eos_token_ids[0];
+                } else if (modelConfig?.tokenizer_class?.includes("LlamaTokenizer")) {
+                    eosTokenId = 2;
+                } else if (modelConfig?.tokenizer_class?.includes("GPT2Tokenizer")) {
+                    eosTokenId = 50256;
+                }
+            }
+            
+            if (padTokenId === null || padTokenId === undefined) {
+                padTokenId = modelConfig.pad_token_id;
+            }
+            
+            if (bosTokenId === null || bosTokenId === undefined) {
+                bosTokenId = modelConfig.bos_token_id;
+            }
+            
+            if (LOG_TRANSFORMERS) {
+                if (LOG_TOKEN_IDS) console.log(prefix, '[loadModelInternal] Final token IDs after fallback:');
+                if (LOG_TOKEN_IDS) console.log(prefix, '  eos_token_id:', eosTokenId);
+                if (LOG_TOKEN_IDS) console.log(prefix, '  pad_token_id:', padTokenId);
+                if (LOG_TOKEN_IDS) console.log(prefix, '  bos_token_id:', bosTokenId);
+            }
         }
+        
+        // 3. Fallback to user settings if still not set
+        if (eosTokenId === null || eosTokenId === undefined) {
+            const userEosTokenId = currentSettings?.eos_token_id ?? DEFAULT_INFERENCE_SETTINGS.eos_token_id;
+            eosTokenId = userEosTokenId !== null ? userEosTokenId : undefined;
+        }
+        if (padTokenId === null || padTokenId === undefined) {
+            const userPadTokenId = currentSettings?.pad_token_id ?? DEFAULT_INFERENCE_SETTINGS.pad_token_id;
+            padTokenId = userPadTokenId !== null ? userPadTokenId : undefined;
+        }
+        if (bosTokenId === null || bosTokenId === undefined) {
+            const userBosTokenId = currentSettings?.bos_token_id ?? DEFAULT_INFERENCE_SETTINGS.bos_token_id;
+            bosTokenId = userBosTokenId !== null ? userBosTokenId : undefined;
+        }
+        
+        if (LOG_TRANSFORMERS) {
+            if (LOG_TOKEN_IDS) console.log(prefix, '[loadModelInternal] Final token IDs after user settings fallback:');
+            if (LOG_TOKEN_IDS) console.log(prefix, '  eos_token_id:', eosTokenId, '(source:', eosTokenId === currentSettings?.eos_token_id ? 'user-settings' : 'model/tokenizer', ')');
+            if (LOG_TOKEN_IDS) console.log(prefix, '  pad_token_id:', padTokenId, '(source:', padTokenId === currentSettings?.pad_token_id ? 'user-settings' : 'model/tokenizer', ')');
+            if (LOG_TOKEN_IDS) console.log(prefix, '  bos_token_id:', bosTokenId, '(source:', bosTokenId === currentSettings?.bos_token_id ? 'user-settings' : 'model/tokenizer', ')');
+        }
+        
+        // Set pad_token_id to eos_token_id if not set (common pattern)
+        if (transformersTokenizer && (padTokenId === null || padTokenId === undefined) && eosTokenId !== undefined) {
+            transformersTokenizer.pad_token_id = eosTokenId;
+            padTokenId = eosTokenId;
+            if (LOG_TRANSFORMERS) console.log(prefix, '[loadModelInternal] Set pad_token_id to eos_token_id:', eosTokenId);
+        }
+        
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { 
+                status: 'loading', 
+                file: 'model', 
+                progress: 30, 
+                loadId,
+                message: 'Loading model from cache...'
+            } 
+        });
+        
+        const modelOptions = {
+            ...(modelDtype !== 'auto' && { dtype: modelDtype }),
+            device: (hasWebGPU ? "webgpu" : "cpu") as "webgpu" | "cpu",
+            use_external_data_format: hasExternalData,
+            progress_callback: (data: any) => {
 
-        isModelReady = true;
+                let progress = 30; // Initial value, will be remapped
+                let status = 'loading';
+                let message = 'Loading model from cache...';
+                
+                if (data.status === 'progress') {
+                    progress = 40 + (data.progress * 0.5); // 40-90% range for model
+                    status = 'loading';
+                    message = `Loading model from cache... ${Math.round(progress)}%`;
+                } else if (data.status === 'ready' || data.status === 'done') {
+                    progress = 90;
+                    status = 'done';
+                    message = 'Model loaded from cache';
+                }
+                
+                self.postMessage({ 
+                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+                    payload: { 
+                        status, 
+                        file: data.file || 'model', 
+                        progress, 
+                        loadId,
+                        loaded: data.loaded,
+                        total: data.total,
+                        message
+                    } 
+                });
+            }
+        };
+        
+        if (LOG_DEBUG) console.log(prefix, `[loadModelInternal] Calling AutoModelForCausalLM.from_pretrained with options:`, modelOptions);
+        
+
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { 
+                status: 'processing', 
+                file: 'model', 
+                progress: 90, 
+                loadId,
+                message: 'Initializing model...'
+            } 
+        });
+        
+        transformersModel = await AutoModelForCausalLM.from_pretrained(modelId, modelOptions);
+        
+        isTransformersModelReady = true;
+        
+        if (LOG_GENERAL) console.log(prefix, `[loadModelInternal] Model loaded successfully: ${modelId}`);
+        
+        // Log what the loaded model and tokenizer actually have
+        if (LOG_TRANSFORMERS) {
+            if (LOG_MODEL_LOADING) console.log(prefix, '[loadModelInternal] Loaded tokenizer properties:', {
+                eos_token_id: transformersTokenizer?.eos_token_id,
+                pad_token_id: transformersTokenizer?.pad_token_id,
+                bos_token_id: transformersTokenizer?.bos_token_id,
+                vocab_size: transformersTokenizer?.vocab_size,
+                model_max_length: transformersTokenizer?.model_max_length,
+                tokenizer_class: transformersTokenizer?.constructor?.name
+            });
+            
+            if (LOG_MODEL_LOADING) console.log(prefix, '[loadModelInternal] Loaded model properties:', {
+                config: transformersModel?.config ? {
+                    max_position_embeddings: transformersModel.config.max_position_embeddings,
+                    n_positions: transformersModel.config.n_positions,
+                    max_sequence_length: transformersModel.config.max_sequence_length,
+                    n_ctx: transformersModel.config.n_ctx,
+                    context_length: transformersModel.config.context_length,
+                    eos_token_id: transformersModel.config.eos_token_id,
+                    pad_token_id: transformersModel.config.pad_token_id,
+                    bos_token_id: transformersModel.config.bos_token_id,
+                    vocab_size: transformersModel.config.vocab_size,
+                    model_type: transformersModel.config.model_type,
+                    architectures: transformersModel.config.architectures
+                } : 'no config',
+                model_class: transformersModel?.constructor?.name
+            });
+            
+            // Check if the model has a generation config with default values
+            if (transformersModel?.generation_config) {
+                if (LOG_MODEL_CONFIG) console.log(prefix, '[loadModelInternal] 🔍 COMPREHENSIVE CONFIG COMPARISON:');
+                if (LOG_MODEL_CONFIG) console.log(prefix, '[loadModelInternal] 📊 OUR EXTRACTED CONFIG:');
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - modelContextLength:', modelContextLength);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - eos_token_id:', eosTokenId);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - pad_token_id:', padTokenId);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - bos_token_id:', bosTokenId);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - numAttentionHeads:', numAttentionHeads);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - numKeyValueHeads:', numKeyValueHeads);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - headDim:', headDim);
+                
+                if (LOG_MODEL_CONFIG) console.log(prefix, '[loadModelInternal] 🤖 TRANSFORMERS.JS MODEL GENERATION CONFIG:');
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - max_new_tokens:', transformersModel.generation_config.max_new_tokens);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - max_length:', transformersModel.generation_config.max_length);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - min_length:', transformersModel.generation_config.min_length);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - min_new_tokens:', transformersModel.generation_config.min_new_tokens);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - temperature:', transformersModel.generation_config.temperature);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - top_k:', transformersModel.generation_config.top_k);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - top_p:', transformersModel.generation_config.top_p);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - typical_p:', transformersModel.generation_config.typical_p);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - epsilon_cutoff:', transformersModel.generation_config.epsilon_cutoff);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - eta_cutoff:', transformersModel.generation_config.eta_cutoff);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - repetition_penalty:', transformersModel.generation_config.repetition_penalty);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - encoder_repetition_penalty:', transformersModel.generation_config.encoder_repetition_penalty);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - do_sample:', transformersModel.generation_config.do_sample);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - no_repeat_ngram_size:', transformersModel.generation_config.no_repeat_ngram_size);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - eos_token_id:', transformersModel.generation_config.eos_token_id);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - pad_token_id:', transformersModel.generation_config.pad_token_id);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - bos_token_id:', transformersModel.generation_config.bos_token_id);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - decoder_start_token_id:', transformersModel.generation_config.decoder_start_token_id);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - forced_bos_token_id:', transformersModel.generation_config.forced_bos_token_id);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - forced_eos_token_id:', transformersModel.generation_config.forced_eos_token_id);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - num_beams:', transformersModel.generation_config.num_beams);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - num_beam_groups:', transformersModel.generation_config.num_beam_groups);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - diversity_penalty:', transformersModel.generation_config.diversity_penalty);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - length_penalty:', transformersModel.generation_config.length_penalty);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - early_stopping:', transformersModel.generation_config.early_stopping);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - penalty_alpha:', transformersModel.generation_config.penalty_alpha);
+                if (LOG_MODEL_CONFIG) console.log(prefix, '  - use_cache:', transformersModel.generation_config.use_cache);
+                
+                if (LOG_MODEL_CONFIG) console.log(prefix, '[loadModelInternal] 🎯 ANALYSIS: If our extracted values match transformers.js values, then we were unnecessarily extracting them!');
+            } else {
+                if (LOG_MODEL_CONFIG) console.log(prefix, '[loadModelInternal] No generation_config found on model');
+            }
+        }
+        
+        // Update manifest status to indicate successful download/loading
+        await setManifestQuantStatus(modelId, dtype, QuantStatus.Downloaded);
+        
+        // Send final completion messages
         self.postMessage({
             type: WorkerEventNames.WORKER_READY,
-            payload: { modelId, modelPath: dtype, task, executionProvider: actualExecutionProvider, warning: providerNote }
+            payload: { modelId, dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
         });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'done', file: 'session', progress: 100, loadId } });
-        await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded);
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { 
+                status: 'done', 
+                file: 'model', 
+                progress: 100, 
+                loadId,
+                message: 'Model ready for inference!'
+            } 
+        });
+        
+        currentLoadId = undefined;
 
     } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Error loading model ${modelId} (${dtype}):`, error);
-        isModelReady = false;
+        isTransformersModelReady = false;
         currentModelRepoId = null;
         currentModelQuantPath = null;
-        self.postMessage({ type: WorkerEventNames.ERROR, payload: `Failed to load model ${dtype}: ${error.message}` });
-        self.postMessage({ type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, payload: { status: 'error', file: dtype, error: error.message, loadId } });
-        if (modelId && dtype) {
+        currentTask = null;
+        currentLoadId = undefined;
+        
+        console.error(prefix, `[loadModelInternal] Error loading model:`, error);
+        
+        // Update manifest status to indicate failed download/loading
             try {
                 await setManifestQuantStatus(modelId, dtype, QuantStatus.Failed);
             } catch (manifestError) {
                 if (LOG_ERROR) console.error(prefix, `[loadModelInternal] Failed to update manifest status on error:`, manifestError);
             }
-        }
-    } finally {
-        currentLoadId = undefined; 
+        
+        self.postMessage({ 
+            type: WorkerEventNames.ERROR, 
+            payload: `Failed to load model ${dtype}: ${error.message}` 
+        });
+        self.postMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { status: 'error', file: dtype, error: error.message, loadId } 
+        });
     }
 }
 
 async function generateInternal(payload: any): Promise<void> {
-    // Feature flag: Use transformers.js implementation
-    if (USE_TRANSFORMERS) {
-        await generateTransformersResponse(payload);
+    const { messages, message, input, chatId, messageId } = payload;
+    
+    if (LOG_GEN_DETAILED) {
+        console.log(prefix, `[generateInternal] Starting generation with payload:`, payload);
+        console.log(prefix, `[generateInternal] isTransformersModelReady:`, isTransformersModelReady);
+        console.log(prefix, `[generateInternal] transformersTokenizer:`, !!transformersTokenizer);
+        console.log(prefix, `[generateInternal] transformersModel:`, !!transformersModel);
+    }
+    
+    if (!isTransformersModelReady || !transformersTokenizer || !transformersModel) {
+        if (LOG_ERROR) console.error(prefix, '[generateInternal] Model not ready');
+        self.postMessage({ 
+            type: WorkerEventNames.GENERATION_ERROR, 
+            payload: { ...payload, error: 'Model not ready. Please load a model first.' } 
+        });
         return;
     }
     
-    if (!isModelReady || !onnxSession || !tokenizer || !modelConfig) {
-        if (LOG_ERROR) console.error(prefix, '[generateInternal] Model not ready or core components missing.');
-        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: 'Model not ready. Please load a model first.' } });
-        return;
-    }
-    
-    // Set generation state
+    try {
+
     isGenerating = true;
     shouldStopGeneration = false;
-    console.log(prefix, '[generateInternal] Generation started. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
+    stopping_criteria.reset();
     
-    const { chatId, messageId, messages, message, input } = payload;
-    if (LOG_GENERATION) console.log(prefix, '[generateInternal] Received payload:', JSON.stringify(payload));
-
-    try {
-        const {
-            temperature = 1.0, top_k = 0, top_p = 0.0, repetition_penalty = 1.0,
-            do_sample = true, no_repeat_ngram_size = 0, max_new_tokens = 128,
-            system_prompt = '', min_length = 0, max_length = 2048,
-        } = inferenceSettings;
-
+    if (LOG_QA_START) console.log(prefix, '[generateInternal] 🚀 Generation started');
+        
+        if (LOG_GENERAL) console.log(prefix, '[generateInternal] Starting generation'); 
+        const currentSettings = await getInferenceSettings();
+        const settings = currentSettings || DEFAULT_INFERENCE_SETTINGS;
+        
+        // Log current settings for debugging
+        if (LOG_GEN_PARAMS) {
+            console.log(prefix, '[generateInternal] Current inference settings:', {
+                temperature: settings.temperature,
+                max_length: settings.max_length,
+                max_new_tokens: settings.max_new_tokens,
+                min_length: settings.min_length,
+                min_new_tokens: settings.min_new_tokens,
+                top_k: settings.top_k,
+                top_p: settings.top_p,
+                typical_p: settings.typical_p,
+                epsilon_cutoff: settings.epsilon_cutoff,
+                eta_cutoff: settings.eta_cutoff,
+                repetition_penalty: settings.repetition_penalty,
+                encoder_repetition_penalty: settings.encoder_repetition_penalty,
+                do_sample: settings.do_sample,
+                no_repeat_ngram_size: settings.no_repeat_ngram_size,
+                system_prompt: settings.system_prompt ? 'present' : 'not set',
+                eos_token_id: settings.eos_token_id,
+                pad_token_id: settings.pad_token_id,
+                bos_token_id: settings.bos_token_id
+            });
+        }
         let messagesForTemplate: Array<{role: string, content: string}> = [];
-        if (system_prompt && typeof system_prompt === 'string' && system_prompt.trim().length > 0) {
+
+        if (settings.system_prompt && typeof settings.system_prompt === 'string' && settings.system_prompt.trim().length > 0) {
             if (!(Array.isArray(messages) && messages.some(msg => msg.role === 'system'))) {
-                messagesForTemplate.push({ role: 'system', content: system_prompt });
+                messagesForTemplate.push({ role: 'system', content: settings.system_prompt });
             }
         }
+        
         if (Array.isArray(messages)) {
-            if (LOG_CHAT_HISTORY) {
-                console.log(prefix, '[CHAT_HISTORY] Received messages array from orchestrator:', messages.length, 'messages');
-                messages.forEach((msg: any, i: number) => {
-                    console.log(prefix, `[CHAT_HISTORY] Input msg[${i}]:`, {
-                        role: msg.role,
-                        content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
-                    });
-                });
-            }
             messagesForTemplate.push(...messages);
-        }
-        else if (message) {
-            if (LOG_CHAT_HISTORY) console.log(prefix, '[CHAT_HISTORY] Using single message:', message.substring(0, 100) + '...');
+        } else if (message) {
             messagesForTemplate.push({ role: 'user', content: message });
-        }
-        else if (input) {
-            if (LOG_CHAT_HISTORY) console.log(prefix, '[CHAT_HISTORY] Using input:', input.substring(0, 100) + '...');
+        } else if (input) {
             messagesForTemplate.push({ role: 'user', content: input });
         }
 
-        const effectiveMaxLength = Math.min(max_length, modelContextLength);
-
-        let promptTokenIds;
-        while (true) {
-            if (LOG_CHAT_HISTORY) {
-                console.log(prefix, '[CHAT_HISTORY] Final messages for tokenization:', messagesForTemplate.length, 'messages');
-                messagesForTemplate.forEach((msg: any, i: number) => {
-                    console.log(prefix, `[CHAT_HISTORY] Tokenization msg[${i}]:`, {
-                        role: msg.role,
-                        content: msg.content ? msg.content.substring(0, 100) + '...' : 'NO CONTENT'
-                    });
-                });
+        const filteredMessages = filterScrapedContent(messagesForTemplate);
+        
+        if (LOG_GEN_DETAILED) {
+            console.log(prefix, `[generateInternal] Original messages:`, messagesForTemplate.length);
+            console.log(prefix, `[generateInternal] Filtered messages:`, filteredMessages.length);
+        }
+        
+        const inputs = transformersTokenizer.apply_chat_template(filteredMessages, {
+            add_generation_prompt: true,
+            return_dict: true,
+        });
+        
+        let fullGeneratedText = '';
+        
+        // TPS calculation variables (like the example)
+        let startTime: number | undefined;
+        let numTokens = 0;
+        let tps: number | undefined;
+        
+        const token_callback_function = () => {
+            startTime ??= performance.now();
+            if (numTokens++ > 0) {
+                tps = (numTokens / (performance.now() - startTime!)) * 1000;
             }
-            const tokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
-            promptTokenIds = tokenIdsTensor.tolist().flat();
-            
-            if (LOG_CHAT_HISTORY) {
-                console.log(prefix, '[CHAT_HISTORY] Tokenization result:', {
-                    promptTokens: promptTokenIds.length,
-                    effectiveMaxLength: effectiveMaxLength,
-                    modelContextLength: modelContextLength,
-                    maxLength: max_length
-                });
-            }
-            
-            if (promptTokenIds.length < effectiveMaxLength) {
-                break;
-            }
-
-            // Context is too long, need to trim intelligently
-            if (LOG_CHAT_HISTORY) {
-                console.log(prefix, '[CHAT_HISTORY] Context too long, trimming content intelligently');
-                console.log(prefix, '[CHAT_HISTORY] Before trimming:', messagesForTemplate.length, 'messages,', promptTokenIds.length, 'tokens');
-            }
-            
-            // Smart content trimming: preserve structure but trim content
-            const targetTokens = Math.floor(effectiveMaxLength * 0.8); // Use 80% of limit for safety
-            const systemPrompt = messagesForTemplate[0];
-            const lastUserMessage = messagesForTemplate[messagesForTemplate.length - 1];
-            const middleMessages = messagesForTemplate.slice(1, -1);
-            
-            // Calculate tokens for system prompt and last user message
-            const systemTokens = tokenizer.encode(systemPrompt.content).length;
-            const lastUserTokens = tokenizer.encode(lastUserMessage.content).length;
-            const reservedTokens = systemTokens + lastUserTokens + 100; // 100 tokens buffer
-            
-            let availableTokens = targetTokens - reservedTokens;
-            
-            if (LOG_CHAT_HISTORY) {
-                console.log(prefix, '[CHAT_HISTORY] Token budget:', {
-                    targetTokens,
-                    systemTokens,
-                    lastUserTokens,
-                    reservedTokens,
-                    availableTokens
-                });
-            }
-            
-            // Trim middle messages to fit within available tokens
-            const trimmedMessages = [];
-            let usedTokens = 0;
-            
-            for (let i = 0; i < middleMessages.length; i++) {
-                const msg = middleMessages[i];
-                const msgTokens = tokenizer.encode(msg.content).length;
+        };
+        
+        const ourStreamer = new TextStreamer(transformersTokenizer, {
+            skip_prompt: true,
+            skip_special_tokens: true,
+            callback_function: (output: string) => {
+                // Check for stop request during streaming
+                if (shouldStopGeneration) {
+                    if (LOG_GENERATION) console.log(prefix, '[generateInternal] Stop generation requested during streaming');
+                    return;
+                }
                 
-                if (usedTokens + msgTokens <= availableTokens) {
-                    // Message fits, add it as-is
-                    trimmedMessages.push(msg);
-                    usedTokens += msgTokens;
-                } else {
-                    // Message too long, trim it
-                    const remainingTokens = availableTokens - usedTokens;
-                    if (remainingTokens > 50) { // Only add if we have meaningful space left
-                        const trimmedContent = tokenizer.decode(tokenizer.encode(msg.content).slice(0, remainingTokens - 10)) + '...';
-                        trimmedMessages.push({
-                            ...msg,
-                            content: trimmedContent
-                        });
+                fullGeneratedText += output;                
+                
+           // Log streaming progress periodically (every 50 tokens or significant tokens)
+           if (LOG_GEN_DETAILED && (fullGeneratedText.length % 200 === 0 || /[.!?]$/.test(output))) {
+               console.log(prefix, `[generateInternal] Streaming progress:`, {
+                   cumulativeLength: fullGeneratedText.length,
+                   lastToken: output,
+                   preview: fullGeneratedText.substring(Math.max(0, fullGeneratedText.length - 50)),
+                   tps: tps?.toFixed(2),
+                   numTokens: numTokens
+               });
+           }
+                
+                self.postMessage({
+                    type: WorkerEventNames.GENERATION_UPDATE,
+                    payload: { 
+                        chatId, 
+                        messageId, 
+                        token: output,
+                        tps: tps?.toFixed(2),  // Add TPS to our message
+                        numTokens: numTokens   // Add token count to our message
                     }
-                    break; // Stop adding more messages
-                }
+                });
+            },
+            token_callback_function,  // Add token callback for TPS calculation
+        });
+        
+        
+
+        const padTokenId = transformersTokenizer?.pad_token_id ?? settings.pad_token_id;
+        const bosTokenId = transformersTokenizer?.bos_token_id ?? settings.bos_token_id;
+        const eosTokenId = transformersTokenizer?.eos_token_id ?? settings.eos_token_id;
+        
+        if (LOG_GEN_DETAILED) {
+            console.log(prefix, '[generateInternal] Using token IDs:');
+            console.log(prefix, '  pad_token_id:', padTokenId, '(from tokenizer:', transformersTokenizer?.pad_token_id, '| settings:', settings.pad_token_id, ')');
+            console.log(prefix, '  bos_token_id:', bosTokenId, '(from tokenizer:', transformersTokenizer?.bos_token_id, '| settings:', settings.bos_token_id, ')');
+            console.log(prefix, '  eos_token_id:', eosTokenId, '(from tokenizer:', transformersTokenizer?.eos_token_id, '| settings:', settings.eos_token_id, ')');
+        }
+        
+        // Calculate effective max length - use the modelContextLength which already has the right priority
+        // modelContextLength = Model Config → User Settings → Default
+        const effectiveMaxLength = Math.min(settings.max_length, modelContextLength);
+        if (LOG_GEN_DETAILED) {
+            console.log(prefix, '[generateInternal] Context length calculation:', {
+                settingsMaxLength: settings.max_length,
+                modelContextLength: modelContextLength,
+                effectiveMaxLength: effectiveMaxLength,
+                limitingFactor: modelContextLength < settings.max_length ? 'model-context' : 'user-settings'
+            });
+        }
+        
+        
+        const generateParams = {
+            ...inputs,
+
+            // Cache disabled - following official example approach
+            // past_key_values: past_key_values_cache,
+
+            // Core generation parameters
+            do_sample: settings.do_sample,
+            top_k: settings.top_k,
+            temperature: settings.temperature,            
+            top_p: settings.top_p,
+            repetition_penalty: settings.repetition_penalty,
+            max_new_tokens: settings.max_new_tokens,
+            no_repeat_ngram_size: settings.no_repeat_ngram_size,
+
+           // min_length: settings.min_length,
+           // max_length: effectiveMaxLength,
+            
+            // Advanced parameters
+            
+           // encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+           // num_beams: settings.num_beams,
+           // num_beam_groups: settings.num_beam_groups,
+           // diversity_penalty: settings.diversity_penalty,
+           // length_penalty: settings.length_penalty,
+           // early_stopping: settings.early_stopping,
+           // penalty_alpha: settings.penalty_alpha,
+            
+            // Additional sampling parameters
+           // typical_p: settings.typical_p,
+           // epsilon_cutoff: settings.epsilon_cutoff,
+           // eta_cutoff: settings.eta_cutoff,
+           // encoder_repetition_penalty: settings.encoder_repetition_penalty,
+           // min_new_tokens: settings.min_new_tokens,
+           // guidance_scale: settings.guidance_scale,
+           // max_time: settings.max_time,
+            
+            // Token control parameters - use dynamic values from tokenizer
+           // pad_token_id: padTokenId,
+           // bos_token_id: bosTokenId,
+           // eos_token_id: eosTokenId,
+            // decoder_start_token_id: settings.decoder_start_token_id,
+            // forced_bos_token_id: settings.forced_bos_token_id,
+            // forced_eos_token_id: settings.forced_eos_token_id,
+            
+            // Advanced filtering
+            // bad_words_ids: settings.bad_words_ids,
+            // force_words_ids: settings.force_words_ids,
+            // suppress_tokens: settings.suppress_tokens,
+            // begin_suppress_tokens: settings.begin_suppress_tokens,
+            
+            // Output parameters
+            return_dict_in_generate: settings.return_dict_in_generate,
+           // output_attentions: settings.output_attentions,
+           // output_hidden_states: settings.output_hidden_states,
+           // output_scores: settings.output_scores,
+            
+            // Cache and performance
+            use_cache: settings.use_cache,
+            
+            // Streamer for real-time output
+            streamer: ourStreamer,
+            stopping_criteria,
+        };
+        
+        // DISABLED: Cache causes shape mismatch errors in multi-turn conversations
+        // The official example also has this disabled (TODO: Enable once model is fixed)
+        
+        // exampleGenerateParams removed - generateParams now uses the same proven values via settings
+        
+        // Cache disabled - no logging needed
+        
+        if (LOG_GEN_PARAMS) {
+            console.log(prefix, '[generateInternal] Using generateParams with proven settings:', generateParams);
+            
+            // Log the generation parameters we created (official examples approach)
+            console.log(prefix, '[generateInternal] 🎯 GENERATION PARAMETERS (official examples approach):', {
+                do_sample: generateParams.do_sample,
+                top_k: generateParams.top_k,
+                temperature: generateParams.temperature,
+                max_new_tokens: generateParams.max_new_tokens,
+                top_p: generateParams.top_p,
+                repetition_penalty: generateParams.repetition_penalty,
+                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
+                return_dict_in_generate: generateParams.return_dict_in_generate,
+            });
+        }
+        
+        if (LOG_GEN_COMPARISON) {
+            console.log(prefix, '[generateInternal] 📋 USING APPROACH: plain object (like official examples)');
+            console.log(prefix, '[generateInternal] 🔍 PARAMETER PROCESSING FLOW (from transformers.js source):');
+            console.log(prefix, '  1. Our params → kwargs (spread into generate() call)');
+            console.log(prefix, '  2. Model defaults → this.generation_config');
+            console.log(prefix, '  3. Final config = _prepare_generation_config(kwargs, model_defaults)');
+            console.log(prefix, '  4. Our kwargs should override model defaults in final config');
+            
+            // Log what we're actually passing to model.generate()
+            console.log(prefix, '[generateInternal] 🔍 DETAILED PARAMETER ANALYSIS:');
+            console.log(prefix, '  - inputs.input_ids length:', inputs.input_ids.length);
+            console.log(prefix, '  - inputs.attention_mask length:', inputs.attention_mask.length);
+            console.log(prefix, '  - generateParams keys:', Object.keys(generateParams));
+            console.log(prefix, '  - hasStreamer: !!generateParams.streamer');
+            console.log(prefix, '  - hasStoppingCriteria: !!generateParams.stopping_criteria');
+            console.log(prefix, '  - hasGenerationParams: do_sample, top_k, temperature, max_new_tokens, etc.');
+        }
+        
+        // Check for stop request before generation
+        if (shouldStopGeneration) {
+            if (LOG_GENERATION) console.log(prefix, '[generateInternal] Stop generation requested before model.generate()');
+            self.postMessage({
+                type: WorkerEventNames.GENERATION_STOPPED,
+                payload: { ...payload, output: '', generatedText: '' }
+            });
+            return;
+        }
+        
+
+        if (LOG_GEN_DETAILED) {
+            console.log(prefix, '[generateInternal] 🚀 TESTING EXAMPLE APPROACH FIRST...');
+            
+            // Log model's generation_config BEFORE generation
+            if (transformersModel?.generation_config) {
+                console.log(prefix, `[generateInternal] 🔍 MODEL'S GENERATION CONFIG BEFORE GENERATION:`, transformersModel.generation_config);
+                
+                // Compare our generation parameters with model's default
+                console.log(prefix, `[generateInternal] 🔄 COMPARISON - OUR vs MODEL'S CONFIG:`);
+                console.log(prefix, `  - do_sample: ${generateParams.do_sample} vs ${transformersModel.generation_config.do_sample}`);
+                console.log(prefix, `  - temperature: ${generateParams.temperature} vs ${transformersModel.generation_config.temperature}`);
+                console.log(prefix, `  - max_new_tokens: ${generateParams.max_new_tokens} vs ${transformersModel.generation_config.max_new_tokens}`);
+                console.log(prefix, `  - top_k: ${generateParams.top_k} vs ${transformersModel.generation_config.top_k}`);
+                console.log(prefix, `  - eos_token_id: NOT PASSED (model will use default: ${transformersModel.generation_config.eos_token_id})`);
+            }
+        }
+        
+        // Log what we're passing to model.generate()
+        if (LOG_GEN_ANALYSIS) {
+            console.log(prefix, `[generateInternal] 📤 PARAMETERS WE'RE PASSING TO model.generate():`, generateParams);
+            
+            // Log the specific generation parameters we're passing (these become kwargs)
+            console.log(prefix, `[generateInternal] 🎯 GENERATION PARAMETERS AS KWARGS:`, {
+                do_sample: generateParams.do_sample,
+                top_k: generateParams.top_k,
+                temperature: generateParams.temperature,
+                max_new_tokens: generateParams.max_new_tokens,
+                top_p: generateParams.top_p,
+                repetition_penalty: generateParams.repetition_penalty,
+                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
+                return_dict_in_generate: generateParams.return_dict_in_generate,
+            });
+        }
+        
+        const result = await transformersModel.generate(generateParams);
+        
+        // Update past_key_values_cache like the example
+        if (result && typeof result === 'object' && 'past_key_values' in result) {
+            const hadCache = past_key_values_cache !== null;
+            past_key_values_cache = result.past_key_values;
+            
+            // Store input length for future validation
+            if (past_key_values_cache && typeof past_key_values_cache === 'object') {
+                past_key_values_cache.input_ids_length = inputs.input_ids.data.length;
             }
             
-            // Reconstruct messages: system + trimmed middle + last user message
-            messagesForTemplate = [systemPrompt, ...trimmedMessages, lastUserMessage];
+            if (LOG_CACHE) {
+                console.log(prefix, `[generateInternal] 🔄 CACHE UPDATE: ${hadCache ? 'Updated existing cache' : 'Created new cache'}`);
+                console.log(prefix, `[generateInternal] 📊 Cache status: ${past_key_values_cache ? 'Active' : 'Null'}`);
+                if (past_key_values_cache && past_key_values_cache.input_ids_length) {
+                    console.log(prefix, `[generateInternal] 📏 Cache input length: ${past_key_values_cache.input_ids_length}`);
+                }
+            }
+        }
+        
+        // Decode the final result like the working example does
+        let finalDecodedText = '';
+        if (result && typeof result === 'object' && 'sequences' in result) {
+            // FIX: Slice sequences to only decode newly generated tokens, not the entire input prompt
+            const decoded = transformersTokenizer.batch_decode(result.sequences.slice(inputs.input_ids.length), {
+                skip_special_tokens: true,
+            });
+            // batch_decode returns an array, get the first (and likely only) result
+            finalDecodedText = Array.isArray(decoded) ? decoded[0] : decoded;
             
-            if (LOG_CHAT_HISTORY) {
-                console.log(prefix, '[CHAT_HISTORY] After intelligent trimming:', messagesForTemplate.length, 'messages');
-                messagesForTemplate.forEach((msg, i) => {
-                    console.log(prefix, `[CHAT_HISTORY] Trimmed msg[${i}]:`, {
-                        role: msg.role,
-                        content: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-                    });
+            if (LOG_GEN_ANALYSIS) {
+                console.log(prefix, `[generateInternal] 🔍 DECODED RESULT FROM SEQUENCES:`, {
+                    sequencesType: typeof result.sequences,
+                    sequencesLength: Array.isArray(result.sequences) ? result.sequences.length : 'not array',
+                    decodedType: typeof decoded,
+                    decodedLength: Array.isArray(decoded) ? decoded.length : 'not array',
+                    finalDecodedText: finalDecodedText.substring(0, 100) + (finalDecodedText.length > 100 ? '...' : ''),
+                    finalDecodedLength: finalDecodedText.length
+                });
+            }
+        }
+        
+        // Log what the model actually returned and what parameters were used
+        if (LOG_GEN_ANALYSIS) {
+            console.log(prefix, `[generateInternal] Generation completed successfully`);
+            console.log(prefix, `[generateInternal] Model result type:`, typeof result);
+            console.log(prefix, `[generateInternal] Model result keys:`, result ? Object.keys(result) : 'null/undefined');
+            
+            // Log the FULL result object to see what transformers.js actually returned
+            console.log(prefix, `[generateInternal] FULL RESULT OBJECT:`, result);
+            
+            if (result && typeof result === 'object') {
+                console.log(prefix, `[generateInternal] Model result structure:`, {
+                    hasGeneratedText: 'generated_text' in result,
+                    hasOutputs: 'outputs' in result,
+                    hasScores: 'scores' in result,
+                    hasAttentions: 'attentions' in result,
+                    hasHiddenStates: 'hidden_states' in result,
+                    hasSequences: 'sequences' in result,
+                    hasPastKeyValues: 'past_key_values' in result,
+                    resultKeys: Object.keys(result)
+                });
+                
+                // Check if result contains the actual generation parameters that were used
+                if ('generation_config' in result) {
+                    console.log(prefix, `[generateInternal] 🎯 ACTUAL GENERATION CONFIG USED:`, result.generation_config);
+                }
+                
+                // Check if there are any other parameter-related fields
+                Object.keys(result).forEach(key => {
+                    if (key.includes('config') || key.includes('param') || key.includes('setting')) {
+                        console.log(prefix, `[generateInternal] Found parameter-related field '${key}':`, result[key]);
+                    }
                 });
             }
             
-            // Re-tokenize to check if we're now within limits
-            const newTokenIdsTensor = tokenizer.apply_chat_template(messagesForTemplate, { tokenize: true, add_generation_prompt: true });
-            promptTokenIds = newTokenIdsTensor.tolist().flat();
-        }
-        
-        if (LOG_GENERATION) console.log(prefix, '[generateInternal] Correctly tokenized prompt IDs:', promptTokenIds);
-
-        const generatedTokenIds: number[] = [];
-        const maxLen = Math.min(effectiveMaxLength, promptTokenIds.length + max_new_tokens);
-        const minLen = Math.max(min_length, promptTokenIds.length + 1);
-
-        if (eosTokenId === undefined) {
-            if (LOG_WARN) console.warn(prefix, '[generateInternal] EOS token ID is not set.');
-        }
-        if (LOG_GENERATION) console.log(prefix, `[generateInternal] Starting generation. EOS: ${eosTokenId}, MaxLen: ${maxLen}, MinLen: ${minLen}`);
-        
-        let pastKeyValues: Record<string, ort.Tensor> | null = null;
-
-        for (let i = 0; i < max_new_tokens; i++) {
-            // Check if generation should be stopped
-            if (shouldStopGeneration) {
-                console.log(prefix, '[generateInternal] Generation stopped by user request at iteration', i);
-                break;
-            }
+            // NOTE: We can't access the final merged config because it's created internally in _prepare_generation_config()
+            // The model.generation_config remains unchanged - the final config is only used during generation
+            console.log(prefix, `[generateInternal] ⚠️  NOTE: model.generation_config is UNCHANGED (final merged config is internal)`);
+            console.log(prefix, `[generateInternal] 🎯 EXPECTED FINAL MERGED CONFIG (our params should override model defaults):`);
+            console.log(prefix, `  - do_sample: ${generateParams.do_sample} (our param should override model's defaults)`);
+            console.log(prefix, `  - temperature: ${generateParams.temperature} (our param should override model's defaults)`);
+            console.log(prefix, `  - max_new_tokens: ${generateParams.max_new_tokens} (our param should override model's defaults)`);
+            console.log(prefix, `  - top_k: ${generateParams.top_k} (our param should override model's defaults)`);
+            console.log(prefix, `  - eos_token_id: NOT PASSED (model will use its default: ${transformersModel.generation_config.eos_token_id})`);
             
-            const currentSequenceLength = promptTokenIds.length + generatedTokenIds.length;
-            if (currentSequenceLength >= maxLen) {
-                if (LOG_GENERATION) console.log(prefix, '[generateInternal] Max length reached.');
-                break;
-            }
             
-            if (LOG_GENERATION) console.log(prefix, `[generateInternal] Generation step ${i + 1}/${max_new_tokens}, sequence length: ${currentSequenceLength}`);
-
-            const feeds: Record<string, ort.Tensor> = {};
-            let inputIds: number[];
-            if (i === 0) {
-                inputIds = promptTokenIds;
-            } else {
-                inputIds = [generatedTokenIds[generatedTokenIds.length - 1]];
-            }
-
-            const inputIdsName = inputNames.find(name => name === 'input_ids');
-            if (!inputIdsName) throw new Error("Model's ONNX graph does not have an 'input_ids' input.");
-            feeds[inputIdsName] = new ort.Tensor('int64', BigInt64Array.from(inputIds.map(BigInt)), [1, inputIds.length]);
-            
-            const attentionMaskName = inputNames.find(name => name === 'attention_mask');
-            if (attentionMaskName) {
-                const fullSeqLen = (i === 0) ? inputIds.length : (pastKeyValues?.[Object.keys(pastKeyValues)[0]]?.dims[2] ?? 0) + 1;
-                feeds[attentionMaskName] = new ort.Tensor('int64', BigInt64Array.from(Array(fullSeqLen).fill(1n)), [1, fullSeqLen]);
-            }
-            
-            const positionIdsName = inputNames.find(name => name === 'position_ids');
-            if (positionIdsName) {
-                const positions = (i === 0) ? Array.from({ length: inputIds.length }, (_, k) => BigInt(k)) : [BigInt(currentSequenceLength - 1)];
-                feeds[positionIdsName] = new ort.Tensor('int64', BigInt64Array.from(positions), [1, positions.length]);
-            }
-
-            if (i === 0) {
-                if (numKeyValueHeads && headDim) {
-                    // Get the expected tensor data type from the model's input metadata
-                    const getTensorDataType = (inputName: string): string => {
-                        // First, try to get the data type from the model's actual input metadata
-                        const metadata = modelInputMetadata.get(inputName);
-                        if (metadata && metadata.type) {
-                            // Convert ONNX type to ORT type
-                            const onnxType = metadata.type.toLowerCase();
-                            if (onnxType.includes('float16') || onnxType.includes('f16')) {
-                                return 'float16';
-                            } else if (onnxType.includes('float32') || onnxType.includes('f32') || onnxType.includes('float')) {
-                                return 'float32';
-                            }
-                        }
-                        
-                        // Fallback: Check quantization type by examining the model path
-                        const isFP16Model = currentModelQuantPath && (
-                            currentModelQuantPath.includes('fp16') || 
-                            currentModelQuantPath.includes('float16')
-                        );
-                        const isBNB4Model = currentModelQuantPath && (
-                            currentModelQuantPath.includes('bnb4') || 
-                            currentModelQuantPath.includes('bitsandbytes')
-                        );
-                        
-                        // For attention-related tensors, use the appropriate precision
-                        if (inputName.startsWith('past_key_values.') || inputName.includes('attention')) {
-                            if (isFP16Model) return 'float16';
-                            if (isBNB4Model) return 'float32'; // BNB4 models typically use float32 for compatibility
-                            return 'float32'; // Default
-                        }
-                        
-                        return 'float32'; // Default fallback
-                    };
-                    
-                    for (const name of inputNames) {
-                        if (name.startsWith('past_key_values.')) {
-                            const dataType = getTensorDataType(name);
-                            if (LOG_GENERATION) console.log(prefix, `[generateInternal] Creating tensor for ${name} with data type: ${dataType}`);
-                            
-                            if (dataType === 'float16') {
-                                feeds[name] = new ort.Tensor('float16', new Uint16Array(0), [1, numKeyValueHeads, 0, headDim]);
-                            } else {
-                                feeds[name] = new ort.Tensor('float32', new Float32Array(0), [1, numKeyValueHeads, 0, headDim]);
-                            }
-                        }
-                    }
-                }
-            } else if (pastKeyValues) {
-                for (const key in pastKeyValues) {
-                    if (inputNames.includes(key)) feeds[key] = pastKeyValues[key];
-                }
-            }
-
-            if (LOG_GENERATION) console.log(prefix, `[generateInternal] Running ONNX session with ${Object.keys(feeds).length} inputs`);
-            
-            const outputMap = await onnxSession!.run(feeds);
-            
-            // Check for stop request after ONNX session completes
-            if (shouldStopGeneration) {
-                console.log(prefix, '[generateInternal] Generation stopped by user request after ONNX session at iteration', i);
-                break;
-            }
-            
-            if (LOG_GENERATION) console.log(prefix, `[generateInternal] ONNX session completed, outputs: ${Object.keys(outputMap).join(', ')}`);
-            
-            const logitsOutputName = outputNames.find(name => name === 'logits');
-            if (!logitsOutputName) throw new Error("Model's ONNX graph does not have a 'logits' output.");
-            const logitsTensor = outputMap[logitsOutputName];
-            const lastTokenLogits = logitsTensor.data.slice(-logitsTensor.dims[2]) as Float32Array;
-
-            const nextTokenId = sample(lastTokenLogits, generatedTokenIds, {
-                temperature, top_k, top_p, repetition_penalty, no_repeat_ngram_size, do_sample,
+            // Log factual observations and the assumptions that were being made
+            console.log(prefix, `[generateInternal] Generation results:`, {
+                generatedTextLength: fullGeneratedText.length,
+                generatedTextPreview: fullGeneratedText.substring(0, 100) + (fullGeneratedText.length > 100 ? '...' : ''),
+                stoppedNaturally: !shouldStopGeneration,
             });
-
-            if (nextTokenId === undefined) {
-                if (LOG_ERROR) console.error("Failed to determine next token ID. Breaking loop.");
-                break;
-            }
-
-            // Check for stop request after token generation
-            if (shouldStopGeneration) {
-                console.log(prefix, '[generateInternal] Generation stopped by user request after token generation at iteration', i);
-                break;
-            }
-
-            const newPastKeyValues: Record<string, ort.Tensor> = {};
-            for (const name of outputNames) {
-                if (name.startsWith('present.')) {
-                    newPastKeyValues[name.replace('present.', 'past_key_values.')] = outputMap[name];
-                }
-            }
-            if (Object.keys(newPastKeyValues).length > 0) pastKeyValues = newPastKeyValues;
-
-            if (nextTokenId === eosTokenId && currentSequenceLength >= minLen) {
-                if (LOG_GENERATION) console.log(prefix, '[generateInternal] EOS token detected.');
-                break;
-            }
             
-            generatedTokenIds.push(nextTokenId);
-            const decodedProgressToken = tokenizer.decode([nextTokenId], { skip_special_tokens: true });
-            if (decodedProgressToken) {
-                self.postMessage({ type: WorkerEventNames.GENERATION_UPDATE, payload: { chatId, messageId, token: decodedProgressToken } });
-            }
+            // Log the assumptions that were being made (for analysis)
+            console.log(prefix, `[generateInternal] ASSUMPTIONS THAT WERE BEING MADE:`, {
+                assumption1: "If it generated a reasonable length, it likely has a reasonable max_new_tokens default",
+                assumption2: "If it stopped naturally, it likely has proper eos_token_id handling", 
+                assumption3: "The quality/temperature can be inferred from the output style"
+            });
+            
+            // Log the FULL generated response for analysis
+            console.log(prefix, `[generateInternal] FULL GENERATED RESPONSE:`, fullGeneratedText);
+            console.log(prefix, `[generateInternal] Response analysis:`, {
+                totalLength: fullGeneratedText.length,
+                wordCount: fullGeneratedText.split(/\s+/).length,
+                lineCount: fullGeneratedText.split('\n').length,
+                endsWithPunctuation: /[.!?]$/.test(fullGeneratedText.trim()),
+                containsRepetition: /(.{10,})\1/.test(fullGeneratedText),
+                isRambling: fullGeneratedText.length > 500 && !/[.!?]$/.test(fullGeneratedText.trim())
+            });
         }
-
-        const finalGeneratedText = generatedTokenIds.length > 0 
-            ? tokenizer.decode(generatedTokenIds, { skip_special_tokens: true })
-            : "";
-
-        if (LOG_GENERATION) console.log(prefix, '[generateInternal] Final generated text (decoded):', finalGeneratedText);
         
-        // Send appropriate completion message based on whether generation was stopped
-        console.log(prefix, '[generateInternal] Generation finished. shouldStopGeneration:', shouldStopGeneration, 'finalGeneratedText length:', finalGeneratedText.length);
+        // Use the streamer text (correctly shows only generated tokens)
+        // Fall back to decoded text if streamer failed
+        const finalOutput = fullGeneratedText || finalDecodedText;
+        
+        // Log the final output for debugging
+        if (LOG_QA_OUTPUT) {
+            console.log(prefix, `[generateInternal] 📝 FINAL OUTPUT:`, finalOutput);
+        }
+        if (LOG_QA_STATS) {
+            console.log(prefix, `[generateInternal] 📊 OUTPUT STATS:`, {
+                length: finalOutput.length,
+                wordCount: finalOutput.split(/\s+/).length,
+                lineCount: finalOutput.split('\n').length
+            });
+        }
+        
+        if (LOG_GEN_ANALYSIS) {
+            console.log(prefix, `[generateInternal] 📊 FINAL OUTPUT COMPARISON:`, {
+                streamerText: fullGeneratedText.substring(0, 50) + (fullGeneratedText.length > 50 ? '...' : ''),
+                streamerLength: fullGeneratedText.length,
+                decodedText: finalDecodedText.substring(0, 50) + (finalDecodedText.length > 50 ? '...' : ''),
+                decodedLength: finalDecodedText.length,
+                usingDecoded: !!finalDecodedText,
+                finalOutput: finalOutput.substring(0, 50) + (finalOutput.length > 50 ? '...' : ''),
+                finalLength: finalOutput.length
+            });
+        }
+        
+        // Send appropriate completion event based on whether generation was stopped
         if (shouldStopGeneration) {
-            console.log(prefix, '[generateInternal] Sending GENERATION_STOPPED message');
-            self.postMessage({ type: WorkerEventNames.GENERATION_STOPPED, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
+            if (LOG_QA_START) console.log(prefix, '[generateInternal] ⏹️ Generation stopped');
+            self.postMessage({
+                type: WorkerEventNames.GENERATION_STOPPED,
+                payload: { 
+                    ...payload, 
+                    output: finalOutput, 
+                    generatedText: finalOutput,
+                    tps: tps?.toFixed(2),      // Add final TPS
+                    numTokens: numTokens       // Add final token count
+                }
+            });
         } else {
-            console.log(prefix, '[generateInternal] Sending GENERATION_COMPLETE message');
-            self.postMessage({ type: WorkerEventNames.GENERATION_COMPLETE, payload: { ...payload, output: finalGeneratedText, generatedText: finalGeneratedText } });
+            if (LOG_QA_START) console.log(prefix, '[generateInternal] ✅ Generation completed');
+            self.postMessage({
+                type: WorkerEventNames.GENERATION_COMPLETE,
+                payload: { 
+                    ...payload, 
+                    output: finalOutput, 
+                    generatedText: finalOutput,
+                    tps: tps?.toFixed(2),      // Add final TPS
+                    numTokens: numTokens       // Add final token count
+                }
+            });
         }
 
     } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, '[generateInternal] Error during generation:', error, error.stack);
-        self.postMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { ...payload, error: error.message || String(error) } });
+        if (LOG_ERROR) console.error(prefix, '[generateInternal] Error during generation:', error);
+        
+        // Check if this is a cache-related error and reset cache if so
+        if (error.message && error.message.includes('Expand requires shape to be broadcastable')) {
+            if (LOG_CACHE) {
+                console.log(prefix, '[generateInternal] 🚨 CACHE ERROR: Shape mismatch detected, resetting cache');
+            }
+            past_key_values_cache = null;
+        }
+        
+        self.postMessage({ 
+            type: WorkerEventNames.GENERATION_ERROR, 
+            payload: { ...payload, error: error.message || 'Generation failed' } 
+        });
     } finally {
         // Reset generation state
-        console.log(prefix, '[generateInternal] Resetting generation state. isGenerating: false, shouldStopGeneration: false');
+        if (LOG_QA_START) console.log(prefix, '[generateInternal] 🔄 Generation state reset');
         isGenerating = false;
         shouldStopGeneration = false;
     }
@@ -1080,22 +1715,35 @@ self.onmessage = async (event: MessageEvent) => {
             await generateInternal(payload);
             break;
         case WorkerEventNames.STOP_GENERATION:
-            console.log(prefix, '[onmessage] STOP_GENERATION message received. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
+            if (LOG_MESSAGES) console.log(prefix, '[onmessage] STOP_GENERATION message received. isGenerating:', isGenerating, 'shouldStopGeneration:', shouldStopGeneration);
             if (isGenerating) {
+                // Our existing approach
                 shouldStopGeneration = true;
-                console.log(prefix, '[onmessage] Stop generation flag set to true.');
+                if (LOG_MESSAGES) console.log(prefix, '[onmessage] Stop generation flag set to true.');
+                
+                // Example-style approach (like the working example)
+                stopping_criteria.interrupt();
+                if (LOG_MESSAGES) console.log(prefix, '[onmessage] Example-style stopping_criteria.interrupt() called.');
             } else {
-                console.log(prefix, '[onmessage] Stop generation requested but not currently generating.');
+                if (LOG_MESSAGES) console.log(prefix, '[onmessage] Stop generation requested but not currently generating.');
             }
             break;
         case WorkerEventNames.RESET:
-            if (onnxSession) {
-                try { await onnxSession.release(); } catch(e) { if (LOG_WARN) console.warn(prefix, "Error releasing ONNX session on reset:", e); }
-            }
-            onnxSession = null; tokenizer = null; modelConfig = null;
-            inputNames = []; outputNames = []; isModelReady = false;
-            currentModelRepoId = null; currentModelQuantPath = null; currentTask = null;
-            numAttentionHeads = undefined; numKeyValueHeads = undefined; headDim = undefined; eosTokenId = undefined;
+            transformersModel = null;
+            transformersTokenizer = null;
+            isTransformersModelReady = false;
+            
+            // Example-style reset (like the working example)
+            past_key_values_cache = null;
+            stopping_criteria.reset();
+            currentModelRepoId = null; 
+            currentModelQuantPath = null; 
+            currentTask = null;
+            // Reset model configuration variables
+            modelContextLength = 2048;
+            numAttentionHeads = undefined;
+            numKeyValueHeads = undefined;
+            headDim = undefined;
             self.postMessage({ type: WorkerEventNames.RESET_COMPLETE });
             if (LOG_GENERAL) console.log(prefix, "Model worker reset complete.");
             break;
@@ -1108,10 +1756,6 @@ self.onmessage = async (event: MessageEvent) => {
         case WorkerEventNames.MODEL_SOURCE_SELECTION:
             await handleModelSourceSelection(payload);
             break;
-        case WorkerEventNames.GOOGLE_TERMS_ACCEPTED:
-            // Google authentication removed
-            self.postMessage({ type: WorkerEventNames.ERROR, payload: 'Google authentication is no longer supported.' });
-            break;
         default:
             self.postMessage({ type: WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
             break;
@@ -1121,126 +1765,75 @@ self.onmessage = async (event: MessageEvent) => {
 
 
 
-async function setManifestQuantStatus(repo: string, quant: string, status: QuantStatus) {
-  let manifest = await getManifestEntry(repo);
-  if (!manifest) return;
-  if (!manifest.quants[quant]) {
-    manifest.quants[quant] = { files: [], status, dtype: 'fp32', hasExternalData: false }; // Default values for modelworker-created entries
-  } else {
-    manifest.quants[quant].status = status;
+// Prevent recursive manifest updates
+let isUpdatingManifest = false;
+
+async function setManifestQuantStatus(repo: string, dtype: string, status: QuantStatus) {
+    // Prevent recursive calls
+    if (isUpdatingManifest) {
+        if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] Skipping recursive call for ${repo}/${dtype}`);
+        return;
+    }
+    
+    isUpdatingManifest = true;
+    try {
+        // Reduced debug logging to prevent spam
+        // if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] DEBUG - Called with repo: "${repo}", dtype: "${dtype}", status: ${status}`);
+      
+      let manifest = await getManifestEntry(repo);
+  if (!manifest) {
+    if (LOG_WARN) console.warn(prefix, `[setManifestQuantStatus] No manifest found for repo: ${repo}`);
+    return;
   }
-  await addManifestEntry(repo, manifest);
-  self.postMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
+  
+    // Reduced debug logging to prevent spam
+    // if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] DEBUG - Manifest quants keys:`, Object.keys(manifest.quants));
+  
+  // Find ALL manifest entries that correspond to this dtype
+  const entriesToUpdate: string[] = [];
+  for (const [modelPath, quantInfo] of Object.entries(manifest.quants)) {
+    // Reduced debug logging to prevent spam
+    // if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] DEBUG - Checking entry: "${modelPath}", quantInfo.dtype: "${quantInfo.dtype}"`);
+    // if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] DEBUG - dtype comparison: "${quantInfo.dtype}" === "${dtype}" ? ${quantInfo.dtype === dtype}`);
+    
+    if (quantInfo.dtype === dtype) {
+      entriesToUpdate.push(modelPath);
+      // if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] DEBUG - ✅ Found matching entry: "${modelPath}"`);
+    }
+  }
+  
+  // Reduced debug logging to prevent spam
+  // if (LOG_DEBUG) console.log(prefix, `[setManifestQuantStatus] DEBUG - Found ${entriesToUpdate.length} entries to update:`, entriesToUpdate);
+  
+  if (entriesToUpdate.length === 0) {
+    if (LOG_WARN) console.warn(prefix, `[setManifestQuantStatus] No manifest entries found for dtype: ${dtype} in repo: ${repo}`);
+    return;
+  }
+  
+  // Update the status of ALL found entries
+  for (const entryKey of entriesToUpdate) {
+    if (manifest.quants[entryKey]) {
+      manifest.quants[entryKey].status = status;
+      manifestLogCount++;
+      if (LOG_DEBUG && (manifestLogCount % MANIFEST_LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+        console.log(prefix, `[setManifestQuantStatus] ✅ Updated quant entry: ${entryKey} (dtype: ${dtype}) to status: ${status} (operation #${manifestLogCount})`);
+      }
+    } else {
+      if (LOG_WARN) console.warn(prefix, `[setManifestQuantStatus] Quant entry ${entryKey} not found in manifest`);
+    }
+  }
+  
+      await addManifestEntry(repo, manifest);
+      self.postMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
+    } finally {
+        isUpdatingManifest = false;
+    }
 }
 
 function createEmptyGenerationConfig(): Response {
     return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-function argMax(array: Float32Array | number[]): number {
-    if (array.length === 0) return -1;
-    let max = array[0];
-    let maxIndex = 0;
-    for (let i = 1; i < array.length; i++) {
-        if (array[i] > max) {
-            maxIndex = i;
-            max = array[i];
-        }
-    }
-    return maxIndex;
-}
-
-function softmax(logits: Float32Array): Float32Array {
-    const maxLogit = Math.max(...logits);
-    const exps = logits.map(l => Math.exp(l - maxLogit));
-    const sumExps = exps.reduce((a, b) => a + b, 0);
-    return new Float32Array(exps.map(e => e / sumExps));
-}
-
-function sample(logits: Float32Array, generatedIds: number[], options: {
-    temperature: number,
-    top_k: number,
-    top_p: number,
-    repetition_penalty: number,
-    no_repeat_ngram_size: number,
-    do_sample: boolean,
-}): number {
-    const { temperature, top_k, top_p, repetition_penalty, no_repeat_ngram_size, do_sample } = options;
-    const processedLogits = new Float32Array(logits);
-
-    if (repetition_penalty !== 1.0) {
-        const penalizedSet = new Set(generatedIds);
-        for (const tokenId of penalizedSet) {
-            if (processedLogits[tokenId] > 0) processedLogits[tokenId] /= repetition_penalty;
-            else processedLogits[tokenId] *= repetition_penalty;
-        }
-    }
-
-    if (no_repeat_ngram_size > 0 && generatedIds.length >= no_repeat_ngram_size - 1) {
-        const n = no_repeat_ngram_size;
-        const lastTokens = generatedIds.slice(-(n - 1));
-        const bannedTokens = new Set<number>();
-        for (let i = 0; i <= generatedIds.length - n; ++i) {
-            const ngram = generatedIds.slice(i, i + n);
-            const context = ngram.slice(0, n - 1);
-            if (context.every((val, idx) => val === lastTokens[idx])) {
-                bannedTokens.add(ngram[n - 1]);
-            }
-        }
-        for (const token of bannedTokens) {
-            processedLogits[token] = -Infinity;
-        }
-    }
-
-    if (temperature !== 1.0) {
-        for (let i = 0; i < processedLogits.length; i++) {
-            processedLogits[i] /= temperature;
-        }
-    }
-
-    const logitsWithIndices = Array.from(processedLogits).map((value, index) => ({ value, index }))
-        .filter(x => x.value !== -Infinity);
-    logitsWithIndices.sort((a, b) => b.value - a.value);
-
-    if (top_k > 0) {
-        logitsWithIndices.splice(top_k);
-    }
-    
-    if (top_p > 0 && top_p < 1.0) {
-        const sortedLogits = Float32Array.from(logitsWithIndices.map(x => x.value));
-        const probabilities = softmax(sortedLogits);
-        
-        let cumulativeProb = 0;
-        let nucleusIndex = probabilities.length - 1;
-        for (let i = 0; i < probabilities.length; i++) {
-            cumulativeProb += probabilities[i];
-            if (cumulativeProb > top_p) {
-                nucleusIndex = i;
-                break;
-            }
-        }
-        logitsWithIndices.splice(nucleusIndex + 1);
-    }
-
-    if (do_sample && logitsWithIndices.length > 1) {
-        const finalLogits = Float32Array.from(logitsWithIndices.map(x => x.value));
-        const probabilities = softmax(finalLogits);
-        const randomVal = Math.random();
-        let cumulativeProb = 0;
-        for (let i = 0; i < probabilities.length; i++) {
-            cumulativeProb += probabilities[i];
-            if (randomVal <= cumulativeProb) {
-                return logitsWithIndices[i].index;
-            }
-        }
-        return logitsWithIndices[logitsWithIndices.length - 1].index;
-    } else {
-        if (logitsWithIndices.length > 0) {
-            return logitsWithIndices[0].index;
-        }
-        return argMax(processedLogits);
-    }
-}
 
 
 
@@ -1314,10 +1907,6 @@ async function loadModelFromHuggingFace(modelId: string, dtype: string, task?: s
 
 
 
-
-// ============================================================================
-// TRANSFORMERS.JS IMPLEMENTATION
-// ============================================================================
 
 
 function filterScrapedContent(messages: Array<{role: string, content: string}>): Array<{role: string, content: string}> {
@@ -1429,419 +2018,4 @@ function filterScrapedContent(messages: Array<{role: string, content: string}>):
     });
 }
 
-/**
- * Load model using transformers.js (similar to the examples)
- */
-async function loadTransformersModel(payload: { modelId: string, dtype: string, task?: string, loadId?: string }) {
-    const { modelId, dtype, task, loadId } = payload;
-    
-    try {
-        isTransformersModelLoading = true;
-        currentLoadId = loadId;
-        currentModelRepoId = modelId;
-        
-        console.log(prefix, `[loadTransformersModel] Loading: ${modelId}, dtype: ${dtype}`);
-        
-        // Validate dtype is one of the supported types
-        const validDtypes = ['auto', 'fp32', 'fp16', 'q8', 'int8', 'uint8', 'q4', 'bnb4', 'q4f16', 'quantized'];
-        const modelDtype = validDtypes.includes(dtype) ? dtype as any : 'auto';
-        
-        // Get hasExternalData from manifest
-        const manifestEntry = await getManifestEntry(modelId);
-        let hasExternalData = false;
-        if (manifestEntry && manifestEntry.quants) {
-            console.log(prefix, `[loadTransformersModel] Available quants in manifest:`, Object.keys(manifestEntry.quants));
-            // Find the quant info for this dtype
-            for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
-                console.log(prefix, `[loadTransformersModel] Checking quant: ${modelPath}, dtype: ${quantInfo.dtype}, hasExternalData: ${quantInfo.hasExternalData}`);
-                if (quantInfo.dtype === dtype) {
-                    hasExternalData = quantInfo.hasExternalData || false;
-                    console.log(prefix, `[loadTransformersModel] Found quant info for ${dtype}: hasExternalData=${hasExternalData} (from ${modelPath})`);
-                    break;
-                }
-            }
-        } else {
-            console.log(prefix, `[loadTransformersModel] No manifest entry found for ${modelId}`);
-        }
-        
-        // Load tokenizer and model (like the example)
-        transformersTokenizer = await AutoTokenizer.from_pretrained(modelId, {
-            progress_callback: (data: any) => {
-                self.postMessage({ 
-                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-                    payload: { ...data, file: "tokenizer", progress: 10 + (data.progress * 0.15), loadId } 
-                });
-            }
-        });
-        
-        const modelOptions = {
-            ...(modelDtype !== 'auto' && { dtype: modelDtype }),
-            device: (hasWebGPU ? "webgpu" : "cpu") as "webgpu" | "cpu",
-            use_external_data_format: hasExternalData,
-            progress_callback: (data: any) => {
-                self.postMessage({ 
-                    type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-                    payload: { ...data, file: "model", progress: 30 + (data.progress * 0.6), loadId } 
-                });
-            }
-        };
-        
-        console.log(prefix, `[loadTransformersModel] Calling AutoModelForCausalLM.from_pretrained with options:`, modelOptions);
-        
-        transformersModel = await AutoModelForCausalLM.from_pretrained(modelId, modelOptions);
-        
-        isTransformersModelReady = true;
-        isTransformersModelLoading = false;
-        
-        console.log(prefix, `[loadTransformersModel] Model loaded successfully: ${modelId}`);
-        
- 
-        self.postMessage({
-            type: WorkerEventNames.WORKER_READY,
-            payload: { modelId, modelPath: dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
-        });
-        self.postMessage({ 
-            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-            payload: { status: 'done', file: dtype, progress: 100, loadId } 
-        });
-        
-    } catch (error: any) {
-        isTransformersModelLoading = false;
-        isTransformersModelReady = false;
-        
-        console.error(prefix, `[loadTransformersModel] Error loading model:`, error);
-        self.postMessage({ 
-            type: WorkerEventNames.ERROR, 
-            payload: `Failed to load model ${dtype}: ${error.message}` 
-        });
-        self.postMessage({ 
-            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-            payload: { status: 'error', file: dtype, error: error.message, loadId } 
-        });
-    }
-}
 
-/**
- * Generate text using transformers.js with inference settings
- */
-async function generateTransformersResponse(payload: any) {
-    const { messages, message, input, chatId, messageId } = payload;
-    
-    if (LOG_TRANSFORMERS) {
-        console.log(prefix, `[generateTransformersResponse] Starting generation with payload:`, payload);
-        console.log(prefix, `[generateTransformersResponse] isTransformersModelReady:`, isTransformersModelReady);
-        console.log(prefix, `[generateTransformersResponse] transformersTokenizer:`, !!transformersTokenizer);
-        console.log(prefix, `[generateTransformersResponse] transformersModel:`, !!transformersModel);
-    }
-    
-    if (!isTransformersModelReady || !transformersTokenizer || !transformersModel) {
-        if (LOG_ERROR) console.error(prefix, '[generateTransformersResponse] Model not ready');
-        self.postMessage({ 
-            type: WorkerEventNames.GENERATION_ERROR, 
-            payload: { ...payload, error: 'Model not ready. Please load a model first.' } 
-        });
-        return;
-    }
-    
-    try {
-        isGenerating = true;
-        shouldStopGeneration = false;
-        
-        if (LOG_GENERAL) console.log(prefix, '[generateTransformersResponse] Starting generation');
-        
-        // Load current inference settings
-        const currentSettings = await getInferenceSettings();
-        const settings = currentSettings || DEFAULT_INFERENCE_SETTINGS;
-        
-        if (LOG_TRANSFORMERS_SETTINGS) {
-            console.log(prefix, `[generateTransformersResponse] 📊 LOADED INFERENCE SETTINGS:`, {
-                // Core generation parameters
-                temperature: settings.temperature,
-                max_length: settings.max_length,
-                max_new_tokens: settings.max_new_tokens,
-                min_length: settings.min_length,
-                min_new_tokens: settings.min_new_tokens,
-                top_k: settings.top_k,
-                top_p: settings.top_p,
-                typical_p: settings.typical_p,
-                epsilon_cutoff: settings.epsilon_cutoff,
-                eta_cutoff: settings.eta_cutoff,
-                repetition_penalty: settings.repetition_penalty,
-                encoder_repetition_penalty: settings.encoder_repetition_penalty,
-                do_sample: settings.do_sample,
-                
-                // Beam search parameters
-                num_beams: settings.num_beams,
-                num_beam_groups: settings.num_beam_groups,
-                diversity_penalty: settings.diversity_penalty,
-                early_stopping: settings.early_stopping,
-                length_penalty: settings.length_penalty,
-                penalty_alpha: settings.penalty_alpha,
-                
-                // N-gram control
-                no_repeat_ngram_size: settings.no_repeat_ngram_size,
-                encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
-                
-                // Token control
-                pad_token_id: settings.pad_token_id,
-                bos_token_id: settings.bos_token_id,
-                eos_token_id: settings.eos_token_id,
-                decoder_start_token_id: settings.decoder_start_token_id,
-                forced_bos_token_id: settings.forced_bos_token_id,
-                forced_eos_token_id: settings.forced_eos_token_id,
-                
-                // Advanced filtering
-                bad_words_ids: settings.bad_words_ids,
-                force_words_ids: settings.force_words_ids,
-                suppress_tokens: settings.suppress_tokens,
-                begin_suppress_tokens: settings.begin_suppress_tokens,
-                
-                // Output control
-                num_return_sequences: settings.num_return_sequences,
-                output_attentions: settings.output_attentions,
-                output_hidden_states: settings.output_hidden_states,
-                output_scores: settings.output_scores,
-                return_dict_in_generate: settings.return_dict_in_generate,
-                
-                // Performance
-                use_cache: settings.use_cache,
-                remove_invalid_values: settings.remove_invalid_values,
-                renormalize_logits: settings.renormalize_logits,
-                
-                // Advanced features
-                guidance_scale: settings.guidance_scale,
-                max_time: settings.max_time,
-                
-                // System prompt
-                system_prompt: settings.system_prompt ? 'present' : 'not set'
-            });
-        }
-        
-        // Prepare messages array
-        let messagesForTemplate: Array<{role: string, content: string}> = [];
-        
-        // Add system prompt if not already present
-        if (settings.system_prompt && typeof settings.system_prompt === 'string' && settings.system_prompt.trim().length > 0) {
-            if (!(Array.isArray(messages) && messages.some(msg => msg.role === 'system'))) {
-                messagesForTemplate.push({ role: 'system', content: settings.system_prompt });
-            }
-        }
-        
-        // Add user messages
-        if (Array.isArray(messages)) {
-            messagesForTemplate.push(...messages);
-        } else if (message) {
-            messagesForTemplate.push({ role: 'user', content: message });
-        } else if (input) {
-            messagesForTemplate.push({ role: 'user', content: input });
-        }
-        
-        // Filter scraped content to reduce context size
-        const filteredMessages = filterScrapedContent(messagesForTemplate);
-        
-        if (LOG_TRANSFORMERS) {
-            console.log(prefix, `[generateTransformersResponse] Original messages:`, messagesForTemplate.length);
-            console.log(prefix, `[generateTransformersResponse] Filtered messages:`, filteredMessages.length);
-        }
-        
-        // Apply chat template with filtered messages
-        if (LOG_TRANSFORMERS_SETTINGS) {
-            console.log(prefix, `[generateTransformersResponse] 📝 MESSAGES FOR CHAT TEMPLATE:`, filteredMessages.map((msg, i) => ({
-                index: i,
-                role: msg.role,
-                contentLength: msg.content.length,
-                contentPreview: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-            })));
-        }
-        
-        const inputs = transformersTokenizer.apply_chat_template(filteredMessages, {
-            add_generation_prompt: true,
-            return_dict: true,
-        });
-        
-        if (LOG_TRANSFORMERS_SETTINGS) {
-            console.log(prefix, `[generateTransformersResponse] 🎭 CHAT TEMPLATE RESULT:`, {
-                inputIdsLength: inputs.input_ids ? inputs.input_ids.length : 'unknown',
-                attentionMaskLength: inputs.attention_mask ? inputs.attention_mask.length : 'unknown',
-                hasInputIds: !!inputs.input_ids,
-                hasAttentionMask: !!inputs.attention_mask
-            });
-        }
-        
-        // Accumulate the full generated text for the completion event
-        let fullGeneratedText = '';
-        
-        // Create streamer for incremental updates
-        const streamer = new TextStreamer(transformersTokenizer, {
-            skip_prompt: true,
-            skip_special_tokens: true,
-            callback_function: (output: string) => {
-                // Accumulate the full text
-                fullGeneratedText += output;
-                
-                // Send incremental updates - use same format as original ONNX code
-                // Don't log every token to reduce spam
-                self.postMessage({
-                    type: WorkerEventNames.GENERATION_UPDATE,
-                    payload: { chatId, messageId, token: output }
-                });
-            }
-        });
-        
-        // Map our inference settings to transformers.js generate parameters
-        const generateParams = {
-            ...inputs,
-            // Core generation parameters
-            do_sample: settings.do_sample,
-            temperature: settings.temperature,
-            top_k: settings.top_k,
-            top_p: settings.top_p,
-            repetition_penalty: settings.repetition_penalty,
-            max_new_tokens: settings.max_new_tokens,
-            min_length: settings.min_length,
-            max_length: settings.max_length,
-            
-            // Advanced parameters
-            no_repeat_ngram_size: settings.no_repeat_ngram_size,
-            encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
-            num_beams: settings.num_beams,
-            num_beam_groups: settings.num_beam_groups,
-            diversity_penalty: settings.diversity_penalty,
-            length_penalty: settings.length_penalty,
-            early_stopping: settings.early_stopping,
-            penalty_alpha: settings.penalty_alpha,
-            
-            // Additional sampling parameters
-            typical_p: settings.typical_p,
-            epsilon_cutoff: settings.epsilon_cutoff,
-            eta_cutoff: settings.eta_cutoff,
-            encoder_repetition_penalty: settings.encoder_repetition_penalty,
-            min_new_tokens: settings.min_new_tokens,
-            guidance_scale: settings.guidance_scale,
-            max_time: settings.max_time,
-            
-            // Token control parameters
-            pad_token_id: settings.pad_token_id,
-            bos_token_id: settings.bos_token_id,
-            eos_token_id: settings.eos_token_id,
-            decoder_start_token_id: settings.decoder_start_token_id,
-            forced_bos_token_id: settings.forced_bos_token_id,
-            forced_eos_token_id: settings.forced_eos_token_id,
-            
-            // Advanced filtering
-            bad_words_ids: settings.bad_words_ids,
-            force_words_ids: settings.force_words_ids,
-            suppress_tokens: settings.suppress_tokens,
-            begin_suppress_tokens: settings.begin_suppress_tokens,
-            
-            // Output parameters
-            return_dict_in_generate: settings.return_dict_in_generate,
-            output_attentions: settings.output_attentions,
-            output_hidden_states: settings.output_hidden_states,
-            output_scores: settings.output_scores,
-            
-            // Cache and performance
-            use_cache: settings.use_cache,
-            
-            // Streamer for real-time output
-            streamer: streamer,
-        };
-        
-        // Remove undefined values to avoid passing them to the model
-        // But keep null values as they are valid parameters
-        Object.keys(generateParams).forEach(key => {
-            if (generateParams[key] === undefined) {
-                delete generateParams[key];
-            }
-        });
-        
-        if (LOG_TRANSFORMERS_SETTINGS) {
-            console.log(prefix, `[generateTransformersResponse] 🚀 SENDING TO TRANSFORMERS.JS:`, {
-                // Core generation parameters
-                do_sample: generateParams.do_sample,
-                temperature: generateParams.temperature,
-                top_k: generateParams.top_k,
-                top_p: generateParams.top_p,
-                repetition_penalty: generateParams.repetition_penalty,
-                max_new_tokens: generateParams.max_new_tokens,
-                min_length: generateParams.min_length,
-                max_length: generateParams.max_length,
-                
-                // Advanced parameters
-                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
-                encoder_no_repeat_ngram_size: generateParams.encoder_no_repeat_ngram_size,
-                num_beams: generateParams.num_beams,
-                num_beam_groups: generateParams.num_beam_groups,
-                diversity_penalty: generateParams.diversity_penalty,
-                length_penalty: generateParams.length_penalty,
-                early_stopping: generateParams.early_stopping,
-                penalty_alpha: generateParams.penalty_alpha,
-                
-                // Additional sampling parameters
-                typical_p: generateParams.typical_p,
-                epsilon_cutoff: generateParams.epsilon_cutoff,
-                eta_cutoff: generateParams.eta_cutoff,
-                encoder_repetition_penalty: generateParams.encoder_repetition_penalty,
-                min_new_tokens: generateParams.min_new_tokens,
-                guidance_scale: generateParams.guidance_scale,
-                max_time: generateParams.max_time,
-                
-                // Token control parameters
-                pad_token_id: generateParams.pad_token_id,
-                bos_token_id: generateParams.bos_token_id,
-                eos_token_id: generateParams.eos_token_id,
-                decoder_start_token_id: generateParams.decoder_start_token_id,
-                forced_bos_token_id: generateParams.forced_bos_token_id,
-                forced_eos_token_id: generateParams.forced_eos_token_id,
-                
-                // Advanced filtering
-                bad_words_ids: generateParams.bad_words_ids,
-                force_words_ids: generateParams.force_words_ids,
-                suppress_tokens: generateParams.suppress_tokens,
-                begin_suppress_tokens: generateParams.begin_suppress_tokens,
-                
-                // Output parameters
-                return_dict_in_generate: generateParams.return_dict_in_generate,
-                output_attentions: generateParams.output_attentions,
-                output_hidden_states: generateParams.output_hidden_states,
-                output_scores: generateParams.output_scores,
-                
-                // Cache and performance
-                use_cache: generateParams.use_cache,
-                
-                // Special
-                streamer: generateParams.streamer ? 'present' : 'not set'
-            });
-        }
-        
-        // Generate with the model using our settings
-        const result = await transformersModel.generate(generateParams);
-        
-        // Only log the final completion, not every token
-        if (LOG_TRANSFORMERS) console.log(prefix, `[generateTransformersResponse] Generation completed successfully`);
-        
-        // Send appropriate completion event based on whether generation was stopped
-        if (shouldStopGeneration) {
-            console.log(prefix, '[generateTransformersResponse] Sending GENERATION_STOPPED message');
-            self.postMessage({
-                type: WorkerEventNames.GENERATION_STOPPED,
-                payload: { ...payload, output: fullGeneratedText, generatedText: fullGeneratedText }
-            });
-        } else {
-            console.log(prefix, '[generateTransformersResponse] Sending GENERATION_COMPLETE message');
-            self.postMessage({
-                type: WorkerEventNames.GENERATION_COMPLETE,
-                payload: { ...payload, output: fullGeneratedText, generatedText: fullGeneratedText }
-            });
-        }
-        
-    } catch (error: any) {
-        if (LOG_ERROR) console.error(prefix, '[generateTransformersResponse] Error during generation:', error);
-        self.postMessage({ 
-            type: WorkerEventNames.GENERATION_ERROR, 
-            payload: { ...payload, error: error.message || 'Generation failed' } 
-        });
-    } finally {
-        isGenerating = false;
-    }
-}

@@ -23,6 +23,17 @@ export const CURRENT_MANIFEST_VERSION = 1;
 // Default size limit - will be overridden by settings
 export const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
 
+// Chunked download constants
+export const CHUNK_SIZE = 100 * 1024 * 1024; // 100MB chunks
+export const PAUSE_BYTES_THRESHOLD = 100 * 1024 * 1024; // 100MB pause threshold
+
+/**
+ * Check if a file should be chunked based on size
+ */
+export function shouldChunkFile(fileSize: number): boolean {
+    return fileSize > CHUNK_SIZE;
+}
+
 /**
  * Extract clean quantization type from file path
  * @param filePath - File path like "onnx/model_q4f16.onnx" or "onnx/model.onnx"
@@ -109,12 +120,20 @@ export type ManifestEntry = {
 };
 
 const prefix = '[IDBModel]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
-const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFERENCE_SETTINGS = false;
-const LOG_OPEN_DB = false;
+const LOG_GENERAL = true;  // General operational logs
+const LOG_DEBUG = false;   // Detailed debugging logs (can be noisy)
+const LOG_ERROR = true;    // Error logs (always enabled)
+const LOG_WARN = true;     // Warning logs
+const LOG_INFERENCE_SETTINGS = false; // Inference settings specific logs
+const LOG_OPEN_DB = false; // Database open/close logs
+const LOG_MANIFEST = false; // Manifest operation logs
+const LOG_CHUNKS = false;  // Chunking operation logs
+const LOG_CACHE = false;   // Cache hit/miss logs
+
+// Throttling for high-frequency operations
+let cacheLogCount = 0;
+let manifestLogCount = 0;
+const LOG_THROTTLE_INTERVAL = 20; // Log every 20 operations
 
 
 export const modelCacheSchema = {
@@ -535,14 +554,19 @@ export async function openModelCacheDB(): Promise<IDBDatabase> {
 }
 
 export async function getFromIndexedDB(url: string): Promise<Blob | null> {
-    if (LOG_GENERAL) console.log(prefix, '[getFromIndexedDB] Getting', url);
+    cacheLogCount++;
+    if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+        console.log(prefix, `[getFromIndexedDB] Getting ${url} (operation #${cacheLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('files', 'readonly');
         const store = tx.objectStore('files');
         const req = store.get(url);
         req.onsuccess = () => {
-            if (LOG_DEBUG) console.log(prefix, '[getFromIndexedDB] Success for', url, req.result);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[getFromIndexedDB] Success for ${url} (operation #${cacheLogCount})`);
+            }
             const result = req.result;
             resolve(result ? result.blob : null);
         };
@@ -551,7 +575,9 @@ export async function getFromIndexedDB(url: string): Promise<Blob | null> {
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG) console.log(prefix, '[getFromIndexedDB] Transaction complete for', url);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[getFromIndexedDB] Transaction complete for ${url} (operation #${cacheLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -566,14 +592,19 @@ export async function getFromIndexedDB(url: string): Promise<Blob | null> {
 }
 
 export async function saveToIndexedDB(url: string, blob: Blob) {
-    if (LOG_GENERAL) console.log(prefix, '[saveToIndexedDB] Saving', url);
+   cacheLogCount++;
+   if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+       console.log(prefix, `[saveToIndexedDB] Saving ${url} (operation #${cacheLogCount})`);
+   }
     const db = await openModelCacheDB();
     return new Promise<void>((resolve, reject) => {
         const tx = db.transaction('files', 'readwrite');
         const store = tx.objectStore('files');
         const req = store.put({ url, blob });
         req.onsuccess = () => {
-            if (LOG_DEBUG) console.log(prefix, '[saveToIndexedDB] Saved', url, blob);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[saveToIndexedDB] Saved ${url} (operation #${cacheLogCount})`);
+            }
             resolve(undefined);
         };
         req.onerror = () => {
@@ -581,7 +612,9 @@ export async function saveToIndexedDB(url: string, blob: Blob) {
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG) console.log(prefix, '[saveToIndexedDB] Transaction complete for', url);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[saveToIndexedDB] Transaction complete for ${url} (operation #${cacheLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -596,14 +629,19 @@ export async function saveToIndexedDB(url: string, blob: Blob) {
 }
 
 export async function getManifestEntry(repo: string): Promise<ManifestEntry | null> {
-    if (LOG_GENERAL) console.log(prefix, '[getManifestEntry] Getting', repo);
+    manifestLogCount++;
+    if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+        console.log(prefix, `[getManifestEntry] Getting ${repo} (operation #${manifestLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('manifest', 'readonly');
         const store = tx.objectStore('manifest');
         const req = store.get(repo);
         req.onsuccess = () => {
-            if (LOG_DEBUG) console.log(prefix, '[getManifestEntry] Success for', repo, req.result);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[getManifestEntry] Success for ${repo} (operation #${manifestLogCount})`);
+            }
             const entry = req.result as ManifestEntry | null;
             // Check manifest version if needed in the future for migration
             if (entry && entry.manifestVersion !== CURRENT_MANIFEST_VERSION) {
@@ -616,7 +654,9 @@ export async function getManifestEntry(repo: string): Promise<ManifestEntry | nu
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG) console.log(prefix, '[getManifestEntry] Transaction complete for', repo);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[getManifestEntry] Transaction complete for ${repo} (operation #${manifestLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -640,14 +680,19 @@ export async function addManifestEntry(repo: string, entry: ManifestEntry): Prom
          // Ensure we always save with the current version, or throw error if strictness is required
          entry.manifestVersion = CURRENT_MANIFEST_VERSION;
     }
-    if (LOG_GENERAL) console.log(prefix, '[addManifestEntry] Adding/Updating', repo, entry);
+    manifestLogCount++;
+    if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+        console.log(prefix, `[addManifestEntry] Adding/Updating ${repo} (operation #${manifestLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise<void>((resolve, reject) => {
         const tx = db.transaction('manifest', 'readwrite');
         const store = tx.objectStore('manifest');
         const req = store.put(entry);
         req.onsuccess = () => {
-            if (LOG_DEBUG) console.log(prefix, '[addManifestEntry] Added/Updated', repo, entry);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[addManifestEntry] Added/Updated ${repo} (operation #${manifestLogCount})`);
+            }
             resolve();
         };
         req.onerror = () => {
@@ -655,7 +700,9 @@ export async function addManifestEntry(repo: string, entry: ManifestEntry): Prom
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG) console.log(prefix, '[addManifestEntry] Transaction complete for', repo);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[addManifestEntry] Transaction complete for ${repo} (operation #${manifestLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -941,5 +988,268 @@ export async function deleteFromIndexedDB(url: string) {
             db.close();
         };
     });
+}
+
+// ===== CHUNKED FILE MANAGEMENT FUNCTIONS =====
+
+/**
+ * Fetch a single chunk from IndexedDB
+ */
+export async function fetchChunk(modelId: string, fileName: string, chunkIndex: number): Promise<ArrayBuffer | null> {
+    try {
+        // Reduced logging to prevent spam
+        // if (LOG_DEBUG) console.log(prefix, `[fetchChunk] Fetching chunk ${chunkIndex} for ${modelId}/${fileName}`);
+        
+        const chunkKey = `${modelId}/${fileName}_chunk_${chunkIndex}`;
+        const cached = await getFromIndexedDB(chunkKey);
+        
+        if (cached) {
+            // Reduced logging to prevent spam
+            // if (LOG_DEBUG) console.log(prefix, `[fetchChunk] Found chunk ${chunkIndex} in cache, size: ${cached.size} bytes`);
+            return await cached.arrayBuffer();
+        } else {
+            if (LOG_DEBUG) console.log(prefix, `[fetchChunk] Chunk ${chunkIndex} not found in cache`);
+            return null;
+        }
+    } catch (error) {
+        if (LOG_ERROR) console.error(prefix, `[fetchChunk] Error fetching chunk ${chunkIndex} for ${modelId}/${fileName}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get chunk info for a file
+ */
+export async function getChunkInfo(modelId: string, fileName: string): Promise<{ isChunked: boolean; totalChunks?: number; totalSize?: number }> {
+    try {
+        const manifestKey = `${modelId}/${fileName}:manifest`;
+        const manifest = await getFromIndexedDB(manifestKey);
+        
+        if (manifest) {
+            const manifestData = await manifest.text();
+            const manifestObj = JSON.parse(manifestData);
+            
+            if (manifestObj.type === 'manifest' && manifestObj.totalChunks > 0) {
+                return {
+                    isChunked: true,
+                    totalChunks: manifestObj.totalChunks,
+                    totalSize: manifestObj.size
+                };
+            }
+        }
+        
+        return { isChunked: false };
+    } catch (error) {
+        if (LOG_ERROR) console.error(prefix, `[getChunkInfo] Error checking chunked status for ${modelId}/${fileName}:`, error);
+        return { isChunked: false };
+    }
+}
+
+/**
+ * Assemble chunks into a complete file
+ */
+export async function assembleChunks(modelId: string, fileName: string, totalChunks: number, totalSize: number): Promise<ArrayBuffer> {
+    if (LOG_DEBUG) console.log(prefix, `[assembleChunks] Assembling ${totalChunks} chunks for ${fileName}, total size: ${totalSize} bytes`);
+    
+    const combined = new Uint8Array(totalSize);
+    let currentOffset = 0;
+    
+    for (let i = 0; i < totalChunks; i++) {
+        const chunkArrayBuffer = await fetchChunk(modelId, fileName, i);
+        if (!chunkArrayBuffer) {
+            throw new Error(`Failed to fetch chunk ${i} of ${fileName}`);
+        }
+        
+        const chunkUint8Array = new Uint8Array(chunkArrayBuffer);
+        if (currentOffset + chunkUint8Array.length > totalSize) {
+            throw new Error(`Chunk ${i} would overflow buffer for ${fileName}. Offset: ${currentOffset}, ChunkLen: ${chunkUint8Array.length}, TotalSize: ${totalSize}`);
+        }
+        
+        combined.set(chunkUint8Array, currentOffset);
+        currentOffset += chunkUint8Array.length;
+        
+        if (i % 20 === 0 || i === totalChunks - 1) {
+            if (LOG_DEBUG) console.log(prefix, `[assembleChunks] Assembled chunk ${i}/${totalChunks-1}. Offset: ${currentOffset}/${totalSize}`);
+        }
+    }
+    
+    if (currentOffset !== totalSize) {
+        if (LOG_WARN) console.warn(prefix, `[assembleChunks] Assembled size ${currentOffset} mismatch expected ${totalSize} for ${fileName}`);
+        return combined.buffer.slice(0, currentOffset);
+    }
+    
+    return combined.buffer;
+}
+
+/**
+ * Save a large file as chunks in IndexedDB (RAM-efficient streaming version)
+ * This version streams the file in chunks without loading the entire file into RAM
+ */
+export async function saveChunkedFileSafe(resourceUrl: string, blob: Blob, modelId: string): Promise<void> {
+    // Extract the full file path from the URL (e.g., "onnx/model_q4f16.onnx")
+    const urlParts = resourceUrl.split('/');
+    const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
+    
+    if (!modelId) {
+        throw new Error('No model ID available for chunked storage');
+    }
+    
+    const fileSize = blob.size;
+    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    
+    if (LOG_CHUNKS) console.log(prefix, `[saveChunkedFileSafe] Starting chunking ${fileName}: ${fileSize} bytes into ${totalChunks} chunks (last chunk will be ${fileSize % CHUNK_SIZE} bytes)`);
+    
+    // Create manifest
+    const manifest = {
+        id: `${modelId}/${fileName}:manifest`,
+        type: 'manifest',
+        chunkGroupId: `${modelId}/${fileName}`,
+        fileName,
+        totalChunks,
+        chunkSizeUsed: CHUNK_SIZE,
+        size: fileSize,
+        status: 'present'
+    };
+    
+    // Save manifest
+    await saveToIndexedDB(`${modelId}/${fileName}:manifest`, new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+    
+    // Stream the blob in chunks without loading entire file into RAM
+    const stream = blob.stream();
+    const reader = stream.getReader();
+    let chunkIndex = 0;
+    let totalBytesProcessed = 0;
+    let currentChunkBuffer = new Uint8Array(CHUNK_SIZE);
+    let currentChunkOffset = 0;
+    
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            // Process this chunk of data
+            const chunkData = new Uint8Array(value);
+            let dataOffset = 0;
+            
+            while (dataOffset < chunkData.length) {
+                const remainingInChunk = CHUNK_SIZE - currentChunkOffset;
+                const remainingInData = chunkData.length - dataOffset;
+                const bytesToCopy = Math.min(remainingInChunk, remainingInData);
+                
+                // Copy data to current chunk buffer
+                currentChunkBuffer.set(chunkData.slice(dataOffset, dataOffset + bytesToCopy), currentChunkOffset);
+                currentChunkOffset += bytesToCopy;
+                dataOffset += bytesToCopy;
+                
+                // If chunk is full, save it
+                if (currentChunkOffset === CHUNK_SIZE) {
+                    const chunkKey = `${modelId}/${fileName}_chunk_${chunkIndex}`;
+                    const actualChunkSize = currentChunkOffset;
+                    
+                    // Save the exact chunk data
+                    await saveToIndexedDB(chunkKey, new Blob([currentChunkBuffer.slice(0, actualChunkSize)], { type: 'application/octet-stream' }));
+                    
+                    totalBytesProcessed += actualChunkSize;
+                    chunkIndex++;
+                    currentChunkOffset = 0;
+                    
+                    // Log every 20 chunks or on the last chunk
+                    if (chunkIndex % 20 === 0 || chunkIndex === totalChunks) {
+                        if (LOG_CHUNKS) {
+                            const startChunk = Math.max(0, chunkIndex - 20);
+                            const endChunk = chunkIndex - 1;
+                            if (startChunk === endChunk) {
+                                console.log(prefix, `[saveChunkedFileSafe] Chunk ${startChunk} saved (${actualChunkSize} bytes, total: ${totalBytesProcessed}/${fileSize})`);
+                            } else {
+                                console.log(prefix, `[saveChunkedFileSafe] Chunks ${startChunk}-${endChunk} saved (${actualChunkSize} bytes, total: ${totalBytesProcessed}/${fileSize})`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // CRITICAL FIX: Save the last chunk if there's remaining data
+        if (currentChunkOffset > 0) {
+            const chunkKey = `${modelId}/${fileName}_chunk_${chunkIndex}`;
+            const actualChunkSize = currentChunkOffset;
+            
+            // Save the last chunk with remaining data
+            await saveToIndexedDB(chunkKey, new Blob([currentChunkBuffer.slice(0, actualChunkSize)], { type: 'application/octet-stream' }));
+            
+            totalBytesProcessed += actualChunkSize;
+            chunkIndex++;
+            
+            if (LOG_CHUNKS) console.log(prefix, `[saveChunkedFileSafe] Streamed final chunk ${chunkIndex}/${totalChunks} (${actualChunkSize} bytes, total: ${totalBytesProcessed}/${fileSize})`);
+        }
+        
+        if (LOG_CHUNKS) console.log(prefix, `[saveChunkedFileSafe] ✅ Successfully streamed ${fileName}: ${chunkIndex} chunks saved`);
+        
+    } catch (error) {
+        if (LOG_ERROR) console.error(prefix, `[saveChunkedFileSafe] Error during streaming chunking:`, error);
+        throw error;
+    } finally {
+        reader.releaseLock();
+    }
+}
+
+/**
+ * Create a streaming response from chunks (RAM-efficient for large files)
+ * This creates a ReadableStream that yields chunks without loading entire file into RAM
+ */
+export async function createStreamingResponseFromChunks(modelId: string, fileName: string, totalChunks: number, totalSize: number): Promise<Response> {
+    const stream = new ReadableStream({
+        async start(controller) {
+            try {
+                let totalBytesStreamed = 0;
+                
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunkArrayBuffer = await fetchChunk(modelId, fileName, i);
+                    if (!chunkArrayBuffer) {
+                        throw new Error(`Failed to fetch chunk ${i} of ${fileName}`);
+                    }
+                    
+                    // Create a proper Uint8Array from the chunk
+                    const chunkData = new Uint8Array(chunkArrayBuffer);
+                    totalBytesStreamed += chunkData.length;
+                    
+                    // Enqueue the chunk data
+                    controller.enqueue(chunkData);
+                    
+                    // Log every 20 chunks or on the last chunk
+                    if (i % 20 === 0 || i === totalChunks - 1) {
+                        if (LOG_CHUNKS) {
+                            const startChunk = Math.max(0, i - 19);
+                            const endChunk = i;
+                            if (startChunk === endChunk) {
+                                console.log(prefix, `[createStreamingResponseFromChunks] Chunk ${startChunk} streamed (${chunkData.length} bytes, total: ${totalBytesStreamed}/${totalSize})`);
+                            } else {
+                                console.log(prefix, `[createStreamingResponseFromChunks] Chunks ${startChunk}-${endChunk} streamed (${chunkData.length} bytes, total: ${totalBytesStreamed}/${totalSize})`);
+                            }
+                        }
+                    }
+                }
+                
+                if (LOG_GENERAL) console.log(prefix, `[createStreamingResponseFromChunks] ✅ Completed streaming ${fileName}: ${totalBytesStreamed} bytes (expected: ${totalSize} bytes)`);
+                
+                // Validate total bytes match
+                if (totalBytesStreamed !== totalSize) {
+                    if (LOG_WARN) console.warn(prefix, `[createStreamingResponseFromChunks] ⚠️ Size mismatch: streamed ${totalBytesStreamed} bytes, expected ${totalSize} bytes`);
+                }
+                
+                controller.close();
+            } catch (error) {
+                if (LOG_ERROR) console.error(prefix, `[createStreamingResponseFromChunks] Error streaming chunks:`, error);
+                controller.error(error);
+            }
+        }
+    });
+    
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/octet-stream');
+    headers.set('Content-Length', totalSize.toString());
+    headers.set('Transfer-Encoding', 'chunked');
+    
+    return new Response(stream, { headers });
 }
 

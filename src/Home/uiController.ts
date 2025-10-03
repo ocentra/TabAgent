@@ -28,11 +28,15 @@ let loadModelButton: HTMLButtonElement | null = null;
 let isLoadingModel = false; 
 let currentLoadId: string | null = null;
 let lastSeenLoadId: string | null = null;
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
-const LOG_ERROR = false;
-const LOG_WARN = false;
-const LOG_INFO = false;
+const LOG_GENERAL = false;  // General operational logs
+const LOG_DEBUG = false;    // Detailed debugging logs (can be noisy)
+const LOG_ERROR = true;     // Error logs (always enabled)
+const LOG_WARN = true;      // Warning logs
+const LOG_INFO = false;     // Info logs
+const LOG_UI_UPDATES = false; // UI update specific logs
+const LOG_QUANT_DROPDOWN = false; // Quant dropdown specific logs
+const LOG_MODEL_LOADING = false; // Model loading specific logs
+const LOG_EVENTS = false;   // Event handling logs
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
@@ -222,10 +226,13 @@ document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async () => {
 
 // The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
 // No need for additional event listeners here
-function handleModelWorkerLoadingProgress(payload: any) {
+async function handleModelWorkerLoadingProgress(payload: any) {
     if (!payload) return;
     if (payload.loadId !== lastSeenLoadId) {
-        if (LOG_WARN) console.warn(prefix, 'New loadId detected in progress:', payload.loadId);
+        progressLogCount++;
+        if (LOG_WARN && (progressLogCount % PROGRESS_LOG_THROTTLE_INTERVAL === 0 || progressLogCount === 1)) {
+            console.warn(prefix, 'New loadId detected in progress:', payload.loadId, `(progress update #${progressLogCount})`);
+        }
         if (lastSeenLoadId) {
             if (LOG_ERROR) console.error(prefix, 'DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
         }
@@ -249,10 +256,10 @@ function handleModelWorkerLoadingProgress(payload: any) {
         progressInner.style.background = '#f44336'; 
         progressInner.style.width = '100%';
         isLoadingModel = false;
-        if (loadModelButton) {
-            loadModelButton.disabled = false;
-            setLoadModelButtonText('Load Model');
-        }
+        
+        // Update load button state after error
+        await updateLoadButtonAndQuantDropdown();
+        
         enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1500);
         lastSeenLoadId = null;
@@ -302,25 +309,25 @@ function handleModelWorkerLoadingProgress(payload: any) {
 
     if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
         isLoadingModel = false;
-        if (loadModelButton) {
-            loadModelButton.disabled = false;
-            setLoadModelButtonText('Load Model');
-        }
+        
+        // Update load button state based on current selection vs loaded model
+        await updateLoadButtonAndQuantDropdown();
+        
         enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
         lastSeenLoadId = null;
     }
 }
 
-function handleModelAlreadyLoaded(payload: any) {
+async function handleModelAlreadyLoaded(payload: any) {
     if (!payload) return;
     
     // Reset loading state since the model is already loaded
     isLoadingModel = false;
-    if (loadModelButton) {
-        loadModelButton.disabled = false;
-        setLoadModelButtonText('Load Model');
-    }
+    
+    // Update load button state - should hide if same model+quant is selected
+    await updateLoadButtonAndQuantDropdown();
+    
     enableInput();
     
     // Hide the loading status
@@ -333,35 +340,63 @@ function handleModelAlreadyLoaded(payload: any) {
     if (LOG_GENERAL) console.log(prefix, `Model ${payload.modelId} (${payload.dtype}) is already loaded. UI state reset.`);
 }
 
+// Throttle UI updates to prevent spam
+let lastUIUpdateTime = 0;
+const UI_UPDATE_THROTTLE_MS = 2000; // Only update UI once every 2 seconds
+let isUpdatingUI = false; // Prevent concurrent UI updates
+
+// Throttling for high-frequency UI operations
+let uiLogCount = 0;
+const UI_LOG_THROTTLE_INTERVAL = 20; // Log every 20 operations
+
+// Throttling for progress callback logs
+let progressLogCount = 0;
+const PROGRESS_LOG_THROTTLE_INTERVAL = 10; // Log every 10 progress updates
+
 // Check IndexedDB status and update dropdown colors in real-time
 async function updateQuantDropdownStatusFromDB() {
-    console.log('[UIController] updateQuantDropdownStatusFromDB called');
+    const now = Date.now();
+    if (now - lastUIUpdateTime < UI_UPDATE_THROTTLE_MS || isUpdatingUI) {
+        return; // Skip this update to prevent spam or concurrent updates
+    }
+    
+    isUpdatingUI = true;
+    lastUIUpdateTime = now;
+    
+    try {
+    
+    if (LOG_QUANT_DROPDOWN) console.log('[UIController] updateQuantDropdownStatusFromDB called');
     const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
     const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
     
     if (!modelDropdown || !quantDropdown) {
-        console.log('[UIController] Dropdowns not found');
+        if (LOG_QUANT_DROPDOWN) console.log('[UIController] Dropdowns not found');
         return;
     }
     
     const selectedModel = modelDropdown.value;
-    console.log('[UIController] Selected model:', selectedModel);
+    if (LOG_QUANT_DROPDOWN) console.log('[UIController] Selected model:', selectedModel);
     if (!selectedModel || !repoQuantsCache[selectedModel]) {
-        console.log('[UIController] No model selected or not in cache');
+        if (LOG_QUANT_DROPDOWN) console.log('[UIController] No model selected or not in cache');
         return;
     }
     
     const manifestEntry = repoQuantsCache[selectedModel];
-    console.log('[UIController] Manifest entry found, checking', Object.keys(manifestEntry.quants).length, 'quants');
+    if (LOG_QUANT_DROPDOWN) console.log('[UIController] Manifest entry found, checking', Object.keys(manifestEntry.quants).length, 'quants');
     
     // Check each quant option's actual IndexedDB status
     const options = Array.from(quantDropdown.options);
-    console.log('[UIController] Found', options.length, 'quant options to check');
+    if (LOG_QUANT_DROPDOWN) console.log('[UIController] Found', options.length, 'quant options to check');
     
     for (let i = 0; i < options.length; i++) {
         const option = options[i];
         const dtype = option.value;
-        console.log('[UIController] Checking quant option', i + 1, 'of', options.length, ':', dtype);
+        uiLogCount++;
+        
+        // Throttled logging for high-frequency operations
+        if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+            console.log('[UIController] Checking quant option', i + 1, 'of', options.length, ':', dtype, '(operation #' + uiLogCount + ')');
+        }
         
         const modelPath = Object.keys(manifestEntry.quants).find(path => {
             const quantInfo = manifestEntry.quants[path];
@@ -369,14 +404,18 @@ async function updateQuantDropdownStatusFromDB() {
             return extractedDtype === dtype;
         });
         
-        console.log('[UIController] Found modelPath for', dtype, ':', modelPath);
+        if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+            console.log('[UIController] Found modelPath for', dtype, ':', modelPath, '(operation #' + uiLogCount + ')');
+        }
         
         if (modelPath) {
             const quantInfo = manifestEntry.quants[modelPath];
             
             // Check if files are actually in IndexedDB
             const isInIndexedDB = await checkQuantInIndexedDB(selectedModel, modelPath);
-            console.log('[UIController] Quant', dtype, 'modelPath:', modelPath, 'isInIndexedDB:', isInIndexedDB);
+            if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                console.log('[UIController] Quant', dtype, 'modelPath:', modelPath, 'isInIndexedDB:', isInIndexedDB, '(operation #' + uiLogCount + ')');
+            }
             
             // Update the option's class and appearance
             option.className = ''; // Clear existing classes
@@ -386,7 +425,9 @@ async function updateQuantDropdownStatusFromDB() {
                 // Update the text to show downloaded status
                 const label = quantKeyToLabel(dtype);
                 option.textContent = `${label} 💾 (Downloaded)`;
-                console.log('[UIController] Set', dtype, 'to downloaded status');
+                if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                    console.log('[UIController] Set', dtype, 'to downloaded status (operation #' + uiLogCount + ')');
+                }
             } else {
                 // Use the original status from manifest
                 switch (quantInfo.status) {
@@ -413,21 +454,45 @@ async function updateQuantDropdownStatusFromDB() {
                 option.textContent = `${label} ▶️ (Currently Loaded)`;
             }
         } else {
-            console.log('[UIController] No modelPath found for dtype:', dtype);
+            if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                console.log('[UIController] No modelPath found for dtype:', dtype, '(operation #' + uiLogCount + ')');
+            }
         }
     }
     
-    console.log('[UIController] Finished checking all quant options');
+        if (LOG_QUANT_DROPDOWN) console.log('[UIController] Finished checking all quant options');
+    } finally {
+        isUpdatingUI = false;
+    }
 }
 
 // Helper function to check if quant files are in IndexedDB
 async function checkQuantInIndexedDB(modelId: string, modelPath: string): Promise<boolean> {
     try {
-        // Check if the main model file exists in IndexedDB
+        // Check if the main model file exists in IndexedDB (for non-chunked files)
         const modelUrl = `https://huggingface.co/${modelId}/resolve/main/${modelPath}`;
         const cached = await getFromIndexedDB(modelUrl);
-        return !!cached;
+        if (cached) {
+            return true;
+        }
+        
+        // Check if the file is chunked (for large files)
+        const manifestKey = `${modelId}/${modelPath}:manifest`;
+        const manifest = await getFromIndexedDB(manifestKey);
+        if (manifest) {
+            const manifestData = await manifest.text();
+            const manifestObj = JSON.parse(manifestData);
+            if (manifestObj.type === 'manifest' && manifestObj.totalChunks > 0) {
+                // Check if at least the first chunk exists
+                const firstChunkKey = `${modelId}/${modelPath}_chunk_0`;
+                const firstChunk = await getFromIndexedDB(firstChunkKey);
+                return !!firstChunk;
+            }
+        }
+        
+        return false;
     } catch (error) {
+        console.error('[UIController] Error checking quant in IndexedDB:', error);
         return false;
     }
 }
@@ -928,7 +993,7 @@ function populateQuantDropdownForSelectedRepo() {
     
     // Handle legacy manifests that don't have dtype field
     const dtype = quantInfo.dtype || extractCleanDtypeFromPath(modelPath);
-    console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
+    if (LOG_QUANT_DROPDOWN) console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
     option.value = dtype; // Use clean dtype instead of modelPath
     let label = quantKeyToLabel(dtype);
     let dot = '⚪'; // default gray

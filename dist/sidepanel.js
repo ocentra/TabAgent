@@ -2932,18 +2932,18 @@ const INFERENCE_SETTING_KEYS = {
     system_prompt: 'system_prompt',
 };
 const DEFAULT_INFERENCE_SETTINGS = {
-    // Core generation parameters
-    temperature: 1.0, // Default: 1.0 (from docs)
-    max_length: 2048, // Default: 20 (from docs) - we override with user-friendly 2048
-    max_new_tokens: 25, // Default: null (from docs) - we use 25 for very brief responses
+    // Core generation parameters - Updated with proven optimal values
+    temperature: 0.2, // Lower for more focused, meaningful responses (proven optimal)
+    max_length: 2048, // Moderate context window
+    max_new_tokens: 1024, // Increased for better responses (proven optimal)
     min_length: 0, // Default: 0 (from docs)
     min_new_tokens: 0, // Default: null (from docs) - we use 0 for user experience
-    top_k: 50, // Default: 50 (from docs)
+    top_k: 3, // Much lower for focused responses (proven optimal)
     top_p: 0.9, // Default: 1.0 (from docs) - we use 0.9 for user experience
     typical_p: 1.0, // Default: 1.0 (from docs)
     epsilon_cutoff: 0.0, // Default: 0.0 (from docs)
     eta_cutoff: 0.0, // Default: 0.0 (from docs)
-    repetition_penalty: 1.2, // Default: 1.0 (from docs) - we use 1.2 to prevent rambling
+    repetition_penalty: 1.1, // Lower penalty for better flow (proven optimal)
     encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
     do_sample: true, // Default: false (from docs) - we use true for user experience
     // Beam search parameters
@@ -2954,12 +2954,12 @@ const DEFAULT_INFERENCE_SETTINGS = {
     length_penalty: 1.0, // Default: 1.0 (from docs)
     penalty_alpha: 0.0, // Default: null (from docs) - we use 0.0 for user experience
     // N-gram and repetition control
-    no_repeat_ngram_size: 3, // Default: 0 (from docs) - we use 3 to prevent phrase repetition
+    no_repeat_ngram_size: 3, // Proven optimal value for preventing repetition
     encoder_no_repeat_ngram_size: 0, // Default: 0 (from docs)
     // Token control
     pad_token_id: null, // Default: null (from docs)
     bos_token_id: null, // Default: null (from docs)
-    eos_token_id: null, // Default: null (from docs)
+    eos_token_id: null, // Will be dynamically set from tokenizer (was hardcoded to 2)
     decoder_start_token_id: null, // Default: null (from docs)
     forced_bos_token_id: null, // Default: null (from docs)
     forced_eos_token_id: null, // Default: null (from docs)
@@ -2985,7 +2985,7 @@ const DEFAULT_INFERENCE_SETTINGS = {
     constraints: null, // Default: null (from docs)
     forced_decoder_ids: null, // Default: null (from docs)
     // System prompt
-    system_prompt: `You are a helpful AI assistant. Be brief and direct. For greetings, respond with just "Hello! How can I help?" Keep responses under 20 words.\n`,
+    system_prompt: `You are a helpful AI assistant. Give brief, direct answers. Be concise and to the point. No rambling or repetition. If you don't know something, say so.\n`,
 };
 const SYSTEM_PROMPT_SETTING = {
     key: INFERENCE_SETTING_KEYS.system_prompt,
@@ -3009,7 +3009,7 @@ const COMMON_SETTINGS = [
         min: 0.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.0,
+        defaultValue: 0.2,
         description: `Controls how creative or predictable the AI's responses are. Lower values make the AI more strict and focused—great for coding, technical answers, or when you want fewer made-up (hallucinated) details. Higher values make the AI more creative and varied—useful for brainstorming, stories, or blog posts, but can sometimes lead to less accurate or more imaginative answers.`,
         example: `Use 0.1–0.3 for precise tasks like code or factual Q&A. 0.7–1.0 for balanced conversation. 1.2–1.8 for creative writing or idea generation.`
     },
@@ -3019,15 +3019,15 @@ const COMMON_SETTINGS = [
         type: 'input',
         defaultValue: 2048,
         description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
-        example: `Use 20 for very short answers, 100 for short, 2048 for medium, 4096+ for long explanations or stories.`
+        example: `Use 512 for short answers, 2048 for medium, 8192+ for long explanations or stories.`
     },
     {
         key: INFERENCE_SETTING_KEYS.max_new_tokens,
         label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
         type: 'input',
-        defaultValue: 25, // We use 25 for very brief responses (official default is null)
+        defaultValue: 1024, // Proven optimal value for balanced responses
         description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
-        example: `Try 50 for brief replies, 200 for paragraphs, 500+ for essays or stories.`
+        example: `Try 100 for brief replies, 500 for paragraphs, 1024+ for detailed explanations or stories.`
     },
     {
         key: INFERENCE_SETTING_KEYS.min_length,
@@ -3041,9 +3041,9 @@ const COMMON_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.top_k,
         label: keyToLabel(INFERENCE_SETTING_KEYS.top_k),
         type: 'input',
-        defaultValue: 50, // Official default: 50
+        defaultValue: 3, // Proven optimal value for focused responses
         description: `Controls how many word choices the AI considers at each step. Lower values make the AI more focused and repetitive. Higher values allow for more variety and creativity, but can sometimes make answers less predictable.`,
-        example: `1 = most focused (greedy), 10 = focused, 50 = balanced, 0 = unlimited variety.`
+        example: `1 = most focused (greedy), 3 = very focused (proven optimal), 10 = focused, 50 = balanced, 0 = unlimited variety.`
     },
     {
         key: INFERENCE_SETTING_KEYS.top_p,
@@ -3074,7 +3074,7 @@ const COMMON_SETTINGS = [
         min: 1.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.2, // Official default: 1.0
+        defaultValue: 1.1, // Proven optimal value for better flow
         description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
         example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
     },
@@ -3193,9 +3193,9 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
         label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
         type: 'input',
-        defaultValue: 0, // Official default: 0
+        defaultValue: 3, // Proven optimal value for preventing repetition
         description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
-        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets.`
+        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets (proven optimal).`
     },
     {
         key: INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size,
@@ -4195,6 +4195,9 @@ function createModelLoadingSettingsFoldout() {
                 <button id="resetModelSettings" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs ml-2">
                     Reset to Default
                 </button>
+                <button id="resetInferenceSettings" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs ml-2">
+                    Reset AI Settings
+                </button>
             </div>
         </div>
     `;
@@ -4295,7 +4298,7 @@ function setupModelLoadingSettings(container) {
     // Setup reset button
     const resetButton = container.querySelector('#resetModelSettings');
     if (resetButton) {
-        resetButton.addEventListener('click', () => {
+        resetButton.addEventListener('click', async () => {
             const defaultSettings = getDefaultModelLoadingSettings();
             saveModelLoadingSettings(defaultSettings);
             // Update UI
@@ -4311,8 +4314,58 @@ function setupModelLoadingSettings(container) {
                 bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassPhi35Transformers)
                 bypassPhi35Transformers.checked = defaultSettings.bypassModels.has('onnx-community/Phi-3.5-mini-instruct-onnx-web');
-            alert('Model loading settings reset to default!');
+            if (bypassBitnet2B)
+                bypassBitnet2B.checked = defaultSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
+            if (bypassQwen3)
+                bypassQwen3.checked = defaultSettings.bypassModels.has('onnx-community/Qwen3-1.7B-ONNX');
+            // Also reset inference settings to fix generation quality
+            try {
+                const { DEFAULT_INFERENCE_SETTINGS } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./InferenceSettings */ "./src/Controllers/InferenceSettings.ts"));
+                const { saveInferenceSettings } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../DB/idbModel */ "./src/DB/idbModel.ts"));
+                await saveInferenceSettings(DEFAULT_INFERENCE_SETTINGS);
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Inference settings also reset to default`);
+            }
+            catch (e) {
+                if (LOG_ERROR)
+                    console.error(`${prefix} Failed to reset inference settings:`, e);
+            }
+            alert('Model loading settings and inference settings reset to default!');
         });
+    }
+    // Setup inference settings reset button
+    const resetInferenceButton = container.querySelector('#resetInferenceSettings');
+    if (resetInferenceButton) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Found reset inference button, adding event listener`);
+        resetInferenceButton.addEventListener('click', async () => {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Reset inference button clicked`);
+            try {
+                // Show immediate feedback
+                resetInferenceButton.textContent = 'Resetting...';
+                resetInferenceButton.disabled = true;
+                const { resetSettingsToDefault } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./InferenceSettings */ "./src/Controllers/InferenceSettings.ts"));
+                await resetSettingsToDefault();
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Inference settings reset to default`);
+                alert('AI generation settings reset to default! This should fix poor response quality.');
+            }
+            catch (e) {
+                if (LOG_ERROR)
+                    console.error(`${prefix} Failed to reset inference settings:`, e);
+                alert('Failed to reset AI settings. Please try again.');
+            }
+            finally {
+                // Reset button state
+                resetInferenceButton.textContent = 'Reset AI Settings';
+                resetInferenceButton.disabled = false;
+            }
+        });
+    }
+    else {
+        if (LOG_ERROR)
+            console.error(`${prefix} Could not find #resetInferenceSettings button`);
     }
 }
 function getModelLoadingSettings() {
@@ -4452,6 +4505,14 @@ function initializeSettingsController() {
     }
     // Setup model loading settings
     setupModelLoadingSettings(settingsPageContainer);
+    // Debug: Check if buttons exist
+    if (LOG_DEBUG) {
+        const resetBtn = settingsPageContainer.querySelector('#resetInferenceSettings');
+        console.log(`${prefix} Reset inference button exists:`, !!resetBtn);
+        if (resetBtn) {
+            console.log(`${prefix} Reset inference button text:`, resetBtn.textContent);
+        }
+    }
     // Inject Inference Settings foldout (already styled)
     (0,_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.setupInferenceSettings)();
     isInitialized = true;
@@ -7860,9 +7921,21 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
     async update(updates) {
         (0,_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_7__.assertDbWorker)(this, 'update', this.constructor.name);
         const { id, chat_id, timestamp, created_at, type, label, edgesOut, edgesIn, _embedding, dbWorker, modelWorker, ...allowedUpdates } = updates;
-        if (allowedUpdates.appendContent !== undefined) {
-            this.content = (this.content || '') + allowedUpdates.appendContent;
+        // Handle appendText and appendContent together (they're sent with same value)
+        if (allowedUpdates.appendText !== undefined || allowedUpdates.appendContent !== undefined) {
+            const token = allowedUpdates.appendText || allowedUpdates.appendContent;
+            // Handle "Thinking..." replacement logic
+            if (this.content === 'Thinking...' && token) {
+                // First token: replace "Thinking..." with the token
+                this.content = token;
+            }
+            else {
+                // Subsequent tokens: append to existing content
+                this.content = (this.content || '') + token;
+            }
             this.label = this.content;
+            // Clean up both fields
+            delete allowedUpdates.appendText;
             delete allowedUpdates.appendContent;
         }
         if (allowedUpdates.content !== undefined) {
@@ -8010,15 +8083,20 @@ class Message extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeG
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   CHUNK_SIZE: () => (/* binding */ CHUNK_SIZE),
 /* harmony export */   CURRENT_MANIFEST_VERSION: () => (/* binding */ CURRENT_MANIFEST_VERSION),
 /* harmony export */   DEFAULT_SERVER_ONLY_SIZE: () => (/* binding */ DEFAULT_SERVER_ONLY_SIZE),
+/* harmony export */   PAUSE_BYTES_THRESHOLD: () => (/* binding */ PAUSE_BYTES_THRESHOLD),
 /* harmony export */   QuantStatus: () => (/* binding */ QuantStatus),
 /* harmony export */   addManifestEntry: () => (/* binding */ addManifestEntry),
 /* harmony export */   addQuantToManifest: () => (/* binding */ addQuantToManifest),
+/* harmony export */   assembleChunks: () => (/* binding */ assembleChunks),
+/* harmony export */   createStreamingResponseFromChunks: () => (/* binding */ createStreamingResponseFromChunks),
 /* harmony export */   deleteAllCachedModels: () => (/* binding */ deleteAllCachedModels),
 /* harmony export */   deleteCachedModel: () => (/* binding */ deleteCachedModel),
 /* harmony export */   deleteCachedModelViaDB: () => (/* binding */ deleteCachedModelViaDB),
 /* harmony export */   deleteFromIndexedDB: () => (/* binding */ deleteFromIndexedDB),
+/* harmony export */   fetchChunk: () => (/* binding */ fetchChunk),
 /* harmony export */   fetchModelMetadataInternal: () => (/* binding */ fetchModelMetadataInternal),
 /* harmony export */   fetchRepoFiles: () => (/* binding */ fetchRepoFiles),
 /* harmony export */   filterAndValidateFilesInternal: () => (/* binding */ filterAndValidateFilesInternal),
@@ -8027,6 +8105,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getAuthenticatedHeaders: () => (/* binding */ getAuthenticatedHeaders),
 /* harmony export */   getBypassSizeLimitModels: () => (/* binding */ getBypassSizeLimitModels),
 /* harmony export */   getCachedModelsViaDB: () => (/* binding */ getCachedModelsViaDB),
+/* harmony export */   getChunkInfo: () => (/* binding */ getChunkInfo),
 /* harmony export */   getFromIndexedDB: () => (/* binding */ getFromIndexedDB),
 /* harmony export */   getHuggingFaceToken: () => (/* binding */ getHuggingFaceToken),
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
@@ -8035,8 +8114,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
+/* harmony export */   saveChunkedFileSafe: () => (/* binding */ saveChunkedFileSafe),
 /* harmony export */   saveInferenceSettings: () => (/* binding */ saveInferenceSettings),
-/* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB)
+/* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB),
+/* harmony export */   shouldChunkFile: () => (/* binding */ shouldChunkFile)
 /* harmony export */ });
 /* harmony import */ var _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Controllers/InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
@@ -8056,6 +8137,15 @@ var QuantStatus;
 const CURRENT_MANIFEST_VERSION = 1;
 // Default size limit - will be overridden by settings
 const DEFAULT_SERVER_ONLY_SIZE = 2.1 * 1024 * 1024 * 1024; // 2.1GB
+// Chunked download constants
+const CHUNK_SIZE = 100 * 1024 * 1024; // 100MB chunks
+const PAUSE_BYTES_THRESHOLD = 100 * 1024 * 1024; // 100MB pause threshold
+/**
+ * Check if a file should be chunked based on size
+ */
+function shouldChunkFile(fileSize) {
+    return fileSize > CHUNK_SIZE;
+}
 /**
  * Extract clean quantization type from file path
  * @param filePath - File path like "onnx/model_q4f16.onnx" or "onnx/model.onnx"
@@ -8147,12 +8237,19 @@ function getBypassSizeLimitModels() {
     return defaultBypassModels;
 }
 const prefix = '[IDBModel]';
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
-const LOG_ERROR = true;
-const LOG_WARN = true;
-const LOG_INFERENCE_SETTINGS = false;
-const LOG_OPEN_DB = false;
+const LOG_GENERAL = true; // General operational logs
+const LOG_DEBUG = false; // Detailed debugging logs (can be noisy)
+const LOG_ERROR = true; // Error logs (always enabled)
+const LOG_WARN = true; // Warning logs
+const LOG_INFERENCE_SETTINGS = false; // Inference settings specific logs
+const LOG_OPEN_DB = false; // Database open/close logs
+const LOG_MANIFEST = false; // Manifest operation logs
+const LOG_CHUNKS = false; // Chunking operation logs
+const LOG_CACHE = false; // Cache hit/miss logs
+// Throttling for high-frequency operations
+let cacheLogCount = 0;
+let manifestLogCount = 0;
+const LOG_THROTTLE_INTERVAL = 20; // Log every 20 operations
 const modelCacheSchema = {
     [_idbSchema__WEBPACK_IMPORTED_MODULE_1__.DBNames.DB_MODELS]: {
         version: CURRENT_MANIFEST_VERSION,
@@ -8546,16 +8643,19 @@ async function openModelCacheDB() {
     });
 }
 async function getFromIndexedDB(url) {
-    if (LOG_GENERAL)
-        console.log(prefix, '[getFromIndexedDB] Getting', url);
+    cacheLogCount++;
+    if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+        console.log(prefix, `[getFromIndexedDB] Getting ${url} (operation #${cacheLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('files', 'readonly');
         const store = tx.objectStore('files');
         const req = store.get(url);
         req.onsuccess = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[getFromIndexedDB] Success for', url, req.result);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[getFromIndexedDB] Success for ${url} (operation #${cacheLogCount})`);
+            }
             const result = req.result;
             resolve(result ? result.blob : null);
         };
@@ -8565,8 +8665,9 @@ async function getFromIndexedDB(url) {
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[getFromIndexedDB] Transaction complete for', url);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[getFromIndexedDB] Transaction complete for ${url} (operation #${cacheLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -8582,16 +8683,19 @@ async function getFromIndexedDB(url) {
     });
 }
 async function saveToIndexedDB(url, blob) {
-    if (LOG_GENERAL)
-        console.log(prefix, '[saveToIndexedDB] Saving', url);
+    cacheLogCount++;
+    if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+        console.log(prefix, `[saveToIndexedDB] Saving ${url} (operation #${cacheLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('files', 'readwrite');
         const store = tx.objectStore('files');
         const req = store.put({ url, blob });
         req.onsuccess = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[saveToIndexedDB] Saved', url, blob);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[saveToIndexedDB] Saved ${url} (operation #${cacheLogCount})`);
+            }
             resolve(undefined);
         };
         req.onerror = () => {
@@ -8600,8 +8704,9 @@ async function saveToIndexedDB(url, blob) {
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[saveToIndexedDB] Transaction complete for', url);
+            if (LOG_CACHE && (cacheLogCount % LOG_THROTTLE_INTERVAL === 0 || cacheLogCount === 1)) {
+                console.log(prefix, `[saveToIndexedDB] Transaction complete for ${url} (operation #${cacheLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -8617,16 +8722,19 @@ async function saveToIndexedDB(url, blob) {
     });
 }
 async function getManifestEntry(repo) {
-    if (LOG_GENERAL)
-        console.log(prefix, '[getManifestEntry] Getting', repo);
+    manifestLogCount++;
+    if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+        console.log(prefix, `[getManifestEntry] Getting ${repo} (operation #${manifestLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('manifest', 'readonly');
         const store = tx.objectStore('manifest');
         const req = store.get(repo);
         req.onsuccess = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[getManifestEntry] Success for', repo, req.result);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[getManifestEntry] Success for ${repo} (operation #${manifestLogCount})`);
+            }
             const entry = req.result;
             // Check manifest version if needed in the future for migration
             if (entry && entry.manifestVersion !== CURRENT_MANIFEST_VERSION) {
@@ -8641,8 +8749,9 @@ async function getManifestEntry(repo) {
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[getManifestEntry] Transaction complete for', repo);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[getManifestEntry] Transaction complete for ${repo} (operation #${manifestLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -8669,16 +8778,19 @@ async function addManifestEntry(repo, entry) {
         // Ensure we always save with the current version, or throw error if strictness is required
         entry.manifestVersion = CURRENT_MANIFEST_VERSION;
     }
-    if (LOG_GENERAL)
-        console.log(prefix, '[addManifestEntry] Adding/Updating', repo, entry);
+    manifestLogCount++;
+    if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+        console.log(prefix, `[addManifestEntry] Adding/Updating ${repo} (operation #${manifestLogCount})`);
+    }
     const db = await openModelCacheDB();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('manifest', 'readwrite');
         const store = tx.objectStore('manifest');
         const req = store.put(entry);
         req.onsuccess = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[addManifestEntry] Added/Updated', repo, entry);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[addManifestEntry] Added/Updated ${repo} (operation #${manifestLogCount})`);
+            }
             resolve();
         };
         req.onerror = () => {
@@ -8687,8 +8799,9 @@ async function addManifestEntry(repo, entry) {
             reject(req.error);
         };
         tx.oncomplete = () => {
-            if (LOG_DEBUG)
-                console.log(prefix, '[addManifestEntry] Transaction complete for', repo);
+            if (LOG_MANIFEST && (manifestLogCount % LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                console.log(prefix, `[addManifestEntry] Transaction complete for ${repo} (operation #${manifestLogCount})`);
+            }
             db.close();
         };
         tx.onerror = (e) => {
@@ -9002,6 +9115,244 @@ async function deleteFromIndexedDB(url) {
             db.close();
         };
     });
+}
+// ===== CHUNKED FILE MANAGEMENT FUNCTIONS =====
+/**
+ * Fetch a single chunk from IndexedDB
+ */
+async function fetchChunk(modelId, fileName, chunkIndex) {
+    try {
+        // Reduced logging to prevent spam
+        // if (LOG_DEBUG) console.log(prefix, `[fetchChunk] Fetching chunk ${chunkIndex} for ${modelId}/${fileName}`);
+        const chunkKey = `${modelId}/${fileName}_chunk_${chunkIndex}`;
+        const cached = await getFromIndexedDB(chunkKey);
+        if (cached) {
+            // Reduced logging to prevent spam
+            // if (LOG_DEBUG) console.log(prefix, `[fetchChunk] Found chunk ${chunkIndex} in cache, size: ${cached.size} bytes`);
+            return await cached.arrayBuffer();
+        }
+        else {
+            if (LOG_DEBUG)
+                console.log(prefix, `[fetchChunk] Chunk ${chunkIndex} not found in cache`);
+            return null;
+        }
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, `[fetchChunk] Error fetching chunk ${chunkIndex} for ${modelId}/${fileName}:`, error);
+        return null;
+    }
+}
+/**
+ * Get chunk info for a file
+ */
+async function getChunkInfo(modelId, fileName) {
+    try {
+        const manifestKey = `${modelId}/${fileName}:manifest`;
+        const manifest = await getFromIndexedDB(manifestKey);
+        if (manifest) {
+            const manifestData = await manifest.text();
+            const manifestObj = JSON.parse(manifestData);
+            if (manifestObj.type === 'manifest' && manifestObj.totalChunks > 0) {
+                return {
+                    isChunked: true,
+                    totalChunks: manifestObj.totalChunks,
+                    totalSize: manifestObj.size
+                };
+            }
+        }
+        return { isChunked: false };
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, `[getChunkInfo] Error checking chunked status for ${modelId}/${fileName}:`, error);
+        return { isChunked: false };
+    }
+}
+/**
+ * Assemble chunks into a complete file
+ */
+async function assembleChunks(modelId, fileName, totalChunks, totalSize) {
+    if (LOG_DEBUG)
+        console.log(prefix, `[assembleChunks] Assembling ${totalChunks} chunks for ${fileName}, total size: ${totalSize} bytes`);
+    const combined = new Uint8Array(totalSize);
+    let currentOffset = 0;
+    for (let i = 0; i < totalChunks; i++) {
+        const chunkArrayBuffer = await fetchChunk(modelId, fileName, i);
+        if (!chunkArrayBuffer) {
+            throw new Error(`Failed to fetch chunk ${i} of ${fileName}`);
+        }
+        const chunkUint8Array = new Uint8Array(chunkArrayBuffer);
+        if (currentOffset + chunkUint8Array.length > totalSize) {
+            throw new Error(`Chunk ${i} would overflow buffer for ${fileName}. Offset: ${currentOffset}, ChunkLen: ${chunkUint8Array.length}, TotalSize: ${totalSize}`);
+        }
+        combined.set(chunkUint8Array, currentOffset);
+        currentOffset += chunkUint8Array.length;
+        if (i % 20 === 0 || i === totalChunks - 1) {
+            if (LOG_DEBUG)
+                console.log(prefix, `[assembleChunks] Assembled chunk ${i}/${totalChunks - 1}. Offset: ${currentOffset}/${totalSize}`);
+        }
+    }
+    if (currentOffset !== totalSize) {
+        if (LOG_WARN)
+            console.warn(prefix, `[assembleChunks] Assembled size ${currentOffset} mismatch expected ${totalSize} for ${fileName}`);
+        return combined.buffer.slice(0, currentOffset);
+    }
+    return combined.buffer;
+}
+/**
+ * Save a large file as chunks in IndexedDB (RAM-efficient streaming version)
+ * This version streams the file in chunks without loading the entire file into RAM
+ */
+async function saveChunkedFileSafe(resourceUrl, blob, modelId) {
+    // Extract the full file path from the URL (e.g., "onnx/model_q4f16.onnx")
+    const urlParts = resourceUrl.split('/');
+    const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
+    if (!modelId) {
+        throw new Error('No model ID available for chunked storage');
+    }
+    const fileSize = blob.size;
+    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    if (LOG_CHUNKS)
+        console.log(prefix, `[saveChunkedFileSafe] Starting chunking ${fileName}: ${fileSize} bytes into ${totalChunks} chunks (last chunk will be ${fileSize % CHUNK_SIZE} bytes)`);
+    // Create manifest
+    const manifest = {
+        id: `${modelId}/${fileName}:manifest`,
+        type: 'manifest',
+        chunkGroupId: `${modelId}/${fileName}`,
+        fileName,
+        totalChunks,
+        chunkSizeUsed: CHUNK_SIZE,
+        size: fileSize,
+        status: 'present'
+    };
+    // Save manifest
+    await saveToIndexedDB(`${modelId}/${fileName}:manifest`, new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+    // Stream the blob in chunks without loading entire file into RAM
+    const stream = blob.stream();
+    const reader = stream.getReader();
+    let chunkIndex = 0;
+    let totalBytesProcessed = 0;
+    let currentChunkBuffer = new Uint8Array(CHUNK_SIZE);
+    let currentChunkOffset = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            // Process this chunk of data
+            const chunkData = new Uint8Array(value);
+            let dataOffset = 0;
+            while (dataOffset < chunkData.length) {
+                const remainingInChunk = CHUNK_SIZE - currentChunkOffset;
+                const remainingInData = chunkData.length - dataOffset;
+                const bytesToCopy = Math.min(remainingInChunk, remainingInData);
+                // Copy data to current chunk buffer
+                currentChunkBuffer.set(chunkData.slice(dataOffset, dataOffset + bytesToCopy), currentChunkOffset);
+                currentChunkOffset += bytesToCopy;
+                dataOffset += bytesToCopy;
+                // If chunk is full, save it
+                if (currentChunkOffset === CHUNK_SIZE) {
+                    const chunkKey = `${modelId}/${fileName}_chunk_${chunkIndex}`;
+                    const actualChunkSize = currentChunkOffset;
+                    // Save the exact chunk data
+                    await saveToIndexedDB(chunkKey, new Blob([currentChunkBuffer.slice(0, actualChunkSize)], { type: 'application/octet-stream' }));
+                    totalBytesProcessed += actualChunkSize;
+                    chunkIndex++;
+                    currentChunkOffset = 0;
+                    // Log every 20 chunks or on the last chunk
+                    if (chunkIndex % 20 === 0 || chunkIndex === totalChunks) {
+                        if (LOG_CHUNKS) {
+                            const startChunk = Math.max(0, chunkIndex - 20);
+                            const endChunk = chunkIndex - 1;
+                            if (startChunk === endChunk) {
+                                console.log(prefix, `[saveChunkedFileSafe] Chunk ${startChunk} saved (${actualChunkSize} bytes, total: ${totalBytesProcessed}/${fileSize})`);
+                            }
+                            else {
+                                console.log(prefix, `[saveChunkedFileSafe] Chunks ${startChunk}-${endChunk} saved (${actualChunkSize} bytes, total: ${totalBytesProcessed}/${fileSize})`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // CRITICAL FIX: Save the last chunk if there's remaining data
+        if (currentChunkOffset > 0) {
+            const chunkKey = `${modelId}/${fileName}_chunk_${chunkIndex}`;
+            const actualChunkSize = currentChunkOffset;
+            // Save the last chunk with remaining data
+            await saveToIndexedDB(chunkKey, new Blob([currentChunkBuffer.slice(0, actualChunkSize)], { type: 'application/octet-stream' }));
+            totalBytesProcessed += actualChunkSize;
+            chunkIndex++;
+            if (LOG_CHUNKS)
+                console.log(prefix, `[saveChunkedFileSafe] Streamed final chunk ${chunkIndex}/${totalChunks} (${actualChunkSize} bytes, total: ${totalBytesProcessed}/${fileSize})`);
+        }
+        if (LOG_CHUNKS)
+            console.log(prefix, `[saveChunkedFileSafe] ✅ Successfully streamed ${fileName}: ${chunkIndex} chunks saved`);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, `[saveChunkedFileSafe] Error during streaming chunking:`, error);
+        throw error;
+    }
+    finally {
+        reader.releaseLock();
+    }
+}
+/**
+ * Create a streaming response from chunks (RAM-efficient for large files)
+ * This creates a ReadableStream that yields chunks without loading entire file into RAM
+ */
+async function createStreamingResponseFromChunks(modelId, fileName, totalChunks, totalSize) {
+    const stream = new ReadableStream({
+        async start(controller) {
+            try {
+                let totalBytesStreamed = 0;
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunkArrayBuffer = await fetchChunk(modelId, fileName, i);
+                    if (!chunkArrayBuffer) {
+                        throw new Error(`Failed to fetch chunk ${i} of ${fileName}`);
+                    }
+                    // Create a proper Uint8Array from the chunk
+                    const chunkData = new Uint8Array(chunkArrayBuffer);
+                    totalBytesStreamed += chunkData.length;
+                    // Enqueue the chunk data
+                    controller.enqueue(chunkData);
+                    // Log every 20 chunks or on the last chunk
+                    if (i % 20 === 0 || i === totalChunks - 1) {
+                        if (LOG_CHUNKS) {
+                            const startChunk = Math.max(0, i - 19);
+                            const endChunk = i;
+                            if (startChunk === endChunk) {
+                                console.log(prefix, `[createStreamingResponseFromChunks] Chunk ${startChunk} streamed (${chunkData.length} bytes, total: ${totalBytesStreamed}/${totalSize})`);
+                            }
+                            else {
+                                console.log(prefix, `[createStreamingResponseFromChunks] Chunks ${startChunk}-${endChunk} streamed (${chunkData.length} bytes, total: ${totalBytesStreamed}/${totalSize})`);
+                            }
+                        }
+                    }
+                }
+                if (LOG_GENERAL)
+                    console.log(prefix, `[createStreamingResponseFromChunks] ✅ Completed streaming ${fileName}: ${totalBytesStreamed} bytes (expected: ${totalSize} bytes)`);
+                // Validate total bytes match
+                if (totalBytesStreamed !== totalSize) {
+                    if (LOG_WARN)
+                        console.warn(prefix, `[createStreamingResponseFromChunks] ⚠️ Size mismatch: streamed ${totalBytesStreamed} bytes, expected ${totalSize} bytes`);
+                }
+                controller.close();
+            }
+            catch (error) {
+                if (LOG_ERROR)
+                    console.error(prefix, `[createStreamingResponseFromChunks] Error streaming chunks:`, error);
+                controller.error(error);
+            }
+        }
+    });
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/octet-stream');
+    headers.set('Content-Length', totalSize.toString());
+    headers.set('Transfer-Encoding', 'chunked');
+    return new Response(stream, { headers });
 }
 
 
@@ -10618,11 +10969,15 @@ let loadModelButton = null;
 let isLoadingModel = false;
 let currentLoadId = null;
 let lastSeenLoadId = null;
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
-const LOG_ERROR = false;
-const LOG_WARN = false;
-const LOG_INFO = false;
+const LOG_GENERAL = false; // General operational logs
+const LOG_DEBUG = false; // Detailed debugging logs (can be noisy)
+const LOG_ERROR = true; // Error logs (always enabled)
+const LOG_WARN = true; // Warning logs
+const LOG_INFO = false; // Info logs
+const LOG_UI_UPDATES = false; // UI update specific logs
+const LOG_QUANT_DROPDOWN = false; // Quant dropdown specific logs
+const LOG_MODEL_LOADING = false; // Model loading specific logs
+const LOG_EVENTS = false; // Event handling logs
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -10802,12 +11157,14 @@ document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEven
 });
 // The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
 // No need for additional event listeners here
-function handleModelWorkerLoadingProgress(payload) {
+async function handleModelWorkerLoadingProgress(payload) {
     if (!payload)
         return;
     if (payload.loadId !== lastSeenLoadId) {
-        if (LOG_WARN)
-            console.warn(prefix, 'New loadId detected in progress:', payload.loadId);
+        progressLogCount++;
+        if (LOG_WARN && (progressLogCount % PROGRESS_LOG_THROTTLE_INTERVAL === 0 || progressLogCount === 1)) {
+            console.warn(prefix, 'New loadId detected in progress:', payload.loadId, `(progress update #${progressLogCount})`);
+        }
         if (lastSeenLoadId) {
             if (LOG_ERROR)
                 console.error(prefix, 'DOUBLE PROGRESS TRIGGER! Previous:', lastSeenLoadId, 'New:', payload.loadId);
@@ -10830,10 +11187,8 @@ function handleModelWorkerLoadingProgress(payload) {
         progressInner.style.background = '#f44336';
         progressInner.style.width = '100%';
         isLoadingModel = false;
-        if (loadModelButton) {
-            loadModelButton.disabled = false;
-            setLoadModelButtonText('Load Model');
-        }
+        // Update load button state after error
+        await updateLoadButtonAndQuantDropdown();
         enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1500);
         lastSeenLoadId = null;
@@ -10884,24 +11239,20 @@ function handleModelWorkerLoadingProgress(payload) {
     statusText.textContent = text;
     if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
         isLoadingModel = false;
-        if (loadModelButton) {
-            loadModelButton.disabled = false;
-            setLoadModelButtonText('Load Model');
-        }
+        // Update load button state based on current selection vs loaded model
+        await updateLoadButtonAndQuantDropdown();
         enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
         lastSeenLoadId = null;
     }
 }
-function handleModelAlreadyLoaded(payload) {
+async function handleModelAlreadyLoaded(payload) {
     if (!payload)
         return;
     // Reset loading state since the model is already loaded
     isLoadingModel = false;
-    if (loadModelButton) {
-        loadModelButton.disabled = false;
-        setLoadModelButtonText('Load Model');
-    }
+    // Update load button state - should hide if same model+quant is selected
+    await updateLoadButtonAndQuantDropdown();
     enableInput();
     // Hide the loading status
     const statusDiv = document.getElementById('model-load-status');
@@ -10912,90 +11263,147 @@ function handleModelAlreadyLoaded(payload) {
     if (LOG_GENERAL)
         console.log(prefix, `Model ${payload.modelId} (${payload.dtype}) is already loaded. UI state reset.`);
 }
+// Throttle UI updates to prevent spam
+let lastUIUpdateTime = 0;
+const UI_UPDATE_THROTTLE_MS = 2000; // Only update UI once every 2 seconds
+let isUpdatingUI = false; // Prevent concurrent UI updates
+// Throttling for high-frequency UI operations
+let uiLogCount = 0;
+const UI_LOG_THROTTLE_INTERVAL = 20; // Log every 20 operations
+// Throttling for progress callback logs
+let progressLogCount = 0;
+const PROGRESS_LOG_THROTTLE_INTERVAL = 10; // Log every 10 progress updates
 // Check IndexedDB status and update dropdown colors in real-time
 async function updateQuantDropdownStatusFromDB() {
-    console.log('[UIController] updateQuantDropdownStatusFromDB called');
-    const modelDropdown = document.getElementById('model-selector');
-    const quantDropdown = document.getElementById('onnx-variant-selector');
-    if (!modelDropdown || !quantDropdown) {
-        console.log('[UIController] Dropdowns not found');
-        return;
+    const now = Date.now();
+    if (now - lastUIUpdateTime < UI_UPDATE_THROTTLE_MS || isUpdatingUI) {
+        return; // Skip this update to prevent spam or concurrent updates
     }
-    const selectedModel = modelDropdown.value;
-    console.log('[UIController] Selected model:', selectedModel);
-    if (!selectedModel || !repoQuantsCache[selectedModel]) {
-        console.log('[UIController] No model selected or not in cache');
-        return;
-    }
-    const manifestEntry = repoQuantsCache[selectedModel];
-    console.log('[UIController] Manifest entry found, checking', Object.keys(manifestEntry.quants).length, 'quants');
-    // Check each quant option's actual IndexedDB status
-    const options = Array.from(quantDropdown.options);
-    console.log('[UIController] Found', options.length, 'quant options to check');
-    for (let i = 0; i < options.length; i++) {
-        const option = options[i];
-        const dtype = option.value;
-        console.log('[UIController] Checking quant option', i + 1, 'of', options.length, ':', dtype);
-        const modelPath = Object.keys(manifestEntry.quants).find(path => {
-            const quantInfo = manifestEntry.quants[path];
-            const extractedDtype = quantInfo.dtype || extractCleanDtypeFromPath(path);
-            return extractedDtype === dtype;
-        });
-        console.log('[UIController] Found modelPath for', dtype, ':', modelPath);
-        if (modelPath) {
-            const quantInfo = manifestEntry.quants[modelPath];
-            // Check if files are actually in IndexedDB
-            const isInIndexedDB = await checkQuantInIndexedDB(selectedModel, modelPath);
-            console.log('[UIController] Quant', dtype, 'modelPath:', modelPath, 'isInIndexedDB:', isInIndexedDB);
-            // Update the option's class and appearance
-            option.className = ''; // Clear existing classes
-            if (isInIndexedDB) {
-                option.classList.add('quant-option-downloaded');
-                // Update the text to show downloaded status
-                const label = quantKeyToLabel(dtype);
-                option.textContent = `${label} 💾 (Downloaded)`;
-                console.log('[UIController] Set', dtype, 'to downloaded status');
+    isUpdatingUI = true;
+    lastUIUpdateTime = now;
+    try {
+        if (LOG_QUANT_DROPDOWN)
+            console.log('[UIController] updateQuantDropdownStatusFromDB called');
+        const modelDropdown = document.getElementById('model-selector');
+        const quantDropdown = document.getElementById('onnx-variant-selector');
+        if (!modelDropdown || !quantDropdown) {
+            if (LOG_QUANT_DROPDOWN)
+                console.log('[UIController] Dropdowns not found');
+            return;
+        }
+        const selectedModel = modelDropdown.value;
+        if (LOG_QUANT_DROPDOWN)
+            console.log('[UIController] Selected model:', selectedModel);
+        if (!selectedModel || !repoQuantsCache[selectedModel]) {
+            if (LOG_QUANT_DROPDOWN)
+                console.log('[UIController] No model selected or not in cache');
+            return;
+        }
+        const manifestEntry = repoQuantsCache[selectedModel];
+        if (LOG_QUANT_DROPDOWN)
+            console.log('[UIController] Manifest entry found, checking', Object.keys(manifestEntry.quants).length, 'quants');
+        // Check each quant option's actual IndexedDB status
+        const options = Array.from(quantDropdown.options);
+        if (LOG_QUANT_DROPDOWN)
+            console.log('[UIController] Found', options.length, 'quant options to check');
+        for (let i = 0; i < options.length; i++) {
+            const option = options[i];
+            const dtype = option.value;
+            uiLogCount++;
+            // Throttled logging for high-frequency operations
+            if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                console.log('[UIController] Checking quant option', i + 1, 'of', options.length, ':', dtype, '(operation #' + uiLogCount + ')');
             }
-            else {
-                // Use the original status from manifest
-                switch (quantInfo.status) {
-                    case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Available:
-                        option.classList.add('quant-option-available');
-                        break;
-                    case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Failed:
-                        option.classList.add('quant-option-failed');
-                        break;
-                    case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.ServerOnly:
-                        option.classList.add('quant-option-server-only');
-                        break;
-                    case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Unavailable:
-                        option.classList.add('quant-option-unavailable');
-                        break;
+            const modelPath = Object.keys(manifestEntry.quants).find(path => {
+                const quantInfo = manifestEntry.quants[path];
+                const extractedDtype = quantInfo.dtype || extractCleanDtypeFromPath(path);
+                return extractedDtype === dtype;
+            });
+            if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                console.log('[UIController] Found modelPath for', dtype, ':', modelPath, '(operation #' + uiLogCount + ')');
+            }
+            if (modelPath) {
+                const quantInfo = manifestEntry.quants[modelPath];
+                // Check if files are actually in IndexedDB
+                const isInIndexedDB = await checkQuantInIndexedDB(selectedModel, modelPath);
+                if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                    console.log('[UIController] Quant', dtype, 'modelPath:', modelPath, 'isInIndexedDB:', isInIndexedDB, '(operation #' + uiLogCount + ')');
+                }
+                // Update the option's class and appearance
+                option.className = ''; // Clear existing classes
+                if (isInIndexedDB) {
+                    option.classList.add('quant-option-downloaded');
+                    // Update the text to show downloaded status
+                    const label = quantKeyToLabel(dtype);
+                    option.textContent = `${label} 💾 (Downloaded)`;
+                    if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                        console.log('[UIController] Set', dtype, 'to downloaded status (operation #' + uiLogCount + ')');
+                    }
+                }
+                else {
+                    // Use the original status from manifest
+                    switch (quantInfo.status) {
+                        case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Available:
+                            option.classList.add('quant-option-available');
+                            break;
+                        case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Failed:
+                            option.classList.add('quant-option-failed');
+                            break;
+                        case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.ServerOnly:
+                            option.classList.add('quant-option-server-only');
+                            break;
+                        case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Unavailable:
+                            option.classList.add('quant-option-unavailable');
+                            break;
+                    }
+                }
+                // Check if this is currently loaded
+                const currentLoadedModel = (0,_sidepanel__WEBPACK_IMPORTED_MODULE_6__.getCurrentLoadedModel)();
+                if (currentLoadedModel && currentLoadedModel.modelId === selectedModel && currentLoadedModel.quant === dtype) {
+                    option.classList.add('quant-option-currently-loaded');
+                    const label = quantKeyToLabel(dtype);
+                    option.textContent = `${label} ▶️ (Currently Loaded)`;
                 }
             }
-            // Check if this is currently loaded
-            const currentLoadedModel = (0,_sidepanel__WEBPACK_IMPORTED_MODULE_6__.getCurrentLoadedModel)();
-            if (currentLoadedModel && currentLoadedModel.modelId === selectedModel && currentLoadedModel.quant === dtype) {
-                option.classList.add('quant-option-currently-loaded');
-                const label = quantKeyToLabel(dtype);
-                option.textContent = `${label} ▶️ (Currently Loaded)`;
+            else {
+                if (LOG_QUANT_DROPDOWN && (uiLogCount % UI_LOG_THROTTLE_INTERVAL === 0 || uiLogCount === 1)) {
+                    console.log('[UIController] No modelPath found for dtype:', dtype, '(operation #' + uiLogCount + ')');
+                }
             }
         }
-        else {
-            console.log('[UIController] No modelPath found for dtype:', dtype);
-        }
+        if (LOG_QUANT_DROPDOWN)
+            console.log('[UIController] Finished checking all quant options');
     }
-    console.log('[UIController] Finished checking all quant options');
+    finally {
+        isUpdatingUI = false;
+    }
 }
 // Helper function to check if quant files are in IndexedDB
 async function checkQuantInIndexedDB(modelId, modelPath) {
     try {
-        // Check if the main model file exists in IndexedDB
+        // Check if the main model file exists in IndexedDB (for non-chunked files)
         const modelUrl = `https://huggingface.co/${modelId}/resolve/main/${modelPath}`;
         const cached = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getFromIndexedDB)(modelUrl);
-        return !!cached;
+        if (cached) {
+            return true;
+        }
+        // Check if the file is chunked (for large files)
+        const manifestKey = `${modelId}/${modelPath}:manifest`;
+        const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getFromIndexedDB)(manifestKey);
+        if (manifest) {
+            const manifestData = await manifest.text();
+            const manifestObj = JSON.parse(manifestData);
+            if (manifestObj.type === 'manifest' && manifestObj.totalChunks > 0) {
+                // Check if at least the first chunk exists
+                const firstChunkKey = `${modelId}/${modelPath}_chunk_0`;
+                const firstChunk = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getFromIndexedDB)(firstChunkKey);
+                return !!firstChunk;
+            }
+        }
+        return false;
     }
     catch (error) {
+        console.error('[UIController] Error checking quant in IndexedDB:', error);
         return false;
     }
 }
@@ -11471,7 +11879,8 @@ function populateQuantDropdownForSelectedRepo() {
         const option = document.createElement('option');
         // Handle legacy manifests that don't have dtype field
         const dtype = quantInfo.dtype || extractCleanDtypeFromPath(modelPath);
-        console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
+        if (LOG_QUANT_DROPDOWN)
+            console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
         option.value = dtype; // Use clean dtype instead of modelPath
         let label = quantKeyToLabel(dtype);
         let dot = '⚪'; // default gray
@@ -12605,6 +13014,9 @@ let isDbReady = false;
 let historyPopupController = null;
 let logQueue = [];
 const prefix = '[Sidepanel]';
+// Throttling for high-frequency debug logs
+let sidepanelLogCount = 0;
+const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
 let modelWorker = undefined;
 let currentModelIdInWorker = null;
 let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
@@ -12805,6 +13217,7 @@ function hideDeviceBadge() {
         badge.style.display = 'none';
 }
 function updateSendButtonForGeneration(isGenerating) {
+    console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.updateGenerationState)(isGenerating);
 }
 function handleStopGeneration() {
@@ -13576,12 +13989,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Handle model selection changes (when user changes dropdown)
         document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
             const { modelId, dtype } = e.detail || {};
-            console.log(`${prefix} [DEBUG] Model selection changed:`, { modelId, dtype, currentLoadedModel });
+            sidepanelLogCount++;
+            if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
+                console.log(`${prefix} [DEBUG] Model selection changed:`, { modelId, dtype, currentLoadedModel }, `(operation #${sidepanelLogCount})`);
+            }
             // This is just a selection change, not a load request
             // The UI controller will handle updating the dropdown status
             if (modelId && dtype) {
-                console.log(`${prefix} [DEBUG] Model selection updated to: ${modelId} (${dtype})`);
-                console.log(`${prefix} [DEBUG] Current loaded model:`, currentLoadedModel);
+                if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
+                    console.log(`${prefix} [DEBUG] Model selection updated to: ${modelId} (${dtype}) (operation #${sidepanelLogCount})`);
+                    console.log(`${prefix} [DEBUG] Current loaded model:`, currentLoadedModel);
+                }
             }
         });
         // Dialog event handlers

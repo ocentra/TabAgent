@@ -223,6 +223,9 @@ function createModelLoadingSettingsFoldout(): HTMLElement {
                 <button id="resetModelSettings" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs ml-2">
                     Reset to Default
                 </button>
+                <button id="resetInferenceSettings" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs ml-2">
+                    Reset AI Settings
+                </button>
             </div>
         </div>
     `;
@@ -322,7 +325,7 @@ function setupModelLoadingSettings(container: HTMLElement) {
     // Setup reset button
     const resetButton = container.querySelector('#resetModelSettings') as HTMLButtonElement;
     if (resetButton) {
-        resetButton.addEventListener('click', () => {
+        resetButton.addEventListener('click', async () => {
             const defaultSettings = getDefaultModelLoadingSettings();
             saveModelLoadingSettings(defaultSettings);
             
@@ -333,9 +336,49 @@ function setupModelLoadingSettings(container: HTMLElement) {
             if (bypassSmolLM3) bypassSmolLM3.checked = defaultSettings.bypassModels.has('HuggingFaceTB/SmolLM3-3B-ONNX');
             if (bypassPhi35) bypassPhi35.checked = defaultSettings.bypassModels.has('microsoft/Phi-3.5-mini-instruct-onnx');
             if (bypassPhi35Transformers) bypassPhi35Transformers.checked = defaultSettings.bypassModels.has('onnx-community/Phi-3.5-mini-instruct-onnx-web');
+            if (bypassBitnet2B) bypassBitnet2B.checked = defaultSettings.bypassModels.has('microsoft/bitnet-b1.58-2B-4T-gguf');
+            if (bypassQwen3) bypassQwen3.checked = defaultSettings.bypassModels.has('onnx-community/Qwen3-1.7B-ONNX');
             
-            alert('Model loading settings reset to default!');
+            // Also reset inference settings to fix generation quality
+            try {
+                const { DEFAULT_INFERENCE_SETTINGS } = await import('./InferenceSettings');
+                const { saveInferenceSettings } = await import('../DB/idbModel');
+                await saveInferenceSettings(DEFAULT_INFERENCE_SETTINGS);
+                if (LOG_DEBUG) console.log(`${prefix} Inference settings also reset to default`);
+            } catch (e) {
+                if (LOG_ERROR) console.error(`${prefix} Failed to reset inference settings:`, e);
+            }
+            
+            alert('Model loading settings and inference settings reset to default!');
         });
+    }
+    
+    // Setup inference settings reset button
+    const resetInferenceButton = container.querySelector('#resetInferenceSettings') as HTMLButtonElement;
+    if (resetInferenceButton) {
+        if (LOG_DEBUG) console.log(`${prefix} Found reset inference button, adding event listener`);
+        resetInferenceButton.addEventListener('click', async () => {
+            if (LOG_DEBUG) console.log(`${prefix} Reset inference button clicked`);
+            try {
+                // Show immediate feedback
+                resetInferenceButton.textContent = 'Resetting...';
+                resetInferenceButton.disabled = true;
+                
+                const { resetSettingsToDefault } = await import('./InferenceSettings');
+                await resetSettingsToDefault();
+                if (LOG_DEBUG) console.log(`${prefix} Inference settings reset to default`);
+                alert('AI generation settings reset to default! This should fix poor response quality.');
+            } catch (e) {
+                if (LOG_ERROR) console.error(`${prefix} Failed to reset inference settings:`, e);
+                alert('Failed to reset AI settings. Please try again.');
+            } finally {
+                // Reset button state
+                resetInferenceButton.textContent = 'Reset AI Settings';
+                resetInferenceButton.disabled = false;
+            }
+        });
+    } else {
+        if (LOG_ERROR) console.error(`${prefix} Could not find #resetInferenceSettings button`);
     }
 }
 
@@ -477,6 +520,15 @@ export function initializeSettingsController(): any {
 
     // Setup model loading settings
     setupModelLoadingSettings(settingsPageContainer);
+    
+    // Debug: Check if buttons exist
+    if (LOG_DEBUG) {
+        const resetBtn = settingsPageContainer.querySelector('#resetInferenceSettings');
+        console.log(`${prefix} Reset inference button exists:`, !!resetBtn);
+        if (resetBtn) {
+            console.log(`${prefix} Reset inference button text:`, resetBtn.textContent);
+        }
+    }
 
     // Inject Inference Settings foldout (already styled)
     setupInferenceSettings();

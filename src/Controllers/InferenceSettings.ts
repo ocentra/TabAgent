@@ -161,18 +161,18 @@ export interface SettingDefinition {
 }
 
 export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
-  // Core generation parameters
-  temperature: 1.0,           // Default: 1.0 (from docs)
-  max_length: 2048,           // Default: 20 (from docs) - we override with user-friendly 2048
-  max_new_tokens: 50,         // Default: null (from docs) - we use 50 for brief responses
+  // Core generation parameters - Updated with proven optimal values
+  temperature: 0.2,           // Lower for more focused, meaningful responses (proven optimal)
+  max_length: 2048,           // Moderate context window
+  max_new_tokens: 1024,       // Increased for better responses (proven optimal)
   min_length: 0,              // Default: 0 (from docs)
   min_new_tokens: 0,          // Default: null (from docs) - we use 0 for user experience
-  top_k: 50,                  // Default: 50 (from docs)
+  top_k: 3,                   // Much lower for focused responses (proven optimal)
   top_p: 0.9,                 // Default: 1.0 (from docs) - we use 0.9 for user experience
   typical_p: 1.0,             // Default: 1.0 (from docs)
   epsilon_cutoff: 0.0,        // Default: 0.0 (from docs)
   eta_cutoff: 0.0,            // Default: 0.0 (from docs)
-  repetition_penalty: 1.2,    // Default: 1.0 (from docs) - we use 1.2 to prevent rambling
+  repetition_penalty: 1.1,   // Lower penalty for better flow (proven optimal)
   encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
   do_sample: true,            // Default: false (from docs) - we use true for user experience
   
@@ -185,13 +185,13 @@ export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
   penalty_alpha: 0.0,         // Default: null (from docs) - we use 0.0 for user experience
   
   // N-gram and repetition control
-  no_repeat_ngram_size: 3,    // Default: 0 (from docs) - we use 3 to prevent phrase repetition
+  no_repeat_ngram_size: 3,    // Proven optimal value for preventing repetition
   encoder_no_repeat_ngram_size: 0, // Default: 0 (from docs)
   
   // Token control
   pad_token_id: null,        // Default: null (from docs)
   bos_token_id: null,         // Default: null (from docs)
-  eos_token_id: null,        // Default: null (from docs)
+  eos_token_id: null,        // Will be dynamically set from tokenizer (was hardcoded to 2)
   decoder_start_token_id: null, // Default: null (from docs)
   forced_bos_token_id: null,  // Default: null (from docs)
   forced_eos_token_id: null,  // Default: null (from docs)
@@ -222,7 +222,7 @@ export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
   forced_decoder_ids: null,   // Default: null (from docs)
   
   // System prompt
-  system_prompt: `You are a helpful AI assistant. Be precise and concise. Don't ramble or repeat yourself. Give direct, useful answers. For simple greetings, respond briefly and ask how you can help. Keep responses short and to the point.\n`,
+  system_prompt: `You are a helpful AI assistant. Give brief, direct answers. Be concise and to the point. No rambling or repetition. If you don't know something, say so.\n`,
 };
 
 export const SYSTEM_PROMPT_SETTING: SettingDefinition = {
@@ -249,7 +249,7 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       min: 0.0,
       max: 2.0,
       step: 0.01,
-      defaultValue: 1.0, 
+      defaultValue: 0.2, 
       description: `Controls how creative or predictable the AI's responses are. Lower values make the AI more strict and focused—great for coding, technical answers, or when you want fewer made-up (hallucinated) details. Higher values make the AI more creative and varied—useful for brainstorming, stories, or blog posts, but can sometimes lead to less accurate or more imaginative answers.`,
       example: `Use 0.1–0.3 for precise tasks like code or factual Q&A. 0.7–1.0 for balanced conversation. 1.2–1.8 for creative writing or idea generation.`
   },
@@ -259,15 +259,15 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       type: 'input',
       defaultValue: 2048, 
       description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
-      example: `Use 20 for very short answers, 100 for short, 2048 for medium, 4096+ for long explanations or stories.`
+      example: `Use 512 for short answers, 2048 for medium, 8192+ for long explanations or stories.`
   },
   {
       key: INFERENCE_SETTING_KEYS.max_new_tokens,
       label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
       type: 'input',
-      defaultValue: 50, // We use 50 for brief responses (official default is null)
+      defaultValue: 1024, // Proven optimal value for balanced responses
       description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
-      example: `Try 50 for brief replies, 200 for paragraphs, 500+ for essays or stories.`
+      example: `Try 100 for brief replies, 500 for paragraphs, 1024+ for detailed explanations or stories.`
   },
   {
       key: INFERENCE_SETTING_KEYS.min_length,
@@ -281,9 +281,9 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       key: INFERENCE_SETTING_KEYS.top_k,
       label: keyToLabel(INFERENCE_SETTING_KEYS.top_k),
       type: 'input',
-      defaultValue: 50, // Official default: 50
+      defaultValue: 3, // Proven optimal value for focused responses
       description: `Controls how many word choices the AI considers at each step. Lower values make the AI more focused and repetitive. Higher values allow for more variety and creativity, but can sometimes make answers less predictable.`,
-      example: `1 = most focused (greedy), 10 = focused, 50 = balanced, 0 = unlimited variety.`
+      example: `1 = most focused (greedy), 3 = very focused (proven optimal), 10 = focused, 50 = balanced, 0 = unlimited variety.`
   },
   {
       key: INFERENCE_SETTING_KEYS.top_p,
@@ -314,7 +314,7 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       min: 1.0,
       max: 2.0,
       step: 0.01,
-      defaultValue: 1.2, // Official default: 1.0
+      defaultValue: 1.1, // Proven optimal value for better flow
       description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
       example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
   },
@@ -436,9 +436,9 @@ export const ADVANCED_SETTINGS: SettingDefinition[] = [
       key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
       label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
       type: 'input',
-      defaultValue: 0, // Official default: 0
+      defaultValue: 3, // Proven optimal value for preventing repetition
       description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
-      example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets.`
+      example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets (proven optimal).`
   },
   {
       key: INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size,

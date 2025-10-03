@@ -109,6 +109,10 @@ let logQueue: any[] = [];
 
 const prefix = '[Sidepanel]';
 
+// Throttling for high-frequency debug logs
+let sidepanelLogCount = 0;
+const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
+
 let modelWorker: Worker | undefined = undefined;
 let currentModelIdInWorker: string | null = null;
 let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
@@ -309,6 +313,7 @@ function hideDeviceBadge() {
 }
 
 function updateSendButtonForGeneration(isGenerating: boolean) {
+  console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
   updateGenerationState(isGenerating);
 }
 
@@ -1049,13 +1054,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Handle model selection changes (when user changes dropdown)
     document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
       const { modelId, dtype } = (e as CustomEvent).detail || {};
-      console.log(`${prefix} [DEBUG] Model selection changed:`, { modelId, dtype, currentLoadedModel });
+      sidepanelLogCount++;
+      if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
+        console.log(`${prefix} [DEBUG] Model selection changed:`, { modelId, dtype, currentLoadedModel }, `(operation #${sidepanelLogCount})`);
+      }
       
       // This is just a selection change, not a load request
       // The UI controller will handle updating the dropdown status
       if (modelId && dtype) {
-        console.log(`${prefix} [DEBUG] Model selection updated to: ${modelId} (${dtype})`);
-        console.log(`${prefix} [DEBUG] Current loaded model:`, currentLoadedModel);
+        if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
+          console.log(`${prefix} [DEBUG] Model selection updated to: ${modelId} (${dtype}) (operation #${sidepanelLogCount})`);
+          console.log(`${prefix} [DEBUG] Current loaded model:`, currentLoadedModel);
+        }
       }
     });
 

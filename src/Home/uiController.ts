@@ -42,11 +42,9 @@ const prefix = '[UIController]';
 export const AVAILABLE_MODELS = {
     "onnx-community/Phi-3.5-mini-instruct-onnx-web": "Phi-3.5 Mini (Transformers.js)",
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
-    "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",   
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "HuggingFaceTB/SmolLM3-3B-ONNX": "SmolLM3-3B ONNX",
-    "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
-    
+    "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",    
     
 };
 
@@ -638,9 +636,6 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
 
     clearTemporaryMessages();
 
-
-    disableInput("Download or load a model from dropdown to begin.");
-
     if (LOG_INFO) console.log(prefix, "Initializing UI elements...");
 
     if (LOG_INFO) console.log(prefix, "Attempting to find model selector...");
@@ -1134,6 +1129,110 @@ export function quantKeyToLabel(dtype: string): string {
         case 'fp32': return 'FP32';
         case 'quantized': return 'QUANTIZED';
         default: return 'FP32';
+    }
+}
+
+/**
+ * Load the default model (first model from AVAILABLE_MODELS) automatically
+ */
+export async function loadDefaultModel(): Promise<boolean> {
+    if (LOG_INFO) console.log(prefix, "Loading default model...");
+    
+    try {
+        // Check if a model is already loaded
+        const { getCurrentLoadedModel } = await import('../sidepanel');
+        const currentLoadedModel = getCurrentLoadedModel();
+        if (currentLoadedModel && currentLoadedModel.modelId) {
+            if (LOG_INFO) console.log(prefix, `Model already loaded: ${currentLoadedModel.modelId}, skipping default model loading`);
+            return true;
+        }
+        
+        // Get the first model from AVAILABLE_MODELS
+        const defaultModelId = Object.keys(AVAILABLE_MODELS)[0];
+        if (!defaultModelId) {
+            if (LOG_WARN) console.warn(prefix, "No models available in AVAILABLE_MODELS");
+            return false;
+        }
+        
+        if (LOG_INFO) console.log(prefix, `Default model selected: ${defaultModelId}`);
+        
+        // Set the model in the dropdown
+        if (modelSelectorDropdown) {
+            modelSelectorDropdown.value = defaultModelId;
+            if (LOG_INFO) console.log(prefix, "Set model selector to default model");
+        }
+        
+        // Wait for manifests to be loaded and quant dropdown to be populated
+        await updateQuantDropdown();
+        
+        // Get the best available quantization for this model
+        const manifestEntry = repoQuantsCache[defaultModelId];
+        if (!manifestEntry || !manifestEntry.quants) {
+            if (LOG_WARN) console.warn(prefix, "No manifest entry found for default model, waiting for manifests...");
+            // Wait a bit more for manifests to load
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return false;
+        }
+        
+        // Find the best quantization (prefer q4f16, then q4, then first available)
+        const quants = Object.entries(manifestEntry.quants);
+        let bestQuant = null;
+        
+        // Look for q4f16 first
+        for (const [modelPath, quantInfo] of quants) {
+            if ((quantInfo as any).dtype === 'q4f16') {
+                bestQuant = (quantInfo as any).dtype;
+                break;
+            }
+        }
+        
+        // If no q4f16, look for q4
+        if (!bestQuant) {
+            for (const [modelPath, quantInfo] of quants) {
+                if ((quantInfo as any).dtype === 'q4') {
+                    bestQuant = (quantInfo as any).dtype;
+                    break;
+                }
+            }
+        }
+        
+        // If still no quant found, use the first available
+        if (!bestQuant && quants.length > 0) {
+            bestQuant = (quants[0][1] as any).dtype || 'fp32';
+        }
+        
+        if (!bestQuant) {
+            if (LOG_WARN) console.warn(prefix, "No quantization found for default model");
+            return false;
+        }
+        
+        if (LOG_INFO) console.log(prefix, `Best quantization for default model: ${bestQuant}`);
+        
+        // Set the quantization in the dropdown
+        if (quantSelectorDropdown) {
+            quantSelectorDropdown.value = bestQuant;
+            if (LOG_INFO) console.log(prefix, "Set quant selector to best quantization");
+        }
+        
+        // Update UI state
+        await updateLoadButtonAndQuantDropdown();
+        
+        // Show loading message
+        disableInput("Loading default model...");
+        
+        // Trigger model loading
+        const loadId = Date.now().toString() + Math.random().toString(36).slice(2);
+        if (LOG_INFO) console.log(prefix, `Dispatching model load request for ${defaultModelId} with ${bestQuant}`);
+        
+        document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
+            detail: { modelId: defaultModelId, dtype: bestQuant, loadId }
+        }));
+        
+        return true;
+        
+    } catch (error) {
+        if (LOG_ERROR) console.error(prefix, "Error loading default model:", error);
+        return false;
     }
 }
 

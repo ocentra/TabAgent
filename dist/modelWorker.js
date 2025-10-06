@@ -5676,18 +5676,18 @@ const INFERENCE_SETTING_KEYS = {
     system_prompt: 'system_prompt',
 };
 const DEFAULT_INFERENCE_SETTINGS = {
-    // Core generation parameters - Updated with proven optimal values
-    temperature: 0.2, // Lower for more focused, meaningful responses (proven optimal)
-    max_length: 2048, // Moderate context window
-    max_new_tokens: 1024, // Increased for better responses (proven optimal)
+    // Core generation parameters - Updated with web search optimal values
+    temperature: 0.7, // Optimal: 0.7 for focused but not too deterministic responses
+    max_length: 8192, // Large context window for modern models
+    max_new_tokens: 100, // Optimal: 100 tokens to prevent rambling (was 1024)
     min_length: 0, // Default: 0 (from docs)
     min_new_tokens: 0, // Default: null (from docs) - we use 0 for user experience
-    top_k: 3, // Much lower for focused responses (proven optimal)
-    top_p: 0.9, // Default: 1.0 (from docs) - we use 0.9 for user experience
+    top_k: 50, // Optimal: 50 for balanced diversity and coherence
+    top_p: 0.9, // Optimal: 0.9 for nucleus sampling (proven optimal)
     typical_p: 1.0, // Default: 1.0 (from docs)
     epsilon_cutoff: 0.0, // Default: 0.0 (from docs)
     eta_cutoff: 0.0, // Default: 0.0 (from docs)
-    repetition_penalty: 1.1, // Lower penalty for better flow (proven optimal)
+    repetition_penalty: 1.2, // Optimal: 1.2 to discourage repetition and rambling
     encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
     do_sample: true, // Default: false (from docs) - we use true for user experience
     // Beam search parameters
@@ -5695,7 +5695,7 @@ const DEFAULT_INFERENCE_SETTINGS = {
     num_beam_groups: 1, // Default: 1 (from docs)
     diversity_penalty: 0.0, // Default: 0.0 (from docs)
     early_stopping: true, // Default: false (from docs) - we use true for better stopping
-    length_penalty: 1.0, // Default: 1.0 (from docs)
+    length_penalty: 0.8, // Optimal: 0.8 to encourage shorter, more concise responses
     penalty_alpha: 0.0, // Default: null (from docs) - we use 0.0 for user experience
     // N-gram and repetition control
     no_repeat_ngram_size: 3, // Proven optimal value for preventing repetition
@@ -5760,18 +5760,24 @@ const COMMON_SETTINGS = [
     {
         key: INFERENCE_SETTING_KEYS.max_length,
         label: keyToLabel(INFERENCE_SETTING_KEYS.max_length),
-        type: 'input',
-        defaultValue: 2048,
+        type: 'slider',
+        min: 512,
+        max: 32768,
+        step: 512,
+        defaultValue: 8192,
         description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
-        example: `Use 512 for short answers, 2048 for medium, 8192+ for long explanations or stories.`
+        example: `Use 2048 for short answers, 8192 for medium, 16384+ for long explanations or stories.`
     },
     {
         key: INFERENCE_SETTING_KEYS.max_new_tokens,
         label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
-        type: 'input',
-        defaultValue: 1024, // Proven optimal value for balanced responses
+        type: 'slider',
+        min: 10,
+        max: 500,
+        step: 10,
+        defaultValue: 100, // Optimal: 100 tokens to prevent rambling
         description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
-        example: `Try 100 for brief replies, 500 for paragraphs, 1024+ for detailed explanations or stories.`
+        example: `100 = concise answers, 200 = paragraphs, 500 = detailed explanations.`
     },
     {
         key: INFERENCE_SETTING_KEYS.min_length,
@@ -5818,7 +5824,7 @@ const COMMON_SETTINGS = [
         min: 1.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.1, // Proven optimal value for better flow
+        defaultValue: 1.2, // Optimal: 1.2 to discourage repetition and rambling
         description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
         example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
     },
@@ -5906,10 +5912,10 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.length_penalty,
         label: keyToLabel(INFERENCE_SETTING_KEYS.length_penalty),
         type: 'slider',
-        min: -2.0,
+        min: 0.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.0, // Official default: 1.0
+        defaultValue: 0.8, // Optimal: 0.8 to encourage shorter, more concise responses
         description: `Controls whether the AI prefers shorter or longer answers. Lower values make answers shorter, higher values make them longer.`,
         example: `<1.0 = shorter, 1.0 = neutral, >1.0 = longer answers.`
     },
@@ -5936,10 +5942,13 @@ const ADVANCED_SETTINGS = [
     {
         key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
         label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
-        type: 'input',
+        type: 'slider',
+        min: 0,
+        max: 5,
+        step: 1,
         defaultValue: 3, // Proven optimal value for preventing repetition
-        description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
-        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets (proven optimal).`
+        description: `Prevents the AI from repeating the same sequence of words. Higher values prevent longer repeated phrases but may limit fluency.`,
+        example: `0 = no control, 2 = no repeated pairs, 3 = no repeated triplets (optimal), 4+ = very restrictive.`
     },
     {
         key: INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size,
@@ -7910,6 +7919,8 @@ const WorkerEventNames = Object.freeze({
     HUGGINGFACE_LOGIN: 'huggingfaceLogin',
     HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
     MODEL_SOURCE_SELECTION: 'modelSourceSelection',
+    CLEAR_CACHE: 'clearCache',
+    CACHE_CLEARED: 'cacheCleared',
     GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
     MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
 });
@@ -8133,7 +8144,7 @@ const prefix = '[ModelWorker]';
 const LOG_ERROR = true; // Keep error logs enabled
 const LOG_WARN = false; // Disable warning logs
 // CORE GENERATION FUNCTIONALITY (what we're focusing on)
-const LOG_GEN_PARAMS = false; // Generation parameters being used
+const LOG_GEN_PARAMS = true; // Generation parameters being used
 const LOG_GEN_DETAILED = false; // Detailed generation process logs
 const LOG_GEN_COMPARISON = false; // Parameter comparison logs
 const LOG_GEN_ANALYSIS = false; // Detailed analysis logs
@@ -8146,7 +8157,7 @@ const LOG_MODEL_LOADING = false; // Disable model loading progress
 const LOG_MODEL_CONFIG = false; // Disable detailed model configuration
 const LOG_TOKEN_IDS = false; // Disable token ID extraction
 // Transformers.js specific
-const LOG_TRANSFORMERS = false; // Disable transformers.js debugging
+const LOG_TRANSFORMERS = true; // Enable transformers.js debugging temporarily
 const LOG_TRANSFORMERS_SETTINGS = false; // Disable settings comparison
 const LOG_GENERATION = false; // Disable detailed generation parameters
 const LOG_CACHE = false; // Disable cache operations
@@ -8179,55 +8190,61 @@ let headDim;
  * Log all supported transformers.js generate parameters for debugging
  */
 function logSupportedTransformersParameters() {
-    if (LOG_TRANSFORMERS_SETTINGS) {
-        if (LOG_TRANSFORMERS) {
-            console.log(prefix, '[Transformers.js] Supported generate() parameters:');
-            console.log(prefix, '[Transformers.js] Core Generation Parameters:');
-            console.log(prefix, '  - do_sample: boolean (whether to use sampling)');
-            console.log(prefix, '  - temperature: number (sampling temperature)');
-            console.log(prefix, '  - top_k: number (top-k sampling)');
-            console.log(prefix, '  - top_p: number (nucleus sampling)');
-            console.log(prefix, '  - repetition_penalty: number (penalty for repetition)');
-            console.log(prefix, '  - max_new_tokens: number (maximum new tokens to generate)');
-            console.log(prefix, '  - min_length: number (minimum length)');
-            console.log(prefix, '  - max_length: number (maximum length)');
-            console.log(prefix, '[Transformers.js] Advanced Parameters:');
-            console.log(prefix, '  - no_repeat_ngram_size: number (prevent n-gram repetition)');
-            console.log(prefix, '  - num_beams: number (beam search)');
-            console.log(prefix, '  - diversity_penalty: number (beam search diversity)');
-            console.log(prefix, '  - length_penalty: number (length penalty)');
-            console.log(prefix, '  - early_stopping: boolean (early stopping)');
-            console.log(prefix, '  - num_beam_groups: number (beam groups)');
-            console.log(prefix, '  - penalty_alpha: number (contrastive search)');
-            console.log(prefix, '[Transformers.js] Output Parameters:');
-            console.log(prefix, '  - return_dict_in_generate: boolean (return dict)');
-            console.log(prefix, '  - output_attentions: boolean (output attention)');
-            console.log(prefix, '  - output_hidden_states: boolean (output hidden states)');
-            console.log(prefix, '  - output_scores: boolean (output scores)');
-            console.log(prefix, '  - use_cache: boolean (use KV cache)');
-            console.log(prefix, '[Transformers.js] Token Parameters:');
-            console.log(prefix, '  - pad_token_id: number (padding token)');
-            console.log(prefix, '  - bos_token_id: number (beginning of sequence)');
-            console.log(prefix, '  - eos_token_id: number (end of sequence)');
-            console.log(prefix, '  - forced_bos_token_id: number (forced BOS)');
-            console.log(prefix, '  - forced_eos_token_id: number (forced EOS)');
-            console.log(prefix, '[Transformers.js] Special Parameters:');
-            console.log(prefix, '  - streamer: BaseStreamer (for streaming output)');
-            console.log(prefix, '  - stopping_criteria: StoppingCriteriaList (custom stopping)');
-            console.log(prefix, '  - logits_processor: LogitsProcessorList (custom logits)');
-            console.log(prefix, '[Transformers.js] Reference: https://huggingface.co/docs/transformers.js/en/api/generation/parameters');
-        }
+    if (LOG_TRANSFORMERS_SETTINGS && LOG_TRANSFORMERS) {
+        const supportedParams = `[Transformers.js] Supported generate() parameters:
+  Core Generation:
+    - do_sample: boolean (whether to use sampling)
+    - temperature: number (sampling temperature)
+    - top_k: number (top-k sampling)
+    - top_p: number (nucleus sampling)
+    - repetition_penalty: number (penalty for repetition)
+    - max_new_tokens: number (maximum new tokens to generate)
+    - min_length: number (minimum length)
+    - max_length: number (maximum length)
+  
+  Advanced Parameters:
+    - no_repeat_ngram_size: number (prevent n-gram repetition)
+    - num_beams: number (beam search)
+    - diversity_penalty: number (beam search diversity)
+    - length_penalty: number (length penalty)
+    - early_stopping: boolean (early stopping)
+    - num_beam_groups: number (beam groups)
+    - penalty_alpha: number (contrastive search)
+  
+  Output Parameters:
+    - return_dict_in_generate: boolean (return dict)
+    - output_attentions: boolean (output attention)
+    - output_hidden_states: boolean (output hidden states)
+    - output_scores: boolean (output scores)
+    - use_cache: boolean (use KV cache)
+  
+  Token Parameters:
+    - pad_token_id: number (padding token)
+    - bos_token_id: number (beginning of sequence)
+    - eos_token_id: number (end of sequence)
+    - forced_bos_token_id: number (forced BOS)
+    - forced_eos_token_id: number (forced EOS)
+  
+  Special Parameters:
+    - streamer: BaseStreamer (for streaming output)
+    - stopping_criteria: StoppingCriteriaList (custom stopping)
+    - logits_processor: LogitsProcessorList (custom logits)
+  
+  Reference: https://huggingface.co/docs/transformers.js/en/api/generation/parameters`;
+        console.log(prefix, supportedParams);
     }
 }
 // Log transformers.js imports to verify what we have available
 if (LOG_TRANSFORMERS) {
-    console.log(prefix, '[ModelWorker] transformers.js env:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env);
-    console.log(prefix, '[ModelWorker] transformers.js AutoTokenizer:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoTokenizer);
-    console.log(prefix, '[ModelWorker] transformers.js AutoModelForCausalLM:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoModelForCausalLM);
-    console.log(prefix, '[ModelWorker] transformers.js TextStreamer:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.TextStreamer);
-    console.log(prefix, '[ModelWorker] transformers.js env.allowLocalModels:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels);
-    console.log(prefix, '[ModelWorker] transformers.js env.allowRemoteModels:', _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels);
-    console.log(prefix, '[ModelWorker] transformers.js env keys:', Object.keys(_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env));
+    const transformersInfo = `[ModelWorker] transformers.js initialization:
+  env: ${JSON.stringify(_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env, null, 2)}
+  AutoTokenizer: ${_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoTokenizer?.name || 'undefined'}
+  AutoModelForCausalLM: ${_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoModelForCausalLM?.name || 'undefined'}
+  TextStreamer: ${_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.TextStreamer?.name || 'undefined'}
+  allowLocalModels: ${_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowLocalModels}
+  allowRemoteModels: ${_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env.allowRemoteModels}
+  env keys: ${Object.keys(_huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.env).join(', ')}`;
+    console.log(prefix, transformersInfo);
     logSupportedTransformersParameters();
     if (LOG_FETCH) {
         console.log(prefix, '[ModelWorker] transformers.js will use fetch interception for IndexedDB');
@@ -8979,13 +8996,20 @@ async function loadModelInternal(payload) {
         const userMaxLength = currentSettings?.max_length || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.max_length;
         // Use model config if available, otherwise use user's setting
         modelContextLength = modelConfigContextLength || userMaxLength;
-        if (LOG_TRANSFORMERS)
-            console.log(prefix, '[loadModelInternal] Model context length extracted:', {
-                modelConfigContextLength: modelConfigContextLength,
-                userMaxLength: userMaxLength,
-                final: modelContextLength,
-                source: modelConfigContextLength ? 'model-config' : 'user-settings'
-            });
+        if (LOG_TRANSFORMERS) {
+            console.log(prefix, '[loadModelInternal] Full model config keys:', Object.keys(modelConfig || {}));
+            console.log(prefix, '[loadModelInternal] Model config values:', JSON.stringify(modelConfig, null, 2));
+            console.log(prefix, '[loadModelInternal] Model context length extracted:');
+            console.log(prefix, '  modelConfigContextLength:', modelConfigContextLength);
+            console.log(prefix, '  userMaxLength:', userMaxLength);
+            console.log(prefix, '  final modelContextLength:', modelContextLength);
+            console.log(prefix, '  source:', modelConfigContextLength ? 'model-config' : 'user-settings');
+            console.log(prefix, '  max_position_embeddings:', modelConfig?.max_position_embeddings);
+            console.log(prefix, '  n_positions:', modelConfig?.n_positions);
+            console.log(prefix, '  max_sequence_length:', modelConfig?.max_sequence_length);
+            console.log(prefix, '  n_ctx:', modelConfig?.n_ctx);
+            console.log(prefix, '  context_length:', modelConfig?.context_length);
+        }
         // Extract model architecture details and store globally
         numAttentionHeads = modelConfig?.num_attention_heads || modelConfig?.n_head || modelConfig?.num_heads;
         const hiddenSize = modelConfig?.hidden_size || modelConfig?.n_embd;
@@ -9305,7 +9329,9 @@ async function generateInternal(payload) {
     }
     if (!isTransformersModelReady || !transformersTokenizer || !transformersModel) {
         if (LOG_ERROR)
-            console.error(prefix, '[generateInternal] Model not ready');
+            console.error(prefix, '[generateInternal] Model not ready - no reload logic (commented out)');
+        // Model reload logic commented out - doesn't make sense without cache
+        // The model should stay loaded throughout the session
         self.postMessage({
             type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.GENERATION_ERROR,
             payload: { ...payload, error: 'Model not ready. Please load a model first.' }
@@ -9322,28 +9348,48 @@ async function generateInternal(payload) {
             console.log(prefix, '[generateInternal] Starting generation');
         const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_2__.getInferenceSettings)();
         const settings = currentSettings || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS;
-        // Log current settings for debugging
+        // Log ALL current settings for debugging (as strings to avoid truncation)
         if (LOG_GEN_PARAMS) {
-            console.log(prefix, '[generateInternal] Current inference settings:', {
-                temperature: settings.temperature,
-                max_length: settings.max_length,
-                max_new_tokens: settings.max_new_tokens,
-                min_length: settings.min_length,
-                min_new_tokens: settings.min_new_tokens,
-                top_k: settings.top_k,
-                top_p: settings.top_p,
-                typical_p: settings.typical_p,
-                epsilon_cutoff: settings.epsilon_cutoff,
-                eta_cutoff: settings.eta_cutoff,
-                repetition_penalty: settings.repetition_penalty,
-                encoder_repetition_penalty: settings.encoder_repetition_penalty,
-                do_sample: settings.do_sample,
-                no_repeat_ngram_size: settings.no_repeat_ngram_size,
-                system_prompt: settings.system_prompt ? 'present' : 'not set',
-                eos_token_id: settings.eos_token_id,
-                pad_token_id: settings.pad_token_id,
-                bos_token_id: settings.bos_token_id
-            });
+            console.log(prefix, '[generateInternal] Current inference settings:');
+            console.log(prefix, `  temperature: ${settings.temperature}`);
+            console.log(prefix, `  max_length: ${settings.max_length}`);
+            console.log(prefix, `  max_new_tokens: ${settings.max_new_tokens}`);
+            console.log(prefix, `  min_length: ${settings.min_length}`);
+            console.log(prefix, `  min_new_tokens: ${settings.min_new_tokens}`);
+            console.log(prefix, `  top_k: ${settings.top_k}`);
+            console.log(prefix, `  top_p: ${settings.top_p}`);
+            console.log(prefix, `  typical_p: ${settings.typical_p}`);
+            console.log(prefix, `  epsilon_cutoff: ${settings.epsilon_cutoff}`);
+            console.log(prefix, `  eta_cutoff: ${settings.eta_cutoff}`);
+            console.log(prefix, `  repetition_penalty: ${settings.repetition_penalty}`);
+            console.log(prefix, `  encoder_repetition_penalty: ${settings.encoder_repetition_penalty}`);
+            console.log(prefix, `  do_sample: ${settings.do_sample}`);
+            console.log(prefix, `  no_repeat_ngram_size: ${settings.no_repeat_ngram_size}`);
+            console.log(prefix, `  num_beams: ${settings.num_beams}`);
+            console.log(prefix, `  num_beam_groups: ${settings.num_beam_groups}`);
+            console.log(prefix, `  diversity_penalty: ${settings.diversity_penalty}`);
+            console.log(prefix, `  early_stopping: ${settings.early_stopping}`);
+            console.log(prefix, `  length_penalty: ${settings.length_penalty}`);
+            console.log(prefix, `  penalty_alpha: ${settings.penalty_alpha}`);
+            console.log(prefix, `  encoder_no_repeat_ngram_size: ${settings.encoder_no_repeat_ngram_size}`);
+            console.log(prefix, `  pad_token_id: ${settings.pad_token_id}`);
+            console.log(prefix, `  bos_token_id: ${settings.bos_token_id}`);
+            console.log(prefix, `  eos_token_id: ${settings.eos_token_id}`);
+            console.log(prefix, `  decoder_start_token_id: ${settings.decoder_start_token_id}`);
+            console.log(prefix, `  forced_bos_token_id: ${settings.forced_bos_token_id}`);
+            console.log(prefix, `  forced_eos_token_id: ${settings.forced_eos_token_id}`);
+            console.log(prefix, `  num_return_sequences: ${settings.num_return_sequences}`);
+            console.log(prefix, `  output_attentions: ${settings.output_attentions}`);
+            console.log(prefix, `  output_hidden_states: ${settings.output_hidden_states}`);
+            console.log(prefix, `  output_scores: ${settings.output_scores}`);
+            console.log(prefix, `  return_dict_in_generate: ${settings.return_dict_in_generate}`);
+            console.log(prefix, `  use_cache: ${settings.use_cache}`);
+            console.log(prefix, `  remove_invalid_values: ${settings.remove_invalid_values}`);
+            console.log(prefix, `  renormalize_logits: ${settings.renormalize_logits}`);
+            console.log(prefix, `  guidance_scale: ${settings.guidance_scale}`);
+            console.log(prefix, `  max_time: ${settings.max_time}`);
+            console.log(prefix, `  exponential_decay_length_penalty: ${settings.exponential_decay_length_penalty}`);
+            console.log(prefix, `  system_prompt: ${settings.system_prompt ? 'present' : 'not set'}`);
         }
         let messagesForTemplate = [];
         if (settings.system_prompt && typeof settings.system_prompt === 'string' && settings.system_prompt.trim().length > 0) {
@@ -9423,16 +9469,15 @@ async function generateInternal(payload) {
             console.log(prefix, '  bos_token_id:', bosTokenId, '(from tokenizer:', transformersTokenizer?.bos_token_id, '| settings:', settings.bos_token_id, ')');
             console.log(prefix, '  eos_token_id:', eosTokenId, '(from tokenizer:', transformersTokenizer?.eos_token_id, '| settings:', settings.eos_token_id, ')');
         }
-        // Calculate effective max length - use the modelContextLength which already has the right priority
-        // modelContextLength = Model Config → User Settings → Default
-        const effectiveMaxLength = Math.min(settings.max_length, modelContextLength);
+        // Calculate effective max length - prioritize model's context length over user settings
+        // For modern models with large context windows, use the model's actual capacity
+        const effectiveMaxLength = modelContextLength;
         if (LOG_GEN_DETAILED) {
-            console.log(prefix, '[generateInternal] Context length calculation:', {
-                settingsMaxLength: settings.max_length,
-                modelContextLength: modelContextLength,
-                effectiveMaxLength: effectiveMaxLength,
-                limitingFactor: modelContextLength < settings.max_length ? 'model-context' : 'user-settings'
-            });
+            console.log(prefix, '[generateInternal] Context length calculation:');
+            console.log(prefix, '  settingsMaxLength:', settings.max_length);
+            console.log(prefix, '  modelContextLength:', modelContextLength);
+            console.log(prefix, '  effectiveMaxLength:', effectiveMaxLength);
+            console.log(prefix, '  strategy: using model context length (not user settings)');
         }
         const generateParams = {
             ...inputs,
@@ -9446,80 +9491,129 @@ async function generateInternal(payload) {
             repetition_penalty: settings.repetition_penalty,
             max_new_tokens: settings.max_new_tokens,
             no_repeat_ngram_size: settings.no_repeat_ngram_size,
-            // min_length: settings.min_length,
-            // max_length: effectiveMaxLength,
+            min_length: settings.min_length,
+            max_length: effectiveMaxLength,
             // Advanced parameters
-            // encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
-            // num_beams: settings.num_beams,
-            // num_beam_groups: settings.num_beam_groups,
-            // diversity_penalty: settings.diversity_penalty,
-            // length_penalty: settings.length_penalty,
-            // early_stopping: settings.early_stopping,
-            // penalty_alpha: settings.penalty_alpha,
+            encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+            num_beams: settings.num_beams,
+            num_beam_groups: settings.num_beam_groups,
+            diversity_penalty: settings.diversity_penalty,
+            length_penalty: settings.length_penalty,
+            early_stopping: settings.early_stopping,
+            penalty_alpha: settings.penalty_alpha,
             // Additional sampling parameters
-            // typical_p: settings.typical_p,
-            // epsilon_cutoff: settings.epsilon_cutoff,
-            // eta_cutoff: settings.eta_cutoff,
-            // encoder_repetition_penalty: settings.encoder_repetition_penalty,
-            // min_new_tokens: settings.min_new_tokens,
-            // guidance_scale: settings.guidance_scale,
-            // max_time: settings.max_time,
+            typical_p: settings.typical_p,
+            epsilon_cutoff: settings.epsilon_cutoff,
+            eta_cutoff: settings.eta_cutoff,
+            encoder_repetition_penalty: settings.encoder_repetition_penalty,
+            min_new_tokens: settings.min_new_tokens,
+            guidance_scale: settings.guidance_scale,
+            max_time: settings.max_time,
             // Token control parameters - use dynamic values from tokenizer
-            // pad_token_id: padTokenId,
-            // bos_token_id: bosTokenId,
-            // eos_token_id: eosTokenId,
-            // decoder_start_token_id: settings.decoder_start_token_id,
-            // forced_bos_token_id: settings.forced_bos_token_id,
-            // forced_eos_token_id: settings.forced_eos_token_id,
+            pad_token_id: padTokenId,
+            bos_token_id: bosTokenId,
+            eos_token_id: eosTokenId,
+            decoder_start_token_id: settings.decoder_start_token_id,
+            forced_bos_token_id: settings.forced_bos_token_id,
+            forced_eos_token_id: settings.forced_eos_token_id,
             // Advanced filtering
-            // bad_words_ids: settings.bad_words_ids,
-            // force_words_ids: settings.force_words_ids,
-            // suppress_tokens: settings.suppress_tokens,
-            // begin_suppress_tokens: settings.begin_suppress_tokens,
+            bad_words_ids: settings.bad_words_ids,
+            force_words_ids: settings.force_words_ids,
+            suppress_tokens: settings.suppress_tokens,
+            begin_suppress_tokens: settings.begin_suppress_tokens,
             // Output parameters
             return_dict_in_generate: settings.return_dict_in_generate,
-            // output_attentions: settings.output_attentions,
-            // output_hidden_states: settings.output_hidden_states,
-            // output_scores: settings.output_scores,
+            output_attentions: settings.output_attentions,
+            output_hidden_states: settings.output_hidden_states,
+            output_scores: settings.output_scores,
             // Cache and performance
             use_cache: settings.use_cache,
             // Streamer for real-time output
             streamer: ourStreamer,
             stopping_criteria,
         };
-        // DISABLED: Cache causes shape mismatch errors in multi-turn conversations
-        // The official example also has this disabled (TODO: Enable once model is fixed)
-        // exampleGenerateParams removed - generateParams now uses the same proven values via settings
-        // Cache disabled - no logging needed
         if (LOG_GEN_PARAMS) {
-            console.log(prefix, '[generateInternal] Using generateParams with proven settings:', generateParams);
-            // Log the generation parameters we created (official examples approach)
-            console.log(prefix, '[generateInternal] 🎯 GENERATION PARAMETERS (official examples approach):', {
-                do_sample: generateParams.do_sample,
-                top_k: generateParams.top_k,
-                temperature: generateParams.temperature,
-                max_new_tokens: generateParams.max_new_tokens,
-                top_p: generateParams.top_p,
-                repetition_penalty: generateParams.repetition_penalty,
-                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
-                return_dict_in_generate: generateParams.return_dict_in_generate,
-            });
+            const detailedParams = `[generateInternal] 📋 DETAILED GENERATION PARAMETERS:
+                Input Info:
+                    input_ids length: ${inputs.input_ids.length}
+                    attention_mask length: ${inputs.attention_mask.length}
+                
+                Core Generation:
+                    do_sample: ${generateParams.do_sample}
+                    temperature: ${generateParams.temperature}
+                    top_k: ${generateParams.top_k}
+                    top_p: ${generateParams.top_p}
+                    repetition_penalty: ${generateParams.repetition_penalty}
+                    max_new_tokens: ${generateParams.max_new_tokens}
+                    min_length: ${generateParams.min_length}
+                    max_length: ${generateParams.max_length}
+                
+                Advanced Parameters:
+                    no_repeat_ngram_size: ${generateParams.no_repeat_ngram_size}
+                    encoder_no_repeat_ngram_size: ${generateParams.encoder_no_repeat_ngram_size}
+                    length_penalty: ${generateParams.length_penalty}
+                    early_stopping: ${generateParams.early_stopping}
+                    penalty_alpha: ${generateParams.penalty_alpha}
+                    num_beams: ${generateParams.num_beams}
+                    diversity_penalty: ${generateParams.diversity_penalty}
+                
+                Sampling Parameters:
+                    typical_p: ${generateParams.typical_p}
+                    epsilon_cutoff: ${generateParams.epsilon_cutoff}
+                    eta_cutoff: ${generateParams.eta_cutoff}
+                    encoder_repetition_penalty: ${generateParams.encoder_repetition_penalty}
+                    min_new_tokens: ${generateParams.min_new_tokens}
+                    guidance_scale: ${generateParams.guidance_scale}
+                    max_time: ${generateParams.max_time}
+                
+                Token Control:
+                    pad_token_id: ${generateParams.pad_token_id}
+                    bos_token_id: ${generateParams.bos_token_id}
+                    eos_token_id: ${generateParams.eos_token_id}
+                    decoder_start_token_id: ${generateParams.decoder_start_token_id}
+                    forced_bos_token_id: ${generateParams.forced_bos_token_id}
+                    forced_eos_token_id: ${generateParams.forced_eos_token_id}
+                
+                    Output & Performance:
+                        return_dict_in_generate: ${generateParams.return_dict_in_generate}
+                        output_attentions: ${generateParams.output_attentions}
+                        output_hidden_states: ${generateParams.output_hidden_states}
+                        output_scores: ${generateParams.output_scores}
+                        use_cache: ${generateParams.use_cache}
+                        has_streamer: ${!!generateParams.streamer}
+                        has_stopping_criteria: ${!!generateParams.stopping_criteria}`;
+            console.log(prefix, detailedParams);
         }
+        // Always log key generation parameters for debugging (as string to avoid truncation)
+        const activeParams = `[generateInternal] 🔧 ACTIVE GENERATION PARAMETERS:
+        temperature: ${generateParams.temperature}
+        max_length: ${generateParams.max_length} (effective: ${effectiveMaxLength})
+        max_new_tokens: ${generateParams.max_new_tokens}
+        top_k: ${generateParams.top_k}
+        top_p: ${generateParams.top_p}
+        repetition_penalty: ${generateParams.repetition_penalty}
+        length_penalty: ${generateParams.length_penalty}
+        no_repeat_ngram_size: ${generateParams.no_repeat_ngram_size}
+        do_sample: ${generateParams.do_sample}`;
+        console.log(prefix, activeParams);
         if (LOG_GEN_COMPARISON) {
-            console.log(prefix, '[generateInternal] 📋 USING APPROACH: plain object (like official examples)');
-            console.log(prefix, '[generateInternal] 🔍 PARAMETER PROCESSING FLOW (from transformers.js source):');
-            console.log(prefix, '  1. Our params → kwargs (spread into generate() call)');
-            console.log(prefix, '  2. Model defaults → this.generation_config');
-            console.log(prefix, '  3. Final config = _prepare_generation_config(kwargs, model_defaults)');
-            console.log(prefix, '  4. Our kwargs should override model defaults in final config');
-            // Log what we're actually passing to model.generate()
-            console.log(prefix, '[generateInternal] 🔍 DETAILED PARAMETER ANALYSIS:');
-            console.log(prefix, '  - inputs.input_ids length:', inputs.input_ids.length);
-            console.log(prefix, '  - inputs.attention_mask length:', inputs.attention_mask.length);
-            console.log(prefix, '  - generateParams keys:', Object.keys(generateParams));
-            console.log(prefix, '  - hasStreamer: !!generateParams.streamer');
-            console.log(prefix, '  - hasStoppingCriteria: !!generateParams.stopping_criteria');
-            console.log(prefix, '  - hasGenerationParams: do_sample, top_k, temperature, max_new_tokens, etc.');
+            const comparisonInfo = `[generateInternal] 📋 PARAMETER PROCESSING ANALYSIS:
+                Approach: plain object (like official examples)
+                
+                Processing Flow (from transformers.js source):
+                1. Our params → kwargs (spread into generate() call)
+                2. Model defaults → this.generation_config
+                3. Final config = _prepare_generation_config(kwargs, model_defaults)
+                4. Our kwargs should override model defaults in final config
+                
+                Parameter Analysis:
+                - inputs.input_ids length: ${inputs.input_ids.length}
+                - inputs.attention_mask length: ${inputs.attention_mask.length}
+                - generateParams keys: ${Object.keys(generateParams).join(', ')}
+                - hasStreamer: ${!!generateParams.streamer}
+                - hasStoppingCriteria: ${!!generateParams.stopping_criteria}
+                - hasGenerationParams: do_sample, top_k, temperature, max_new_tokens, etc.`;
+            console.log(prefix, comparisonInfo);
         }
         // Check for stop request before generation
         if (shouldStopGeneration) {
@@ -9532,33 +9626,34 @@ async function generateInternal(payload) {
             return;
         }
         if (LOG_GEN_DETAILED) {
-            console.log(prefix, '[generateInternal] 🚀 TESTING EXAMPLE APPROACH FIRST...');
-            // Log model's generation_config BEFORE generation
-            if (transformersModel?.generation_config) {
-                console.log(prefix, `[generateInternal] 🔍 MODEL'S GENERATION CONFIG BEFORE GENERATION:`, transformersModel.generation_config);
-                // Compare our generation parameters with model's default
-                console.log(prefix, `[generateInternal] 🔄 COMPARISON - OUR vs MODEL'S CONFIG:`);
-                console.log(prefix, `  - do_sample: ${generateParams.do_sample} vs ${transformersModel.generation_config.do_sample}`);
-                console.log(prefix, `  - temperature: ${generateParams.temperature} vs ${transformersModel.generation_config.temperature}`);
-                console.log(prefix, `  - max_new_tokens: ${generateParams.max_new_tokens} vs ${transformersModel.generation_config.max_new_tokens}`);
-                console.log(prefix, `  - top_k: ${generateParams.top_k} vs ${transformersModel.generation_config.top_k}`);
-                console.log(prefix, `  - eos_token_id: NOT PASSED (model will use default: ${transformersModel.generation_config.eos_token_id})`);
-            }
+            const detailedInfo = `[generateInternal] 🚀 GENERATION DETAILS:
+  
+  
+            Model's generation_config: ${transformersModel?.generation_config ? JSON.stringify(transformersModel.generation_config, null, 2) : 'undefined'}
+            
+            Parameter Comparison (OUR vs MODEL):
+            - do_sample: ${generateParams.do_sample} vs ${transformersModel?.generation_config?.do_sample || 'undefined'}
+            - temperature: ${generateParams.temperature} vs ${transformersModel?.generation_config?.temperature || 'undefined'}
+            - max_new_tokens: ${generateParams.max_new_tokens} vs ${transformersModel?.generation_config?.max_new_tokens || 'undefined'}
+            - top_k: ${generateParams.top_k} vs ${transformersModel?.generation_config?.top_k || 'undefined'}
+            - eos_token_id: NOT PASSED (model will use default: ${transformersModel?.generation_config?.eos_token_id || 'undefined'})`;
+            console.log(prefix, detailedInfo);
         }
         // Log what we're passing to model.generate()
         if (LOG_GEN_ANALYSIS) {
-            console.log(prefix, `[generateInternal] 📤 PARAMETERS WE'RE PASSING TO model.generate():`, generateParams);
-            // Log the specific generation parameters we're passing (these become kwargs)
-            console.log(prefix, `[generateInternal] 🎯 GENERATION PARAMETERS AS KWARGS:`, {
-                do_sample: generateParams.do_sample,
-                top_k: generateParams.top_k,
-                temperature: generateParams.temperature,
-                max_new_tokens: generateParams.max_new_tokens,
-                top_p: generateParams.top_p,
-                repetition_penalty: generateParams.repetition_penalty,
-                no_repeat_ngram_size: generateParams.no_repeat_ngram_size,
-                return_dict_in_generate: generateParams.return_dict_in_generate,
-            });
+            const analysisInfo = `[generateInternal] 📤 PARAMETERS ANALYSIS:
+            Full generateParams: ${JSON.stringify(generateParams, null, 2)}
+            
+            Key Generation Parameters (as kwargs):
+            - do_sample: ${generateParams.do_sample}
+            - top_k: ${generateParams.top_k}
+            - temperature: ${generateParams.temperature}
+            - max_new_tokens: ${generateParams.max_new_tokens}
+            - top_p: ${generateParams.top_p}
+            - repetition_penalty: ${generateParams.repetition_penalty}
+            - no_repeat_ngram_size: ${generateParams.no_repeat_ngram_size}
+            - return_dict_in_generate: ${generateParams.return_dict_in_generate}`;
+            console.log(prefix, analysisInfo);
         }
         const result = await transformersModel.generate(generateParams);
         // Update past_key_values_cache like the example
@@ -9577,7 +9672,6 @@ async function generateInternal(payload) {
                 }
             }
         }
-        // Decode the final result like the working example does
         let finalDecodedText = '';
         if (result && typeof result === 'object' && 'sequences' in result) {
             // FIX: Slice sequences to only decode newly generated tokens, not the entire input prompt
@@ -9599,7 +9693,22 @@ async function generateInternal(payload) {
         }
         // Log what the model actually returned and what parameters were used
         if (LOG_GEN_ANALYSIS) {
-            console.log(prefix, `[generateInternal] Generation completed successfully`);
+            const resultInfo = `[generateInternal] Generation completed successfully
+  Model result type: ${typeof result}
+  Model result keys: ${result ? Object.keys(result).join(', ') : 'null/undefined'}
+  
+  FULL RESULT OBJECT: ${JSON.stringify(result, null, 2)}
+  
+  Model result structure:
+  - hasGeneratedText: ${'generated_text' in result}
+  - hasOutputs: ${'outputs' in result}
+  - hasScores: ${'scores' in result}
+  - hasAttentions: ${'attentions' in result}
+  - hasHiddenStates: ${'hidden_states' in result}
+  - hasSequences: ${'sequences' in result}
+  - hasPastKeyValues: ${'past_key_values' in result}
+  - resultKeys: ${Object.keys(result).join(', ')}`;
+            console.log(prefix, resultInfo);
             console.log(prefix, `[generateInternal] Model result type:`, typeof result);
             console.log(prefix, `[generateInternal] Model result keys:`, result ? Object.keys(result) : 'null/undefined');
             // Log the FULL result object to see what transformers.js actually returned
@@ -9828,6 +9937,11 @@ self.onmessage = async (event) => {
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MODEL_SOURCE_SELECTION:
             await handleModelSourceSelection(payload);
             break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.CLEAR_CACHE: {
+            stopping_criteria.interrupt();
+            self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.CACHE_CLEARED });
+            break;
+        }
         default:
             self.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.ERROR, payload: `Unknown message type: ${type}` });
             break;
@@ -9995,12 +10109,11 @@ function filterScrapedContent(messages) {
             }
         }
         if (LOG_TRANSFORMERS) {
-            console.log(prefix, `[filterScrapedContent] Message ${index}:`, {
-                role: msg.role,
-                isJson: isJsonContent,
-                contentLength: msg.content.length,
-                contentPreview: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : '')
-            });
+            console.log(prefix, `[filterScrapedContent] Message ${index}:`);
+            console.log(prefix, `  role: ${msg.role}`);
+            console.log(prefix, `  isJson: ${isJsonContent}`);
+            console.log(prefix, `  contentLength: ${msg.content.length}`);
+            console.log(prefix, `  contentPreview: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`);
         }
         // Check for scraped data patterns
         const isScrapedData = isJsonContent && jsonData && (jsonData.method === "tempTabExecuteScript" ||
@@ -10012,16 +10125,15 @@ function filterScrapedContent(messages) {
             jsonData.links);
         if (isScrapedData) {
             if (LOG_TRANSFORMERS) {
-                console.log(prefix, `[filterScrapedContent] Detected scraped data in message ${index}:`, {
-                    hasTitle: !!jsonData.title,
-                    hasText: !!jsonData.text,
-                    hasContent: !!jsonData.content,
-                    hasUrl: !!jsonData.url,
-                    hasImages: !!jsonData.images,
-                    hasLinks: !!jsonData.links,
-                    hasSegments: !!jsonData.segments,
-                    originalLength: msg.content.length
-                });
+                console.log(prefix, `[filterScrapedContent] Detected scraped data in message ${index}:`);
+                console.log(prefix, `  hasTitle: ${!!jsonData.title}`);
+                console.log(prefix, `  hasText: ${!!jsonData.text}`);
+                console.log(prefix, `  hasContent: ${!!jsonData.content}`);
+                console.log(prefix, `  hasUrl: ${!!jsonData.url}`);
+                console.log(prefix, `  hasImages: ${!!jsonData.images}`);
+                console.log(prefix, `  hasLinks: ${!!jsonData.links}`);
+                console.log(prefix, `  hasSegments: ${!!jsonData.segments}`);
+                console.log(prefix, `  originalLength: ${msg.content.length}`);
             }
             // Extract only essential fields
             const filteredContent = {
@@ -10031,11 +10143,10 @@ function filterScrapedContent(messages) {
             };
             const newContent = `Title: ${filteredContent.title}\nURL: ${filteredContent.url}\nContent: ${filteredContent.text}`;
             if (LOG_TRANSFORMERS) {
-                console.log(prefix, `[filterScrapedContent] Filtered message ${index}:`, {
-                    originalLength: msg.content.length,
-                    newLength: newContent.length,
-                    reduction: `${Math.round((1 - newContent.length / msg.content.length) * 100)}%`
-                });
+                console.log(prefix, `[filterScrapedContent] Filtered message ${index}:`);
+                console.log(prefix, `  originalLength: ${msg.content.length}`);
+                console.log(prefix, `  newLength: ${newContent.length}`);
+                console.log(prefix, `  reduction: ${Math.round((1 - newContent.length / msg.content.length) * 100)}%`);
             }
             // Return clean, minimal content
             return {

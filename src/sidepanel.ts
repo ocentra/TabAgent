@@ -497,6 +497,10 @@ function handleModelWorkerMessage(event: MessageEvent) {
       case UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
           document.dispatchEvent(new CustomEvent(UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
           break;
+      case WorkerEventNames.CACHE_CLEARED:
+          // Cache cleared successfully - no action needed
+          if (LOG_DEBUG) console.log(prefix, 'Model cache cleared successfully');
+          break;
       default:
           console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
   }
@@ -735,6 +739,13 @@ async function handleSessionCreated(newSessionId: string) {
   if (LOG_DEBUG) console.log(`${prefix} Orchestrator reported new session created: ${newSessionId}`);
   if (LOG_DEBUG) console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
   await setActiveChatSessionId(newSessionId);
+  
+  // Clear model cache for new chat session to prevent cross-chat contamination
+  if (modelWorker) {
+    console.log(prefix, 'Sending CLEAR_CACHE message to model worker');
+    modelWorker.postMessage({ type: WorkerEventNames.CLEAR_CACHE });
+  }
+  
   try {
     const request = new DbGetSessionRequest(newSessionId);
     const sessionData = await requestDbAndWait(request);
@@ -753,6 +764,12 @@ async function handleNewChat() {
   await setActiveChatSessionId(null);
   clearInput();
   focusInput();
+  
+  // Clear model cache for new chat to prevent cross-chat contamination
+  if (modelWorker) {
+    console.log(prefix, 'Sending CLEAR_CACHE message to model worker (New Chat button)');
+    modelWorker.postMessage({ type: WorkerEventNames.CLEAR_CACHE });
+  }
 }
 
 async function loadAndDisplaySession(sessionId: string | null) {
@@ -1136,6 +1153,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const dbInitSuccess = await initializeDatabase();
     if (!dbInitSuccess) return;
+
+    // Load default model after everything is initialized
+    try {
+      const { loadDefaultModel } = await import('./Home/uiController');
+      const defaultModelLoaded = await loadDefaultModel();
+      if (defaultModelLoaded) {
+        if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+      } else {
+        if (LOG_DEBUG) console.log(`${prefix} Default model loading failed or skipped.`);
+      }
+    } catch (error) {
+      if (LOG_ERROR) console.error(`${prefix} Error loading default model:`, error);
+    }
 
     if (LOG_DEBUG) console.log(`${prefix} Initialization complete.`);
 

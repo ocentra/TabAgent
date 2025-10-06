@@ -54,6 +54,8 @@ export const WorkerEventNames = Object.freeze({
   HUGGINGFACE_LOGIN: 'huggingfaceLogin',
   HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
   MODEL_SOURCE_SELECTION: 'modelSourceSelection',
+  CLEAR_CACHE: 'clearCache',
+  CACHE_CLEARED: 'cacheCleared',
   GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
   MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
 });

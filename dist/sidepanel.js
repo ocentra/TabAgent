@@ -2932,18 +2932,18 @@ const INFERENCE_SETTING_KEYS = {
     system_prompt: 'system_prompt',
 };
 const DEFAULT_INFERENCE_SETTINGS = {
-    // Core generation parameters - Updated with proven optimal values
-    temperature: 0.2, // Lower for more focused, meaningful responses (proven optimal)
-    max_length: 2048, // Moderate context window
-    max_new_tokens: 1024, // Increased for better responses (proven optimal)
+    // Core generation parameters - Updated with web search optimal values
+    temperature: 0.7, // Optimal: 0.7 for focused but not too deterministic responses
+    max_length: 8192, // Large context window for modern models
+    max_new_tokens: 100, // Optimal: 100 tokens to prevent rambling (was 1024)
     min_length: 0, // Default: 0 (from docs)
     min_new_tokens: 0, // Default: null (from docs) - we use 0 for user experience
-    top_k: 3, // Much lower for focused responses (proven optimal)
-    top_p: 0.9, // Default: 1.0 (from docs) - we use 0.9 for user experience
+    top_k: 50, // Optimal: 50 for balanced diversity and coherence
+    top_p: 0.9, // Optimal: 0.9 for nucleus sampling (proven optimal)
     typical_p: 1.0, // Default: 1.0 (from docs)
     epsilon_cutoff: 0.0, // Default: 0.0 (from docs)
     eta_cutoff: 0.0, // Default: 0.0 (from docs)
-    repetition_penalty: 1.1, // Lower penalty for better flow (proven optimal)
+    repetition_penalty: 1.2, // Optimal: 1.2 to discourage repetition and rambling
     encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
     do_sample: true, // Default: false (from docs) - we use true for user experience
     // Beam search parameters
@@ -2951,7 +2951,7 @@ const DEFAULT_INFERENCE_SETTINGS = {
     num_beam_groups: 1, // Default: 1 (from docs)
     diversity_penalty: 0.0, // Default: 0.0 (from docs)
     early_stopping: true, // Default: false (from docs) - we use true for better stopping
-    length_penalty: 1.0, // Default: 1.0 (from docs)
+    length_penalty: 0.8, // Optimal: 0.8 to encourage shorter, more concise responses
     penalty_alpha: 0.0, // Default: null (from docs) - we use 0.0 for user experience
     // N-gram and repetition control
     no_repeat_ngram_size: 3, // Proven optimal value for preventing repetition
@@ -3016,18 +3016,24 @@ const COMMON_SETTINGS = [
     {
         key: INFERENCE_SETTING_KEYS.max_length,
         label: keyToLabel(INFERENCE_SETTING_KEYS.max_length),
-        type: 'input',
-        defaultValue: 2048,
+        type: 'slider',
+        min: 512,
+        max: 32768,
+        step: 512,
+        defaultValue: 8192,
         description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
-        example: `Use 512 for short answers, 2048 for medium, 8192+ for long explanations or stories.`
+        example: `Use 2048 for short answers, 8192 for medium, 16384+ for long explanations or stories.`
     },
     {
         key: INFERENCE_SETTING_KEYS.max_new_tokens,
         label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
-        type: 'input',
-        defaultValue: 1024, // Proven optimal value for balanced responses
+        type: 'slider',
+        min: 10,
+        max: 500,
+        step: 10,
+        defaultValue: 100, // Optimal: 100 tokens to prevent rambling
         description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
-        example: `Try 100 for brief replies, 500 for paragraphs, 1024+ for detailed explanations or stories.`
+        example: `100 = concise answers, 200 = paragraphs, 500 = detailed explanations.`
     },
     {
         key: INFERENCE_SETTING_KEYS.min_length,
@@ -3074,7 +3080,7 @@ const COMMON_SETTINGS = [
         min: 1.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.1, // Proven optimal value for better flow
+        defaultValue: 1.2, // Optimal: 1.2 to discourage repetition and rambling
         description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
         example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
     },
@@ -3162,10 +3168,10 @@ const ADVANCED_SETTINGS = [
         key: INFERENCE_SETTING_KEYS.length_penalty,
         label: keyToLabel(INFERENCE_SETTING_KEYS.length_penalty),
         type: 'slider',
-        min: -2.0,
+        min: 0.0,
         max: 2.0,
         step: 0.01,
-        defaultValue: 1.0, // Official default: 1.0
+        defaultValue: 0.8, // Optimal: 0.8 to encourage shorter, more concise responses
         description: `Controls whether the AI prefers shorter or longer answers. Lower values make answers shorter, higher values make them longer.`,
         example: `<1.0 = shorter, 1.0 = neutral, >1.0 = longer answers.`
     },
@@ -3192,10 +3198,13 @@ const ADVANCED_SETTINGS = [
     {
         key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
         label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
-        type: 'input',
+        type: 'slider',
+        min: 0,
+        max: 5,
+        step: 1,
         defaultValue: 3, // Proven optimal value for preventing repetition
-        description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
-        example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets (proven optimal).`
+        description: `Prevents the AI from repeating the same sequence of words. Higher values prevent longer repeated phrases but may limit fluency.`,
+        example: `0 = no control, 2 = no repeated pairs, 3 = no repeated triplets (optimal), 4+ = very restrictive.`
     },
     {
         key: INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size,
@@ -10935,6 +10944,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getInputValue: () => (/* binding */ getInputValue),
 /* harmony export */   getModelSelectorOptions: () => (/* binding */ getModelSelectorOptions),
 /* harmony export */   initializeUI: () => (/* binding */ initializeUI),
+/* harmony export */   loadDefaultModel: () => (/* binding */ loadDefaultModel),
 /* harmony export */   onModelDropdownChange: () => (/* binding */ onModelDropdownChange),
 /* harmony export */   quantKeyToLabel: () => (/* binding */ quantKeyToLabel),
 /* harmony export */   refreshModelDropdown: () => (/* binding */ refreshModelDropdown),
@@ -10983,7 +10993,6 @@ const prefix = '[UIController]';
 const AVAILABLE_MODELS = {
     "onnx-community/Phi-3.5-mini-instruct-onnx-web": "Phi-3.5 Mini (Transformers.js)",
     "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M Instruct",
-    "microsoft/Phi-3.5-mini-instruct-onnx": "Phi-3.5 Mini",
     "HuggingFaceTB/SmolLM2-1.7B-Instruct": "SmolLM2-1.7B Instruct",
     "HuggingFaceTB/SmolLM3-3B-ONNX": "SmolLM3-3B ONNX",
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
@@ -11536,7 +11545,6 @@ async function initializeUI(callbacks) {
     if (LOG_INFO)
         console.log(prefix, `Returning elements: chatBody is ${chatBody ? 'found' : 'NULL'}, fileInput is ${fileInput ? 'found' : 'NULL'}`);
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.clearTemporaryMessages)();
-    disableInput("Download or load a model from dropdown to begin.");
     if (LOG_INFO)
         console.log(prefix, "Initializing UI elements...");
     if (LOG_INFO)
@@ -12016,6 +12024,102 @@ function quantKeyToLabel(dtype) {
         case 'fp32': return 'FP32';
         case 'quantized': return 'QUANTIZED';
         default: return 'FP32';
+    }
+}
+/**
+ * Load the default model (first model from AVAILABLE_MODELS) automatically
+ */
+async function loadDefaultModel() {
+    if (LOG_INFO)
+        console.log(prefix, "Loading default model...");
+    try {
+        // Check if a model is already loaded
+        const { getCurrentLoadedModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../sidepanel */ "./src/sidepanel.ts"));
+        const currentLoadedModel = getCurrentLoadedModel();
+        if (currentLoadedModel && currentLoadedModel.modelId) {
+            if (LOG_INFO)
+                console.log(prefix, `Model already loaded: ${currentLoadedModel.modelId}, skipping default model loading`);
+            return true;
+        }
+        // Get the first model from AVAILABLE_MODELS
+        const defaultModelId = Object.keys(AVAILABLE_MODELS)[0];
+        if (!defaultModelId) {
+            if (LOG_WARN)
+                console.warn(prefix, "No models available in AVAILABLE_MODELS");
+            return false;
+        }
+        if (LOG_INFO)
+            console.log(prefix, `Default model selected: ${defaultModelId}`);
+        // Set the model in the dropdown
+        if (modelSelectorDropdown) {
+            modelSelectorDropdown.value = defaultModelId;
+            if (LOG_INFO)
+                console.log(prefix, "Set model selector to default model");
+        }
+        // Wait for manifests to be loaded and quant dropdown to be populated
+        await updateQuantDropdown();
+        // Get the best available quantization for this model
+        const manifestEntry = repoQuantsCache[defaultModelId];
+        if (!manifestEntry || !manifestEntry.quants) {
+            if (LOG_WARN)
+                console.warn(prefix, "No manifest entry found for default model, waiting for manifests...");
+            // Wait a bit more for manifests to load
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return false;
+        }
+        // Find the best quantization (prefer q4f16, then q4, then first available)
+        const quants = Object.entries(manifestEntry.quants);
+        let bestQuant = null;
+        // Look for q4f16 first
+        for (const [modelPath, quantInfo] of quants) {
+            if (quantInfo.dtype === 'q4f16') {
+                bestQuant = quantInfo.dtype;
+                break;
+            }
+        }
+        // If no q4f16, look for q4
+        if (!bestQuant) {
+            for (const [modelPath, quantInfo] of quants) {
+                if (quantInfo.dtype === 'q4') {
+                    bestQuant = quantInfo.dtype;
+                    break;
+                }
+            }
+        }
+        // If still no quant found, use the first available
+        if (!bestQuant && quants.length > 0) {
+            bestQuant = quants[0][1].dtype || 'fp32';
+        }
+        if (!bestQuant) {
+            if (LOG_WARN)
+                console.warn(prefix, "No quantization found for default model");
+            return false;
+        }
+        if (LOG_INFO)
+            console.log(prefix, `Best quantization for default model: ${bestQuant}`);
+        // Set the quantization in the dropdown
+        if (quantSelectorDropdown) {
+            quantSelectorDropdown.value = bestQuant;
+            if (LOG_INFO)
+                console.log(prefix, "Set quant selector to best quantization");
+        }
+        // Update UI state
+        await updateLoadButtonAndQuantDropdown();
+        // Show loading message
+        disableInput("Loading default model...");
+        // Trigger model loading
+        const loadId = Date.now().toString() + Math.random().toString(36).slice(2);
+        if (LOG_INFO)
+            console.log(prefix, `Dispatching model load request for ${defaultModelId} with ${bestQuant}`);
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+            detail: { modelId: defaultModelId, dtype: bestQuant, loadId }
+        }));
+        return true;
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, "Error loading default model:", error);
+        return false;
     }
 }
 
@@ -12647,6 +12751,8 @@ const WorkerEventNames = Object.freeze({
     HUGGINGFACE_LOGIN: 'huggingfaceLogin',
     HUGGINGFACE_LOGOUT: 'huggingfaceLogout',
     MODEL_SOURCE_SELECTION: 'modelSourceSelection',
+    CLEAR_CACHE: 'clearCache',
+    CACHE_CLEARED: 'cacheCleared',
     GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
     MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
 });
@@ -13403,6 +13509,11 @@ function handleModelWorkerMessage(event) {
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
             break;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CACHE_CLEARED:
+            // Cache cleared successfully - no action needed
+            if (LOG_DEBUG)
+                console.log(prefix, 'Model cache cleared successfully');
+            break;
         default:
             console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
     }
@@ -13655,6 +13766,11 @@ async function handleSessionCreated(newSessionId) {
     if (LOG_DEBUG)
         console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
     await setActiveChatSessionId(newSessionId);
+    // Clear model cache for new chat session to prevent cross-chat contamination
+    if (modelWorker) {
+        console.log(prefix, 'Sending CLEAR_CACHE message to model worker');
+        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
+    }
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
@@ -13676,6 +13792,11 @@ async function handleNewChat() {
     await setActiveChatSessionId(null);
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.clearInput)();
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.focusInput)();
+    // Clear model cache for new chat to prevent cross-chat contamination
+    if (modelWorker) {
+        console.log(prefix, 'Sending CLEAR_CACHE message to model worker (New Chat button)');
+        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
+    }
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
@@ -14068,6 +14189,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dbInitSuccess = await initializeDatabase();
         if (!dbInitSuccess)
             return;
+        // Load default model after everything is initialized
+        try {
+            const { loadDefaultModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Home/uiController */ "./src/Home/uiController.ts"));
+            const defaultModelLoaded = await loadDefaultModel();
+            if (defaultModelLoaded) {
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Default model loading initiated.`);
+            }
+            else {
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Default model loading failed or skipped.`);
+            }
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Error loading default model:`, error);
+        }
         if (LOG_DEBUG)
             console.log(`${prefix} Initialization complete.`);
         const modelDropdownEl = document.getElementById('model-selector');
@@ -14488,7 +14626,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "091da1f4ac4041459675" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "4cb072f39c3fd2d052d2" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

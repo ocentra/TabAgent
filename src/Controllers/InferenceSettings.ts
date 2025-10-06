@@ -161,18 +161,18 @@ export interface SettingDefinition {
 }
 
 export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
-  // Core generation parameters - Updated with proven optimal values
-  temperature: 0.2,           // Lower for more focused, meaningful responses (proven optimal)
-  max_length: 2048,           // Moderate context window
-  max_new_tokens: 1024,       // Increased for better responses (proven optimal)
+  // Core generation parameters - Updated with web search optimal values
+  temperature: 0.7,           // Optimal: 0.7 for focused but not too deterministic responses
+  max_length: 8192,           // Large context window for modern models
+  max_new_tokens: 100,        // Optimal: 100 tokens to prevent rambling (was 1024)
   min_length: 0,              // Default: 0 (from docs)
   min_new_tokens: 0,          // Default: null (from docs) - we use 0 for user experience
-  top_k: 3,                   // Much lower for focused responses (proven optimal)
-  top_p: 0.9,                 // Default: 1.0 (from docs) - we use 0.9 for user experience
+  top_k: 50,                  // Optimal: 50 for balanced diversity and coherence
+  top_p: 0.9,                 // Optimal: 0.9 for nucleus sampling (proven optimal)
   typical_p: 1.0,             // Default: 1.0 (from docs)
   epsilon_cutoff: 0.0,        // Default: 0.0 (from docs)
   eta_cutoff: 0.0,            // Default: 0.0 (from docs)
-  repetition_penalty: 1.1,   // Lower penalty for better flow (proven optimal)
+  repetition_penalty: 1.2,    // Optimal: 1.2 to discourage repetition and rambling
   encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
   do_sample: true,            // Default: false (from docs) - we use true for user experience
   
@@ -181,7 +181,7 @@ export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
   num_beam_groups: 1,         // Default: 1 (from docs)
   diversity_penalty: 0.0,     // Default: 0.0 (from docs)
   early_stopping: true,       // Default: false (from docs) - we use true for better stopping
-  length_penalty: 1.0,        // Default: 1.0 (from docs)
+  length_penalty: 0.8,        // Optimal: 0.8 to encourage shorter, more concise responses
   penalty_alpha: 0.0,         // Default: null (from docs) - we use 0.0 for user experience
   
   // N-gram and repetition control
@@ -256,18 +256,24 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
   {
       key: INFERENCE_SETTING_KEYS.max_length,
       label: keyToLabel(INFERENCE_SETTING_KEYS.max_length),
-      type: 'input',
-      defaultValue: 2048, 
+      type: 'slider',
+      min: 512,
+      max: 32768,
+      step: 512,
+      defaultValue: 8192, 
       description: `Sets the maximum total length (in tokens) for the AI's answer, including your question and the response. A higher value allows for longer, more detailed answers, but may take longer to generate.`,
-      example: `Use 512 for short answers, 2048 for medium, 8192+ for long explanations or stories.`
+      example: `Use 2048 for short answers, 8192 for medium, 16384+ for long explanations or stories.`
   },
   {
       key: INFERENCE_SETTING_KEYS.max_new_tokens,
       label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
-      type: 'input',
-      defaultValue: 1024, // Proven optimal value for balanced responses
+      type: 'slider',
+      min: 10,
+      max: 500,
+      step: 10,
+      defaultValue: 100, // Optimal: 100 tokens to prevent rambling
       description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
-      example: `Try 100 for brief replies, 500 for paragraphs, 1024+ for detailed explanations or stories.`
+      example: `100 = concise answers, 200 = paragraphs, 500 = detailed explanations.`
   },
   {
       key: INFERENCE_SETTING_KEYS.min_length,
@@ -314,7 +320,7 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       min: 1.0,
       max: 2.0,
       step: 0.01,
-      defaultValue: 1.1, // Proven optimal value for better flow
+      defaultValue: 1.2, // Optimal: 1.2 to discourage repetition and rambling
       description: `Discourages the AI from repeating itself. Higher values mean less repetition, but if set too high, the AI might avoid repeating important words.`,
       example: `1.0 = no penalty, 1.1 = mild, 1.3 = strong penalty. Increase if you notice repeated phrases.`
   },
@@ -404,10 +410,10 @@ export const ADVANCED_SETTINGS: SettingDefinition[] = [
       key: INFERENCE_SETTING_KEYS.length_penalty,
       label: keyToLabel(INFERENCE_SETTING_KEYS.length_penalty),
       type: 'slider',
-      min: -2.0,
+      min: 0.0,
       max: 2.0,
       step: 0.01,
-      defaultValue: 1.0, // Official default: 1.0
+      defaultValue: 0.8, // Optimal: 0.8 to encourage shorter, more concise responses
       description: `Controls whether the AI prefers shorter or longer answers. Lower values make answers shorter, higher values make them longer.`,
       example: `<1.0 = shorter, 1.0 = neutral, >1.0 = longer answers.`
   },
@@ -435,10 +441,13 @@ export const ADVANCED_SETTINGS: SettingDefinition[] = [
   {
       key: INFERENCE_SETTING_KEYS.no_repeat_ngram_size,
       label: keyToLabel(INFERENCE_SETTING_KEYS.no_repeat_ngram_size),
-      type: 'input',
+      type: 'slider',
+      min: 0,
+      max: 5,
+      step: 1,
       defaultValue: 3, // Proven optimal value for preventing repetition
-      description: `Prevents the AI from repeating the same sequence of words. Set to 2 to avoid repeated word pairs, 3 for triplets, etc.`,
-      example: `0 = allow repeats, 2 = no repeated pairs, 3 = no repeated triplets (proven optimal).`
+      description: `Prevents the AI from repeating the same sequence of words. Higher values prevent longer repeated phrases but may limit fluency.`,
+      example: `0 = no control, 2 = no repeated pairs, 3 = no repeated triplets (optimal), 4+ = very restrictive.`
   },
   {
       key: INFERENCE_SETTING_KEYS.encoder_no_repeat_ngram_size,

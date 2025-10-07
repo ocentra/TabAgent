@@ -10452,7 +10452,8 @@ class ChatOrchestrator {
         this.LOG_DEBUG = false;
         this.LOG_ERROR = true;
         this.LOG_WARN = false;
-        this.LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
+        this.LOG_CHAT_HISTORY = false;
+        this.LOG_GENERATION_FLOW = false; // Turn off
     }
     initialize(dependencies) {
         this.validateDependencies(dependencies);
@@ -10739,10 +10740,20 @@ class ChatOrchestrator {
                     });
                 }
                 try {
+                    // Check if model is loaded before sending
+                    const modelLoaded = (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.isModelLoaded)();
+                    if (this.LOG_GENERATION_FLOW) {
+                        console.log(this.prefix, '🚀 Sending GENERATE to background:', {
+                            isModelLoaded: modelLoaded,
+                            chatId: messagePayload.chatId,
+                            messageId: messagePayload.messageId,
+                            messagesCount: messagePayload.messages.length
+                        });
+                    }
                     // Notify sidepanel that generation is starting
                     document.dispatchEvent(new CustomEvent('generationStarting'));
-                    // Send query to model worker
-                    (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendToModelWorker)({ type: 'generate', payload: messagePayload });
+                    // Send query to model manager
+                    (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.sendToModelManager)({ type: 'generate', payload: messagePayload });
                 }
                 catch (error) {
                     const errObj = error;
@@ -10979,15 +10990,16 @@ let loadModelButton = null;
 let isLoadingModel = false;
 let currentLoadId = null;
 let lastSeenLoadId = null;
-const LOG_GENERAL = false; // General operational logs
-const LOG_DEBUG = false; // Detailed debugging logs (can be noisy)
-const LOG_ERROR = true; // Error logs (always enabled)
-const LOG_WARN = true; // Warning logs
-const LOG_INFO = false; // Info logs
-const LOG_UI_UPDATES = false; // UI update specific logs
-const LOG_QUANT_DROPDOWN = false; // Quant dropdown specific logs
-const LOG_MODEL_LOADING = false; // Model loading specific logs
-const LOG_EVENTS = false; // Event handling logs
+const LOG_GENERAL = false; // Turn off general logs
+const LOG_DEBUG = false; // Turn off debug logs
+const LOG_ERROR = true; // Keep error logging
+const LOG_WARN = false; // Turn off warning logs
+const LOG_INFO = false; // Turn off info logs
+const LOG_UI_UPDATES = false; // Turn off UI updates logs
+const LOG_QUANT_DROPDOWN = false; // Turn off quant dropdown logs
+const LOG_MODEL_LOADING = true; // Keep model loading logs
+const LOG_EVENTS = false; // Turn off events logs
+const LOG_PROGRESS_HANDLING = false; // Turn off to avoid spam
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -10998,8 +11010,8 @@ const AVAILABLE_MODELS = {
     "onnx-community/Qwen3-1.7B-ONNX": "Qwen3-1.7B",
 };
 const GOOGLE_MODELS = {
-    "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
-    // Add more Google models here as needed
+// "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
+// Add more Google models here as needed
 };
 document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type, (e) => {
     const customEvent = e;
@@ -11151,7 +11163,7 @@ function handleStatusUpdate(notification) {
     }
 }
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e) => {
-    handleModelWorkerLoadingProgress(e.detail);
+    handleModelManagerLoadingProgress(e.detail);
 });
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_ALREADY_LOADED, (e) => {
     handleModelAlreadyLoaded(e.detail);
@@ -11166,7 +11178,9 @@ document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEven
 });
 // The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
 // No need for additional event listeners here
-async function handleModelWorkerLoadingProgress(payload) {
+async function handleModelManagerLoadingProgress(payload) {
+    if (LOG_PROGRESS_HANDLING)
+        console.log(prefix, 'Received model manager loading progress:', payload);
     if (!payload)
         return;
     if (payload.loadId !== lastSeenLoadId) {
@@ -11192,6 +11206,8 @@ async function handleModelWorkerLoadingProgress(payload) {
     statusDiv.style.display = 'block';
     progressBar.style.width = '100%';
     if (payload.status === 'error' || payload.error) {
+        if (LOG_PROGRESS_HANDLING)
+            console.log(prefix, 'Handling error progress:', payload.error || payload.status);
         statusText.textContent = payload.error || 'Error loading model';
         progressInner.style.background = '#f44336';
         progressInner.style.width = '100%';
@@ -11247,6 +11263,8 @@ async function handleModelWorkerLoadingProgress(payload) {
     }
     statusText.textContent = text;
     if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
+        if (LOG_PROGRESS_HANDLING)
+            console.log(prefix, 'Model loading completed successfully');
         isLoadingModel = false;
         // Update load button state based on current selection vs loaded model
         await updateLoadButtonAndQuantDropdown();
@@ -11453,16 +11471,18 @@ async function updateModelDropdown() {
         modelSelector.appendChild(option);
     }
     // Add Google models (always visible and selectable)
+    /*
     for (const [modelId, displayName] of Object.entries(GOOGLE_MODELS)) {
         const option = document.createElement('option');
         option.value = modelId;
-        option.textContent = displayName;
+        option.textContent = displayName as string;
         if (!isAuthenticated) {
             option.textContent += ' (Authentication Required)';
         }
         // Don't disable the option - let users select it to trigger auth
         modelSelector.appendChild(option);
     }
+    */
     // Enable/disable based on available models
     const hasModels = modelSelector.children.length > 0;
     modelSelector.disabled = !hasModels;
@@ -11771,6 +11791,8 @@ function handleServerOnlyModelLoad(modelId, dtype) {
     (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_2__.renderTemporaryMessage)('system', 'This model is too large to load in the browser. Please download and run the TabAgent Server to use this model. [Learn more]');
 }
 async function _handleLoadModelButtonClick() {
+    if (LOG_MODEL_LOADING)
+        console.log(prefix, 'Load Model button clicked');
     if (!modelSelectorDropdown || !loadModelButton || isLoadingModel)
         return;
     const modelId = modelSelectorDropdown.value;
@@ -11786,14 +11808,20 @@ async function _handleLoadModelButtonClick() {
             console.warn(prefix, "Load Model button clicked, but no quantization selected.");
         return;
     }
+    if (LOG_MODEL_LOADING)
+        console.log(prefix, 'Loading model:', modelId, 'with dtype:', dtype);
     const manifestEntry = repoQuantsCache[modelId];
     if (manifestEntry && manifestEntry.quants[dtype] && manifestEntry.quants[dtype].status === _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.ServerOnly) {
+        if (LOG_MODEL_LOADING)
+            console.log(prefix, 'Handling server-only model');
         handleServerOnlyModelLoad(modelId, dtype);
         return;
     }
     // Set loading state
     isLoadingModel = true;
     currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
+    if (LOG_MODEL_LOADING)
+        console.log(prefix, 'Setting current load ID:', currentLoadId);
     const statusDiv = document.getElementById('model-load-status');
     if (statusDiv)
         statusDiv.style.display = 'block';
@@ -11804,6 +11832,8 @@ async function _handleLoadModelButtonClick() {
     if (badge)
         badge.style.display = 'none';
     // Dispatch the request - the sidepanel will handle the "already loaded" check
+    if (LOG_MODEL_LOADING)
+        console.log(prefix, 'Dispatching REQUEST_MODEL_EXECUTION event');
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.REQUEST_MODEL_EXECUTION, {
         detail: { modelId, dtype, loadId: currentLoadId }
     }));
@@ -12779,6 +12809,7 @@ const RuntimeMessageTypes = Object.freeze({
     DETACH_SIDE_PANEL: 'detachSidePanel',
     GET_DETACHED_STATE: 'getDetachedState',
     GET_DB_READY_STATE: 'getDbReadyState',
+    CHECK_BACKGROUND_READY: 'checkBackgroundReady',
 });
 const SiteMapperMessageTypes = Object.freeze({
     OPEN_TAB: 'openTab',
@@ -12997,7 +13028,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   isGenerationActive: () => (/* binding */ isGenerationActive),
 /* harmony export */   isModelLoaded: () => (/* binding */ isModelLoaded),
 /* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart),
-/* harmony export */   sendToModelWorker: () => (/* binding */ sendToModelWorker)
+/* harmony export */   sendToModelManager: () => (/* binding */ sendToModelManager)
 /* harmony export */ });
 /* harmony import */ var _DB_db__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./DB/db */ "./src/DB/db.ts");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
@@ -13103,13 +13134,15 @@ function extractCleanDtypeFromPath(filePath) {
 
 
 // --- Constants ---
-const LOG_MANIFEST_GENERATION = true;
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
-const LOG_ERROR = true;
-const LOG_WARN = false;
-const LOG_INFERENCE_SETTINGS = false;
 const LOG_QUEUE_MAX = 1000;
+// Core logging flags
+const LOG_ERROR = true; // Critical errors (always enabled)
+const LOG_WARN = false; // Warnings and fallbacks
+const LOG_GENERAL = false; // App lifecycle (startup, page navigation)
+const LOG_DEBUG = false; // Detailed internal state (for deep debugging)
+// Feature-specific logging - Enable individually to debug specific subsystems
+const LOG_MANIFEST_GENERATION = false; // Manifest creation → Enable to debug model manifest issues
+const LOG_INFERENCE_SETTINGS = false; // Settings loading → Enable to debug AI parameter issues
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 // --- Global State ---
 let activeSessionId = null;
@@ -13123,10 +13156,9 @@ const prefix = '[Sidepanel]';
 // Throttling for high-frequency debug logs
 let sidepanelLogCount = 0;
 const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
-let modelWorker = undefined;
-let currentModelIdInWorker = null;
-let modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
-let isModelWorkerEnvReady = false;
+let currentModelIdInManager = null;
+let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+let isModelManagerEnvReady = false;
 let isGenerating = false;
 // Track the currently loaded model and quant (onnx variant)
 let currentLoadedModel = { modelId: null, quant: null };
@@ -13323,17 +13355,21 @@ function hideDeviceBadge() {
         badge.style.display = 'none';
 }
 function updateSendButtonForGeneration(isGenerating) {
-    console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
+    if (LOG_DEBUG)
+        console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.updateGenerationState)(isGenerating);
 }
 function handleStopGeneration() {
-    console.log(`${prefix} handleStopGeneration called. modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
-    if (modelWorker && isGenerating) {
-        console.log(`${prefix} Sending stop generation request to worker.`);
-        sendToModelWorker({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.STOP_GENERATION });
+    if (LOG_DEBUG)
+        console.log(`${prefix} handleStopGeneration called. isGenerating: ${isGenerating}`);
+    if (isGenerating) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Sending stop generation request to background.`);
+        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.STOP_GENERATION });
     }
     else {
-        console.log(`${prefix} Cannot send stop request - modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
+        if (LOG_DEBUG)
+            console.log(`${prefix} Cannot send stop request - not generating`);
     }
 }
 function handleSendButtonClick() {
@@ -13349,31 +13385,31 @@ function handleSendButtonClick() {
         queryInput.style.height = 'auto';
     }
 }
-function handleModelWorkerMessage(event) {
+function handleModelManagerMessage(event) {
     const { type, label, payload } = event.data || {};
-    // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
+    // console.log(`${prefix} Message from background: Type: ${type}`, payload);
     // For use in WORKER_READY case
     const loadBtn = document.getElementById('load-model-button');
     switch (type) {
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY;
             if (LOG_DEBUG)
-                console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
+                console.log(`${prefix} Background script is ready.`);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_ENV_READY:
-            isModelWorkerEnvReady = true;
+            isModelManagerEnvReady = true;
             if (LOG_DEBUG)
-                console.log(`${prefix} Model worker environment is ready.`);
+                console.log(`${prefix} Background environment is ready.`);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
             if (LOG_DEBUG)
-                console.log(`${prefix} Worker loading status:`, payload);
+                console.log(`${prefix} Background loading status:`, payload);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY: {
             const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
-            currentModelIdInWorker = modelId;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+            currentModelIdInManager = modelId;
             currentLoadedModel = {
                 modelId: modelId,
                 quant: dtype
@@ -13396,28 +13432,28 @@ function handleModelWorkerMessage(event) {
             if (LOG_DEBUG)
                 console.log(`${prefix} Model ${modelId} loaded successfully!`);
             if (LOG_DEBUG)
-                console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${dtype}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
+                console.log(`${prefix} Background is ready with model: ${modelId}, quant: ${dtype}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
             // Show success notification
             const modelDisplayName = modelId.split('/').pop() || modelId;
             (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
             break;
         }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
-            isModelWorkerEnvReady = false;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+            isModelManagerEnvReady = false;
             hideDeviceBadge();
             if (LOG_ERROR)
-                console.error(`${prefix} Model worker reported an error:`, payload);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Worker Error: ${payload}`);
-            currentModelIdInWorker = null;
+                console.error(`${prefix} Background reported an error:`, payload);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Background Error: ${payload}`);
+            currentModelIdInManager = null;
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE:
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
-            isModelWorkerEnvReady = false;
-            currentModelIdInWorker = null;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+            isModelManagerEnvReady = false;
+            currentModelIdInManager = null;
             hideDeviceBadge();
             if (LOG_DEBUG)
-                console.log(`${prefix} Model worker reset complete.`);
+                console.log(`${prefix} Background model reset complete.`);
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
@@ -13479,18 +13515,21 @@ function handleModelWorkerMessage(event) {
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED:
             document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
+            syncToggleLoadButton();
             break;
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.REQUEST_MEMORY_STATS:
-            if (performance && performance.memory && modelWorker) {
+            if (performance && performance.memory) {
                 const mem = performance.memory;
-                modelWorker.postMessage({
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MEMORY_STATS,
-                    label,
                     payload: {
                         usedJSHeapSize: mem.usedJSHeapSize,
                         totalJSHeapSize: mem.totalJSHeapSize,
                         jsHeapSizeLimit: mem.jsHeapSizeLimit
                     }
+                }).catch((error) => {
+                    if (LOG_ERROR)
+                        console.error(`${prefix} Failed to send memory stats:`, error);
                 });
             }
             break;
@@ -13515,96 +13554,75 @@ function handleModelWorkerMessage(event) {
                 console.log(prefix, 'Model cache cleared successfully');
             break;
         default:
-            console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
+            if (LOG_WARN)
+                console.warn(`${prefix} Unhandled message type from background: ${type}`, payload);
     }
 }
-function handleModelWorkerError(error) {
-    let errorMessage;
-    if (error instanceof ErrorEvent) {
-        errorMessage = error.message;
-        if (LOG_ERROR)
-            console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
-    }
-    else if (error instanceof Event && 'message' in error) {
-        errorMessage = error.message;
-        if (LOG_ERROR)
-            console.error(`${prefix} Uncaught error in model worker:`, error);
-    }
-    else {
-        errorMessage = String(error);
-        if (LOG_ERROR)
-            console.error(`${prefix} Uncaught error in model worker:`, error);
-    }
-    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
-    currentModelIdInWorker = null;
-    (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Critical Worker Failure: ${errorMessage}`);
-    if (modelWorker) {
-        modelWorker.terminate();
-        modelWorker = undefined;
-    }
-}
-function initializeModelWorker() {
-    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED) {
+async function initializeModelManager() {
+    if (isModelManagerEnvReady) {
         if (LOG_DEBUG)
-            console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
+            console.log(`${prefix} Background model manager already ready.`);
         return;
     }
-    if (modelWorker) {
-        if (LOG_DEBUG)
-            console.log(`${prefix} Terminating existing model worker before creating a new one.`);
-        modelWorker.terminate();
-        modelWorker = undefined;
-    }
-    isModelWorkerEnvReady = false;
     if (LOG_DEBUG)
-        console.log(`${prefix} Initializing model worker...`);
+        console.log(`${prefix} Checking if background is ready...`);
     try {
-        const workerUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.getURL('modelworker.js');
-        modelWorker = new Worker(workerUrl, { type: 'module' });
-        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CREATING_WORKER;
-        modelWorker.onmessage = handleModelWorkerMessage;
-        modelWorker.onerror = handleModelWorkerError;
-        if (LOG_DEBUG)
-            console.log(`${prefix} Model worker instance created and listeners attached.`);
+        const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
+        });
+        if (response?.ready) {
+            isModelManagerEnvReady = true;
+            if (LOG_DEBUG)
+                console.log(`${prefix} Background model manager is ready.`);
+        }
+        else {
+            if (LOG_WARN)
+                console.warn(`${prefix} Background not ready yet, will retry...`);
+        }
     }
     catch (error) {
         if (LOG_ERROR)
-            console.error(`${prefix} Failed to create model worker:`, error);
-        modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to initialize model worker: ${error.message}`);
-    }
-    if (modelWorker && modelWorkerState !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR) {
-        const extensionBaseUrl = webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.getURL('');
-        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.SET_BASE_URL, baseUrl: extensionBaseUrl });
+            console.error(`${prefix} Failed to check background readiness:`, error);
+        throw error;
     }
 }
-function terminateModelWorker() {
-    if (modelWorker) {
-        if (LOG_DEBUG)
-            console.log(`${prefix} Terminating model worker.`);
-        modelWorker.terminate();
-        modelWorker = undefined;
-    }
-    currentModelIdInWorker = null;
-    modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
-    isModelWorkerEnvReady = false;
-    hideDeviceBadge();
+async function terminateModelManager() {
     if (LOG_DEBUG)
-        console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
-}
-function sendToModelWorker(message) {
-    if (!modelWorker || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CREATING_WORKER && message.type !== _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.INIT) {
-        console.warn(`${prefix} Model worker not ready to receive message type '${message.type}'. State: ${modelWorkerState}`);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)("Model worker is not ready. Please wait or try reloading.");
-        return;
-    }
+        console.log(`${prefix} Sending reset request to background...`);
     try {
-        modelWorker.postMessage(message);
+        await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET
+        });
+        // Reset local state
+        currentModelIdInManager = null;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+        hideDeviceBadge();
+        if (LOG_DEBUG)
+            console.log(`${prefix} Model reset complete. Chat input would be disabled.`);
     }
     catch (error) {
         if (LOG_ERROR)
-            console.error(`${prefix} Error posting message to model worker:`, error, message);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error communicating with model worker: ${error.message}`);
+            console.error(`${prefix} Failed to reset model in background:`, error);
+        // Reset local state anyway
+        currentModelIdInManager = null;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+        hideDeviceBadge();
+    }
+}
+function sendToModelManager(message) {
+    if (LOG_DEBUG)
+        console.log(`${prefix} Sending message to background:`, message.type);
+    try {
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage(message).catch((error) => {
+            if (LOG_ERROR)
+                console.error(`${prefix} Error sending message to background:`, error, message);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error communicating with background: ${error.message}`);
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Error sending message to background:`, error, message);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error communicating with background: ${error.message}`);
     }
 }
 function sendUiEvent(type, payload) {
@@ -13668,18 +13686,18 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
         }
         if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
             if (LOG_DEBUG)
-                console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
-            sendToModelWorker({ type: 'generate', payload });
+                console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to background.`);
+            sendToModelManager({ type: 'generate', payload });
         }
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
             if (LOG_DEBUG)
-                console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
-            sendToModelWorker({ type: 'interrupt', payload });
+                console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to background.`);
+            sendToModelManager({ type: 'interrupt', payload });
         }
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER) {
             if (LOG_DEBUG)
-                console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
-            terminateModelWorker();
+                console.log(`${prefix} llmChannel: Received RESET_WORKER. Resetting model in background.`);
+            terminateModelManager();
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
                 payload: { success: true, message: "Worker reset." },
@@ -13712,7 +13730,7 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
         else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
             _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
-                payload: { state: modelWorkerState, modelId: currentModelIdInWorker },
+                payload: { state: modelManagerState, modelId: currentModelIdInManager },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
@@ -13731,6 +13749,18 @@ function handleMessage(message, sender, sendResponse) {
     const { type } = message;
     if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DBEventNames).includes(type)) {
         return false;
+    }
+    // Messages from background - redirect to handleModelManagerMessage
+    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames).includes(type) ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
+        // Convert message to event format and redirect
+        handleModelManagerMessage({ data: message });
+        return;
     }
     if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
         sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
@@ -13751,8 +13781,7 @@ function handleMessage(message, sender, sendResponse) {
         sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({ status: 'received', type });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS) {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
         // No action needed
     }
     else {
@@ -13767,10 +13796,9 @@ async function handleSessionCreated(newSessionId) {
         console.log(`${prefix} handleSessionCreated callback received sessionId:`, newSessionId);
     await setActiveChatSessionId(newSessionId);
     // Clear model cache for new chat session to prevent cross-chat contamination
-    if (modelWorker) {
-        console.log(prefix, 'Sending CLEAR_CACHE message to model worker');
-        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
-    }
+    if (LOG_DEBUG)
+        console.log(prefix, 'Sending CLEAR_CACHE message to background');
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
@@ -13793,10 +13821,9 @@ async function handleNewChat() {
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.clearInput)();
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.focusInput)();
     // Clear model cache for new chat to prevent cross-chat contamination
-    if (modelWorker) {
-        console.log(prefix, 'Sending CLEAR_CACHE message to model worker (New Chat button)');
-        modelWorker.postMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
-    }
+    if (LOG_DEBUG)
+        console.log(prefix, 'Sending CLEAR_CACHE message to background (New Chat button)');
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
@@ -13872,7 +13899,7 @@ async function handleDetach() {
     }
 }
 function isModelLoaded() {
-    return modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
+    return modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY && !!currentModelIdInManager;
 }
 function getCurrentLoadedModel() {
     return currentLoadedModel;
@@ -13883,12 +13910,14 @@ function isGenerationActive() {
 
 // Add listener for stop generation event
 document.addEventListener('stopGeneration', () => {
-    console.log(`${prefix} Received stopGeneration event from UI`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Received stopGeneration event from UI`);
     handleStopGeneration();
 });
 // Add listener for generation starting event
 document.addEventListener('generationStarting', () => {
-    console.log(`${prefix} Received generationStarting event from orchestrator`);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Received generationStarting event from orchestrator`);
     isGenerating = true;
     updateSendButtonForGeneration(true);
 });
@@ -14049,7 +14078,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             // Check if the same model is already loaded
-            if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY) {
+            if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY) {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded. Skipping reload.`);
                 (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
@@ -14059,50 +14088,52 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }));
                 return;
             }
-            if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR)) {
+            // Reset model if switching to different model or if in error state
+            if (currentModelIdInManager !== modelId || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR) {
                 if (LOG_DEBUG)
-                    console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
-                terminateModelWorker();
+                    console.log(`${prefix} Resetting model before loading new one. Current: ${currentModelIdInManager}, New: ${modelId}, State: ${modelManagerState}`);
+                await terminateModelManager();
             }
-            if (!modelWorker) {
-                initializeModelWorker();
+            // Check if background is ready
+            try {
+                await initializeModelManager();
             }
-            if (!modelWorker) {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)("Failed to create/initialize model worker. Cannot load model.");
-                modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+            catch (e) {
+                const err = e;
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(err.message || "Background model manager failed to initialize.");
                 return;
             }
             const waitForEnvReady = async (timeoutMs = 5000) => {
-                if (isModelWorkerEnvReady)
+                if (isModelManagerEnvReady)
                     return;
                 if (LOG_DEBUG)
-                    console.log(`${prefix} Waiting for model worker environment to be ready...`);
+                    console.log(`${prefix} Waiting for background to be ready...`);
                 const start = Date.now();
-                while (!isModelWorkerEnvReady) {
+                while (!isModelManagerEnvReady) {
                     if (Date.now() - start > timeoutMs) {
-                        throw new Error("Timed out waiting for model worker environment to be ready.");
+                        throw new Error("Timed out waiting for background to be ready.");
                     }
                     await new Promise(res => setTimeout(res, 50));
                 }
                 if (LOG_DEBUG)
-                    console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
+                    console.log(`${prefix} Background is now ready. Proceeding to load model.`);
             };
             try {
                 await waitForEnvReady();
             }
             catch (e) {
                 const err = e;
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(err.message || "Model worker failed to initialize.");
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(err.message || "Background model manager failed to initialize.");
                 return;
             }
             // Get the task from the manifest
             const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(modelId);
             const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
             if (LOG_DEBUG)
-                console.log(`${prefix} UI would show: Initializing worker for ${modelId} with dtype: ${dtype}, task: ${task}...`);
-            modelWorkerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
-            currentModelIdInWorker = modelId;
-            modelWorker.postMessage({
+                console.log(`${prefix} Sending model load request to background for ${modelId} with dtype: ${dtype}, task: ${task}...`);
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
+            currentModelIdInManager = modelId;
+            sendToModelManager({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.INIT,
                 payload: { modelId, dtype, task, loadId }
             });
@@ -14128,13 +14159,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { modelId, modelPath: dtype, task, loadId } = e.detail;
             const token = await huggingFaceLoginDialog.show(modelId);
             if (token) {
-                // Send login event to model worker
-                if (modelWorker) {
-                    modelWorker.postMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.HUGGINGFACE_LOGIN,
-                        payload: { modelId, modelPath: dtype, task, loadId, token }
-                    });
-                }
+                // Send login event to background
+                sendToModelManager({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.HUGGINGFACE_LOGIN,
+                    payload: { modelId, modelPath: dtype, task, loadId, token }
+                });
             }
             else {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('HuggingFace authentication cancelled. Cannot load model.');
@@ -14224,17 +14253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         // Initial toggle
         syncToggleLoadButton();
-        if (modelWorker) {
-            const originalOnMessage = modelWorker.onmessage;
-            modelWorker.onmessage = function (event) {
-                if (event.data && event.data.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED) {
-                    syncToggleLoadButton();
-                }
-                if (typeof originalOnMessage === 'function') {
-                    originalOnMessage.call(this, event);
-                }
-            };
-        }
         // Set icon srcs via imports
         const iconMap = [
             ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_21__],
@@ -14489,7 +14507,8 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                     }
                     // Check if external data file exists for this quant
                     const hasExternalData = allFileNamesInRepo.has(`${quantKey}_data`);
-                    console.log(`[ensureManifestForDropdownRepos] ${quantKey} hasExternalData: ${hasExternalData}`);
+                    if (LOG_MANIFEST_GENERATION)
+                        console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} hasExternalData: ${hasExternalData}`);
                     quantMap[quantKey] = {
                         files: Array.from(currentQuantRequiredFiles).sort(),
                         status,
@@ -14626,7 +14645,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "4cb072f39c3fd2d052d2" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "def66f08ffbc5718118a" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

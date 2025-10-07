@@ -24,7 +24,7 @@ export default {
   entry: {
     sidepanel: path.resolve(__dirname, 'src/sidepanel.ts'),
     background: path.resolve(__dirname, 'src/background.ts'),
-    modelWorker: path.resolve(__dirname, 'src/modelworker.ts'),
+    // modelWorker: path.resolve(__dirname, 'src/modelworker.ts'), // Removed as part of migration to background-based architecture
     scriptingReadabilityHelper: path.resolve(__dirname, 'src/scriptingReadabilityHelper.ts'),
     pageExtractor: path.resolve(__dirname, 'src/PageExtractor.ts'),
     db: path.resolve(__dirname, 'src/DB/db.ts'),
@@ -58,6 +58,7 @@ export default {
         { from: 'src/theme-loader.js', to: '.' },
         ...copyFolder('src/model', 'model'),
         ...copyFolder('src/assets', 'assets'),
+        // Removed ONNX runtime assets copying as transformers.js will fetch from CDN
         ...copyFolder('src/wasm', 'wasm'),
       ],
     }),
@@ -90,11 +91,6 @@ export default {
         type: 'asset/resource',
       },
       {
-        test: /\.mjs$/,
-        include: [path.resolve(__dirname, 'src/assets/onnxruntime-web')],
-        type: 'asset/resource',
-      },
-      {
         test: /\.(mjs|js)$/,
         include: [path.resolve(__dirname, 'src/assets/mediapipe')],
         type: 'asset/resource',
@@ -120,4 +116,4 @@ export default {
       message: /Critical dependency: Accessing import\.meta directly is unsupported/,
     },
   ],
-}; 
+};

@@ -85,6 +85,7 @@ export const RuntimeMessageTypes = Object.freeze({
   DETACH_SIDE_PANEL: 'detachSidePanel',
   GET_DETACHED_STATE: 'getDetachedState',
   GET_DB_READY_STATE: 'getDbReadyState',
+  CHECK_BACKGROUND_READY: 'checkBackgroundReady',
 });
 
 export const SiteMapperMessageTypes = Object.freeze({

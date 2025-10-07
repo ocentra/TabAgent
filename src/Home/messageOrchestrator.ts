@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
 import { URL_REGEX, showError } from '../Utilities/generalUtils';
-import { sendDbRequestSmart, sendToModelWorker, isModelLoaded } from '../sidepanel';
+import { sendDbRequestSmart, sendToModelManager, isModelLoaded } from '../sidepanel';
 import {
     DbCreateSessionRequest,
     DbAddMessageRequest,
@@ -32,7 +32,8 @@ class ChatOrchestrator {
     private readonly LOG_DEBUG = false;
     private readonly LOG_ERROR = true;
     private readonly LOG_WARN = false;
-    private readonly LOG_CHAT_HISTORY = false; // Turn off chat history logs for now
+    private readonly LOG_CHAT_HISTORY = false;
+    private readonly LOG_GENERATION_FLOW = false; // Turn off
 
     public initialize(dependencies: OrchestratorDependencies) {
         this.validateDependencies(dependencies);
@@ -308,11 +309,22 @@ class ChatOrchestrator {
                 }
                 
                 try {
+                    // Check if model is loaded before sending
+                    const modelLoaded = isModelLoaded();
+                    if (this.LOG_GENERATION_FLOW) {
+                        console.log(this.prefix, '🚀 Sending GENERATE to background:', {
+                            isModelLoaded: modelLoaded,
+                            chatId: messagePayload.chatId,
+                            messageId: messagePayload.messageId,
+                            messagesCount: messagePayload.messages.length
+                        });
+                    }
+                    
                     // Notify sidepanel that generation is starting
                     document.dispatchEvent(new CustomEvent('generationStarting'));
                     
-                    // Send query to model worker
-                    sendToModelWorker({ type: 'generate', payload: messagePayload });
+                    // Send query to model manager
+                    sendToModelManager({ type: 'generate', payload: messagePayload });
                 } catch (error: unknown) {
                     const errObj = error as Error;
                     if (this.LOG_ERROR) console.error(this.prefix, 'handleQuerySubmit: Error sending query to model worker:', errObj);

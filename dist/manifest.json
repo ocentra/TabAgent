@@ -47,11 +47,8 @@
       "resources": [
         "sidepanel.html",
         "modelAssetDownloader.js",
-        "model-worker.js",
         "pageExtractor.js",
         "assets/*",
-        "assets/onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs",
-        "assets/onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm",
         "assets/mediapipe/genai_bundle.mjs",
         "assets/mediapipe/genai_bundle.cjs",
         "assets/mediapipe/wasm/*",

@@ -6,10 +6,25 @@ import { WorkerEventNames,
     UIEventNames } from './events/eventNames';
 
 import { DBEventNames} from './DB/dbEvents';
+import { TextGenerationPipeline, loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings } from './backgroundModelManager';
 
 const CONTEXT_PREFIX = '[Background]';
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
+
+// Core logging flags
+const LOG_ERROR = true;   // Critical errors (always enabled)
+const LOG_WARN = false;   // Warnings and fallbacks
+const LOG_GENERAL = false;  // App lifecycle (startup, initialization complete)
+const LOG_DEBUG = false;  // Detailed internal state (for deep debugging)
+
+// Feature-specific logging - Enable individually to debug specific subsystems
+const LOG_SESSION = false;        // Session ID tracking → Enable to debug session persistence issues
+const LOG_MODEL_LOADING = false;  // Model load operations → Enable to debug model loading failures
+const LOG_MESSAGE_PASSING = false; // Message content (verbose) → Enable to see actual message payloads
+const LOG_MESSAGE_HANDLERS = false; // Handler execution → Enable to see which message handlers run
+const LOG_GENERATION_FLOW = false; // Generation lifecycle → Enable to track AI generation flow
+const LOG_SCRAPING = false;       // Page extraction → Enable to debug web page scraping
+const LOG_DRIVE = false;          // Drive file ops → Enable to debug Google Drive integration
+const LOG_POPUP = false;          // Popup windows → Enable to debug detach/attach functionality
 
 let detachedPopups: { [tabId: string]: number } = {}; // TabId to Popup WindowId
 let popupIdToTabId: { [popupId: number]: string } = {}; // Popup WindowId to Original TabId
@@ -20,7 +35,14 @@ const DNR_RULE_PRIORITY_1 = 1;
 let currentLogSessionId: string | null = null;
 let previousLogSessionId: string | null = null;
 
+// Track model loading state
+let isModelLoading = false;
+let currentModelId: string | null = null;
+let currentModelDtype: string | null = null;
+let currentModelTask: string | null = null;
 
+// Track background script readiness state
+let isBackgroundScriptReady = false;
 
 async function initializeSessionIds() {
     let { currentLogSessionId: storedCurrentId, previousLogSessionId: storedPreviousId } = await browser.storage.local.get(['currentLogSessionId', 'previousLogSessionId']);
@@ -35,8 +57,10 @@ async function initializeSessionIds() {
         }
         await browser.storage.local.set({ previousLogSessionId: currentLogSessionId });
     }
-    // console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
-    // console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
+    if (LOG_SESSION) {
+        console.log(CONTEXT_PREFIX + ' Current log session ID:', currentLogSessionId);
+        console.log(CONTEXT_PREFIX + ' Previous log session ID:', previousLogSessionId);
+    }
 }
 
 async function updateDeclarativeNetRequestRules() {
@@ -68,12 +92,12 @@ async function updateDeclarativeNetRequestRules() {
         });
         if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Declarative Net Request rules updated successfully.');
     } catch (error: unknown) {
-        console.error("Error updating Declarative Net Request rules:", error);
+        if (LOG_ERROR) console.error(CONTEXT_PREFIX + " Error updating Declarative Net Request rules:", error);
     }
 }
 
 async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, messageId: string): Promise<any> {
-    console.log(CONTEXT_PREFIX + ' [BG-Scrape] Temp Tab + executeScript: ' + url);
+    if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Temp Tab + executeScript: ' + url);
     let tempTabId: number | null = null;
     const TEMP_TAB_LOAD_TIMEOUT = 30000;
 
@@ -81,9 +105,9 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
         (async () => {
             const cleanupAndReject = (errorMsg: string, errorObj: any = null) => {
                 const finalError = errorObj ? errorObj : new Error(errorMsg);
-                console.warn(CONTEXT_PREFIX +`[BG-Scrape] Cleanup & Reject: ${errorMsg}`, errorObj);
+                if (LOG_WARN) console.warn(CONTEXT_PREFIX +`[BG-Scrape] Cleanup & Reject: ${errorMsg}`, errorObj);
                 if (tempTabId !== null) {
-                    browser.tabs.remove(tempTabId).catch((err: any) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId}: ${err.message}`));
+                    browser.tabs.remove(tempTabId).catch((err: any) => { if (LOG_WARN) console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId}: ${err.message}`); });
                     tempTabId = null;
                 }
                 reject(finalError);
@@ -96,13 +120,13 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
                     cleanupAndReject('[BG-Scrape] Failed to get temporary tab ID.');
                     return;
                 }
-                console.log(CONTEXT_PREFIX + ' [BG-Scrape] Created temp tab ' + tempTabId + '.');
+                if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Created temp tab ' + tempTabId + '.');
 
                 let loadTimeoutId: ReturnType<typeof setTimeout> | null = null;
                 const loadPromise = new Promise<void>((resolveLoad, rejectLoad) => {
                     const listener = (tabIdUpdated: number, changeInfo: any) => {
                         if (tabIdUpdated === tempTabId && changeInfo.status === 'complete') {
-                            console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tab ' + tempTabId + ' loaded.');
+                            if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tab ' + tempTabId + ' loaded.');
                             if (loadTimeoutId) clearTimeout(loadTimeoutId);
                             browser.tabs.onUpdated.removeListener(listener);
                             resolveLoad();
@@ -117,13 +141,13 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
                 });
 
                 await loadPromise;
-                console.log(CONTEXT_PREFIX + ' [BG-Scrape] Injecting pageExtractor.js into tab ' + tempTabId + '...');
+                if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Injecting pageExtractor.js into tab ' + tempTabId + '...');
                 
                 await browser.scripting.executeScript({
                     target: { tabId: tempTabId },
                     files: ['pageExtractor.js']
                 });
-                console.log(CONTEXT_PREFIX + ' [BG-Scrape] pageExtractor.js INJECTED into tab ' + tempTabId + '.');
+                if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] pageExtractor.js INJECTED into tab ' + tempTabId + '.');
                 
                 const injectionResults = await browser.scripting.executeScript({
                     target: { tabId: tempTabId },
@@ -144,7 +168,7 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
                     return;
                 }
                 const scriptResult = injectionResults[0].result;
-                console.log('[BG-Scrape] Extracted scriptResult:', scriptResult);
+                if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Extracted scriptResult:', scriptResult);
                 if (scriptResult?.error) {
                     cleanupAndReject(`[BG-Scrape] Script error: ${scriptResult.error}`, scriptResult);
                     return;
@@ -156,7 +180,7 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
                 cleanupAndReject(`[BG-Scrape] Error: ${errMsg}`, error);
             } finally {
                 if (tempTabId !== null) {
-                    browser.tabs.remove(tempTabId).catch((err: any) => console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId} in finally: ${err.message}`));
+                    browser.tabs.remove(tempTabId).catch((err: any) => { if (LOG_WARN) console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error removing tab ${tempTabId} in finally: ${err.message}`); });
                 }
             }
         })();
@@ -164,23 +188,23 @@ async function scrapeUrlWithTempTabExecuteScript(url: string, chatId: string, me
 }
 
 async function scrapeUrlMultiStage(url: string, chatId: string, messageId: string): Promise<void> {
-    console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Starting for ' + url + '. ChatID: ' + chatId + ', MessageID: ' + messageId);
+    if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Starting for ' + url + '. ChatID: ' + chatId + ', MessageID: ' + messageId);
     const sendStageResult = (stageResult: any) => {
-        console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Sending WORKER_SCRAPE_STAGE_RESULT Stage ' + stageResult.stage + ', Success: ' + stageResult.success);
+        if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Sending WORKER_SCRAPE_STAGE_RESULT Stage ' + stageResult.stage + ', Success: ' + stageResult.success);
         browser.runtime.sendMessage({ type: RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT, payload: stageResult })
-            .catch((e: any) => console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Failed to send result Stage ${stageResult.stage}:`, e));
+            .catch((e: any) => { if (LOG_WARN) console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Failed to send result Stage ${stageResult.stage}:`, e); });
     };
 
     try {
         const executeScriptResult: any = await scrapeUrlWithTempTabExecuteScript(url, chatId, messageId);
-        console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Stage 1 Succeeded for ' + url + '.');
+        if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Stage 1 Succeeded for ' + url + '.');
         sendStageResult({ stage: 1, success: true, chatId, messageId, method: 'tempTabExecuteScript', url, length: executeScriptResult?.text?.length || 0, ...executeScriptResult });
     } catch (stage1Error: unknown) {
         const errMsg = stage1Error instanceof Error ? stage1Error.message : String(stage1Error);
-        console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Stage 1 Failed for ${url}: ${errMsg}`);
+        if (LOG_WARN) console.warn(CONTEXT_PREFIX + `[BG-ScrapeOrch] Stage 1 Failed for ${url}: ${errMsg}`);
         sendStageResult({ stage: 1, success: false, chatId, messageId, method: 'tempTabExecuteScript', error: errMsg });
     } finally {
-        console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Finished for ' + url + '.');
+        if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-ScrapeOrch] Finished for ' + url + '.');
     }
 }
 
@@ -197,19 +221,147 @@ async function fetchDriveFileList(token: string, folderId: string = 'root'): Pro
     const fields = "files(id, name, mimeType, iconLink, webViewLink, size, createdTime, modifiedTime)";
     const query = `'${folderId}' in parents and trashed=false`;
     const url = `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ pageSize: '100', q: query, fields, orderBy: 'folder,modifiedTime desc' })}`;
-    console.log(CONTEXT_PREFIX + ' [BG-Drive] Fetching list for folder ' + folderId);
+    if (LOG_DRIVE) console.log(CONTEXT_PREFIX + ' [BG-Drive] Fetching list for folder ' + folderId);
     const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
     if (!response.ok) {
         const errorData = await response.text();
-        console.error(CONTEXT_PREFIX + `[BG-Drive] API error (Folder: ${folderId}):`, response.status, errorData);
+        if (LOG_ERROR) console.error(CONTEXT_PREFIX + `[BG-Drive] API error (Folder: ${folderId}):`, response.status, errorData);
         throw new Error(`Drive API Error ${response.status} (Folder: ${folderId}): ${errorData || response.statusText}`);
     }
     const data = await response.json();
-    console.log(CONTEXT_PREFIX + ' [BG-Drive] API success (Folder: ' + folderId + '). Found ' + (data.files?.length || 0) + ' items.');
+    if (LOG_DRIVE) console.log(CONTEXT_PREFIX + ' [BG-Drive] API success (Folder: ' + folderId + '). Found ' + (data.files?.length || 0) + ' items.');
     return data.files || [];
 }
 
+// Handle model loading progress messages by forwarding them to the sidepanel
+function handleModelLoadingProgress(data: any) {
+    if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Sending model loading progress to sidepanel:', data);
+    browser.runtime.sendMessage({
+        type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+        payload: data
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send progress message to sidepanel:', error);
+    });
+}
 
+// Handle worker ready messages by forwarding them to the sidepanel
+function handleWorkerReady(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.WORKER_READY,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send worker ready message to sidepanel:', error);
+    });
+}
+
+// Handle generation update messages by forwarding them to the sidepanel
+function handleGenerationUpdate(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.GENERATION_UPDATE,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send generation update to sidepanel:', error);
+    });
+}
+
+// Handle generation complete messages by forwarding them to the sidepanel
+function handleGenerationComplete(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.GENERATION_COMPLETE,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send generation complete to sidepanel:', error);
+    });
+}
+
+// Handle generation stopped messages by forwarding them to the sidepanel
+function handleGenerationStopped(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.GENERATION_STOPPED,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send generation stopped to sidepanel:', error);
+    });
+}
+
+// Handle generation error messages by forwarding them to the sidepanel
+function handleGenerationError(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.GENERATION_ERROR,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send generation error to sidepanel:', error);
+    });
+}
+
+// Handle error messages by forwarding them to the sidepanel
+function handleError(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.ERROR,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send error to sidepanel:', error);
+    });
+}
+
+// Handle manifest updated messages by forwarding them to the sidepanel
+function handleManifestUpdated() {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.MANIFEST_UPDATED
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send manifest updated to sidepanel:', error);
+    });
+}
+
+// Handle env config messages by forwarding them to the sidepanel
+function handleEnvConfig(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.SET_ENV_CONFIG,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send env config to sidepanel:', error);
+    });
+}
+
+// Handle model source selection messages by forwarding them to the sidepanel
+function handleModelSourceSelection(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.MODEL_SOURCE_SELECTION,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send model source selection to sidepanel:', error);
+    });
+}
+
+// Handle memory stats request messages by forwarding them to the sidepanel
+function handleRequestMemoryStats(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.REQUEST_MEMORY_STATS,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send memory stats request to sidepanel:', error);
+    });
+}
+
+// Handle media pipe module ready messages by forwarding them to the sidepanel
+function handleMediaPipeModuleReady(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.MEDIA_PIPE_MODULE_READY,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send media pipe module ready to sidepanel:', error);
+    });
+}
+
+// Handle google terms accepted messages by forwarding them to the sidepanel
+function handleGoogleTermsAccepted(payload: any) {
+    browser.runtime.sendMessage({
+        type: WorkerEventNames.GOOGLE_TERMS_ACCEPTED,
+        payload: payload
+    }).catch((error: any) => {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send google terms accepted to sidepanel:', error);
+    });
+}
 
 browser.runtime.onInstalled.addListener(async (details: any) => {
     if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' onInstalled. Reason:', details.reason);
@@ -224,31 +376,32 @@ browser.runtime.onInstalled.addListener(async (details: any) => {
 });
 
 browser.runtime.onStartup.addListener(async () => {
-    console.log(CONTEXT_PREFIX + ' onStartup event.');
+    if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' onStartup event.');
     await initializeSessionIds();
 });
 
 browser.action.onClicked.addListener(async (tab: any) => {
-    console.log(CONTEXT_PREFIX + ' Action clicked for tab ' + (tab.id || 'N/A'));
+    if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Action clicked for tab ' + (tab.id || 'N/A'));
 
 });
 
 browser.windows.onRemoved.addListener(async (windowId: number) => {
-    console.log(CONTEXT_PREFIX + ' Window removed: ' + windowId);
+    if (LOG_POPUP) console.log(CONTEXT_PREFIX + ' Window removed: ' + windowId);
     const tabId = popupIdToTabId[windowId];
     if (tabId) {
-        console.log(CONTEXT_PREFIX + ' Popup window ' + windowId + ' for tab ' + tabId + ' was closed.');
+        if (LOG_POPUP) console.log(CONTEXT_PREFIX + ' Popup window ' + windowId + ' for tab ' + tabId + ' was closed.');
         delete detachedPopups[tabId];
         delete popupIdToTabId[windowId];
         try { await browser.storage.local.remove(`detachedState_${tabId}`); }
-        catch (error) { console.error(`Error cleaning storage for tab ${tabId} on popup close:`, error); }
+        catch (error) { if (LOG_ERROR) console.error(CONTEXT_PREFIX + ` Error cleaning storage for tab ${tabId} on popup close:`, error); }
     }
 });
 
 browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (response: any) => void) => {
-    console.log(CONTEXT_PREFIX + ` Received message type: '${message?.type}' from: ${sender.id}`,  message);
+    if (LOG_MESSAGE_PASSING) console.log(CONTEXT_PREFIX + ` Received message type: '${message?.type}' from: ${sender.id}`,  message);
+    if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ` Background received message:`, message);
     if (!message || !message.type) {
-        console.warn(CONTEXT_PREFIX + ' Received message without type:', message, 'From:', sender.id);
+        if (LOG_WARN) console.warn(CONTEXT_PREFIX + ' Received message without type:', message, 'From:', sender.id);
         return false;
     }
     const { type, payload } = message;
@@ -258,44 +411,44 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         isResponseAsync = true;
         (async () => {
             try {
-                console.log(CONTEXT_PREFIX + ' [BG-Scrape] SCRAPE_REQUEST received. Payload:', payload);
+                if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] SCRAPE_REQUEST received. Payload:', payload);
                 // Check if the URL is already open in any tab
                 const tabs = await browser.tabs.query({ url: payload?.url });
-                console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tabs found for URL', payload?.url, ':', tabs);
+                if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Tabs found for URL', payload?.url, ':', tabs);
                 if (tabs && tabs.length > 0) {
                     // Use the first matching tab
                     const tabId = tabs[0].id;
-                    console.log(CONTEXT_PREFIX + ' [BG-Scrape] Found open tab (' + tabId + ') for URL: ' + payload?.url + '. Sending SCRAPE_PAGE to content script.');
+                    if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Found open tab (' + tabId + ') for URL: ' + payload?.url + '. Sending SCRAPE_PAGE to content script.');
                     try {
                         const response = await browser.tabs.sendMessage(tabId, { type: UIEventNames.SCRAPE_PAGE });
-                        console.log(CONTEXT_PREFIX + ' [BG-Scrape] Content script scrape response:', response);
+                        if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Content script scrape response:', response);
                         if (response && response.success) {
-                            console.log(CONTEXT_PREFIX + ' [BG-Scrape] Content script scrape succeeded for tab ' + tabId + '.');
+                            if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] Content script scrape succeeded for tab ' + tabId + '.');
                             browser.runtime.sendMessage({
                                 type: RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT,
                                 payload: { stage: 1, success: true, chatId: payload?.chatId, messageId: payload?.messageId, method: 'contentScript', url: payload?.url, length: response?.text?.length || 0, ...response }
                             });
                             sendResponse({ success: true, message: `Scraping for ${payload?.url} (content script) started.` });
                         } else {
-                            console.warn(CONTEXT_PREFIX + `[BG-Scrape] Content script scrape failed or returned error for tab ${tabId}. Falling back to temp tab scrape.`);
+                            if (LOG_WARN) console.warn(CONTEXT_PREFIX + `[BG-Scrape] Content script scrape failed or returned error for tab ${tabId}. Falling back to temp tab scrape.`);
                             // Fallback to temp tab scrape
                             await scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId);
                             sendResponse({ success: true, message: `Scraping for ${payload?.url} (fallback temp tab) started.` });
                         }
                     } catch (err) {
-                        console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error sending SCRAPE_PAGE to content script in tab ${tabId}:`, err);
+                        if (LOG_WARN) console.warn(CONTEXT_PREFIX + `[BG-Scrape] Error sending SCRAPE_PAGE to content script in tab ${tabId}:`, err);
                         // Fallback to temp tab scrape
                         await scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId);
                         sendResponse({ success: true, message: `Scraping for ${payload?.url} (fallback temp tab) started.` });
                     }
                 } else {
-                    console.log(CONTEXT_PREFIX + ' [BG-Scrape] No open tab found for URL:', payload?.url, '. Using temp tab scrape.');
+                    if (LOG_SCRAPING) console.log(CONTEXT_PREFIX + ' [BG-Scrape] No open tab found for URL:', payload?.url, '. Using temp tab scrape.');
                     // No open tab, use temp tab scrape
                     await scrapeUrlMultiStage(payload?.url, payload?.chatId, payload?.messageId);
                     sendResponse({ success: true, message: `Scraping for ${payload?.url} (temp tab) started.` });
                 }
             } catch (error: unknown) {
-                console.error(CONTEXT_PREFIX + ' [BG-Scrape] Error in SCRAPE_REQUEST handler:', error);
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' [BG-Scrape] Error in SCRAPE_REQUEST handler:', error);
                 const errMsg = error instanceof Error ? error.message : String(error);
                 sendResponse({ success: false, error: errMsg });
             }
@@ -322,7 +475,7 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         const { tabId, popupId } = payload;
         detachedPopups[tabId] = popupId;
         popupIdToTabId[popupId] = tabId;
-        console.log(CONTEXT_PREFIX + ' Popup ' + popupId + ' registered for tab ' + tabId + '.');
+        if (LOG_POPUP) console.log(CONTEXT_PREFIX + ' Popup ' + popupId + ' registered for tab ' + tabId + '.');
         sendResponse({ success: true });
         return false;
     }
@@ -333,7 +486,283 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     }
 
     if (Object.values(DBEventNames).includes(type)) {
+        return false;
+    }
 
+    // Handle WorkerEventNames messages - these are the messages that were previously handled by the Web Worker
+    if (type === WorkerEventNames.INIT) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Received WorkerEventNames.INIT message:', payload);
+        isResponseAsync = true;
+        (async () => {
+            try {
+                if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Handling INIT request for model:', payload.modelId);
+                isModelLoading = true;
+                currentModelId = payload.modelId;
+                currentModelDtype = payload.dtype;
+                currentModelTask = payload.task || null;
+                
+                if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Calling loadModel with payload:', payload);
+                await loadModel(payload, (data: any) => {
+                    // Forward progress updates to the sidepanel
+                    if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Forwarding model loading progress to sidepanel:', data);
+                    handleModelLoadingProgress(data);
+                });
+                
+                if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Model loaded successfully, sending WORKER_READY');
+                isModelLoading = false;
+                
+                // Send WORKER_READY message to sidepanel
+                handleWorkerReady({
+                    modelId: payload.modelId,
+                    dtype: payload.dtype,
+                    task: payload.task,
+                    executionProvider: 'webgpu' // TODO: Get actual execution provider
+                });
+                sendResponse({ success: true });
+            } catch (error: any) {
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Model loading failed:', error);
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Error stack:', error.stack);
+                isModelLoading = false;
+                handleError(`Failed to load model ${payload.dtype}: ${error.message || error}`);
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type === WorkerEventNames.GENERATE) {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                if (LOG_GENERATION_FLOW) {
+                    console.log(CONTEXT_PREFIX + ' 📨 Received GENERATE request:', {
+                        chatId: payload.chatId,
+                        messageId: payload.messageId,
+                        messagesCount: payload.messages?.length
+                    });
+                }
+                await generate(payload.messages, (data: any) => {
+                    // Forward generation updates to the sidepanel based on status
+                    if (data.status === 'generating') {
+                        handleGenerationUpdate({
+                            chatId: payload.chatId,
+                            messageId: payload.messageId,
+                            token: data.output,
+                            message: data.message
+                        });
+                    } else if (data.status === 'complete') {
+                        handleGenerationComplete({
+                            chatId: payload.chatId,
+                            messageId: payload.messageId,
+                            generatedText: data.output,
+                            output: data.output
+                        });
+                    } else if (data.status === 'stopped') {
+                        handleGenerationStopped({
+                            chatId: payload.chatId,
+                            messageId: payload.messageId,
+                            generatedText: data.output,
+                            output: data.output
+                        });
+                    } else if (data.status === 'error') {
+                        handleGenerationError({
+                            chatId: payload.chatId,
+                            messageId: payload.messageId,
+                            error: data.error
+                        });
+                    }
+                });
+                sendResponse({ success: true });
+            } catch (error: any) {
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Generation failed:', error);
+                handleGenerationError({
+                    chatId: payload.chatId,
+                    messageId: payload.messageId,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+                sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type === WorkerEventNames.STOP_GENERATION) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling STOP_GENERATION request');
+        stopGeneration();
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.RESET) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling RESET request');
+        resetModel();
+        // Send reset complete message
+        browser.runtime.sendMessage({
+            type: WorkerEventNames.RESET_COMPLETE
+        }).catch((error: any) => {
+            if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send reset complete to sidepanel:', error);
+        });
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.INFERENCE_SETTINGS_UPDATE) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling INFERENCE_SETTINGS_UPDATE request');
+        updateInferenceSettings().catch((error: any) => {
+            console.error(CONTEXT_PREFIX + ' Failed to update inference settings:', error);
+        });
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.SET_BASE_URL) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling SET_BASE_URL request');
+        // For now, just acknowledge - actual base URL handling would be implemented separately
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.HUGGINGFACE_LOGIN) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling HUGGINGFACE_LOGIN request');
+        // For now, just acknowledge - actual login handling would be implemented separately
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.HUGGINGFACE_LOGOUT) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling HUGGINGFACE_LOGOUT request');
+        // For now, just acknowledge - actual logout handling would be implemented separately
+        sendResponse({ success: true });
+        return false;
+    }
+
+    // Handle CHECK_BACKGROUND_READY message from sidepanel
+    if (type === RuntimeMessageTypes.CHECK_BACKGROUND_READY) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Received CHECK_BACKGROUND_READY request from sidepanel, ready:', isBackgroundScriptReady);
+        sendResponse({ 
+            success: true, 
+            ready: isBackgroundScriptReady,
+            message: isBackgroundScriptReady ? 'Background script is ready' : 'Background script is initializing'
+        });
+        return false;
+    }
+
+    if (type === WorkerEventNames.CLEAR_CACHE) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling CLEAR_CACHE request');
+        // Clear cache and interrupt generation if active
+        clearCache();
+        // Send cache cleared message
+        browser.runtime.sendMessage({
+            type: WorkerEventNames.CACHE_CLEARED
+        }).catch((error: any) => {
+            if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Failed to send cache cleared to sidepanel:', error);
+        });
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.MANIFEST_UPDATED) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling MANIFEST_UPDATED request');
+        handleManifestUpdated();
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.SET_ENV_CONFIG) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling SET_ENV_CONFIG request');
+        handleEnvConfig(payload);
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.MODEL_SOURCE_SELECTION) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling MODEL_SOURCE_SELECTION request');
+        handleModelSourceSelection(payload);
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.REQUEST_MEMORY_STATS) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling REQUEST_MEMORY_STATS request');
+        handleRequestMemoryStats(payload);
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.MEDIA_PIPE_MODULE_READY) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling MEDIA_PIPE_MODULE_READY request');
+        handleMediaPipeModuleReady(payload);
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === WorkerEventNames.GOOGLE_TERMS_ACCEPTED) {
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling GOOGLE_TERMS_ACCEPTED request');
+        handleGoogleTermsAccepted(payload);
+        sendResponse({ success: true });
+        return false;
+    }
+
+    // Handle ML operations from worker (legacy messages)
+    if (type === RuntimeMessageTypes.LOAD_MODEL) {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling LOAD_MODEL request');
+                await loadModel(payload, (data: any) => {
+                    browser.runtime.sendMessage({
+                        type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                        payload: data
+                    });
+                });
+                if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Model loaded successfully');
+                browser.runtime.sendMessage({ type: WorkerEventNames.WORKER_READY });
+                sendResponse({ success: true });
+            } catch (error: any) {
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Model loading failed:', error);
+                browser.runtime.sendMessage({
+                    type: WorkerEventNames.ERROR,
+                    payload: { error: error instanceof Error ? error.message : String(error) }
+                });
+                sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Handling GENERATE request');
+                await generate(payload.messages, (data: any) => {
+                    browser.runtime.sendMessage({
+                        type: WorkerEventNames.GENERATION_UPDATE,
+                        data: data
+                    });
+                });
+                sendResponse({ success: true });
+            } catch (error: any) {
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Generation failed:', error);
+                browser.runtime.sendMessage({
+                    type: WorkerEventNames.GENERATION_ERROR,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+                sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    if (type === RuntimeMessageTypes.INTERRUPT_GENERATION) {
+        stopGeneration();
+        sendResponse({ success: true });
+        return false;
+    }
+
+    if (type === RuntimeMessageTypes.RESET_WORKER) {
+        resetModel();
+        sendResponse({ success: true });
         return false;
     }
 
@@ -344,8 +773,10 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         !Object.values(DBEventNames).includes(type) &&
         type !== 'popupCreated' && type !== 'getPopupForTab'
     ) {
+        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Message type not recognized, returning false:', type);
         return false;
     }
+    if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Message handler completed for type:', type);
     return false;
 });
 
@@ -353,4 +784,8 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
     if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Initialized.');
+    
+    // Set the background script readiness state
+    isBackgroundScriptReady = true;
+    if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Background script is now ready');
 })();

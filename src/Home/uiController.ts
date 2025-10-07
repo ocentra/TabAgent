@@ -1,10 +1,10 @@
 import {  UIEventNames, WorkerEventNames } from '../events/eventNames';
 import {  DBEventNames } from '../DB/dbEvents';
-import {  clearTemporaryMessages, renderTemporaryMessage } from './chatRenderer';
+import { clearTemporaryMessages, renderTemporaryMessage } from './chatRenderer';
 import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification, DbMessagesUpdatedNotification } from '../DB/dbEvents';
-import {  QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry } from '../DB/idbModel';
+import { QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry } from '../DB/idbModel';
 import { getCurrentLoadedModel } from '../sidepanel';
 
 
@@ -28,15 +28,16 @@ let loadModelButton: HTMLButtonElement | null = null;
 let isLoadingModel = false; 
 let currentLoadId: string | null = null;
 let lastSeenLoadId: string | null = null;
-const LOG_GENERAL = false;  // General operational logs
-const LOG_DEBUG = false;    // Detailed debugging logs (can be noisy)
-const LOG_ERROR = true;     // Error logs (always enabled)
-const LOG_WARN = true;      // Warning logs
-const LOG_INFO = false;     // Info logs
-const LOG_UI_UPDATES = false; // UI update specific logs
-const LOG_QUANT_DROPDOWN = false; // Quant dropdown specific logs
-const LOG_MODEL_LOADING = false; // Model loading specific logs
-const LOG_EVENTS = false;   // Event handling logs
+const LOG_GENERAL = false;  // Turn off general logs
+const LOG_DEBUG = false;  // Turn off debug logs
+const LOG_ERROR = true;  // Keep error logging
+const LOG_WARN = false;  // Turn off warning logs
+const LOG_INFO = false;  // Turn off info logs
+const LOG_UI_UPDATES = false;  // Turn off UI updates logs
+const LOG_QUANT_DROPDOWN = false;  // Turn off quant dropdown logs
+const LOG_MODEL_LOADING = true;  // Keep model loading logs
+const LOG_EVENTS = false;  // Turn off events logs
+const LOG_PROGRESS_HANDLING = false;  // Turn off to avoid spam
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
@@ -49,7 +50,7 @@ export const AVAILABLE_MODELS = {
 };
 
 export const GOOGLE_MODELS = {
-    "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
+    // "google/gemma-3n-E4B-it-litert-lm": "Gemma 3B (MediaPipe)",
     // Add more Google models here as needed
 };
 
@@ -207,7 +208,7 @@ function handleStatusUpdate(notification: any) {
 }
 
 document.addEventListener(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, (e: Event) => {
-    handleModelWorkerLoadingProgress((e as CustomEvent).detail);
+    handleModelManagerLoadingProgress((e as CustomEvent).detail);
 });
 
 document.addEventListener(UIEventNames.MODEL_ALREADY_LOADED, (e: Event) => {
@@ -224,7 +225,8 @@ document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async () => {
 
 // The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
 // No need for additional event listeners here
-async function handleModelWorkerLoadingProgress(payload: any) {
+async function handleModelManagerLoadingProgress(payload: any) {
+    if (LOG_PROGRESS_HANDLING) console.log(prefix, 'Received model manager loading progress:', payload);
     if (!payload) return;
     if (payload.loadId !== lastSeenLoadId) {
         progressLogCount++;
@@ -250,6 +252,7 @@ async function handleModelWorkerLoadingProgress(payload: any) {
     progressBar.style.width = '100%';
 
     if (payload.status === 'error' || payload.error) {
+        if (LOG_PROGRESS_HANDLING) console.log(prefix, 'Handling error progress:', payload.error || payload.status);
         statusText.textContent = payload.error || 'Error loading model';
         progressInner.style.background = '#f44336'; 
         progressInner.style.width = '100%';
@@ -306,6 +309,7 @@ async function handleModelWorkerLoadingProgress(payload: any) {
     statusText.textContent = text;
 
     if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
+        if (LOG_PROGRESS_HANDLING) console.log(prefix, 'Model loading completed successfully');
         isLoadingModel = false;
         
         // Update load button state based on current selection vs loaded model
@@ -536,16 +540,18 @@ async function updateModelDropdown() {
     }
     
     // Add Google models (always visible and selectable)
+    /*
     for (const [modelId, displayName] of Object.entries(GOOGLE_MODELS)) {
         const option = document.createElement('option');
         option.value = modelId;
-        option.textContent = displayName;
+        option.textContent = displayName as string;
         if (!isAuthenticated) {
             option.textContent += ' (Authentication Required)';
         }
         // Don't disable the option - let users select it to trigger auth
         modelSelector.appendChild(option);
     }
+    */
     
     // Enable/disable based on available models
     const hasModels = modelSelector.children.length > 0;
@@ -869,6 +875,7 @@ function handleServerOnlyModelLoad(modelId: string, dtype: string) {
 }
 
 async function _handleLoadModelButtonClick() {
+    if (LOG_MODEL_LOADING) console.log(prefix, 'Load Model button clicked');
     if (!modelSelectorDropdown || !loadModelButton || isLoadingModel) return;
     
     const modelId = modelSelectorDropdown.value;
@@ -883,8 +890,11 @@ async function _handleLoadModelButtonClick() {
         if (LOG_WARN) console.warn(prefix, "Load Model button clicked, but no quantization selected.");
         return;
     }
+    if (LOG_MODEL_LOADING) console.log(prefix, 'Loading model:', modelId, 'with dtype:', dtype);
+    
     const manifestEntry = repoQuantsCache[modelId];
     if (manifestEntry && manifestEntry.quants[dtype] && manifestEntry.quants[dtype].status === QuantStatus.ServerOnly) {
+        if (LOG_MODEL_LOADING) console.log(prefix, 'Handling server-only model');
         handleServerOnlyModelLoad(modelId, dtype);
         return;
     }
@@ -892,6 +902,7 @@ async function _handleLoadModelButtonClick() {
     // Set loading state
     isLoadingModel = true;
     currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
+    if (LOG_MODEL_LOADING) console.log(prefix, 'Setting current load ID:', currentLoadId);
     const statusDiv = document.getElementById('model-load-status');
     if (statusDiv) statusDiv.style.display = 'block';
     disableInput("Loading model...");
@@ -901,6 +912,7 @@ async function _handleLoadModelButtonClick() {
     if (badge) badge.style.display = 'none';
 
     // Dispatch the request - the sidepanel will handle the "already loaded" check
+    if (LOG_MODEL_LOADING) console.log(prefix, 'Dispatching REQUEST_MODEL_EXECUTION event');
     document.dispatchEvent(new CustomEvent(UIEventNames.REQUEST_MODEL_EXECUTION, {
         detail: { modelId, dtype, loadId: currentLoadId }
     }));

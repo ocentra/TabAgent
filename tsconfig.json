@@ -18,7 +18,7 @@
   },
   "include": [
     "src/**/*.ts"
-  ],
+, "BKP/modelworker - Copy.ts", "BKP/modelworker.ts"  ],
   "exclude": [
     "node_modules",
     "dist",

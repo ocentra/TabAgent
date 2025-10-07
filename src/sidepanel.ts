@@ -89,13 +89,17 @@ import libraryIcon from './assets/icons/library-svgrepo-com.svg';
 import settingsIcon from './assets/icons/settings-svgrepo-com.svg';
 
 // --- Constants ---
-const LOG_MANIFEST_GENERATION = true;
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
-const LOG_ERROR = true;
-const LOG_WARN = false;
-const LOG_INFERENCE_SETTINGS = false;
 const LOG_QUEUE_MAX = 1000;
+
+// Core logging flags
+const LOG_ERROR = true;   // Critical errors (always enabled)
+const LOG_WARN = false;   // Warnings and fallbacks
+const LOG_GENERAL = false;  // App lifecycle (startup, page navigation)
+const LOG_DEBUG = false;  // Detailed internal state (for deep debugging)
+
+// Feature-specific logging - Enable individually to debug specific subsystems
+const LOG_MANIFEST_GENERATION = false;  // Manifest creation → Enable to debug model manifest issues
+const LOG_INFERENCE_SETTINGS = false;   // Settings loading → Enable to debug AI parameter issues
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 
 // --- Global State ---
@@ -113,10 +117,9 @@ const prefix = '[Sidepanel]';
 let sidepanelLogCount = 0;
 const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
 
-let modelWorker: Worker | undefined = undefined;
-let currentModelIdInWorker: string | null = null;
-let modelWorkerState: string = WorkerEventNames.UNINITIALIZED;
-let isModelWorkerEnvReady: boolean = false;
+let currentModelIdInManager: string | null = null;
+let modelManagerState: string = WorkerEventNames.UNINITIALIZED;
+let isModelManagerEnvReady: boolean = false;
 let isGenerating = false;
 
 // Track the currently loaded model and quant (onnx variant)
@@ -313,17 +316,17 @@ function hideDeviceBadge() {
 }
 
 function updateSendButtonForGeneration(isGenerating: boolean) {
-  console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
+  if (LOG_DEBUG) console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
   updateGenerationState(isGenerating);
 }
 
 function handleStopGeneration() {
-  console.log(`${prefix} handleStopGeneration called. modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
-  if (modelWorker && isGenerating) {
-    console.log(`${prefix} Sending stop generation request to worker.`);
-    sendToModelWorker({ type: WorkerEventNames.STOP_GENERATION });
+  if (LOG_DEBUG) console.log(`${prefix} handleStopGeneration called. isGenerating: ${isGenerating}`);
+  if (isGenerating) {
+    if (LOG_DEBUG) console.log(`${prefix} Sending stop generation request to background.`);
+    sendToModelManager({ type: WorkerEventNames.STOP_GENERATION });
   } else {
-    console.log(`${prefix} Cannot send stop request - modelWorker: ${!!modelWorker}, isGenerating: ${isGenerating}`);
+    if (LOG_DEBUG) console.log(`${prefix} Cannot send stop request - not generating`);
   }
 }
 
@@ -341,9 +344,9 @@ function handleSendButtonClick() {
   }
 }
 
-function handleModelWorkerMessage(event: MessageEvent) {
+function handleModelManagerMessage(event: MessageEvent) {
   const { type, label, payload } = event.data || {};
-  // console.log(`${prefix} Message from model worker: Type: ${type}`, payload);
+  // console.log(`${prefix} Message from background: Type: ${type}`, payload);
 
   // For use in WORKER_READY case
 
@@ -351,21 +354,21 @@ function handleModelWorkerMessage(event: MessageEvent) {
 
   switch (type) {
       case WorkerEventNames.WORKER_SCRIPT_READY:
-          modelWorkerState = WorkerEventNames.WORKER_SCRIPT_READY;
-          if (LOG_DEBUG) console.log(`${prefix} Model worker script is ready. 'init' message should have been sent.`);
+          modelManagerState = WorkerEventNames.WORKER_SCRIPT_READY;
+          if (LOG_DEBUG) console.log(`${prefix} Background script is ready.`);
           break;
       case WorkerEventNames.WORKER_ENV_READY:
-          isModelWorkerEnvReady = true;
-          if (LOG_DEBUG) console.log(`${prefix} Model worker environment is ready.`);
+          isModelManagerEnvReady = true;
+          if (LOG_DEBUG) console.log(`${prefix} Background environment is ready.`);
           break;
       case WorkerEventNames.LOADING_STATUS:
-          modelWorkerState = WorkerEventNames.LOADING_MODEL;
-          if (LOG_DEBUG) console.log(`${prefix} Worker loading status:`, payload);
+          modelManagerState = WorkerEventNames.LOADING_MODEL;
+          if (LOG_DEBUG) console.log(`${prefix} Background loading status:`, payload);
           break;
       case WorkerEventNames.WORKER_READY: {
           const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
-          modelWorkerState = WorkerEventNames.MODEL_READY;
-          currentModelIdInWorker = modelId;
+          modelManagerState = WorkerEventNames.MODEL_READY;
+          currentModelIdInManager = modelId;
           currentLoadedModel = {
             modelId: modelId,
             quant: dtype
@@ -386,7 +389,7 @@ function handleModelWorkerMessage(event: MessageEvent) {
             utilShowWarning(warning);
           }
           if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} loaded successfully!`);
-          if (LOG_DEBUG) console.log(`${prefix} Model worker is ready with model: ${modelId}, quant: ${dtype}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
+          if (LOG_DEBUG) console.log(`${prefix} Background is ready with model: ${modelId}, quant: ${dtype}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
           
           // Show success notification
           const modelDisplayName = modelId.split('/').pop() || modelId;
@@ -394,19 +397,19 @@ function handleModelWorkerMessage(event: MessageEvent) {
           break;
       }
       case WorkerEventNames.ERROR:
-          modelWorkerState = WorkerEventNames.ERROR;
-          isModelWorkerEnvReady = false;
+          modelManagerState = WorkerEventNames.ERROR;
+          isModelManagerEnvReady = false;
           hideDeviceBadge();
-          if (LOG_ERROR) console.error(`${prefix} Model worker reported an error:`, payload);
-          utilShowError(`Worker Error: ${payload}`);
-          currentModelIdInWorker = null; 
+          if (LOG_ERROR) console.error(`${prefix} Background reported an error:`, payload);
+          utilShowError(`Background Error: ${payload}`);
+          currentModelIdInManager = null; 
           break;
       case WorkerEventNames.RESET_COMPLETE:
-          modelWorkerState = WorkerEventNames.UNINITIALIZED;
-          isModelWorkerEnvReady = false;
-          currentModelIdInWorker = null;
+          modelManagerState = WorkerEventNames.UNINITIALIZED;
+          isModelManagerEnvReady = false;
+          currentModelIdInManager = null;
           hideDeviceBadge();
-          if (LOG_DEBUG) console.log(`${prefix} Model worker reset complete.`);
+          if (LOG_DEBUG) console.log(`${prefix} Background model reset complete.`);
           break;
       case UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
           document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
@@ -467,18 +470,20 @@ function handleModelWorkerMessage(event: MessageEvent) {
           break;
       case WorkerEventNames.MANIFEST_UPDATED:
           document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
+          syncToggleLoadButton();
           break;
       case WorkerEventNames.REQUEST_MEMORY_STATS:
-        if (performance && (performance as any).memory && modelWorker) {
+        if (performance && (performance as any).memory) {
           const mem = (performance as any).memory;
-          (modelWorker as Worker).postMessage({
+          browser.runtime.sendMessage({
             type: WorkerEventNames.MEMORY_STATS,
-            label,
             payload: {
               usedJSHeapSize: mem.usedJSHeapSize,
               totalJSHeapSize: mem.totalJSHeapSize,
               jsHeapSizeLimit: mem.jsHeapSizeLimit
             }
+          }).catch((error: any) => {
+            if (LOG_ERROR) console.error(`${prefix} Failed to send memory stats:`, error);
           });
         }
         break;
@@ -502,91 +507,67 @@ function handleModelWorkerMessage(event: MessageEvent) {
           if (LOG_DEBUG) console.log(prefix, 'Model cache cleared successfully');
           break;
       default:
-          console.warn(`${prefix} Unhandled message type from model worker: ${type}`, payload);
+          if (LOG_WARN) console.warn(`${prefix} Unhandled message type from background: ${type}`, payload);
   }
 }
 
-function handleModelWorkerError(error: Event | string) {
-  let errorMessage: string;
-  if (error instanceof ErrorEvent) {
-    errorMessage = error.message;
-    if (LOG_ERROR) console.error(`${prefix} Uncaught error in model worker:`, error.message, error.filename, error.lineno, error.colno, error.error);
-  } else if (error instanceof Event && 'message' in error) {
-    errorMessage = (error as any).message;
-    if (LOG_ERROR) console.error(`${prefix} Uncaught error in model worker:`, error);
-  } else {
-    errorMessage = String(error);
-    if (LOG_ERROR) console.error(`${prefix} Uncaught error in model worker:`, error);
-  }
-  modelWorkerState = WorkerEventNames.ERROR;
-  currentModelIdInWorker = null;
-  utilShowError(`Critical Worker Failure: ${errorMessage}`);
-  if (modelWorker) {
-      modelWorker.terminate();
-      modelWorker = undefined;
-  }
-}
 
-function initializeModelWorker() {
-  if (modelWorker && modelWorkerState !== WorkerEventNames.ERROR && modelWorkerState !== WorkerEventNames.UNINITIALIZED) {
-      if (LOG_DEBUG) console.log(`${prefix} Model worker already exists and is not in an error/uninitialized state. State: ${modelWorkerState}`);
+
+async function initializeModelManager() {
+  if (isModelManagerEnvReady) {
+      if (LOG_DEBUG) console.log(`${prefix} Background model manager already ready.`);
       return; 
   }
 
-  if (modelWorker) { 
-      if (LOG_DEBUG) console.log(`${prefix} Terminating existing model worker before creating a new one.`);
-      modelWorker.terminate();
-      modelWorker = undefined;
-  }
-
-  isModelWorkerEnvReady = false;
-  if (LOG_DEBUG) console.log(`${prefix} Initializing model worker...`);
+  if (LOG_DEBUG) console.log(`${prefix} Checking if background is ready...`);
   try {
-      const workerUrl = browser.runtime.getURL('modelworker.js');
-      modelWorker = new Worker(workerUrl, { type: 'module' });
-      modelWorkerState = WorkerEventNames.CREATING_WORKER;
-
-      modelWorker.onmessage = handleModelWorkerMessage;
-      modelWorker.onerror = handleModelWorkerError;
-
-      if (LOG_DEBUG) console.log(`${prefix} Model worker instance created and listeners attached.`);
+      const response = await browser.runtime.sendMessage({ 
+        type: RuntimeMessageTypes.CHECK_BACKGROUND_READY 
+      });
+      
+      if (response?.ready) {
+        isModelManagerEnvReady = true;
+        if (LOG_DEBUG) console.log(`${prefix} Background model manager is ready.`);
+      } else {
+        if (LOG_WARN) console.warn(`${prefix} Background not ready yet, will retry...`);
+      }
   } catch (error) {
-      if (LOG_ERROR) console.error(`${prefix} Failed to create model worker:`, error);
-      modelWorkerState = WorkerEventNames.ERROR;
-      utilShowError(`Failed to initialize model worker: ${(error as Error).message}`);
+      if (LOG_ERROR) console.error(`${prefix} Failed to check background readiness:`, error);
+      throw error;
   }
-
-    if (modelWorker && modelWorkerState !== WorkerEventNames.ERROR) {
-      const extensionBaseUrl = browser.runtime.getURL('');
-      modelWorker.postMessage({ type: WorkerEventNames.SET_BASE_URL, baseUrl: extensionBaseUrl });
-    }
 }
 
-function terminateModelWorker() {
-  if (modelWorker) {
-      if (LOG_DEBUG) console.log(`${prefix} Terminating model worker.`);
-      modelWorker.terminate();
-      modelWorker = undefined;
+async function terminateModelManager() {
+  if (LOG_DEBUG) console.log(`${prefix} Sending reset request to background...`);
+  try {
+    await browser.runtime.sendMessage({ 
+      type: WorkerEventNames.RESET 
+    });
+    
+    // Reset local state
+    currentModelIdInManager = null;
+    modelManagerState = WorkerEventNames.UNINITIALIZED;
+    hideDeviceBadge();
+    if (LOG_DEBUG) console.log(`${prefix} Model reset complete. Chat input would be disabled.`);
+  } catch (error) {
+    if (LOG_ERROR) console.error(`${prefix} Failed to reset model in background:`, error);
+    // Reset local state anyway
+    currentModelIdInManager = null;
+    modelManagerState = WorkerEventNames.UNINITIALIZED;
+    hideDeviceBadge();
   }
-  currentModelIdInWorker = null;
-  modelWorkerState = WorkerEventNames.UNINITIALIZED;
-  isModelWorkerEnvReady = false;
-  hideDeviceBadge();
-  if (LOG_DEBUG) console.log(`${prefix} Model worker terminated. Chat input would be disabled.`);
 }
 
-function sendToModelWorker(message: any) {
-  if (!modelWorker || modelWorkerState === WorkerEventNames.CREATING_WORKER && message.type !== WorkerEventNames.INIT) {
-
-      console.warn(`${prefix} Model worker not ready to receive message type '${message.type}'. State: ${modelWorkerState}`);
-      utilShowError("Model worker is not ready. Please wait or try reloading.");
-      return;
-  }
+function sendToModelManager(message: any) {
+  if (LOG_DEBUG) console.log(`${prefix} Sending message to background:`, message.type);
   try {
-      modelWorker.postMessage(message);
+      browser.runtime.sendMessage(message).catch((error: any) => {
+        if (LOG_ERROR) console.error(`${prefix} Error sending message to background:`, error, message);
+        utilShowError(`Error communicating with background: ${error.message}`);
+      });
   } catch (error) {
-      if (LOG_ERROR) console.error(`${prefix} Error posting message to model worker:`, error, message);
-      utilShowError(`Error communicating with model worker: ${(error as Error).message}`);
+      if (LOG_ERROR) console.error(`${prefix} Error sending message to background:`, error, message);
+      utilShowError(`Error communicating with background: ${(error as Error).message}`);
   }
 }
 
@@ -654,14 +635,14 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
     }
 
     if (type === RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
-        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to model worker.`);
-        sendToModelWorker({ type: 'generate', payload });
+        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to background.`);
+        sendToModelManager({ type: 'generate', payload });
     } else if (type === RuntimeMessageTypes.INTERRUPT_GENERATION) {
-        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to model worker.`);
-        sendToModelWorker({ type: 'interrupt', payload });
+        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to background.`);
+        sendToModelManager({ type: 'interrupt', payload });
     } else if (type === RuntimeMessageTypes.RESET_WORKER) {
-        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received RESET_WORKER. Terminating worker.`);
-        terminateModelWorker();
+        if (LOG_DEBUG) console.log(`${prefix} llmChannel: Received RESET_WORKER. Resetting model in background.`);
+        terminateModelManager();
         llmChannel.postMessage({ // Acknowledge the reset request
             type: RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
             payload: { success: true, message: "Worker reset." },
@@ -689,7 +670,7 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
     } else if (type === RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
         llmChannel.postMessage({
             type: RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
-            payload: { state: modelWorkerState, modelId: currentModelIdInWorker },
+            payload: { state: modelManagerState, modelId: currentModelIdInManager },
             requestId,
             senderId: 'sidepanel',
             timestamp: Date.now(),
@@ -708,6 +689,20 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
   if (Object.values(DBEventNames).includes(type)) {
     return false;
   }
+  
+  // Messages from background - redirect to handleModelManagerMessage
+  if (Object.values(WorkerEventNames).includes(type) || 
+      type === UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
+      type === UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
+      type === UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
+      type === UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
+      type === UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
+      type === UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
+    // Convert message to event format and redirect
+    handleModelManagerMessage({ data: message } as MessageEvent);
+    return;
+  }
+  
   if (type === RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
     sendUiEvent(UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
       chatId: message.chatId,
@@ -725,8 +720,7 @@ function handleMessage(message: any, sender: any, sendResponse: any) {
     sendUiEvent(UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
     sendResponse({ status: 'received', type });
   } else if (
-    type === InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST ||
-    type === UIEventNames.MODEL_WORKER_LOADING_PROGRESS
+    type === InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST
   ) {
     // No action needed
   } else {
@@ -741,10 +735,8 @@ async function handleSessionCreated(newSessionId: string) {
   await setActiveChatSessionId(newSessionId);
   
   // Clear model cache for new chat session to prevent cross-chat contamination
-  if (modelWorker) {
-    console.log(prefix, 'Sending CLEAR_CACHE message to model worker');
-    modelWorker.postMessage({ type: WorkerEventNames.CLEAR_CACHE });
-  }
+  if (LOG_DEBUG) console.log(prefix, 'Sending CLEAR_CACHE message to background');
+  sendToModelManager({ type: WorkerEventNames.CLEAR_CACHE });
   
   try {
     const request = new DbGetSessionRequest(newSessionId);
@@ -766,10 +758,8 @@ async function handleNewChat() {
   focusInput();
   
   // Clear model cache for new chat to prevent cross-chat contamination
-  if (modelWorker) {
-    console.log(prefix, 'Sending CLEAR_CACHE message to model worker (New Chat button)');
-    modelWorker.postMessage({ type: WorkerEventNames.CLEAR_CACHE });
-  }
+  if (LOG_DEBUG) console.log(prefix, 'Sending CLEAR_CACHE message to background (New Chat button)');
+  sendToModelManager({ type: WorkerEventNames.CLEAR_CACHE });
 }
 
 async function loadAndDisplaySession(sessionId: string | null) {
@@ -837,7 +827,7 @@ async function handleDetach() {
 }
 
 export function isModelLoaded() {
-  return modelWorkerState === WorkerEventNames.MODEL_READY && !!currentModelIdInWorker;
+  return modelManagerState === WorkerEventNames.MODEL_READY && !!currentModelIdInManager;
 }
 
 export function getCurrentLoadedModel() {
@@ -848,17 +838,17 @@ export function isGenerationActive() {
   return isGenerating;
 }
 
-export { sendDbRequestSmart, sendToModelWorker };
+export { sendDbRequestSmart, sendToModelManager };
 
 // Add listener for stop generation event
 document.addEventListener('stopGeneration', () => {
-  console.log(`${prefix} Received stopGeneration event from UI`);
+  if (LOG_DEBUG) console.log(`${prefix} Received stopGeneration event from UI`);
   handleStopGeneration();
 });
 
 // Add listener for generation starting event
 document.addEventListener('generationStarting', () => {
-  console.log(`${prefix} Received generationStarting event from orchestrator`);
+  if (LOG_DEBUG) console.log(`${prefix} Received generationStarting event from orchestrator`);
   isGenerating = true;
   updateSendButtonForGeneration(true);
 });
@@ -1013,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       // Check if the same model is already loaded
-      if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelWorkerState === WorkerEventNames.MODEL_READY) {
+      if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelManagerState === WorkerEventNames.MODEL_READY) {
           if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded. Skipping reload.`);
           showNotification(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
           
@@ -1024,45 +1014,49 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
       }
       
-      if (modelWorker && (currentModelIdInWorker !== modelId || modelWorkerState === WorkerEventNames.ERROR)) {
-          if (LOG_DEBUG) console.log(`${prefix} Terminating current worker before loading new model. Current: ${currentModelIdInWorker}, New: ${modelId}, State: ${modelWorkerState}`);
-          terminateModelWorker();
+      // Reset model if switching to different model or if in error state
+      if (currentModelIdInManager !== modelId || modelManagerState === WorkerEventNames.ERROR) {
+          if (LOG_DEBUG) console.log(`${prefix} Resetting model before loading new one. Current: ${currentModelIdInManager}, New: ${modelId}, State: ${modelManagerState}`);
+          await terminateModelManager();
       }
-      if (!modelWorker) {
-          initializeModelWorker();
+      
+      // Check if background is ready
+      try {
+        await initializeModelManager();
+      } catch (e) {
+        const err = e as Error;
+        utilShowError(err.message || "Background model manager failed to initialize.");
+        return;
       }
-      if (!modelWorker) {
-          utilShowError("Failed to create/initialize model worker. Cannot load model.");
-          modelWorkerState = WorkerEventNames.ERROR;
-          return;
-      }
+      
       const waitForEnvReady = async (timeoutMs = 5000) => {
-        if (isModelWorkerEnvReady) return;
-        if (LOG_DEBUG) console.log(`${prefix} Waiting for model worker environment to be ready...`);
+        if (isModelManagerEnvReady) return;
+        if (LOG_DEBUG) console.log(`${prefix} Waiting for background to be ready...`);
         const start = Date.now();
-        while (!isModelWorkerEnvReady) {
+        while (!isModelManagerEnvReady) {
           if (Date.now() - start > timeoutMs) {
-            throw new Error("Timed out waiting for model worker environment to be ready.");
+            throw new Error("Timed out waiting for background to be ready.");
           }
           await new Promise(res => setTimeout(res, 50));
         }
-        if (LOG_DEBUG) console.log(`${prefix} Model worker environment is now ready. Proceeding to load model.`);
+        if (LOG_DEBUG) console.log(`${prefix} Background is now ready. Proceeding to load model.`);
       };
       try {
         await waitForEnvReady();
       } catch (e) {
         const err = e as Error;
-        utilShowError(err.message || "Model worker failed to initialize.");
+        utilShowError(err.message || "Background model manager failed to initialize.");
         return;
       }
+      
       // Get the task from the manifest
       const manifestEntry = await getManifestEntry(modelId);
       const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
 
-      if (LOG_DEBUG) console.log(`${prefix} UI would show: Initializing worker for ${modelId} with dtype: ${dtype}, task: ${task}...`);
-      modelWorkerState = WorkerEventNames.LOADING_MODEL;
-      currentModelIdInWorker = modelId;
-      modelWorker.postMessage({
+      if (LOG_DEBUG) console.log(`${prefix} Sending model load request to background for ${modelId} with dtype: ${dtype}, task: ${task}...`);
+      modelManagerState = WorkerEventNames.LOADING_MODEL;
+      currentModelIdInManager = modelId;
+      sendToModelManager({
           type: WorkerEventNames.INIT,
           payload: { modelId, dtype, task, loadId }
       });
@@ -1092,13 +1086,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const { modelId, modelPath: dtype, task, loadId } = (e as CustomEvent).detail;
       const token = await huggingFaceLoginDialog.show(modelId);
       if (token) {
-        // Send login event to model worker
-        if (modelWorker) {
-          modelWorker.postMessage({
-            type: WorkerEventNames.HUGGINGFACE_LOGIN,
-            payload: { modelId, modelPath: dtype, task, loadId, token }
-          });
-        }
+        // Send login event to background
+        sendToModelManager({
+          type: WorkerEventNames.HUGGINGFACE_LOGIN,
+          payload: { modelId, modelPath: dtype, task, loadId, token }
+        });
       } else {
         utilShowError('HuggingFace authentication cancelled. Cannot load model.');
       }
@@ -1185,18 +1177,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     // Initial toggle
     syncToggleLoadButton();
-
-    if (modelWorker) {
-      const originalOnMessage = modelWorker.onmessage;
-      modelWorker.onmessage = function(event) {
-        if (event.data && event.data.type === WorkerEventNames.MANIFEST_UPDATED) {
-          syncToggleLoadButton();
-        }
-        if (typeof originalOnMessage === 'function') {
-          originalOnMessage.call(this, event);
-        }
-      };
-    }
 
     // Set icon srcs via imports
     const iconMap = [
@@ -1443,7 +1423,7 @@ export async function ensureManifestForDropdownRepos(forceRebuild: boolean = fal
           }
           // Check if external data file exists for this quant
           const hasExternalData = allFileNamesInRepo.has(`${quantKey}_data`);
-          console.log(`[ensureManifestForDropdownRepos] ${quantKey} hasExternalData: ${hasExternalData}`);
+          if (LOG_MANIFEST_GENERATION) console.log(`${prefix} [ensureManifestForDropdownRepos] ${quantKey} hasExternalData: ${hasExternalData}`);
           
           quantMap[quantKey] = {
             files: Array.from(currentQuantRequiredFiles).sort(),

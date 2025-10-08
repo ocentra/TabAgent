@@ -6,7 +6,7 @@ import { WorkerEventNames,
     UIEventNames } from './events/eventNames';
 
 import { DBEventNames} from './DB/dbEvents';
-import { TextGenerationPipeline, loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings, setUIConnectionActive, handleUIConnected, handleUIDisconnected, handleUIPong, getActiveUICount, initializePersistentState, restoreLastLoadedModel, getPersistentState, saveLastChatSession, saveLastLoadedModel, getModelState } from './backgroundModelManager';
+import { loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings, setUIConnectionActive, handleUIConnected, handleUIDisconnected, handleUIPong, getActiveUICount, initializePersistentState, restoreLastLoadedModel, getPersistentState, saveLastChatSession, saveLastLoadedModel, getModelState } from './backgroundModelManager';
 
 const CONTEXT_PREFIX = '[Background]';
 

@@ -6,7 +6,7 @@ import { WorkerEventNames,
     UIEventNames } from './events/eventNames';
 
 import { DBEventNames} from './DB/dbEvents';
-import { TextGenerationPipeline, loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings } from './backgroundModelManager';
+import { TextGenerationPipeline, loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings, setUIConnectionActive, handleUIConnected, handleUIDisconnected, handleUIPong, getActiveUICount, initializePersistentState, restoreLastLoadedModel, getPersistentState, saveLastChatSession, saveLastLoadedModel, getModelState } from './backgroundModelManager';
 
 const CONTEXT_PREFIX = '[Background]';
 
@@ -392,8 +392,21 @@ browser.windows.onRemoved.addListener(async (windowId: number) => {
         if (LOG_POPUP) console.log(CONTEXT_PREFIX + ' Popup window ' + windowId + ' for tab ' + tabId + ' was closed.');
         delete detachedPopups[tabId];
         delete popupIdToTabId[windowId];
-        try { await browser.storage.local.remove(`detachedState_${tabId}`); }
-        catch (error) { if (LOG_ERROR) console.error(CONTEXT_PREFIX + ` Error cleaning storage for tab ${tabId} on popup close:`, error); }
+        
+        // Tell sidepanel to restore from detached state
+        try {
+            browser.runtime.sendMessage({
+                type: WorkerEventNames.RESTORE_FROM_POPUP,
+                payload: { tabId }
+            }).catch((error: any) => {
+                // Sidepanel might not be open, that's okay
+                if (LOG_POPUP) console.log(CONTEXT_PREFIX + ` Sidepanel not available for tab ${tabId}:`, error.message);
+            });
+            
+            await browser.storage.local.remove(`detachedSessionId_${tabId}`);
+        } catch (error) {
+            if (LOG_ERROR) console.error(CONTEXT_PREFIX + ` Error restoring sidepanel for tab ${tabId}:`, error);
+        }
     }
 });
 
@@ -404,6 +417,11 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         if (LOG_WARN) console.warn(CONTEXT_PREFIX + ' Received message without type:', message, 'From:', sender.id);
         return false;
     }
+    
+    // Mark UI as active when we receive any message from it
+    // TODO: Move to proper port-based connection tracking to handle multiple UI instances
+    setUIConnectionActive(true);
+    
     const { type, payload } = message;
     let isResponseAsync = false;
 
@@ -472,7 +490,8 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     }
     
     if (type === 'popupCreated') {
-        const { tabId, popupId } = payload;
+        // Data is at message root level, not in payload
+        const { tabId, popupId } = message;
         detachedPopups[tabId] = popupId;
         popupIdToTabId[popupId] = tabId;
         if (LOG_POPUP) console.log(CONTEXT_PREFIX + ' Popup ' + popupId + ' registered for tab ' + tabId + '.');
@@ -480,8 +499,91 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         return false;
     }
     if (type === 'getPopupForTab') {
-        const existingPopupId = detachedPopups[payload.tabId];
+        // Data is at message root level, not in payload
+        const existingPopupId = detachedPopups[message.tabId];
         sendResponse({ popupId: existingPopupId || null });
+        return false;
+    }
+    
+    if (type === RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+        // Return current model state from background
+        let state: string = WorkerEventNames.UNINITIALIZED;
+        if (isModelLoading) {
+            state = WorkerEventNames.LOADING_MODEL;
+        } else if (currentModelId) {
+            state = WorkerEventNames.MODEL_READY;
+        }
+        
+        sendResponse({ 
+            state: state,
+            modelId: currentModelId,
+            dtype: currentModelDtype
+        });
+        return false;
+    }
+
+    if (type === RuntimeMessageTypes.RESTORE_LAST_STATE) {
+        // Restore last loaded model and session
+        if (LOG_MESSAGE_HANDLERS) console.log(CONTEXT_PREFIX + ' Received RESTORE_LAST_STATE request');
+        isResponseAsync = true;
+        (async () => {
+            try {
+                // First initialize persistent state if not already done
+                await initializePersistentState();
+                
+                // Get persistent state info
+                const persistentState = getPersistentState();
+                
+                // Try to restore the last loaded model
+                const modelRestored = await restoreLastLoadedModel();
+                
+                // Get actual model state from backgroundModelManager (not local variables)
+                const modelState = getModelState();
+                
+                // Update local background variables to match the restored model
+                if (modelRestored && modelState.isReady) {
+                    currentModelId = modelState.repoId;
+                    currentModelDtype = modelState.quantPath;
+                    if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Updated local model state after restoration:', { currentModelId, currentModelDtype });
+                }
+                
+                sendResponse({
+                    success: true,
+                    modelRestored,
+                    lastModel: persistentState.lastLoadedModel,
+                    lastChatSession: persistentState.lastChatSessionId,
+                    currentModel: {
+                        id: modelState.repoId,
+                        dtype: modelState.quantPath,
+                        ready: modelState.isReady
+                    }
+                });
+            } catch (error) {
+                if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Error restoring last state:', error);
+                sendResponse({ 
+                    success: false, 
+                    error: error instanceof Error ? error.message : 'Unknown error' 
+                });
+            }
+        })();
+        return true; // MUST return true to keep the message channel open for async response
+    }
+
+    if (type === 'saveLastChatSession') {
+        // Save session ID to persistent state (called from sidepanel when session changes)
+        if (payload?.sessionId) {
+            saveLastChatSession(payload.sessionId);
+            if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' 💾 Saved session to persistent state:', payload.sessionId);
+        }
+        return false;
+    }
+
+    if (type === DBEventNames.DB_CREATE_SESSION_RESPONSE) {
+        // Save the newly created session ID to persistent state
+        if (payload?.sessionId) {
+            saveLastChatSession(payload.sessionId);
+            if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Saved new session to persistent state:', payload.sessionId);
+        }
         return false;
     }
 
@@ -496,6 +598,13 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         (async () => {
             try {
                 if (LOG_MODEL_LOADING) console.log(CONTEXT_PREFIX + ' Handling INIT request for model:', payload.modelId);
+                
+                // Save model info immediately when we receive the load request
+                if (payload.modelId && payload.dtype) {
+                    saveLastLoadedModel(payload.modelId, payload.dtype);
+                    if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' 💾 Saved model info for restoration:', payload.modelId, payload.dtype);
+                }
+                
                 isModelLoading = true;
                 currentModelId = payload.modelId;
                 currentModelDtype = payload.dtype;
@@ -780,6 +889,47 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     return false;
 });
 
+// Listen to llmChannel for UI connection lifecycle events
+// This allows tracking multiple UI instances (sidepanel, popup, detached) across all contexts
+(async () => {
+    try {
+        const { llmChannel } = await import('./Utilities/dbChannels');
+        
+        llmChannel.onmessage = (event: MessageEvent) => {
+            const { type, payload } = event.data;
+            
+            switch (type) {
+                case WorkerEventNames.UI_CONNECTED:
+                    if (payload?.senderId && payload?.context) {
+                        handleUIConnected(payload.senderId, payload.context);
+                    }
+                    break;
+                    
+                case WorkerEventNames.UI_DISCONNECTED:
+                    if (payload?.senderId && payload?.context) {
+                        handleUIDisconnected(payload.senderId, payload.context);
+                    }
+                    break;
+                    
+                case WorkerEventNames.UI_PONG:
+                    if (payload?.senderId) {
+                        if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' 🏓 Received pong from:', payload.senderId);
+                        handleUIPong(payload.senderId);
+                    }
+                    break;
+                    
+                default:
+                    // Other llmChannel messages are handled by sidepanel
+                    break;
+            }
+        };
+        
+        if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' llmChannel listener established for UI lifecycle tracking');
+    } catch (error) {
+        if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Failed to setup llmChannel listener:', error);
+    }
+})();
+
 (async () => {
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
@@ -788,4 +938,7 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
     // Set the background script readiness state
     isBackgroundScriptReady = true;
     if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Background script is now ready');
+    
+    // Log initial UI connection count
+    if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ` Initial UI connections: ${getActiveUICount()}`);
 })();

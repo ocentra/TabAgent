@@ -110,8 +110,53 @@ let currentTabId: number | null = null;
 let isDbReady: boolean = false;
 let historyPopupController: any = null;
 let logQueue: any[] = [];
+let detachedOverlay: HTMLElement | null = null;
 
 const prefix = '[Sidepanel]';
+
+// Show overlay when chat is moved to popup
+function showDetachedOverlay() {
+  if (detachedOverlay) return; // Already shown
+  
+  detachedOverlay = document.createElement('div');
+  detachedOverlay.id = 'detached-overlay';
+  detachedOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(243, 244, 246, 0.98);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+  `;
+  
+  detachedOverlay.innerHTML = `
+    <div style="text-align: center; padding: 2rem;">
+      <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.7;">📤</div>
+      <h2 style="margin: 0 0 0.75rem 0; font-size: 1.5rem; font-weight: 600; color: #1f2937;">Chat Moved to Popup</h2>
+      <p style="margin: 0; color: #6b7280; font-size: 1rem; max-width: 320px; line-height: 1.5;">
+        Your chat is now in a separate popup window.<br>
+        You can close this side panel if you'd like.
+      </p>
+    </div>
+  `;
+  
+  document.body.appendChild(detachedOverlay);
+  if (LOG_DEBUG) console.log(`${prefix} Detached overlay shown`);
+}
+
+// Hide overlay when popup closes and restore full UI
+function hideDetachedOverlay() {
+  if (detachedOverlay && detachedOverlay.parentNode) {
+    detachedOverlay.parentNode.removeChild(detachedOverlay);
+    detachedOverlay = null;
+    if (LOG_DEBUG) console.log(`${prefix} Detached overlay removed`);
+  }
+}
 
 // Throttling for high-frequency debug logs
 let sidepanelLogCount = 0;
@@ -159,7 +204,7 @@ function syncToggleLoadButton() {
     const viewParam = urlParams.get('view');
     window.EXTENSION_CONTEXT =
       contextParam === 'popup'
-        ? Contexts.POPUP
+        ? Contexts.MAIN_UI_POPUP
         : viewParam === 'logs'
         ? Contexts.OTHERS
         : Contexts.MAIN_UI;
@@ -457,6 +502,12 @@ function handleModelManagerMessage(event: MessageEvent) {
           }
           break;
       }
+      case WorkerEventNames.RESTORE_FROM_POPUP: {
+          // Popup closed, remove overlay and restore full UI
+          if (LOG_DEBUG) console.log(`${prefix} RESTORE_FROM_POPUP received`);
+          hideDetachedOverlay();
+          break;
+      }
       case WorkerEventNames.GENERATION_ERROR:
           isGenerating = false;
           updateSendButtonForGeneration(false);
@@ -586,6 +637,17 @@ async function setActiveChatSessionId(newSessionId: string | null) {
   activeSessionId = newSessionId;
   if (newSessionId) {
     await browser.storage.local.set({ lastSessionId: newSessionId });
+    
+    // Also save to persistent state for background restoration
+    try {
+      await browser.runtime.sendMessage({
+        type: 'saveLastChatSession',
+        payload: { sessionId: newSessionId }
+      });
+      if (LOG_DEBUG) console.log(`${prefix} 💾 Saved session to persistent state: ${newSessionId}`);
+    } catch (error) {
+      if (LOG_ERROR) console.error(`${prefix} Failed to save session to persistent state:`, error);
+    }
   } else {
     await browser.storage.local.remove('lastSessionId');
   }
@@ -621,10 +683,21 @@ if (window.EXTENSION_CONTEXT === Contexts.MAIN_UI) {
   llmChannel.onmessage = async (event: MessageEvent) => {
     const { type, payload, requestId, senderId: msgSenderId } = event.data;
 
-
     if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
-        if (LOG_DEBUG) console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
-        return;
+      if (LOG_DEBUG) console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
+      return;
+    }
+
+    // Handle ping from background - respond with pong
+    if (type === WorkerEventNames.UI_PING) {
+      if (LOG_DEBUG) console.log(`${prefix} 🏓 Received ping from background - sending pong`);
+      llmChannel.postMessage({
+        type: WorkerEventNames.UI_PONG,
+        payload: { senderId, timestamp: Date.now() },
+        senderId,
+        timestamp: Date.now()
+      });
+      return;
     }
 
     if ([
@@ -786,11 +859,25 @@ async function loadAndDisplaySession(sessionId: string | null) {
 }
 
 async function handleDetach() {
+  // In popup: Close popup and restore to sidepanel
+  if (isPopup && originalTabIdFromPopup) {
+    try {
+      // Close this popup window
+      window.close();
+    } catch (error) {
+      if (LOG_ERROR) console.error(`${prefix} Error closing popup:`, error);
+      utilShowError('Error closing popup window');
+    }
+    return;
+  }
+  
+  // In sidepanel: Move to popup
   if (!currentTabId) {
     if (LOG_ERROR) console.error('Cannot detach: Missing tab ID');
     utilShowError('Cannot detach: Missing tab ID');
     return;
   }
+  
   const currentSessionId = getActiveChatSessionId();
   try {
     const response = await browser.runtime.sendMessage({
@@ -798,24 +885,33 @@ async function handleDetach() {
       tabId: currentTabId,
     });
     if (response?.popupId) {
+      // Popup already exists, just focus it
       await browser.windows.update(response.popupId, { focused: true });
+      // Show detached overlay
+      showDetachedOverlay();
       return;
     }
+    
     const storageKey = `detachedSessionId_${currentTabId}`;
     await browser.storage.local.set({ [storageKey]: currentSessionId });
     if (LOG_DEBUG) console.log(`${prefix} Saved session ID ${currentSessionId} for detach key ${storageKey}.`);
+    
     const popup = await browser.windows.create({
       url: browser.runtime.getURL(`sidepanel.html?context=popup&originalTabId=${currentTabId}`),
       type: 'popup',
       width: 400,
       height: 600,
     });
+    
     if (popup?.id) {
       await browser.runtime.sendMessage({
         type: 'popupCreated',
         tabId: currentTabId,
         popupId: popup.id,
       });
+      
+      // Show detached overlay in sidepanel
+      showDetachedOverlay();
     } else {
       throw new Error('Failed to create popup window.');
     }
@@ -826,12 +922,42 @@ async function handleDetach() {
   }
 }
 
-export function isModelLoaded() {
-  return modelManagerState === WorkerEventNames.MODEL_READY && !!currentModelIdInManager;
+// Query background for accurate model loaded state
+export async function isModelLoaded(): Promise<boolean> {
+  const bgState = await queryBackgroundModelState();
+  return bgState.isReady && !!bgState.modelId;
 }
 
 export function getCurrentLoadedModel() {
   return currentLoadedModel;
+}
+
+// Query background for actual loaded model state (for popup initialization)
+export async function queryBackgroundModelState(): Promise<{ modelId: string | null, quant: string | null, isReady: boolean, isLoading: boolean }> {
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: RuntimeMessageTypes.GET_MODEL_WORKER_STATE
+    });
+    if (response?.state === WorkerEventNames.MODEL_READY && response?.modelId) {
+      return { 
+        modelId: response.modelId, 
+        quant: response.dtype || null,
+        isReady: true,
+        isLoading: false
+      };
+    }
+    if (response?.state === WorkerEventNames.LOADING_MODEL) {
+      return { 
+        modelId: response.modelId || null, 
+        quant: response.dtype || null,
+        isReady: false,
+        isLoading: true
+      };
+    }
+  } catch (error) {
+    if (LOG_ERROR) console.error(`${prefix} Failed to query background model state:`, error);
+  }
+  return { modelId: null, quant: null, isReady: false, isLoading: false };
 }
 
 export function isGenerationActive() {
@@ -1002,10 +1128,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
       }
       
-      // Check if the same model is already loaded
-      if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelManagerState === WorkerEventNames.MODEL_READY) {
-          if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded. Skipping reload.`);
+      // Check if the same model is already loaded (query background for accurate state)
+      const bgState = await queryBackgroundModelState();
+      const isAlreadyLoaded = bgState.isReady && bgState.modelId === modelId && bgState.quant === dtype;
+      
+      if (isAlreadyLoaded) {
+          if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded in background. Skipping reload.`);
           showNotification(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
+          
+          // Sync local state with background
+          currentLoadedModel.modelId = bgState.modelId;
+          currentLoadedModel.quant = bgState.quant;
+          currentModelIdInManager = bgState.modelId;
+          modelManagerState = WorkerEventNames.MODEL_READY;
           
           // Reset UI loading state since we're not actually loading
           document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_ALREADY_LOADED, { 
@@ -1015,8 +1150,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       // Reset model if switching to different model or if in error state
-      if (currentModelIdInManager !== modelId || modelManagerState === WorkerEventNames.ERROR) {
-          if (LOG_DEBUG) console.log(`${prefix} Resetting model before loading new one. Current: ${currentModelIdInManager}, New: ${modelId}, State: ${modelManagerState}`);
+      // Check background state to determine if reset is needed
+      const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === WorkerEventNames.ERROR;
+      
+      if (needsReset) {
+          if (LOG_DEBUG) console.log(`${prefix} Resetting model before loading new one. Current (BG): ${bgState.modelId}, New: ${modelId}, State: ${modelManagerState}`);
           await terminateModelManager();
       }
       
@@ -1123,6 +1261,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       }`
     );
 
+    // Check if we have bypass settings that might affect manifest status
+    const hasBypassSettings = getBypassSizeLimitModels().size > 0;
+    await ensureManifestForDropdownRepos(hasBypassSettings);
+    
+    // CRITICAL: Initialize database BEFORE trying to load any sessions
+    const dbInitSuccess = await initializeDatabase();
+    if (!dbInitSuccess) return;
+
+    // Now safe to load sessions (DB is ready)
     if (isPopup && originalTabIdFromPopup) {
       const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
       const result = await browser.storage.local.get(storageKey);
@@ -1139,27 +1286,132 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadAndDisplaySession(null);
     }
 
-    // Check if we have bypass settings that might affect manifest status
-    const hasBypassSettings = getBypassSizeLimitModels().size > 0;
-    await ensureManifestForDropdownRepos(hasBypassSettings);
-    
-    const dbInitSuccess = await initializeDatabase();
-    if (!dbInitSuccess) return;
-
-    // Load default model after everything is initialized
-    try {
-      const { loadDefaultModel } = await import('./Home/uiController');
-      const defaultModelLoaded = await loadDefaultModel();
-      if (defaultModelLoaded) {
-        if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
-      } else {
-        if (LOG_DEBUG) console.log(`${prefix} Default model loading failed or skipped.`);
+    // Query background for current model state (important for popup instances)
+    const bgModelState = await queryBackgroundModelState();
+    if (bgModelState.isReady && bgModelState.modelId) {
+      // Background already has a model loaded - sync local state
+      if (LOG_DEBUG) console.log(`${prefix} Background has model loaded: ${bgModelState.modelId} (${bgModelState.quant}), syncing local state`);
+      currentLoadedModel = {
+        modelId: bgModelState.modelId,
+        quant: bgModelState.quant
+      };
+      currentModelIdInManager = bgModelState.modelId;
+      modelManagerState = WorkerEventNames.MODEL_READY;
+      syncToggleLoadButton();
+      
+      // Model is already loaded, but we should still restore the last chat session
+      try {
+        const restoreResponse = await browser.runtime.sendMessage({
+          type: RuntimeMessageTypes.RESTORE_LAST_STATE
+        });
+        
+        if (restoreResponse?.success && restoreResponse.lastChatSession) {
+          if (LOG_DEBUG) console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
+          await loadAndDisplaySession(restoreResponse.lastChatSession);
+          if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored last chat session`);
+        }
+      } catch (error) {
+        if (LOG_ERROR) console.error(`${prefix} Error restoring last chat session:`, error);
       }
-    } catch (error) {
-      if (LOG_ERROR) console.error(`${prefix} Error loading default model:`, error);
+    }
+
+    // Try to restore last state if no model is loaded
+    else if (!bgModelState.isReady) {
+      try {
+        if (LOG_DEBUG) console.log(`${prefix} No model loaded, attempting to restore last state...`);
+        
+        const restoreResponse = await browser.runtime.sendMessage({
+          type: RuntimeMessageTypes.RESTORE_LAST_STATE
+        });
+        
+        if (restoreResponse?.success) {
+          if (LOG_DEBUG) {
+            console.log(`${prefix} State restoration response:`, {
+              modelRestored: restoreResponse.modelRestored,
+              lastModel: restoreResponse.lastModel,
+              lastChatSession: restoreResponse.lastChatSession,
+              currentModel: restoreResponse.currentModel
+            });
+            console.log(`${prefix} Restoration decision:`, {
+              modelRestored: restoreResponse.modelRestored,
+              currentModelReady: restoreResponse.currentModel?.ready,
+              willRestore: restoreResponse.modelRestored && restoreResponse.currentModel?.ready,
+              willLoadDefault: !(restoreResponse.modelRestored && restoreResponse.currentModel?.ready)
+            });
+          }
+          
+          if (restoreResponse.modelRestored && restoreResponse.currentModel?.ready) {
+            // Model was successfully restored - update local state
+            currentLoadedModel = {
+              modelId: restoreResponse.currentModel.id,
+              quant: restoreResponse.currentModel.dtype
+            };
+            currentModelIdInManager = restoreResponse.currentModel.id;
+            modelManagerState = WorkerEventNames.MODEL_READY;
+            syncToggleLoadButton();
+            
+            if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
+            
+            // If there's a last chat session, load it
+            if (restoreResponse.lastChatSession) {
+              if (LOG_DEBUG) console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
+              await loadAndDisplaySession(restoreResponse.lastChatSession);
+              if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored last chat session`);
+            }
+          } else {
+            // No model to restore, load default model
+            if (LOG_DEBUG) console.log(`${prefix} No model to restore, loading default model...`);
+            const { loadDefaultModel } = await import('./Home/uiController');
+            const defaultModelLoaded = await loadDefaultModel();
+            if (defaultModelLoaded) {
+              if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+            } else {
+              if (LOG_DEBUG) console.log(`${prefix} Default model loading failed or skipped.`);
+            }
+          }
+        } else {
+          if (LOG_ERROR) console.error(`${prefix} State restoration failed:`, restoreResponse?.error);
+          
+          // Fallback to default model
+          const { loadDefaultModel } = await import('./Home/uiController');
+          const defaultModelLoaded = await loadDefaultModel();
+          if (defaultModelLoaded) {
+            if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+          }
+        }
+      } catch (error) {
+        if (LOG_ERROR) console.error(`${prefix} Error during state restoration:`, error);
+        
+        // Fallback to default model
+        try {
+          const { loadDefaultModel } = await import('./Home/uiController');
+          const defaultModelLoaded = await loadDefaultModel();
+          if (defaultModelLoaded) {
+            if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+          }
+        } catch (fallbackError) {
+          if (LOG_ERROR) console.error(`${prefix} Error loading default model:`, fallbackError);
+        }
+      }
+    } else {
+      if (LOG_DEBUG) console.log(`${prefix} Skipping default model load - model already loaded in background`);
     }
 
     if (LOG_DEBUG) console.log(`${prefix} Initialization complete.`);
+    
+    // Broadcast UI_CONNECTED to notify background script
+    // This enables proper VRAM management and tracks multiple UI instances
+    const contextName = window.EXTENSION_CONTEXT || 'unknown';
+    llmChannel.postMessage({
+      type: WorkerEventNames.UI_CONNECTED,
+      payload: { senderId, context: contextName },
+      senderId,
+      timestamp: Date.now()
+    });
+    if (LOG_DEBUG) console.log(`${prefix} Broadcast UI_CONNECTED (context: ${contextName}, senderId: ${senderId})`);
+
+    // No need for heartbeat - background will ping us every 2 minutes
+    if (LOG_DEBUG) console.log(`${prefix} ✅ Connected - background will ping every 2 minutes (senderId: ${senderId})`);
 
     const modelDropdownEl = document.getElementById('model-selector');
     const quantDropdownEl = document.getElementById('onnx-variant-selector');
@@ -1479,5 +1731,49 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
     document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
   } catch (e) {
     console.error('[Sidepanel] Error refreshing manifest:', e);
+  }
+});
+
+// Handle UI lifecycle for VRAM management
+// Broadcast disconnect when window unloads or becomes hidden
+window.addEventListener('beforeunload', () => {
+  const contextName = window.EXTENSION_CONTEXT || 'unknown';
+  llmChannel.postMessage({
+    type: WorkerEventNames.UI_DISCONNECTED,
+    payload: { senderId, context: contextName },
+    senderId,
+    timestamp: Date.now()
+  });
+  if (LOG_DEBUG) console.log(`${prefix} Broadcast UI_DISCONNECTED on beforeunload (context: ${contextName}, senderId: ${senderId})`);
+});
+
+// Handle visibility changes for popup/detached windows only
+// Sidepanels should never disconnect - they stay open and connected
+document.addEventListener('visibilitychange', () => {
+  const contextName = window.EXTENSION_CONTEXT || 'unknown';
+  
+  // MainUI (sidepanel) and MainUIPopup (detached chat) should never disconnect - they're both chat interfaces
+  if (contextName === 'MainUI' || contextName === 'MainUIPopup') {
+    if (LOG_DEBUG) console.log(`${prefix} Chat UI ignores visibility changes - staying connected (context: ${contextName})`);
+    return;
+  }
+  
+  if (document.hidden) {
+    llmChannel.postMessage({
+      type: WorkerEventNames.UI_DISCONNECTED,
+      payload: { senderId, context: contextName },
+      senderId,
+      timestamp: Date.now()
+    });
+    if (LOG_DEBUG) console.log(`${prefix} Broadcast UI_DISCONNECTED on visibility hidden (context: ${contextName}, senderId: ${senderId})`);
+  } else {
+    // Page became visible again - re-register
+    llmChannel.postMessage({
+      type: WorkerEventNames.UI_CONNECTED,
+      payload: { senderId, context: contextName },
+      senderId,
+      timestamp: Date.now()
+    });
+    if (LOG_DEBUG) console.log(`${prefix} Broadcast UI_CONNECTED on visibility visible (context: ${contextName}, senderId: ${senderId})`);
   }
 });

@@ -9632,8 +9632,20 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   TextGenerationPipeline: () => (/* binding */ TextGenerationPipeline),
 /* harmony export */   clearCache: () => (/* binding */ clearCache),
 /* harmony export */   generate: () => (/* binding */ generate),
+/* harmony export */   getActiveUICount: () => (/* binding */ getActiveUICount),
+/* harmony export */   getModelState: () => (/* binding */ getModelState),
+/* harmony export */   getPersistentState: () => (/* binding */ getPersistentState),
+/* harmony export */   handleUIConnected: () => (/* binding */ handleUIConnected),
+/* harmony export */   handleUIDisconnected: () => (/* binding */ handleUIDisconnected),
+/* harmony export */   handleUIPong: () => (/* binding */ handleUIPong),
+/* harmony export */   hasActiveUI: () => (/* binding */ hasActiveUI),
+/* harmony export */   initializePersistentState: () => (/* binding */ initializePersistentState),
 /* harmony export */   loadModel: () => (/* binding */ loadModel),
 /* harmony export */   resetModel: () => (/* binding */ resetModel),
+/* harmony export */   restoreLastLoadedModel: () => (/* binding */ restoreLastLoadedModel),
+/* harmony export */   saveLastChatSession: () => (/* binding */ saveLastChatSession),
+/* harmony export */   saveLastLoadedModel: () => (/* binding */ saveLastLoadedModel),
+/* harmony export */   setUIConnectionActive: () => (/* binding */ setUIConnectionActive),
 /* harmony export */   stopGeneration: () => (/* binding */ stopGeneration),
 /* harmony export */   updateInferenceSettings: () => (/* binding */ updateInferenceSettings)
 /* harmony export */ });
@@ -9654,23 +9666,23 @@ const prefix = '[BackgroundModelManager]';
 const LOG_ERROR = true; // Keep error logs enabled
 const LOG_WARN = false; // Disable warning logs
 // CORE GENERATION FUNCTIONALITY
-const LOG_GEN_PARAMS = true; // Generation parameters being used
-const LOG_GEN_DETAILED = true; // Detailed generation process logs
-const LOG_GEN_COMPARISON = true; // Parameter comparison logs
-const LOG_GEN_ANALYSIS = true; // Detailed analysis logs
+const LOG_GEN_PARAMS = false; // Generation parameters being used
+const LOG_GEN_DETAILED = false; // Detailed generation process logs
+const LOG_GEN_COMPARISON = false; // Parameter comparison logs
+const LOG_GEN_ANALYSIS = false; // Detailed analysis logs
 // Legacy Q&A flags (for backward compatibility)
-const LOG_QA_START = true; // Generation lifecycle (start/stop/complete)
-const LOG_QA_OUTPUT = true; // Generated text output
-const LOG_QA_STATS = true; // Output statistics
+const LOG_QA_START = false; // Generation lifecycle (start/stop/complete)
+const LOG_QA_OUTPUT = false; // Generated text output
+const LOG_QA_STATS = false; // Output statistics
 // Model loading and configuration
 const LOG_MODEL_LOADING = false; // Model loading progress
 const LOG_MODEL_CONFIG = false; // Detailed model configuration
 const LOG_TOKEN_IDS = false; // Token ID extraction
 // Transformers.js specific
-const LOG_TRANSFORMERS = true; // Transformers.js debugging
-const LOG_TRANSFORMERS_SETTINGS = true; // Settings comparison
-const LOG_GENERATION = true; // Detailed generation parameters
-const LOG_GENERATION_FLOW = true; // Track full generation flow
+const LOG_TRANSFORMERS = false; // Transformers.js debugging
+const LOG_TRANSFORMERS_SETTINGS = false; // Settings comparison
+const LOG_GENERATION = false; // Detailed generation parameters
+const LOG_GENERATION_FLOW = false; // Track full generation flow
 // Network and storage
 const LOG_FETCH = false; // Fetch interception logs
 const LOG_FETCH_INIT = false; // Fetch override initialization
@@ -9694,6 +9706,108 @@ let isGenerating = false;
 let shouldStopGeneration = false;
 let transformersTokenizer = null;
 let transformersModel = null;
+// UI Connection tracking using BroadcastChannel system
+// Tracks all active UI instances by their unique sender IDs
+const activeUIConnections = new Set();
+let pingTimer = null;
+let pongTimeout = null;
+const PING_INTERVAL_MS = 2 * 60 * 1000; // Ping every 2 minutes
+const PONG_TIMEOUT_MS = 5 * 1000; // Wait 5 seconds for pong
+// Legacy flag for backward compatibility - will be removed
+let hasActiveUIConnection = false;
+const STATE_STORAGE_KEY = 'tabagent_background_state';
+let persistentState = {};
+// State persistence functions
+function savePersistentState() {
+    try {
+        if (LOG_GENERAL) {
+            console.log(`[BackgroundModelManager] 💾 Saving persistent state:`, {
+                lastLoadedModel: persistentState.lastLoadedModel,
+                lastChatSessionId: persistentState.lastChatSessionId,
+                lastActiveTabId: persistentState.lastActiveTabId
+            });
+        }
+        // Store in memory and sync storage
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ [STATE_STORAGE_KEY]: persistentState }).catch((error) => {
+            if (LOG_ERROR) {
+                console.error(`[BackgroundModelManager] ❌ Failed to save persistent state:`, error);
+            }
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR) {
+            console.error(`[BackgroundModelManager] ❌ Error saving persistent state:`, error);
+        }
+    }
+}
+function loadPersistentState() {
+    return new Promise((resolve) => {
+        try {
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(STATE_STORAGE_KEY).then((result) => {
+                if (result[STATE_STORAGE_KEY]) {
+                    persistentState = result[STATE_STORAGE_KEY];
+                    if (LOG_GENERAL) {
+                        console.log(`[BackgroundModelManager] 📂 Loaded persistent state:`, {
+                            lastLoadedModel: persistentState.lastLoadedModel,
+                            lastChatSessionId: persistentState.lastChatSessionId,
+                            lastActiveTabId: persistentState.lastActiveTabId
+                        });
+                    }
+                }
+                else {
+                    persistentState = {};
+                    if (LOG_GENERAL) {
+                        console.log(`[BackgroundModelManager] 📂 No persistent state found, starting fresh`);
+                    }
+                }
+                resolve();
+            }).catch((error) => {
+                if (LOG_ERROR) {
+                    console.error(`[BackgroundModelManager] ❌ Failed to load persistent state:`, error);
+                }
+                persistentState = {};
+                resolve();
+            });
+        }
+        catch (error) {
+            if (LOG_ERROR) {
+                console.error(`[BackgroundModelManager] ❌ Error loading persistent state:`, error);
+            }
+            persistentState = {};
+            resolve();
+        }
+    });
+}
+function updateLastLoadedModel(repoId, quantPath) {
+    persistentState.lastLoadedModel = {
+        repoId,
+        quantPath,
+        loadedAt: Date.now()
+    };
+    savePersistentState();
+}
+function updateLastChatSession(sessionId) {
+    persistentState.lastChatSessionId = sessionId;
+    savePersistentState();
+}
+function updateLastActiveTab(tabId) {
+    persistentState.lastActiveTabId = tabId;
+    savePersistentState();
+}
+function getLastLoadedModel() {
+    return persistentState.lastLoadedModel || null;
+}
+function getLastChatSession() {
+    return persistentState.lastChatSessionId || null;
+}
+function clearPersistentState() {
+    persistentState = {};
+    webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(STATE_STORAGE_KEY).catch((error) => {
+        if (LOG_ERROR) {
+            console.error(`[BackgroundModelManager] ❌ Failed to clear persistent state:`, error);
+        }
+    });
+}
 // Example-style global variables
 const stopping_criteria = new _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.InterruptableStoppingCriteria();
 let past_key_values_cache = null;
@@ -9726,14 +9840,26 @@ function safePostMessage(message) {
     if (shouldLogProgress && isProgressMessage) {
         lastProgressLogTime = now;
     }
-    // In background context, send messages directly to sidepanel
+    // In background context, send messages directly to UI
+    // TODO: When port-based connection is implemented, broadcast to all active ports
+    if (!hasActiveUIConnection) {
+        // No UI connected - skip sending message to avoid "Receiving end does not exist" errors
+        // This is expected during background script initialization before any UI opens
+        return;
+    }
     if (LOG_MESSAGE_PASSING && shouldLogProgress) {
-        console.log(prefix, 'Sending message to sidepanel:', message.type, message.payload);
+        console.log(prefix, 'Sending message to UI:', message.type, message.payload);
     }
     if (typeof (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default()) !== 'undefined' && (webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime)) {
         webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage(message).catch((error) => {
-            if (LOG_ERROR)
-                console.error(prefix, 'Failed to send message to sidepanel:', error);
+            // If we reach here with connection error, UI disconnected between check and send
+            const isConnectionError = error?.message?.includes('Receiving end does not exist');
+            if (isConnectionError) {
+                hasActiveUIConnection = false; // Update state
+            }
+            else if (LOG_ERROR) {
+                console.error(prefix, 'Failed to send message to UI:', error);
+            }
         });
     }
 }
@@ -9774,6 +9900,16 @@ function safePostMessage(message) {
     safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.WORKER_ENV_READY });
     if (LOG_MODEL_LOADING)
         console.log(prefix, 'Environment initialized and ready');
+    // Initialize persistent state
+    loadPersistentState().then(() => {
+        if (LOG_GENERAL) {
+            console.log(prefix, '📂 Persistent state loaded during initialization');
+        }
+    }).catch((error) => {
+        if (LOG_ERROR) {
+            console.error(prefix, '❌ Failed to load persistent state during initialization:', error);
+        }
+    });
 })();
 // Singleton pattern for model management
 class TextGenerationPipeline {
@@ -10463,16 +10599,111 @@ const generate = async (messages, callback) => {
         console.log(prefix, stateInfo);
     }
     if (!isTransformersModelReady || !transformersTokenizer || !transformersModel) {
-        const error = 'Model not ready. Please load a model first.';
-        if (LOG_GENERATION_FLOW)
-            console.error(prefix, '❌ GENERATE BLOCKED - Model not ready!');
-        if (callback) {
-            callback({ status: 'error', error });
+        if (LOG_GENERATION_FLOW) {
+            console.log(prefix, '❌ GENERATE BLOCKED - Model not ready! Attempting auto-restoration...');
         }
-        else {
-            safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.GENERATION_ERROR, payload: { error } });
+        // Try to auto-restore the last loaded model
+        try {
+            const lastModel = getLastLoadedModel();
+            if (lastModel) {
+                if (LOG_GENERATION_FLOW) {
+                    console.log(prefix, `🔄 Auto-restoring last model: ${lastModel.repoId}/${lastModel.quantPath}`);
+                }
+                // Send loading progress to UI
+                if (callback) {
+                    callback({
+                        status: 'progress',
+                        progress: 10,
+                        message: 'Auto-restoring last model...'
+                    });
+                }
+                else {
+                    safePostMessage({
+                        type: 'modelWorkerLoadingProgress',
+                        payload: {
+                            status: 'progress',
+                            progress: 10,
+                            message: 'Auto-restoring last model...'
+                        }
+                    });
+                }
+                // Load the model
+                await loadModel({
+                    modelId: `${lastModel.repoId}/${lastModel.quantPath}`,
+                    dtype: lastModel.quantPath
+                }, callback);
+                if (LOG_GENERATION_FLOW) {
+                    console.log(prefix, '✅ Auto-restoration successful, continuing with generation...');
+                }
+            }
+            else {
+                if (LOG_GENERATION_FLOW) {
+                    console.log(prefix, '❌ No last model to restore, trying default model...');
+                }
+                // Try to load a default model - use Phi-3.5 as default
+                const defaultModel = {
+                    repoId: 'onnx-community/Phi-3.5-mini-instruct-onnx-web',
+                    quantPath: 'q4f16'
+                };
+                try {
+                    if (LOG_GENERATION_FLOW) {
+                        console.log(prefix, `🔄 Auto-loading default model: ${defaultModel.repoId}/${defaultModel.quantPath}`);
+                    }
+                    // Send loading progress to UI
+                    if (callback) {
+                        callback({
+                            status: 'progress',
+                            progress: 10,
+                            message: 'Auto-loading default model...'
+                        });
+                    }
+                    else {
+                        safePostMessage({
+                            type: 'modelWorkerLoadingProgress',
+                            payload: {
+                                status: 'progress',
+                                progress: 10,
+                                message: 'Auto-loading default model...'
+                            }
+                        });
+                    }
+                    // Load the default model
+                    await loadModel({
+                        modelId: `${defaultModel.repoId}/${defaultModel.quantPath}`,
+                        dtype: defaultModel.quantPath
+                    }, callback);
+                    if (LOG_GENERATION_FLOW) {
+                        console.log(prefix, '✅ Default model auto-loading successful, continuing with generation...');
+                    }
+                }
+                catch (defaultLoadError) {
+                    if (LOG_ERROR) {
+                        console.error(prefix, '❌ Default model auto-loading failed:', defaultLoadError);
+                    }
+                    const error = 'Model not ready. Please load a model first.';
+                    if (callback) {
+                        callback({ status: 'error', error });
+                    }
+                    else {
+                        safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.GENERATION_ERROR, payload: { error } });
+                    }
+                    return;
+                }
+            }
         }
-        return;
+        catch (restoreError) {
+            if (LOG_ERROR) {
+                console.error(prefix, '❌ Auto-restoration failed:', restoreError);
+            }
+            const error = 'Model not ready. Please load a model first.';
+            if (callback) {
+                callback({ status: 'error', error });
+            }
+            else {
+                safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.GENERATION_ERROR, payload: { error } });
+            }
+            return;
+        }
     }
     try {
         isGenerating = true;
@@ -11118,6 +11349,7 @@ const loadModel = async (payload, callback) => {
         isTransformersModelReady = true;
         if (LOG_MODEL_LOADING)
             console.log(prefix, `Model loaded successfully: ${modelId}`);
+        // Model loaded successfully - persistent state was already saved when INIT message was received
         // Update manifest status to indicate successful download/loading
         await setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded);
         // Send completion messages
@@ -11203,6 +11435,116 @@ const clearCache = () => {
     if (LOG_GENERATION || LOG_GENERAL)
         console.log(prefix, 'Cache cleared, stopping criteria interrupted');
 };
+// UI Connection Management using BroadcastChannel
+// Called when UI instances connect/disconnect via llmChannel
+const handleUIConnected = (senderId, context) => {
+    const wasEmpty = activeUIConnections.size === 0;
+    activeUIConnections.add(senderId);
+    hasActiveUIConnection = true; // Legacy flag
+    // Cancel any pending VRAM cleanup
+    if (pongTimeout) {
+        clearTimeout(pongTimeout);
+        pongTimeout = null;
+        console.log(prefix, `⏸️ VRAM cleanup cancelled - UI reconnected (${context}, total: ${activeUIConnections.size})`);
+    }
+    if (wasEmpty) {
+        console.log(prefix, `✅ First UI connected (${context}) - ready to communicate [ID: ${senderId}]`);
+        // Start ping timer for the first UI
+        startPingTimer();
+    }
+    else {
+        console.log(prefix, `✅ Additional UI connected (${context}) - total connections: ${activeUIConnections.size} [ID: ${senderId}]`);
+    }
+};
+// Start periodic ping timer
+const startPingTimer = () => {
+    if (pingTimer) {
+        clearInterval(pingTimer);
+    }
+    pingTimer = setInterval(() => {
+        if (activeUIConnections.size > 0) {
+            sendPingToAllUIs();
+        }
+        else {
+            // No UIs connected, stop pinging
+            clearInterval(pingTimer);
+            pingTimer = null;
+        }
+    }, PING_INTERVAL_MS);
+    console.log(prefix, `🔄 Started ping timer (every ${PING_INTERVAL_MS / 1000}s)`);
+};
+// Send ping to all connected UIs
+const sendPingToAllUIs = () => {
+    if (activeUIConnections.size === 0)
+        return;
+    console.log(prefix, `🏓 Pinging ${activeUIConnections.size} UI(s) - waiting for pong...`);
+    // Send ping via BroadcastChannel
+    (async () => {
+        try {
+            const { llmChannel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts"));
+            llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.UI_PING,
+                payload: { timestamp: Date.now() },
+                senderId: 'background',
+                timestamp: Date.now()
+            });
+        }
+        catch (error) {
+            console.error(prefix, 'Failed to send ping:', error);
+        }
+    })();
+    // Set timeout - if no pong received, cleanup VRAM
+    pongTimeout = setTimeout(() => {
+        console.log(prefix, '⏰ No pong received - cleaning up VRAM and resetting model');
+        resetModel();
+        pongTimeout = null;
+    }, PONG_TIMEOUT_MS);
+};
+const handleUIDisconnected = (senderId, context) => {
+    if (!activeUIConnections.has(senderId)) {
+        console.log(prefix, `⚠️ Disconnect from unknown UI [ID: ${senderId}]`);
+        return;
+    }
+    activeUIConnections.delete(senderId);
+    console.log(prefix, `🔌 UI disconnected (${context}) - remaining connections: ${activeUIConnections.size} [ID: ${senderId}]`);
+    // Check if any remaining connections are sidepanels
+    const hasSidepanelConnection = Array.from(activeUIConnections).some(id => id.startsWith('sidepanel-'));
+    if (activeUIConnections.size === 0) {
+        hasActiveUIConnection = false; // Legacy flag
+        console.log(prefix, `⚠️ Last UI disconnected - will ping in ${PING_INTERVAL_MS / 1000}s to check if still alive`);
+        // Stop ping timer since no UIs are connected
+        if (pingTimer) {
+            clearInterval(pingTimer);
+            pingTimer = null;
+        }
+    }
+    else if (hasSidepanelConnection) {
+        // If we still have sidepanel connections, cancel any pending cleanup
+        if (pongTimeout) {
+            clearTimeout(pongTimeout);
+            pongTimeout = null;
+            console.log(prefix, `⏸️ VRAM cleanup cancelled - sidepanel still active (${activeUIConnections.size} connections)`);
+        }
+    }
+};
+const handleUIPong = (senderId) => {
+    // UI responded to ping - it's alive!
+    if (LOG_GENERAL) {
+        console.log(prefix, `🏓 Pong received from UI [ID: ${senderId}]`);
+    }
+    // Cancel the pong timeout since we got a response
+    if (pongTimeout) {
+        clearTimeout(pongTimeout);
+        pongTimeout = null;
+        console.log(prefix, '⏸️ VRAM cleanup cancelled - pong received');
+    }
+};
+const getActiveUICount = () => activeUIConnections.size;
+const hasActiveUI = () => activeUIConnections.size > 0;
+// Legacy function for backward compatibility
+const setUIConnectionActive = (active) => {
+    hasActiveUIConnection = active;
+};
 // Reset function
 const resetModel = () => {
     transformersModel = null;
@@ -11242,6 +11584,77 @@ const updateInferenceSettings = async () => {
     catch (error) {
         if (LOG_ERROR)
             console.error(prefix, '[updateInferenceSettings] Error updating settings:', error);
+    }
+};
+// State persistence functions
+const initializePersistentState = async () => {
+    await loadPersistentState();
+    if (LOG_GENERAL) {
+        console.log(prefix, '📂 Persistent state initialized');
+    }
+};
+const getPersistentState = () => {
+    return { ...persistentState };
+};
+const saveLastChatSession = (sessionId) => {
+    updateLastChatSession(sessionId);
+    if (LOG_GENERAL) {
+        console.log(prefix, `💾 Saved last chat session: ${sessionId}`);
+    }
+};
+const getModelState = () => {
+    return {
+        isReady: isTransformersModelReady,
+        repoId: currentModelRepoId,
+        quantPath: currentModelQuantPath
+    };
+};
+const saveLastLoadedModel = (modelId, dtype) => {
+    // modelId is the repo path (e.g., "onnx-community/Phi-3.5-mini-instruct-onnx-web")
+    // dtype is the quantization (e.g., "q4f16")
+    const repoId = modelId;
+    const quantPath = dtype;
+    updateLastLoadedModel(repoId, quantPath);
+    if (LOG_GENERAL) {
+        console.log(prefix, `💾 Saved last loaded model: ${modelId} (dtype: ${dtype})`);
+    }
+};
+const restoreLastLoadedModel = async () => {
+    const lastModel = getLastLoadedModel();
+    if (!lastModel) {
+        if (LOG_GENERAL) {
+            console.log(prefix, '📂 No last loaded model to restore');
+        }
+        return false;
+    }
+    if (LOG_GENERAL) {
+        console.log(prefix, `🔄 Attempting to restore last loaded model: ${lastModel.repoId}/${lastModel.quantPath}`);
+    }
+    try {
+        // Check if model is already loaded
+        if (isTransformersModelReady &&
+            currentModelRepoId === lastModel.repoId &&
+            currentModelQuantPath === lastModel.quantPath) {
+            if (LOG_GENERAL) {
+                console.log(prefix, '✅ Last loaded model already active, no restoration needed');
+            }
+            return true;
+        }
+        // Load the model
+        await loadModel({
+            modelId: lastModel.repoId, // Just the repo path, not including quant
+            dtype: lastModel.quantPath // Pass quant separately
+        });
+        if (LOG_GENERAL) {
+            console.log(prefix, '✅ Successfully restored last loaded model');
+        }
+        return true;
+    }
+    catch (error) {
+        if (LOG_ERROR) {
+            console.error(prefix, '❌ Failed to restore last loaded model:', error);
+        }
+        return false;
     }
 };
 // Global error handlers
@@ -11352,6 +11765,12 @@ const WorkerEventNames = Object.freeze({
     CACHE_CLEARED: 'cacheCleared',
     GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
     MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
+    // UI Connection Lifecycle - for managing VRAM and model cleanup
+    UI_CONNECTED: 'uiConnected', // When any UI instance (sidepanel/popup/detached) opens
+    UI_DISCONNECTED: 'uiDisconnected', // When any UI instance closes
+    UI_PING: 'uiPing', // Background pings UI to check if alive
+    UI_PONG: 'uiPong', // UI responds to ping
+    RESTORE_FROM_POPUP: 'restoreFromPopup', // Popup closed, restore sidepanel UI
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -11369,6 +11788,7 @@ const RuntimeMessageTypes = Object.freeze({
     INTERRUPT_GENERATION: 'interruptGeneration',
     RESET_WORKER: 'resetWorker',
     GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+    RESTORE_LAST_STATE: 'restoreLastState',
     SCRAPE_REQUEST: 'scrapeRequest',
     GET_DRIVE_FILE_LIST: 'getDriveFileList',
     GET_LOG_SESSIONS: 'getLogSessions',
@@ -11403,7 +11823,7 @@ const RawDirectMessageTypes = Object.freeze({
 const Contexts = Object.freeze({
     BACKGROUND: 'Background',
     MAIN_UI: 'MainUI',
-    POPUP: 'Popup',
+    MAIN_UI_POPUP: 'MainUIPopup', // Detached chat popup (same as MainUI, just in a separate window)
     OTHERS: 'Others',
     UNKNOWN: 'Unknown',
 });
@@ -11976,12 +12396,21 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().windows.onRemoved.a
             console.log(CONTEXT_PREFIX + ' Popup window ' + windowId + ' for tab ' + tabId + ' was closed.');
         delete detachedPopups[tabId];
         delete popupIdToTabId[windowId];
+        // Tell sidepanel to restore from detached state
         try {
-            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(`detachedState_${tabId}`);
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.RESTORE_FROM_POPUP,
+                payload: { tabId }
+            }).catch((error) => {
+                // Sidepanel might not be open, that's okay
+                if (LOG_POPUP)
+                    console.log(CONTEXT_PREFIX + ` Sidepanel not available for tab ${tabId}:`, error.message);
+            });
+            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(`detachedSessionId_${tabId}`);
         }
         catch (error) {
             if (LOG_ERROR)
-                console.error(CONTEXT_PREFIX + ` Error cleaning storage for tab ${tabId} on popup close:`, error);
+                console.error(CONTEXT_PREFIX + ` Error restoring sidepanel for tab ${tabId}:`, error);
         }
     }
 });
@@ -11995,6 +12424,9 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
             console.warn(CONTEXT_PREFIX + ' Received message without type:', message, 'From:', sender.id);
         return false;
     }
+    // Mark UI as active when we receive any message from it
+    // TODO: Move to proper port-based connection tracking to handle multiple UI instances
+    (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.setUIConnectionActive)(true);
     const { type, payload } = message;
     let isResponseAsync = false;
     if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.SCRAPE_REQUEST) {
@@ -12074,7 +12506,8 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return isResponseAsync;
     }
     if (type === 'popupCreated') {
-        const { tabId, popupId } = payload;
+        // Data is at message root level, not in payload
+        const { tabId, popupId } = message;
         detachedPopups[tabId] = popupId;
         popupIdToTabId[popupId] = tabId;
         if (LOG_POPUP)
@@ -12083,8 +12516,88 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         return false;
     }
     if (type === 'getPopupForTab') {
-        const existingPopupId = detachedPopups[payload.tabId];
+        // Data is at message root level, not in payload
+        const existingPopupId = detachedPopups[message.tabId];
         sendResponse({ popupId: existingPopupId || null });
+        return false;
+    }
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+        // Return current model state from background
+        let state = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.UNINITIALIZED;
+        if (isModelLoading) {
+            state = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.LOADING_MODEL;
+        }
+        else if (currentModelId) {
+            state = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MODEL_READY;
+        }
+        sendResponse({
+            state: state,
+            modelId: currentModelId,
+            dtype: currentModelDtype
+        });
+        return false;
+    }
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.RESTORE_LAST_STATE) {
+        // Restore last loaded model and session
+        if (LOG_MESSAGE_HANDLERS)
+            console.log(CONTEXT_PREFIX + ' Received RESTORE_LAST_STATE request');
+        isResponseAsync = true;
+        (async () => {
+            try {
+                // First initialize persistent state if not already done
+                await (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.initializePersistentState)();
+                // Get persistent state info
+                const persistentState = (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.getPersistentState)();
+                // Try to restore the last loaded model
+                const modelRestored = await (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.restoreLastLoadedModel)();
+                // Get actual model state from backgroundModelManager (not local variables)
+                const modelState = (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.getModelState)();
+                // Update local background variables to match the restored model
+                if (modelRestored && modelState.isReady) {
+                    currentModelId = modelState.repoId;
+                    currentModelDtype = modelState.quantPath;
+                    if (LOG_GENERAL)
+                        console.log(CONTEXT_PREFIX + ' Updated local model state after restoration:', { currentModelId, currentModelDtype });
+                }
+                sendResponse({
+                    success: true,
+                    modelRestored,
+                    lastModel: persistentState.lastLoadedModel,
+                    lastChatSession: persistentState.lastChatSessionId,
+                    currentModel: {
+                        id: modelState.repoId,
+                        dtype: modelState.quantPath,
+                        ready: modelState.isReady
+                    }
+                });
+            }
+            catch (error) {
+                if (LOG_ERROR)
+                    console.error(CONTEXT_PREFIX + ' Error restoring last state:', error);
+                sendResponse({
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        })();
+        return true; // MUST return true to keep the message channel open for async response
+    }
+    if (type === 'saveLastChatSession') {
+        // Save session ID to persistent state (called from sidepanel when session changes)
+        if (payload?.sessionId) {
+            (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.saveLastChatSession)(payload.sessionId);
+            if (LOG_GENERAL)
+                console.log(CONTEXT_PREFIX + ' 💾 Saved session to persistent state:', payload.sessionId);
+        }
+        return false;
+    }
+    if (type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DBEventNames.DB_CREATE_SESSION_RESPONSE) {
+        // Save the newly created session ID to persistent state
+        if (payload?.sessionId) {
+            (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.saveLastChatSession)(payload.sessionId);
+            if (LOG_GENERAL)
+                console.log(CONTEXT_PREFIX + ' Saved new session to persistent state:', payload.sessionId);
+        }
         return false;
     }
     if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__.DBEventNames).includes(type)) {
@@ -12099,6 +12612,12 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
             try {
                 if (LOG_MODEL_LOADING)
                     console.log(CONTEXT_PREFIX + ' Handling INIT request for model:', payload.modelId);
+                // Save model info immediately when we receive the load request
+                if (payload.modelId && payload.dtype) {
+                    (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.saveLastLoadedModel)(payload.modelId, payload.dtype);
+                    if (LOG_GENERAL)
+                        console.log(CONTEXT_PREFIX + ' 💾 Saved model info for restoration:', payload.modelId, payload.dtype);
+                }
                 isModelLoading = true;
                 currentModelId = payload.modelId;
                 currentModelDtype = payload.dtype;
@@ -12393,6 +12912,44 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         console.log(CONTEXT_PREFIX + ' Message handler completed for type:', type);
     return false;
 });
+// Listen to llmChannel for UI connection lifecycle events
+// This allows tracking multiple UI instances (sidepanel, popup, detached) across all contexts
+(async () => {
+    try {
+        const { llmChannel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts"));
+        llmChannel.onmessage = (event) => {
+            const { type, payload } = event.data;
+            switch (type) {
+                case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.UI_CONNECTED:
+                    if (payload?.senderId && payload?.context) {
+                        (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.handleUIConnected)(payload.senderId, payload.context);
+                    }
+                    break;
+                case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.UI_DISCONNECTED:
+                    if (payload?.senderId && payload?.context) {
+                        (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.handleUIDisconnected)(payload.senderId, payload.context);
+                    }
+                    break;
+                case _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.UI_PONG:
+                    if (payload?.senderId) {
+                        if (LOG_DEBUG)
+                            console.log(CONTEXT_PREFIX + ' 🏓 Received pong from:', payload.senderId);
+                        (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.handleUIPong)(payload.senderId);
+                    }
+                    break;
+                default:
+                    // Other llmChannel messages are handled by sidepanel
+                    break;
+            }
+        };
+        if (LOG_GENERAL)
+            console.log(CONTEXT_PREFIX + ' llmChannel listener established for UI lifecycle tracking');
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(CONTEXT_PREFIX + ' Failed to setup llmChannel listener:', error);
+    }
+})();
 (async () => {
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
@@ -12402,6 +12959,9 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
     isBackgroundScriptReady = true;
     if (LOG_GENERAL)
         console.log(CONTEXT_PREFIX + ' Background script is now ready');
+    // Log initial UI connection count
+    if (LOG_DEBUG)
+        console.log(CONTEXT_PREFIX + ` Initial UI connections: ${(0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.getActiveUICount)()}`);
 })();
 
 })();

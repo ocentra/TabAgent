@@ -58,6 +58,13 @@ export const WorkerEventNames = Object.freeze({
   CACHE_CLEARED: 'cacheCleared',
   GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
   MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
+  
+  // UI Connection Lifecycle - for managing VRAM and model cleanup
+  UI_CONNECTED: 'uiConnected',           // When any UI instance (sidepanel/popup/detached) opens
+  UI_DISCONNECTED: 'uiDisconnected',     // When any UI instance closes
+  UI_PING: 'uiPing',                     // Background pings UI to check if alive
+  UI_PONG: 'uiPong',                     // UI responds to ping
+  RESTORE_FROM_POPUP: 'restoreFromPopup', // Popup closed, restore sidepanel UI
 });
 
 export const ModelWorkerStates = Object.freeze({
@@ -78,6 +85,7 @@ export const RuntimeMessageTypes = Object.freeze({
   INTERRUPT_GENERATION: 'interruptGeneration',
   RESET_WORKER: 'resetWorker',
   GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+  RESTORE_LAST_STATE: 'restoreLastState',
   SCRAPE_REQUEST: 'scrapeRequest',
   GET_DRIVE_FILE_LIST: 'getDriveFileList',
   GET_LOG_SESSIONS: 'getLogSessions',
@@ -117,7 +125,7 @@ export const RawDirectMessageTypes = Object.freeze({
 export const Contexts = Object.freeze({
   BACKGROUND: 'Background',
   MAIN_UI: 'MainUI',
-  POPUP: 'Popup',
+  MAIN_UI_POPUP: 'MainUIPopup',  // Detached chat popup (same as MainUI, just in a separate window)
   OTHERS: 'Others',
   UNKNOWN: 'Unknown',
 });

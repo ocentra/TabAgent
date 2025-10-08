@@ -10621,7 +10621,8 @@ class ChatOrchestrator {
         if (this.LOG_GENERAL)
             console.log(this.prefix, `handleQuerySubmit: Processing submission. Text: "${text}". Session: ${sessionId}`);
         const isURL = _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_1__.URL_REGEX.test(text);
-        if (!isURL && !(0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.isModelLoaded)()) {
+        // Check if model is loaded by querying background (accurate state)
+        if (!isURL && !(await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.isModelLoaded)())) {
             this.showUiOnlyWarning('Please load a model first.');
             this.isSendingMessage = false;
             return;
@@ -10740,8 +10741,8 @@ class ChatOrchestrator {
                     });
                 }
                 try {
-                    // Check if model is loaded before sending
-                    const modelLoaded = (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.isModelLoaded)();
+                    // Check if model is loaded before sending (query background for accurate state)
+                    const modelLoaded = await (0,_sidepanel__WEBPACK_IMPORTED_MODULE_2__.isModelLoaded)();
                     if (this.LOG_GENERATION_FLOW) {
                         console.log(this.prefix, '🚀 Sending GENERATE to background:', {
                             isModelLoaded: modelLoaded,
@@ -12063,12 +12064,24 @@ async function loadDefaultModel() {
     if (LOG_INFO)
         console.log(prefix, "Loading default model...");
     try {
-        // Check if a model is already loaded
-        const { getCurrentLoadedModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../sidepanel */ "./src/sidepanel.ts"));
+        // Check if a model is already loaded or loading
+        const { getCurrentLoadedModel, queryBackgroundModelState } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../sidepanel */ "./src/sidepanel.ts"));
         const currentLoadedModel = getCurrentLoadedModel();
         if (currentLoadedModel && currentLoadedModel.modelId) {
             if (LOG_INFO)
                 console.log(prefix, `Model already loaded: ${currentLoadedModel.modelId}, skipping default model loading`);
+            return true;
+        }
+        // Also check if background is currently loading a model
+        const bgModelState = await queryBackgroundModelState();
+        if (bgModelState.isLoading) {
+            if (LOG_INFO)
+                console.log(prefix, `Model is currently loading in background, skipping default model loading`);
+            return true;
+        }
+        if (bgModelState.isReady && bgModelState.modelId) {
+            if (LOG_INFO)
+                console.log(prefix, `Background has model ready: ${bgModelState.modelId}, skipping default model loading`);
             return true;
         }
         // Get the first model from AVAILABLE_MODELS
@@ -12785,6 +12798,12 @@ const WorkerEventNames = Object.freeze({
     CACHE_CLEARED: 'cacheCleared',
     GOOGLE_TERMS_ACCEPTED: 'googleTermsAccepted',
     MEDIA_PIPE_MODULE_READY: 'mediaPipeModuleReady',
+    // UI Connection Lifecycle - for managing VRAM and model cleanup
+    UI_CONNECTED: 'uiConnected', // When any UI instance (sidepanel/popup/detached) opens
+    UI_DISCONNECTED: 'uiDisconnected', // When any UI instance closes
+    UI_PING: 'uiPing', // Background pings UI to check if alive
+    UI_PONG: 'uiPong', // UI responds to ping
+    RESTORE_FROM_POPUP: 'restoreFromPopup', // Popup closed, restore sidepanel UI
 });
 const ModelWorkerStates = Object.freeze({
     UNINITIALIZED: 'uninitialized',
@@ -12802,6 +12821,7 @@ const RuntimeMessageTypes = Object.freeze({
     INTERRUPT_GENERATION: 'interruptGeneration',
     RESET_WORKER: 'resetWorker',
     GET_MODEL_WORKER_STATE: 'getModelWorkerState',
+    RESTORE_LAST_STATE: 'restoreLastState',
     SCRAPE_REQUEST: 'scrapeRequest',
     GET_DRIVE_FILE_LIST: 'getDriveFileList',
     GET_LOG_SESSIONS: 'getLogSessions',
@@ -12836,7 +12856,7 @@ const RawDirectMessageTypes = Object.freeze({
 const Contexts = Object.freeze({
     BACKGROUND: 'Background',
     MAIN_UI: 'MainUI',
-    POPUP: 'Popup',
+    MAIN_UI_POPUP: 'MainUIPopup', // Detached chat popup (same as MainUI, just in a separate window)
     OTHERS: 'Others',
     UNKNOWN: 'Unknown',
 });
@@ -13027,6 +13047,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getCurrentLoadedModel: () => (/* binding */ getCurrentLoadedModel),
 /* harmony export */   isGenerationActive: () => (/* binding */ isGenerationActive),
 /* harmony export */   isModelLoaded: () => (/* binding */ isModelLoaded),
+/* harmony export */   queryBackgroundModelState: () => (/* binding */ queryBackgroundModelState),
 /* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart),
 /* harmony export */   sendToModelManager: () => (/* binding */ sendToModelManager)
 /* harmony export */ });
@@ -13152,7 +13173,50 @@ let currentTabId = null;
 let isDbReady = false;
 let historyPopupController = null;
 let logQueue = [];
+let detachedOverlay = null;
 const prefix = '[Sidepanel]';
+// Show overlay when chat is moved to popup
+function showDetachedOverlay() {
+    if (detachedOverlay)
+        return; // Already shown
+    detachedOverlay = document.createElement('div');
+    detachedOverlay.id = 'detached-overlay';
+    detachedOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(243, 244, 246, 0.98);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+  `;
+    detachedOverlay.innerHTML = `
+    <div style="text-align: center; padding: 2rem;">
+      <div style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.7;">📤</div>
+      <h2 style="margin: 0 0 0.75rem 0; font-size: 1.5rem; font-weight: 600; color: #1f2937;">Chat Moved to Popup</h2>
+      <p style="margin: 0; color: #6b7280; font-size: 1rem; max-width: 320px; line-height: 1.5;">
+        Your chat is now in a separate popup window.<br>
+        You can close this side panel if you'd like.
+      </p>
+    </div>
+  `;
+    document.body.appendChild(detachedOverlay);
+    if (LOG_DEBUG)
+        console.log(`${prefix} Detached overlay shown`);
+}
+// Hide overlay when popup closes and restore full UI
+function hideDetachedOverlay() {
+    if (detachedOverlay && detachedOverlay.parentNode) {
+        detachedOverlay.parentNode.removeChild(detachedOverlay);
+        detachedOverlay = null;
+        if (LOG_DEBUG)
+            console.log(`${prefix} Detached overlay removed`);
+    }
+}
 // Throttling for high-frequency debug logs
 let sidepanelLogCount = 0;
 const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
@@ -13193,7 +13257,7 @@ function syncToggleLoadButton() {
         const viewParam = urlParams.get('view');
         window.EXTENSION_CONTEXT =
             contextParam === 'popup'
-                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.POPUP
+                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI_POPUP
                 : viewParam === 'logs'
                     ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.OTHERS
                     : _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI;
@@ -13502,6 +13566,13 @@ function handleModelManagerMessage(event) {
             }
             break;
         }
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESTORE_FROM_POPUP: {
+            // Popup closed, remove overlay and restore full UI
+            if (LOG_DEBUG)
+                console.log(`${prefix} RESTORE_FROM_POPUP received`);
+            hideDetachedOverlay();
+            break;
+        }
         case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_ERROR:
             isGenerating = false;
             updateSendButtonForGeneration(false);
@@ -13638,6 +13709,19 @@ async function setActiveChatSessionId(newSessionId) {
     activeSessionId = newSessionId;
     if (newSessionId) {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.set({ lastSessionId: newSessionId });
+        // Also save to persistent state for background restoration
+        try {
+            await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
+                type: 'saveLastChatSession',
+                payload: { sessionId: newSessionId }
+            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} 💾 Saved session to persistent state: ${newSessionId}`);
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to save session to persistent state:`, error);
+        }
     }
     else {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.remove('lastSessionId');
@@ -13676,6 +13760,18 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
         if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
             if (LOG_DEBUG)
                 console.log(`${prefix} Message from another sidepanel context, ignoring`, { msgSenderId, senderId });
+            return;
+        }
+        // Handle ping from background - respond with pong
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_PING) {
+            if (LOG_DEBUG)
+                console.log(`${prefix} 🏓 Received ping from background - sending pong`);
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_PONG,
+                payload: { senderId, timestamp: Date.now() },
+                senderId,
+                timestamp: Date.now()
+            });
             return;
         }
         if ([
@@ -13854,6 +13950,20 @@ async function loadAndDisplaySession(sessionId) {
     }
 }
 async function handleDetach() {
+    // In popup: Close popup and restore to sidepanel
+    if (isPopup && originalTabIdFromPopup) {
+        try {
+            // Close this popup window
+            window.close();
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Error closing popup:`, error);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Error closing popup window');
+        }
+        return;
+    }
+    // In sidepanel: Move to popup
     if (!currentTabId) {
         if (LOG_ERROR)
             console.error('Cannot detach: Missing tab ID');
@@ -13867,7 +13977,10 @@ async function handleDetach() {
             tabId: currentTabId,
         });
         if (response?.popupId) {
+            // Popup already exists, just focus it
             await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().windows.update(response.popupId, { focused: true });
+            // Show detached overlay
+            showDetachedOverlay();
             return;
         }
         const storageKey = `detachedSessionId_${currentTabId}`;
@@ -13886,6 +13999,8 @@ async function handleDetach() {
                 tabId: currentTabId,
                 popupId: popup.id,
             });
+            // Show detached overlay in sidepanel
+            showDetachedOverlay();
         }
         else {
             throw new Error('Failed to create popup window.');
@@ -13898,11 +14013,42 @@ async function handleDetach() {
         (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error detaching chat: ${err.message}`);
     }
 }
-function isModelLoaded() {
-    return modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY && !!currentModelIdInManager;
+// Query background for accurate model loaded state
+async function isModelLoaded() {
+    const bgState = await queryBackgroundModelState();
+    return bgState.isReady && !!bgState.modelId;
 }
 function getCurrentLoadedModel() {
     return currentLoadedModel;
+}
+// Query background for actual loaded model state (for popup initialization)
+async function queryBackgroundModelState() {
+    try {
+        const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
+        });
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY && response?.modelId) {
+            return {
+                modelId: response.modelId,
+                quant: response.dtype || null,
+                isReady: true,
+                isLoading: false
+            };
+        }
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL) {
+            return {
+                modelId: response.modelId || null,
+                quant: response.dtype || null,
+                isReady: false,
+                isLoading: true
+            };
+        }
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to query background model state:`, error);
+    }
+    return { modelId: null, quant: null, isReady: false, isLoading: false };
 }
 function isGenerationActive() {
     return isGenerating;
@@ -14077,11 +14223,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No model selected.');
                 return;
             }
-            // Check if the same model is already loaded
-            if (currentLoadedModel.modelId === modelId && currentLoadedModel.quant === dtype && modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY) {
+            // Check if the same model is already loaded (query background for accurate state)
+            const bgState = await queryBackgroundModelState();
+            const isAlreadyLoaded = bgState.isReady && bgState.modelId === modelId && bgState.quant === dtype;
+            if (isAlreadyLoaded) {
                 if (LOG_DEBUG)
-                    console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded. Skipping reload.`);
+                    console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded in background. Skipping reload.`);
                 (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
+                // Sync local state with background
+                currentLoadedModel.modelId = bgState.modelId;
+                currentLoadedModel.quant = bgState.quant;
+                currentModelIdInManager = bgState.modelId;
+                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
                 // Reset UI loading state since we're not actually loading
                 document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_ALREADY_LOADED, {
                     detail: { modelId, dtype, loadId }
@@ -14089,9 +14242,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             // Reset model if switching to different model or if in error state
-            if (currentModelIdInManager !== modelId || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR) {
+            // Check background state to determine if reset is needed
+            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+            if (needsReset) {
                 if (LOG_DEBUG)
-                    console.log(`${prefix} Resetting model before loading new one. Current: ${currentModelIdInManager}, New: ${modelId}, State: ${modelManagerState}`);
+                    console.log(`${prefix} Resetting model before loading new one. Current (BG): ${bgState.modelId}, New: ${modelId}, State: ${modelManagerState}`);
                 await terminateModelManager();
             }
             // Check if background is ready
@@ -14192,6 +14347,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         isPopup = popupContext === 'popup';
         if (LOG_DEBUG)
             console.log(`${prefix} Context: ${isPopup ? 'Popup' : 'Sidepanel'}${isPopup ? ', Original Tab: ' + originalTabIdFromPopup : ''}`);
+        // Check if we have bypass settings that might affect manifest status
+        const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getBypassSizeLimitModels)().size > 0;
+        await ensureManifestForDropdownRepos(hasBypassSettings);
+        // CRITICAL: Initialize database BEFORE trying to load any sessions
+        const dbInitSuccess = await initializeDatabase();
+        if (!dbInitSuccess)
+            return;
+        // Now safe to load sessions (DB is ready)
         if (isPopup && originalTabIdFromPopup) {
             const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
             const result = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.get(storageKey);
@@ -14212,31 +14375,146 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
             await loadAndDisplaySession(null);
         }
-        // Check if we have bypass settings that might affect manifest status
-        const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getBypassSizeLimitModels)().size > 0;
-        await ensureManifestForDropdownRepos(hasBypassSettings);
-        const dbInitSuccess = await initializeDatabase();
-        if (!dbInitSuccess)
-            return;
-        // Load default model after everything is initialized
-        try {
-            const { loadDefaultModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Home/uiController */ "./src/Home/uiController.ts"));
-            const defaultModelLoaded = await loadDefaultModel();
-            if (defaultModelLoaded) {
-                if (LOG_DEBUG)
-                    console.log(`${prefix} Default model loading initiated.`);
+        // Query background for current model state (important for popup instances)
+        const bgModelState = await queryBackgroundModelState();
+        if (bgModelState.isReady && bgModelState.modelId) {
+            // Background already has a model loaded - sync local state
+            if (LOG_DEBUG)
+                console.log(`${prefix} Background has model loaded: ${bgModelState.modelId} (${bgModelState.quant}), syncing local state`);
+            currentLoadedModel = {
+                modelId: bgModelState.modelId,
+                quant: bgModelState.quant
+            };
+            currentModelIdInManager = bgModelState.modelId;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+            syncToggleLoadButton();
+            // Model is already loaded, but we should still restore the last chat session
+            try {
+                const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                });
+                if (restoreResponse?.success && restoreResponse.lastChatSession) {
+                    if (LOG_DEBUG)
+                        console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
+                    await loadAndDisplaySession(restoreResponse.lastChatSession);
+                    if (LOG_DEBUG)
+                        console.log(`${prefix} ✅ Successfully restored last chat session`);
+                }
             }
-            else {
-                if (LOG_DEBUG)
-                    console.log(`${prefix} Default model loading failed or skipped.`);
+            catch (error) {
+                if (LOG_ERROR)
+                    console.error(`${prefix} Error restoring last chat session:`, error);
             }
         }
-        catch (error) {
-            if (LOG_ERROR)
-                console.error(`${prefix} Error loading default model:`, error);
+        // Try to restore last state if no model is loaded
+        else if (!bgModelState.isReady) {
+            try {
+                if (LOG_DEBUG)
+                    console.log(`${prefix} No model loaded, attempting to restore last state...`);
+                const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                });
+                if (restoreResponse?.success) {
+                    if (LOG_DEBUG) {
+                        console.log(`${prefix} State restoration response:`, {
+                            modelRestored: restoreResponse.modelRestored,
+                            lastModel: restoreResponse.lastModel,
+                            lastChatSession: restoreResponse.lastChatSession,
+                            currentModel: restoreResponse.currentModel
+                        });
+                        console.log(`${prefix} Restoration decision:`, {
+                            modelRestored: restoreResponse.modelRestored,
+                            currentModelReady: restoreResponse.currentModel?.ready,
+                            willRestore: restoreResponse.modelRestored && restoreResponse.currentModel?.ready,
+                            willLoadDefault: !(restoreResponse.modelRestored && restoreResponse.currentModel?.ready)
+                        });
+                    }
+                    if (restoreResponse.modelRestored && restoreResponse.currentModel?.ready) {
+                        // Model was successfully restored - update local state
+                        currentLoadedModel = {
+                            modelId: restoreResponse.currentModel.id,
+                            quant: restoreResponse.currentModel.dtype
+                        };
+                        currentModelIdInManager = restoreResponse.currentModel.id;
+                        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+                        syncToggleLoadButton();
+                        if (LOG_DEBUG)
+                            console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
+                        // If there's a last chat session, load it
+                        if (restoreResponse.lastChatSession) {
+                            if (LOG_DEBUG)
+                                console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
+                            await loadAndDisplaySession(restoreResponse.lastChatSession);
+                            if (LOG_DEBUG)
+                                console.log(`${prefix} ✅ Successfully restored last chat session`);
+                        }
+                    }
+                    else {
+                        // No model to restore, load default model
+                        if (LOG_DEBUG)
+                            console.log(`${prefix} No model to restore, loading default model...`);
+                        const { loadDefaultModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Home/uiController */ "./src/Home/uiController.ts"));
+                        const defaultModelLoaded = await loadDefaultModel();
+                        if (defaultModelLoaded) {
+                            if (LOG_DEBUG)
+                                console.log(`${prefix} Default model loading initiated.`);
+                        }
+                        else {
+                            if (LOG_DEBUG)
+                                console.log(`${prefix} Default model loading failed or skipped.`);
+                        }
+                    }
+                }
+                else {
+                    if (LOG_ERROR)
+                        console.error(`${prefix} State restoration failed:`, restoreResponse?.error);
+                    // Fallback to default model
+                    const { loadDefaultModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Home/uiController */ "./src/Home/uiController.ts"));
+                    const defaultModelLoaded = await loadDefaultModel();
+                    if (defaultModelLoaded) {
+                        if (LOG_DEBUG)
+                            console.log(`${prefix} Default model loading initiated.`);
+                    }
+                }
+            }
+            catch (error) {
+                if (LOG_ERROR)
+                    console.error(`${prefix} Error during state restoration:`, error);
+                // Fallback to default model
+                try {
+                    const { loadDefaultModel } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Home/uiController */ "./src/Home/uiController.ts"));
+                    const defaultModelLoaded = await loadDefaultModel();
+                    if (defaultModelLoaded) {
+                        if (LOG_DEBUG)
+                            console.log(`${prefix} Default model loading initiated.`);
+                    }
+                }
+                catch (fallbackError) {
+                    if (LOG_ERROR)
+                        console.error(`${prefix} Error loading default model:`, fallbackError);
+                }
+            }
+        }
+        else {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Skipping default model load - model already loaded in background`);
         }
         if (LOG_DEBUG)
             console.log(`${prefix} Initialization complete.`);
+        // Broadcast UI_CONNECTED to notify background script
+        // This enables proper VRAM management and tracks multiple UI instances
+        const contextName = window.EXTENSION_CONTEXT || 'unknown';
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_CONNECTED,
+            payload: { senderId, context: contextName },
+            senderId,
+            timestamp: Date.now()
+        });
+        if (LOG_DEBUG)
+            console.log(`${prefix} Broadcast UI_CONNECTED (context: ${contextName}, senderId: ${senderId})`);
+        // No need for heartbeat - background will ping us every 2 minutes
+        if (LOG_DEBUG)
+            console.log(`${prefix} ✅ Connected - background will ping every 2 minutes (senderId: ${senderId})`);
         const modelDropdownEl = document.getElementById('model-selector');
         const quantDropdownEl = document.getElementById('onnx-variant-selector');
         if (modelDropdownEl) {
@@ -14569,6 +14847,51 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
         console.error('[Sidepanel] Error refreshing manifest:', e);
     }
 });
+// Handle UI lifecycle for VRAM management
+// Broadcast disconnect when window unloads or becomes hidden
+window.addEventListener('beforeunload', () => {
+    const contextName = window.EXTENSION_CONTEXT || 'unknown';
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_DISCONNECTED,
+        payload: { senderId, context: contextName },
+        senderId,
+        timestamp: Date.now()
+    });
+    if (LOG_DEBUG)
+        console.log(`${prefix} Broadcast UI_DISCONNECTED on beforeunload (context: ${contextName}, senderId: ${senderId})`);
+});
+// Handle visibility changes for popup/detached windows only
+// Sidepanels should never disconnect - they stay open and connected
+document.addEventListener('visibilitychange', () => {
+    const contextName = window.EXTENSION_CONTEXT || 'unknown';
+    // MainUI (sidepanel) and MainUIPopup (detached chat) should never disconnect - they're both chat interfaces
+    if (contextName === 'MainUI' || contextName === 'MainUIPopup') {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Chat UI ignores visibility changes - staying connected (context: ${contextName})`);
+        return;
+    }
+    if (document.hidden) {
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_DISCONNECTED,
+            payload: { senderId, context: contextName },
+            senderId,
+            timestamp: Date.now()
+        });
+        if (LOG_DEBUG)
+            console.log(`${prefix} Broadcast UI_DISCONNECTED on visibility hidden (context: ${contextName}, senderId: ${senderId})`);
+    }
+    else {
+        // Page became visible again - re-register
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_CONNECTED,
+            payload: { senderId, context: contextName },
+            senderId,
+            timestamp: Date.now()
+        });
+        if (LOG_DEBUG)
+            console.log(`${prefix} Broadcast UI_CONNECTED on visibility visible (context: ${contextName}, senderId: ${senderId})`);
+    }
+});
 
 
 /***/ })
@@ -14645,7 +14968,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "def66f08ffbc5718118a" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "abe3686c73b8e43fbc2c" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

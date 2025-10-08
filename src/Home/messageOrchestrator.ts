@@ -205,7 +205,8 @@ class ChatOrchestrator {
         if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: Processing submission. Text: "${text}". Session: ${sessionId}`);
         const isURL = URL_REGEX.test(text);
 
-        if (!isURL && !isModelLoaded()) {
+        // Check if model is loaded by querying background (accurate state)
+        if (!isURL && !(await isModelLoaded())) {
             this.showUiOnlyWarning('Please load a model first.');
             this.isSendingMessage = false;
             return;
@@ -309,8 +310,8 @@ class ChatOrchestrator {
                 }
                 
                 try {
-                    // Check if model is loaded before sending
-                    const modelLoaded = isModelLoaded();
+                    // Check if model is loaded before sending (query background for accurate state)
+                    const modelLoaded = await isModelLoaded();
                     if (this.LOG_GENERATION_FLOW) {
                         console.log(this.prefix, '🚀 Sending GENERATE to background:', {
                             isModelLoaded: modelLoaded,

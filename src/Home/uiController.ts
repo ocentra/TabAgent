@@ -1151,11 +1151,22 @@ export async function loadDefaultModel(): Promise<boolean> {
     if (LOG_INFO) console.log(prefix, "Loading default model...");
     
     try {
-        // Check if a model is already loaded
-        const { getCurrentLoadedModel } = await import('../sidepanel');
+        // Check if a model is already loaded or loading
+        const { getCurrentLoadedModel, queryBackgroundModelState } = await import('../sidepanel');
         const currentLoadedModel = getCurrentLoadedModel();
         if (currentLoadedModel && currentLoadedModel.modelId) {
             if (LOG_INFO) console.log(prefix, `Model already loaded: ${currentLoadedModel.modelId}, skipping default model loading`);
+            return true;
+        }
+        
+        // Also check if background is currently loading a model
+        const bgModelState = await queryBackgroundModelState();
+        if (bgModelState.isLoading) {
+            if (LOG_INFO) console.log(prefix, `Model is currently loading in background, skipping default model loading`);
+            return true;
+        }
+        if (bgModelState.isReady && bgModelState.modelId) {
+            if (LOG_INFO) console.log(prefix, `Background has model ready: ${bgModelState.modelId}, skipping default model loading`);
             return true;
         }
         

@@ -8,7 +8,9 @@ import {
   getFromIndexedDB,
   getChunkInfo,
   assembleChunks,
-  createStreamingResponseFromChunks
+  createStreamingResponseFromChunks,
+  shouldChunkFile,
+  saveChunkedFileSafe
 } from '../DB/idbModel';
 
 const prefix = '[PipelineDBHandler]';
@@ -330,6 +332,132 @@ export class PipelineDBHandler {
     if (originalUrl && resourceUrl !== originalUrl && !LARGE_FILE_REGEX.test(resourceUrl)) {
       await saveToIndexedDB(originalUrl, blob);
     }
+  }
+
+  /**
+   * Fetch file from network and cache to IndexedDB
+   * Pure logic - no UI dependencies or global state
+   * 
+   * @param resourceUrl - URL to fetch
+   * @param originalFetch - Unmodified fetch function
+   * @param options - Optional configuration
+   * @returns Response from network
+   */
+  static async fetchAndCacheFile(
+    resourceUrl: string,
+    originalFetch: typeof fetch,
+    options?: {
+      currentModelRepoId?: string | null;
+      progressCallback?: (info: {
+        loaded: number;
+        total: number;
+        progress: number; // 0-100
+      }) => void;
+    }
+  ): Promise<Response> {
+    if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] Fetching: ${resourceUrl}`);
+    
+    // Fetch from network
+    const resp = await originalFetch(resourceUrl);
+    if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] Response: status=${resp.status}, ok=${resp.ok}`);
+    
+    if (!resp.ok) {
+      return resp;
+    }
+
+    // Get content length for progress tracking
+    const contentLength = resp.headers.get('content-length');
+    const totalBytes = contentLength ? parseInt(contentLength, 10) : null;
+    
+    if (totalBytes && totalBytes > 0 && options?.progressCallback) {
+      // Stream the response with progress tracking
+      const reader = resp.body?.getReader();
+      if (reader) {
+        const chunks: Uint8Array[] = [];
+        let receivedBytes = 0;
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            chunks.push(value);
+            receivedBytes += value.length;
+            
+            // Calculate progress percentage (0-100)
+            const progress = Math.round((receivedBytes / totalBytes) * 100);
+            
+            // Send progress update every 5% or every 10MB
+            if (progress % 5 === 0 || receivedBytes % (10 * 1024 * 1024) === 0) {
+              options.progressCallback({
+                loaded: receivedBytes,
+                total: totalBytes,
+                progress
+              });
+            }
+          }
+          
+          // Reconstruct the response from chunks
+          const allChunks = new Uint8Array(receivedBytes);
+          let offset = 0;
+          for (const chunk of chunks) {
+            allChunks.set(chunk, offset);
+            offset += chunk.length;
+          }
+          
+          // Create blob for caching
+          const blob = new Blob([allChunks]);
+          const fileSize = blob.size;
+          
+          // Check if file should be chunked (large files)
+          if (shouldChunkFile(fileSize)) {
+            if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] Large file (${fileSize} bytes), chunking: ${resourceUrl}`);
+            try {
+              await saveChunkedFileSafe(resourceUrl, blob, options.currentModelRepoId!);
+            } catch (chunkError) {
+              if (LOG_ERROR) console.error(prefix, '[fetchAndCacheFile] Chunking failed, using regular storage:', chunkError);
+              await saveToIndexedDB(resourceUrl, blob);
+            }
+          } else {
+            // Regular file storage
+            if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] Small file (${fileSize} bytes), regular storage: ${resourceUrl}`);
+            await saveToIndexedDB(resourceUrl, blob);
+          }
+          
+          // Return response with reconstructed body
+          return new Response(blob, {
+            status: resp.status,
+            statusText: resp.statusText,
+            headers: resp.headers
+          });
+          
+        } finally {
+          reader.releaseLock();
+        }
+      }
+    }
+    
+    // Fallback: if we can't track progress, just download normally
+    const blob = await resp.clone().blob();
+    const fileSize = blob.size;
+    if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] File size: ${fileSize} bytes (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+    
+    // Check if file should be chunked
+    if (shouldChunkFile(fileSize)) {
+      if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] Large file (${fileSize} bytes), chunking: ${resourceUrl}`);
+      try {
+        await saveChunkedFileSafe(resourceUrl, blob, options?.currentModelRepoId!);
+      } catch (chunkError) {
+        if (LOG_ERROR) console.error(prefix, '[fetchAndCacheFile] Chunking failed, using regular storage:', chunkError);
+        await saveToIndexedDB(resourceUrl, blob);
+      }
+    } else {
+      // Regular file storage
+      if (LOG_GENERAL) console.log(prefix, `[fetchAndCacheFile] Small file (${fileSize} bytes), regular storage: ${resourceUrl}`);
+      await saveToIndexedDB(resourceUrl, blob);
+    }
+    
+    return resp;
   }
 
   /**

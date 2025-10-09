@@ -4,7 +4,7 @@ import { env, AutoTokenizer, AutoModelForCausalLM, TextStreamer, InterruptableSt
 import { WorkerEventNames, UIEventNames, LoadingStatusTypes } from './events/eventNames';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings, DEFAULT_SYSTEM_PROMPT_NORMAL, DEFAULT_SYSTEM_PROMPT_JSON } from './Controllers/InferenceSettings';
 import { 
-  getFromIndexedDB, getManifestEntry, QuantStatus, getInferenceSettings as dbGetInferenceSettings, CHUNK_SIZE, shouldChunkFile, saveChunkedFileSafe 
+  getManifestEntry, QuantStatus, getInferenceSettings as dbGetInferenceSettings
 } from './DB/idbModel';
 import { PipelineHelpers } from './Pipelines/PipelineHelpers';
 import { PipelineStateManager } from './Pipelines/PipelineStateManager';
@@ -196,14 +196,14 @@ function safePostMessage(message: any) {
 })();
 
 
-// Try to serve from IndexedDB
-// Fetch from network and cache
+// Fetch from network and cache (thin wrapper around PipelineDBHandler.fetchAndCacheFile)
 async function fetchFromNetworkAndCache(input: string | Request | URL, resourceUrl: string, options?: any): Promise<Response> {
   const { fetchInput } = PipelineDBHandler.determineFetchInput(input, resourceUrl);
+  const fileName = resourceUrl.split('/').pop() || 'file';
+  
   if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Fetching from: ${resourceUrl}, fetchInput: ${fetchInput}`);
   
-  // Send download start event (progress range: 0-25%)
-  const fileName = resourceUrl.split('/').pop() || 'file';
+  // Send download start event
   safePostMessage({ 
     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
     payload: { 
@@ -227,135 +227,39 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
     }
   }
   
-  const resp = await originalFetch.call(self, fetchInput, options);
-  if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Response: status=${resp.status}, statusText=${resp.statusText}, ok=${resp.ok}`);
-  if (!resp.ok) {
-    return resp;
-  }
-
-  // Get content length for progress tracking
-  const contentLength = resp.headers.get('content-length');
-  const totalBytes = contentLength ? parseInt(contentLength, 10) : null;
-  
-  if (totalBytes && totalBytes > 0) {
-    // Stream the response with progress tracking
-    const reader = resp.body?.getReader();
-    if (reader) {
-      const chunks: Uint8Array[] = [];
-      let receivedBytes = 0;
-      
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          chunks.push(value);
-          receivedBytes += value.length;
-          
-          // Calculate progress percentage (map to 0-25% range for downloads)
-          const downloadProgress = Math.round((receivedBytes / totalBytes) * 25);
-          
-          // Send progress update every 5% or every 10MB
-          if (downloadProgress % 5 === 0 || receivedBytes % (10 * 1024 * 1024) === 0) {
-            safePostMessage({ 
-              type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-              payload: { 
-                status: LoadingStatusTypes.PROGRESS, 
-                file: fileName, 
-                progress: downloadProgress, 
-                loadId: currentLoadId,
-                loaded: receivedBytes,
-                total: totalBytes,
-                message: `Downloading ${fileName}... ${Math.round((receivedBytes / totalBytes) * 100)}% (${(receivedBytes / 1024 / 1024).toFixed(1)}MB / ${(totalBytes / 1024 / 1024).toFixed(1)}MB)`
-              } 
-            });
-          }
+  // Use pure fetch logic from PipelineDBHandler
+  const response = await PipelineDBHandler.fetchAndCacheFile(
+    resourceUrl,
+    originalFetch.bind(self),
+    {
+      currentModelRepoId,
+      progressCallback: ({ loaded, total, progress }) => {
+        // Map progress to 0-25% range for downloads
+        const downloadProgress = Math.round(progress * 0.25);
+        
+        // Send progress update every 5% or every 10MB
+        if (downloadProgress % 5 === 0 || loaded % (10 * 1024 * 1024) === 0) {
+          safePostMessage({ 
+            type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+            payload: { 
+              status: LoadingStatusTypes.PROGRESS, 
+              file: fileName, 
+              progress: downloadProgress, 
+              loadId: currentLoadId,
+              loaded,
+              total,
+              message: `Downloading ${fileName}... ${progress}% (${(loaded / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB)`
+            } 
+          });
         }
-        
-        // Reconstruct the response from chunks
-        const allChunks = new Uint8Array(receivedBytes);
-        let offset = 0;
-        for (const chunk of chunks) {
-          allChunks.set(chunk, offset);
-          offset += chunk.length;
-        }
-        
-        // Send download complete event (25% for download completion)
-        safePostMessage({ 
-          type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-          payload: { 
-            status: LoadingStatusTypes.PROGRESS, 
-            file: fileName, 
-            progress: 25, 
-            loadId: currentLoadId,
-            loaded: receivedBytes,
-            total: totalBytes,
-            message: `Downloaded ${fileName} (${(receivedBytes / 1024 / 1024).toFixed(1)}MB)`
-          } 
-        });
-        
-        // Create new response with the reconstructed body
-        const blob = new Blob([allChunks]);
-        const fileSize = blob.size;
-        
-        // Check if file should be chunked (large files) - STREAMING PATH
-        if (shouldChunkFile(fileSize)) {
-          if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Large file detected (${fileSize} bytes), will chunk: ${resourceUrl}`);
-          if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] File size: ${fileSize}, CHUNK_SIZE: ${CHUNK_SIZE}, shouldChunk: ${shouldChunkFile(fileSize)}`);
-          
-          try {
-            await saveChunkedFileSafe(resourceUrl, blob, currentModelRepoId!);
-            if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved chunked file: ${resourceUrl}`);
-            
-            // Verify chunks were saved
-            const urlParts = resourceUrl.split('/');
-            const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/');
-            const modelId = currentModelRepoId;
-            if (modelId) {
-              const manifestKey = `${modelId}/${fileName}:manifest`;
-              const manifest = await getFromIndexedDB(manifestKey);
-              if (manifest) {
-                const manifestData = await manifest.text();
-                const manifestObj = JSON.parse(manifestData);
-                if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Chunking verification: ${manifestObj.totalChunks} chunks saved for ${fileName}`);
-              } else {
-                if (LOG_ERROR) console.error(prefix, `[fetchFromNetworkAndCache] Chunking verification failed: No manifest found for ${fileName}`);
-              }
-            }
-          } catch (chunkError) {
-            if (LOG_ERROR) console.error(prefix, '[fetchFromNetworkAndCache] Error saving chunked file:', resourceUrl, chunkError);
-            // Fall back to regular storage
-            await PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
-          }
-        } else {
-          // Regular file storage - STREAMING PATH
-          if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Small file (${fileSize} bytes), using regular storage: ${resourceUrl}`);
-          try {
-            await PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
-            if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved regular file: ${resourceUrl}`);
-          } catch (dbError) {
-            if (LOG_ERROR) console.error(prefix, '[IDB TRACE] Error saving to IndexedDB:', resourceUrl, dbError);
-          }
-        }
-        
-        return new Response(blob, {
-          status: resp.status,
-          statusText: resp.statusText,
-          headers: resp.headers
-        });
-        
-      } finally {
-        reader.releaseLock();
       }
     }
-  }
+  );
   
-  // Fallback: if we can't track progress, just download normally
-  const blob = await resp.clone().blob();
-  const fileSize = blob.size;
-  if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] File size detection: blob.size=${fileSize} bytes (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+  // Send download complete event
+  const contentLength = response.headers.get('Content-Length');
+  const fileSize = contentLength ? parseInt(contentLength, 10) : 0;
   
-  // Send download complete event (25% for download completion)
   safePostMessage({ 
     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
     payload: { 
@@ -378,47 +282,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
     }
   }
   
-  // Check if file should be chunked (large files)
-  if (shouldChunkFile(fileSize)) {
-    if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Large file detected (${fileSize} bytes), will chunk: ${resourceUrl}`);
-    if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] File size: ${fileSize}, CHUNK_SIZE: ${CHUNK_SIZE}, shouldChunk: ${shouldChunkFile(fileSize)}`);
-    
-    try {
-      await saveChunkedFileSafe(resourceUrl, blob, currentModelRepoId!);
-      if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved chunked file: ${resourceUrl}`);
-      
-      // Verify chunks were saved
-      const urlParts = resourceUrl.split('/');
-      const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/');
-      const modelId = currentModelRepoId;
-      if (modelId) {
-        const manifestKey = `${modelId}/${fileName}:manifest`;
-        const manifest = await getFromIndexedDB(manifestKey);
-        if (manifest) {
-          const manifestData = await manifest.text();
-          const manifestObj = JSON.parse(manifestData);
-          if (LOG_CHUNKED) console.log(prefix, `[fetchFromNetworkAndCache] Chunking verification: ${manifestObj.totalChunks} chunks saved for ${fileName}`);
-        } else {
-          if (LOG_ERROR) console.error(prefix, `[fetchFromNetworkAndCache] Chunking verification failed: No manifest found for ${fileName}`);
-        }
-      }
-    } catch (chunkError) {
-      if (LOG_ERROR) console.error(prefix, '[fetchFromNetworkAndCache] Error saving chunked file:', resourceUrl, chunkError);
-      // Fall back to regular storage
-      await PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
-    }
-  } else {
-    // Regular file storage
-    if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Small file (${fileSize} bytes), using regular storage: ${resourceUrl}`);
-    try {
-      await PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
-      if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved regular file: ${resourceUrl}`);
-    } catch (dbError) {
-      if (LOG_ERROR) console.error(prefix, '[IDB TRACE] Error saving to IndexedDB:', resourceUrl, dbError);
-    }
-  }
-  
-  return resp;
+  return response;
 }
 
 // Store original fetch before overriding

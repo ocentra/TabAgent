@@ -14508,16 +14508,9 @@ const loadModel = async (payload, callback) => {
                 });
             }
         };
-        // Load via pipeline (loads both tokenizer and model internally)
         await pipeline.load(pipelineConfig, callbackWrapper, loadId);
-        // Get tokenizer from pipeline
         transformersTokenizer = pipeline.getTokenizer();
-        if (LOG_MODEL_LOADING) {
-            console.log(prefix, '[loadModel] Tokenizer loaded via pipeline');
-        }
-        // Extract and patch token IDs from tokenizer and config
         extractAndPatchTokenIds(transformersTokenizer, modelConfig);
-        // Get model from pipeline (already loaded by pipeline.load() above)
         transformersModel = pipeline.getModel();
         isTransformersModelReady = true;
         if (LOG_MODEL_LOADING)
@@ -15125,10 +15118,14 @@ const restoreLastLoadedModel = async () => {
             }
             return true;
         }
-        // Load the model
+        // Get the task from manifest before loading
+        const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(lastModel.repoId);
+        const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
+        // Load the model with proper task parameter
         await loadModel({
             modelId: lastModel.repoId, // Just the repo path, not including quant
-            dtype: lastModel.quantPath // Pass quant separately
+            dtype: lastModel.quantPath, // Pass quant separately
+            task: task // Include task to avoid "cpu" device error
         });
         if (LOG_GENERAL) {
             console.log(prefix, '✅ Successfully restored last loaded model');

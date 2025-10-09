@@ -436,19 +436,28 @@ function handleModelManagerMessage(event: MessageEvent) {
           if (LOG_DEBUG) console.log(`${prefix} Model ${modelId} loaded successfully!`);
           if (LOG_DEBUG) console.log(`${prefix} Background is ready with model: ${modelId}, quant: ${dtype}, fallback: ${fallback}, executionProvider: ${executionProvider}, warning: ${warning}`);
           
+          // Hide progress bar now that loading is complete (just before showing success notification)
+          const statusDiv = document.getElementById('model-load-status');
+          if (statusDiv) statusDiv.style.display = 'none';
+          
           // Show success notification
           const modelDisplayName = modelId.split('/').pop() || modelId;
           showNotification(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
           break;
       }
-      case WorkerEventNames.ERROR:
+      case WorkerEventNames.ERROR: {
           modelManagerState = WorkerEventNames.ERROR;
           isModelManagerEnvReady = false;
           hideDeviceBadge();
           if (LOG_ERROR) console.error(`${prefix} Background reported an error:`, payload);
           utilShowError(`Background Error: ${payload}`);
-          currentModelIdInManager = null; 
+          currentModelIdInManager = null;
+          
+          // Hide progress bar on error
+          const statusDiv = document.getElementById('model-load-status');
+          if (statusDiv) statusDiv.style.display = 'none';
           break;
+      }
       case WorkerEventNames.RESET_COMPLETE:
           modelManagerState = WorkerEventNames.UNINITIALIZED;
           isModelManagerEnvReady = false;
@@ -1261,176 +1270,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       }`
     );
 
-    // Check if we have bypass settings that might affect manifest status
-    const hasBypassSettings = getBypassSizeLimitModels().size > 0;
-    await ensureManifestForDropdownRepos(hasBypassSettings);
+    // ========================================
+    // PHASE 1: CRITICAL UI ELEMENTS (FAST - Must complete first for visual feedback)
+    // ========================================
     
-    // CRITICAL: Initialize database BEFORE trying to load any sessions
-    const dbInitSuccess = await initializeDatabase();
-    if (!dbInitSuccess) return;
-
-    // Now safe to load sessions (DB is ready)
-    if (isPopup && originalTabIdFromPopup) {
-      const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
-      const result = await browser.storage.local.get(storageKey);
-      const detachedSessionId = result[storageKey];
-      if (detachedSessionId) {
-        if (LOG_DEBUG) console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
-        await loadAndDisplaySession(detachedSessionId);
-      } else {
-        if (LOG_DEBUG) console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
-        await setActiveChatSessionId(null);
-      }
-    } else {
-      if (LOG_DEBUG) console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
-      await loadAndDisplaySession(null);
-    }
-
-    // Query background for current model state (important for popup instances)
-    const bgModelState = await queryBackgroundModelState();
-    if (bgModelState.isReady && bgModelState.modelId) {
-      // Background already has a model loaded - sync local state
-      if (LOG_DEBUG) console.log(`${prefix} Background has model loaded: ${bgModelState.modelId} (${bgModelState.quant}), syncing local state`);
-      currentLoadedModel = {
-        modelId: bgModelState.modelId,
-        quant: bgModelState.quant
-      };
-      currentModelIdInManager = bgModelState.modelId;
-      modelManagerState = WorkerEventNames.MODEL_READY;
-      syncToggleLoadButton();
-      
-      // Model is already loaded, but we should still restore the last chat session
-      try {
-        const restoreResponse = await browser.runtime.sendMessage({
-          type: RuntimeMessageTypes.RESTORE_LAST_STATE
-        });
-        
-        if (restoreResponse?.success && restoreResponse.lastChatSession) {
-          if (LOG_DEBUG) console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
-          await loadAndDisplaySession(restoreResponse.lastChatSession);
-          if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored last chat session`);
-        }
-      } catch (error) {
-        if (LOG_ERROR) console.error(`${prefix} Error restoring last chat session:`, error);
-      }
-    }
-
-    // Try to restore last state if no model is loaded
-    else if (!bgModelState.isReady) {
-      try {
-        if (LOG_DEBUG) console.log(`${prefix} No model loaded, attempting to restore last state...`);
-        
-        const restoreResponse = await browser.runtime.sendMessage({
-          type: RuntimeMessageTypes.RESTORE_LAST_STATE
-        });
-        
-        if (restoreResponse?.success) {
-          if (LOG_DEBUG) {
-            console.log(`${prefix} State restoration response:`, {
-              modelRestored: restoreResponse.modelRestored,
-              lastModel: restoreResponse.lastModel,
-              lastChatSession: restoreResponse.lastChatSession,
-              currentModel: restoreResponse.currentModel
-            });
-            console.log(`${prefix} Restoration decision:`, {
-              modelRestored: restoreResponse.modelRestored,
-              currentModelReady: restoreResponse.currentModel?.ready,
-              willRestore: restoreResponse.modelRestored && restoreResponse.currentModel?.ready,
-              willLoadDefault: !(restoreResponse.modelRestored && restoreResponse.currentModel?.ready)
-            });
-          }
-          
-          if (restoreResponse.modelRestored && restoreResponse.currentModel?.ready) {
-            // Model was successfully restored - update local state
-            currentLoadedModel = {
-              modelId: restoreResponse.currentModel.id,
-              quant: restoreResponse.currentModel.dtype
-            };
-            currentModelIdInManager = restoreResponse.currentModel.id;
-            modelManagerState = WorkerEventNames.MODEL_READY;
-            syncToggleLoadButton();
-            
-            if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
-            
-            // If there's a last chat session, load it
-            if (restoreResponse.lastChatSession) {
-              if (LOG_DEBUG) console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
-              await loadAndDisplaySession(restoreResponse.lastChatSession);
-              if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored last chat session`);
-            }
-          } else {
-            // No model to restore, load default model
-            if (LOG_DEBUG) console.log(`${prefix} No model to restore, loading default model...`);
-            const { loadDefaultModel } = await import('./Home/uiController');
-            const defaultModelLoaded = await loadDefaultModel();
-            if (defaultModelLoaded) {
-              if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
-            } else {
-              if (LOG_DEBUG) console.log(`${prefix} Default model loading failed or skipped.`);
-            }
-          }
-        } else {
-          if (LOG_ERROR) console.error(`${prefix} State restoration failed:`, restoreResponse?.error);
-          
-          // Fallback to default model
-          const { loadDefaultModel } = await import('./Home/uiController');
-          const defaultModelLoaded = await loadDefaultModel();
-          if (defaultModelLoaded) {
-            if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
-          }
-        }
-      } catch (error) {
-        if (LOG_ERROR) console.error(`${prefix} Error during state restoration:`, error);
-        
-        // Fallback to default model
-        try {
-          const { loadDefaultModel } = await import('./Home/uiController');
-          const defaultModelLoaded = await loadDefaultModel();
-          if (defaultModelLoaded) {
-            if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
-          }
-        } catch (fallbackError) {
-          if (LOG_ERROR) console.error(`${prefix} Error loading default model:`, fallbackError);
-        }
-      }
-    } else {
-      if (LOG_DEBUG) console.log(`${prefix} Skipping default model load - model already loaded in background`);
-    }
-
-    if (LOG_DEBUG) console.log(`${prefix} Initialization complete.`);
+    if (LOG_DEBUG) console.log(`${prefix} Phase 1: Setting up critical UI elements...`);
     
-    // Broadcast UI_CONNECTED to notify background script
-    // This enables proper VRAM management and tracks multiple UI instances
-    const contextName = window.EXTENSION_CONTEXT || 'unknown';
-    llmChannel.postMessage({
-      type: WorkerEventNames.UI_CONNECTED,
-      payload: { senderId, context: contextName },
-      senderId,
-      timestamp: Date.now()
-    });
-    if (LOG_DEBUG) console.log(`${prefix} Broadcast UI_CONNECTED (context: ${contextName}, senderId: ${senderId})`);
-
-    // No need for heartbeat - background will ping us every 2 minutes
-    if (LOG_DEBUG) console.log(`${prefix} ✅ Connected - background will ping every 2 minutes (senderId: ${senderId})`);
-
-    const modelDropdownEl = document.getElementById('model-selector');
-    const quantDropdownEl = document.getElementById('onnx-variant-selector');
-    if (modelDropdownEl) {
-      modelDropdownEl.addEventListener('change', async () => {
-        hideDeviceBadge();
-        syncToggleLoadButton();
-      });
-    }
-    if (quantDropdownEl) {
-      quantDropdownEl.addEventListener('change', () => {
-        hideDeviceBadge();
-        syncToggleLoadButton();
-      });
-    }
-    // Initial toggle
-    syncToggleLoadButton();
-
-    // Set icon srcs via imports
+    // Set icon srcs IMMEDIATELY - this prevents broken icon display
     const iconMap = [
       ['icon-new-chat', newChatIcon],
       ['icon-history', historyIcon],
@@ -1449,6 +1295,222 @@ document.addEventListener('DOMContentLoaded', async () => {
       const el = document.getElementById(id) as HTMLImageElement | null;
       if (el) el.src = src;
     }
+    
+    // Broadcast UI_CONNECTED early to notify background script
+    const contextName = window.EXTENSION_CONTEXT || 'unknown';
+    llmChannel.postMessage({
+      type: WorkerEventNames.UI_CONNECTED,
+      payload: { senderId, context: contextName },
+      senderId,
+      timestamp: Date.now()
+    });
+    if (LOG_DEBUG) console.log(`${prefix} Broadcast UI_CONNECTED (context: ${contextName}, senderId: ${senderId})`);
+
+    // Setup model dropdown event listeners
+    const modelDropdownEl = document.getElementById('model-selector');
+    const quantDropdownEl = document.getElementById('onnx-variant-selector');
+    if (modelDropdownEl) {
+      modelDropdownEl.addEventListener('change', async () => {
+        hideDeviceBadge();
+        syncToggleLoadButton();
+      });
+    }
+    if (quantDropdownEl) {
+      quantDropdownEl.addEventListener('change', () => {
+        hideDeviceBadge();
+        syncToggleLoadButton();
+      });
+    }
+    syncToggleLoadButton();
+
+    if (LOG_DEBUG) console.log(`${prefix} Phase 1 complete - UI elements ready`);
+    
+    // ========================================
+    // PHASE 2: HEAVY OPERATIONS (DEFERRED - Runs after UI renders)
+    // ========================================
+    
+    // Use setTimeout(0) to defer heavy operations until after the current call stack clears
+    // This allows the browser to render the UI (icons, etc.) before blocking on heavy work
+    setTimeout(async () => {
+      try {
+        if (LOG_DEBUG) console.log(`${prefix} Phase 2: Starting heavy operations (manifests, DB, model loading)...`);
+        
+        // Check if we have bypass settings that might affect manifest status
+        const hasBypassSettings = getBypassSizeLimitModels().size > 0;
+        await ensureManifestForDropdownRepos(hasBypassSettings);
+        
+        // CRITICAL: Initialize database BEFORE trying to load any sessions
+        const dbInitSuccess = await initializeDatabase();
+        if (!dbInitSuccess) return;
+
+        // Now safe to load sessions (DB is ready)
+        if (isPopup && originalTabIdFromPopup) {
+          const storageKey = `detachedSessionId_${originalTabIdFromPopup}`;
+          const result = await browser.storage.local.get(storageKey);
+          const detachedSessionId = result[storageKey];
+          if (detachedSessionId) {
+            if (LOG_DEBUG) console.log(`${prefix} Found detached session ID: ${detachedSessionId}. Loading...`);
+            await loadAndDisplaySession(detachedSessionId);
+          } else {
+            if (LOG_DEBUG) console.log(`${prefix} No detached session ID found for key ${storageKey}. Starting fresh.`);
+            await setActiveChatSessionId(null);
+          }
+        } else {
+          if (LOG_DEBUG) console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
+          await loadAndDisplaySession(null);
+        }
+
+        // Query background for current model state (important for popup instances)
+        const bgModelState = await queryBackgroundModelState();
+        if (bgModelState.isReady && bgModelState.modelId) {
+          // Background already has a model loaded - sync local state
+          if (LOG_DEBUG) console.log(`${prefix} Background has model loaded: ${bgModelState.modelId} (${bgModelState.quant}), syncing local state`);
+          currentLoadedModel = {
+            modelId: bgModelState.modelId,
+            quant: bgModelState.quant
+          };
+          currentModelIdInManager = bgModelState.modelId;
+          modelManagerState = WorkerEventNames.MODEL_READY;
+          syncToggleLoadButton();
+          
+          // Model is already loaded, but we should still restore the last chat session
+          try {
+            const restoreResponse = await browser.runtime.sendMessage({
+              type: RuntimeMessageTypes.RESTORE_LAST_STATE
+            });
+            
+            if (restoreResponse?.success && restoreResponse.lastChatSession) {
+              if (LOG_DEBUG) console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
+              
+              // Verify the session exists before trying to load it
+              try {
+                const request = new DbGetSessionRequest(restoreResponse.lastChatSession);
+                const sessionData = await requestDbAndWait(request);
+                
+                if (sessionData && (sessionData as any).id) {
+                  await loadAndDisplaySession(restoreResponse.lastChatSession);
+                  if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored last chat session`);
+                } else {
+                  if (LOG_DEBUG) console.log(`${prefix} Last chat session not found in DB, starting fresh`);
+                  await setActiveChatSessionId(null);
+                }
+              } catch (sessionError) {
+                if (LOG_DEBUG) console.log(`${prefix} Failed to load last chat session, starting fresh:`, sessionError);
+                await setActiveChatSessionId(null);
+              }
+            } else {
+              if (LOG_DEBUG) console.log(`${prefix} No last chat session to restore`);
+            }
+          } catch (error) {
+            if (LOG_ERROR) console.error(`${prefix} Error restoring last chat session:`, error);
+          }
+        }
+
+        // Try to restore last state if no model is loaded
+        else if (!bgModelState.isReady) {
+          try {
+            if (LOG_DEBUG) console.log(`${prefix} No model loaded, attempting to restore last state...`);
+            
+            const restoreResponse = await browser.runtime.sendMessage({
+              type: RuntimeMessageTypes.RESTORE_LAST_STATE
+            });
+            
+            if (restoreResponse?.success) {
+              if (LOG_DEBUG) {
+                console.log(`${prefix} State restoration response:`, {
+                  modelRestored: restoreResponse.modelRestored,
+                  lastModel: restoreResponse.lastModel,
+                  lastChatSession: restoreResponse.lastChatSession,
+                  currentModel: restoreResponse.currentModel
+                });
+                console.log(`${prefix} Restoration decision:`, {
+                  modelRestored: restoreResponse.modelRestored,
+                  currentModelReady: restoreResponse.currentModel?.ready,
+                  willRestore: restoreResponse.modelRestored && restoreResponse.currentModel?.ready,
+                  willLoadDefault: !(restoreResponse.modelRestored && restoreResponse.currentModel?.ready)
+                });
+              }
+              
+              if (restoreResponse.modelRestored && restoreResponse.currentModel?.ready) {
+                // Model was successfully restored - update local state
+                currentLoadedModel = {
+                  modelId: restoreResponse.currentModel.id,
+                  quant: restoreResponse.currentModel.dtype
+                };
+                currentModelIdInManager = restoreResponse.currentModel.id;
+                modelManagerState = WorkerEventNames.MODEL_READY;
+                syncToggleLoadButton();
+                
+                if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
+                
+                // If there's a last chat session, verify it exists before loading
+                if (restoreResponse.lastChatSession) {
+                  if (LOG_DEBUG) console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
+                  
+                  try {
+                    const request = new DbGetSessionRequest(restoreResponse.lastChatSession);
+                    const sessionData = await requestDbAndWait(request);
+                    
+                    if (sessionData && (sessionData as any).id) {
+                      await loadAndDisplaySession(restoreResponse.lastChatSession);
+                      if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored last chat session`);
+                    } else {
+                      if (LOG_DEBUG) console.log(`${prefix} Last chat session not found in DB, starting fresh`);
+                      await setActiveChatSessionId(null);
+                    }
+                  } catch (sessionError) {
+                    if (LOG_DEBUG) console.log(`${prefix} Failed to load last chat session, starting fresh:`, sessionError);
+                    await setActiveChatSessionId(null);
+                  }
+                }
+              } else {
+                // No model to restore, load default model
+                if (LOG_DEBUG) console.log(`${prefix} No model to restore, loading default model...`);
+                const { loadDefaultModel } = await import('./Home/uiController');
+                const defaultModelLoaded = await loadDefaultModel();
+                if (defaultModelLoaded) {
+                  if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+                } else {
+                  if (LOG_DEBUG) console.log(`${prefix} Default model loading failed or skipped.`);
+                }
+              }
+            } else {
+              if (LOG_ERROR) console.error(`${prefix} State restoration failed:`, restoreResponse?.error);
+              
+              // Fallback to default model
+              const { loadDefaultModel } = await import('./Home/uiController');
+              const defaultModelLoaded = await loadDefaultModel();
+              if (defaultModelLoaded) {
+                if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+              }
+            }
+          } catch (error) {
+            if (LOG_ERROR) console.error(`${prefix} Error during state restoration:`, error);
+            
+            // Fallback to default model
+            try {
+              const { loadDefaultModel } = await import('./Home/uiController');
+              const defaultModelLoaded = await loadDefaultModel();
+              if (defaultModelLoaded) {
+                if (LOG_DEBUG) console.log(`${prefix} Default model loading initiated.`);
+              }
+            } catch (fallbackError) {
+              if (LOG_ERROR) console.error(`${prefix} Error loading default model:`, fallbackError);
+            }
+          }
+        } else {
+          if (LOG_DEBUG) console.log(`${prefix} Skipping default model load - model already loaded in background`);
+        }
+
+        if (LOG_DEBUG) console.log(`${prefix} Phase 2 complete - All initialization finished`);
+        
+      } catch (error) {
+        if (LOG_ERROR) console.error(`${prefix} Error in Phase 2 (heavy operations):`, error);
+      }
+    }, 0); // Defer to next tick to allow UI rendering
+    
+    if (LOG_DEBUG) console.log(`${prefix} UI initialization complete - heavy operations deferred`);
+    if (LOG_DEBUG) console.log(`${prefix} ✅ Connected - background will ping every 2 minutes (senderId: ${senderId})`)
 
   } catch (error) {
     const err = error as Error;

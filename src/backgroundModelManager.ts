@@ -4,7 +4,7 @@ import { env, TextStreamer, InterruptableStoppingCriteria } from '@huggingface/t
 import { WorkerEventNames, UIEventNames, LoadingStatusTypes } from './events/eventNames';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings, DEFAULT_SYSTEM_PROMPT_NORMAL, DEFAULT_SYSTEM_PROMPT_JSON } from './Controllers/InferenceSettings';
 import { 
-  QuantStatus, getInferenceSettings as dbGetInferenceSettings
+  QuantStatus, getInferenceSettings as dbGetInferenceSettings, getManifestEntry
 } from './DB/idbModel';
 import { PipelineHelpers } from './Pipelines/PipelineHelpers';
 import { PipelineStateManager } from './Pipelines/PipelineStateManager';
@@ -1263,10 +1263,15 @@ export const restoreLastLoadedModel = async (): Promise<boolean> => {
       return true;
     }
 
-    // Load the model
+    // Get the task from manifest before loading
+    const manifestEntry = await getManifestEntry(lastModel.repoId);
+    const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
+
+    // Load the model with proper task parameter
     await loadModel({
       modelId: lastModel.repoId,        // Just the repo path, not including quant
-      dtype: lastModel.quantPath         // Pass quant separately
+      dtype: lastModel.quantPath,       // Pass quant separately
+      task: task                         // Include task to avoid "cpu" device error
     });
 
     if (LOG_GENERAL) {

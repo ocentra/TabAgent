@@ -308,17 +308,9 @@ async function handleModelManagerLoadingProgress(payload: any) {
     }
     statusText.textContent = text;
 
-    if ((percent >= 100 || payload.status === LoadingStatusTypes.DONE || payload.status === LoadingStatusTypes.READY) && !(payload.status === LoadingStatusTypes.ERROR || payload.error)) {
-        if (LOG_PROGRESS_HANDLING) console.log(prefix, 'Model loading completed successfully');
-        isLoadingModel = false;
-        
-        // Update load button state based on current selection vs loaded model
-        await updateLoadButtonAndQuantDropdown();
-        
-        enableInput();
-        setTimeout(() => { statusDiv.style.display = 'none'; }, 150);
-        lastSeenLoadId = null;
-    }
+    // DON'T hide progress bar here - it will be hidden when WORKER_READY event shows the success notification
+    // This prevents flickering when multiple files complete (each DONE event used to trigger hide)
+    // The progress bar will stay visible throughout the entire loading process
 }
 
 async function handleModelAlreadyLoaded(payload: any) {
@@ -332,7 +324,7 @@ async function handleModelAlreadyLoaded(payload: any) {
     
     enableInput();
     
-    // Hide the loading status
+    // Hide the loading status (model already loaded, no need to show progress)
     const statusDiv = document.getElementById('model-load-status');
     if (statusDiv) statusDiv.style.display = 'none';
     

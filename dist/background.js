@@ -12109,6 +12109,26 @@ class PipelineDBHandler {
         };
     }
     /**
+     * Get hasExternalData flag from manifest for a specific dtype
+     *
+     * @param modelId - Model repository ID
+     * @param dtype - Quantization type
+     * @returns true if model uses external data format
+     */
+    static async getHasExternalData(modelId, dtype) {
+        const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getManifestEntry)(modelId);
+        if (!manifestEntry || !manifestEntry.quants) {
+            return false;
+        }
+        // Find the quant info for this dtype
+        for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
+            if (quantInfo.dtype === dtype) {
+                return quantInfo.hasExternalData || false;
+            }
+        }
+        return false;
+    }
+    /**
      * Fetch model metadata (config, context length, architecture) in one call
      * Combines fetchModelConfig, extractContextLength, and extractArchitecture
      *
@@ -14388,17 +14408,7 @@ const loadModel = async (payload, callback) => {
             });
         }
         // Get hasExternalData from manifest
-        const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(modelId);
-        let hasExternalData = false;
-        if (manifestEntry && manifestEntry.quants) {
-            // Find the quant info for this dtype
-            for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
-                if (quantInfo.dtype === dtype) {
-                    hasExternalData = quantInfo.hasExternalData || false;
-                    break;
-                }
-            }
-        }
+        const hasExternalData = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.getHasExternalData(modelId, dtype);
         // Fetch model metadata (config, context length, architecture) in one call
         const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getInferenceSettings)();
         const userMaxLength = currentSettings?.max_length || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.max_length;

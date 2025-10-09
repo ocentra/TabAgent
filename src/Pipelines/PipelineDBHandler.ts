@@ -335,6 +335,29 @@ export class PipelineDBHandler {
   }
 
   /**
+   * Get hasExternalData flag from manifest for a specific dtype
+   * 
+   * @param modelId - Model repository ID
+   * @param dtype - Quantization type
+   * @returns true if model uses external data format
+   */
+  static async getHasExternalData(modelId: string, dtype: string): Promise<boolean> {
+    const manifestEntry = await getManifestEntry(modelId);
+    if (!manifestEntry || !manifestEntry.quants) {
+      return false;
+    }
+    
+    // Find the quant info for this dtype
+    for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
+      if (quantInfo.dtype === dtype) {
+        return quantInfo.hasExternalData || false;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
    * Fetch model metadata (config, context length, architecture) in one call
    * Combines fetchModelConfig, extractContextLength, and extractArchitecture
    * 

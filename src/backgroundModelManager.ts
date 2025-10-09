@@ -4,7 +4,7 @@ import { env, TextStreamer, InterruptableStoppingCriteria } from '@huggingface/t
 import { WorkerEventNames, UIEventNames, LoadingStatusTypes } from './events/eventNames';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings, DEFAULT_SYSTEM_PROMPT_NORMAL, DEFAULT_SYSTEM_PROMPT_JSON } from './Controllers/InferenceSettings';
 import { 
-  getManifestEntry, QuantStatus, getInferenceSettings as dbGetInferenceSettings
+  QuantStatus, getInferenceSettings as dbGetInferenceSettings
 } from './DB/idbModel';
 import { PipelineHelpers } from './Pipelines/PipelineHelpers';
 import { PipelineStateManager } from './Pipelines/PipelineStateManager';
@@ -496,17 +496,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     }
     
     // Get hasExternalData from manifest
-    const manifestEntry = await getManifestEntry(modelId);
-    let hasExternalData = false;
-    if (manifestEntry && manifestEntry.quants) {
-      // Find the quant info for this dtype
-      for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
-        if (quantInfo.dtype === dtype) {
-          hasExternalData = quantInfo.hasExternalData || false;
-          break;
-        }
-      }
-    }
+    const hasExternalData = await PipelineDBHandler.getHasExternalData(modelId, dtype);
     
     // Fetch model metadata (config, context length, architecture) in one call
     const currentSettings = await dbGetInferenceSettings();

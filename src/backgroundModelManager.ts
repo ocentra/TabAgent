@@ -393,6 +393,56 @@ if (LOG_FETCH_INIT) {
   console.log(prefix, verificationInfo);
 }
 
+// Extract and patch token IDs from tokenizer and config
+function extractAndPatchTokenIds(tokenizer: any, modelConfig: any): void {
+  eosTokenId = undefined;
+  padTokenId = undefined;
+  bosTokenId = undefined;
+  
+  if (tokenizer) {
+    // Try tokenizer first
+    eosTokenId = tokenizer.eos_token_id;
+    padTokenId = tokenizer.pad_token_id;
+    bosTokenId = tokenizer.bos_token_id;
+  }
+  
+  // Fallback to model config if tokenizer doesn't have the IDs
+  if (modelConfig) {
+    if (eosTokenId === null || eosTokenId === undefined) {
+      if (typeof modelConfig.eos_token_id === 'number') {
+        eosTokenId = modelConfig.eos_token_id;
+      } else if (Array.isArray(modelConfig.eos_token_ids) && typeof modelConfig.eos_token_ids[0] === 'number') {
+        eosTokenId = modelConfig.eos_token_ids[0];
+      } else if (modelConfig?.tokenizer_class?.includes("LlamaTokenizer")) {
+        eosTokenId = 2;
+      } else if (modelConfig?.tokenizer_class?.includes("GPT2Tokenizer")) {
+        eosTokenId = 50256;
+      }
+    }
+    
+    if (padTokenId === null || padTokenId === undefined) {
+      padTokenId = modelConfig.pad_token_id;
+    }
+    
+    if (bosTokenId === null || bosTokenId === undefined) {
+      bosTokenId = modelConfig.bos_token_id;
+    }
+  }
+  
+  // Log final token IDs
+  if (LOG_TRANSFORMERS && LOG_TOKEN_IDS) {
+    const finalTokenInfo = `[extractAndPatchTokenIds] Token IDs: eos=${eosTokenId}, pad=${padTokenId}, bos=${bosTokenId}`;
+    console.log(prefix, finalTokenInfo);
+  }
+  
+  // Set pad_token_id to eos_token_id if not set (common pattern)
+  if (tokenizer && (padTokenId === null || padTokenId === undefined) && eosTokenId !== undefined) {
+    tokenizer.pad_token_id = eosTokenId;
+    padTokenId = eosTokenId;
+    if (LOG_TRANSFORMERS) console.log(prefix, '[extractAndPatchTokenIds] Set pad_token_id to eos_token_id:', eosTokenId);
+  }
+}
+
 // Auto-load model if not ready (tries last model, then default)
 const ensureModelReady = async (callback?: EnhancedProgressCallback): Promise<boolean> => {
   if (isTransformersModelReady && transformersTokenizer && transformersModel) {
@@ -565,53 +615,8 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       console.log(prefix, '[loadModel] Tokenizer loaded via pipeline');
     }
     
-    // Extract token IDs from tokenizer and config with advanced fallback logic
-    eosTokenId = undefined;
-    padTokenId = undefined;
-    bosTokenId = undefined;
-    
-    if (transformersTokenizer) {
-      // Try tokenizer first
-      eosTokenId = transformersTokenizer.eos_token_id;
-      padTokenId = transformersTokenizer.pad_token_id;
-      bosTokenId = transformersTokenizer.bos_token_id;
-    }
-    
-    // Fallback to model config if tokenizer doesn't have the IDs
-    if (modelConfig) {
-      if (eosTokenId === null || eosTokenId === undefined) {
-        if (typeof modelConfig.eos_token_id === 'number') {
-          eosTokenId = modelConfig.eos_token_id;
-        } else if (Array.isArray(modelConfig.eos_token_ids) && typeof modelConfig.eos_token_ids[0] === 'number') {
-          eosTokenId = modelConfig.eos_token_ids[0];
-        } else if (modelConfig?.tokenizer_class?.includes("LlamaTokenizer")) {
-          eosTokenId = 2;
-        } else if (modelConfig?.tokenizer_class?.includes("GPT2Tokenizer")) {
-          eosTokenId = 50256;
-        }
-      }
-      
-      if (padTokenId === null || padTokenId === undefined) {
-        padTokenId = modelConfig.pad_token_id;
-      }
-      
-      if (bosTokenId === null || bosTokenId === undefined) {
-        bosTokenId = modelConfig.bos_token_id;
-      }
-    }
-    
-    // Log final token IDs (always from model/tokenizer, never from user settings)
-    if (LOG_TRANSFORMERS && LOG_TOKEN_IDS) {
-      const finalTokenInfo = `[loadModel] Token IDs: eos=${eosTokenId}, pad=${padTokenId}, bos=${bosTokenId}`;
-      console.log(prefix, finalTokenInfo);
-    }
-    
-    // Set pad_token_id to eos_token_id if not set (common pattern)
-    if (transformersTokenizer && (padTokenId === null || padTokenId === undefined) && eosTokenId !== undefined) {
-      transformersTokenizer.pad_token_id = eosTokenId;
-      padTokenId = eosTokenId;
-      if (LOG_TRANSFORMERS) console.log(prefix, '[loadModel] Set pad_token_id to eos_token_id:', eosTokenId);
-    }
+    // Extract and patch token IDs from tokenizer and config
+    extractAndPatchTokenIds(transformersTokenizer, modelConfig);
     
     // Get model from pipeline (already loaded by pipeline.load() above)
     transformersModel = pipeline.getModel();

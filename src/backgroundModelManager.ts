@@ -9,7 +9,13 @@ import {
 import { PipelineHelpers } from './Pipelines/PipelineHelpers';
 import { PipelineStateManager } from './Pipelines/PipelineStateManager';
 import { PipelineDBHandler } from './Pipelines/PipelineDBHandler';
-import { PipelineProgressInfo, EnhancedProgressCallback } from './Pipelines/GenerationPipeline';
+import { 
+  PipelineProgressInfo, 
+  EnhancedProgressCallback,
+  PipelineFactory,
+  BasePipeline,
+  TextGenerationConfig
+} from './Pipelines';
 
 const prefix = '[BackgroundModelManager]';
 

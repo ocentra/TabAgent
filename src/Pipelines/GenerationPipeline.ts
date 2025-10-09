@@ -216,11 +216,27 @@ export interface IMultimodalConfig extends IComplexPipelineConfig {
   };
 }
 
+export interface IFlorence2Config extends IComplexPipelineConfig {
+  pipelineType: 'image-to-text'; // Florence2 is image-to-text specialized
+  visionOptions?: {
+    task?: string; // e.g., '<CAPTION>', '<DETAILED_CAPTION>', '<OD>', etc.
+  };
+}
+
+export interface IJanusConfig extends IComplexPipelineConfig {
+  pipelineType: 'visual-language'; // Janus is multimodal
+  multimodalOptions?: {
+    maxNewTextTokens?: number;
+    numImageTokens?: number;
+  };
+}
+
 export interface ISpeechRecognitionConfig extends IComplexPipelineConfig {
   pipelineType: 'automatic-speech-recognition';
   audioOptions?: {
     language?: string;
     task?: 'transcribe' | 'translate';
+    maxNewTokens?: number;
   };
 }
 
@@ -240,6 +256,8 @@ export interface IClassificationConfig extends ISimplePipelineConfig {
 export type ModelConfig = 
   | ITextGenerationConfig 
   | IMultimodalConfig 
+  | IFlorence2Config
+  | IJanusConfig
   | ISpeechRecognitionConfig
   | IEmbeddingConfig
   | ITranslationConfig
@@ -485,6 +503,89 @@ export class ZeroShotClassificationConfig extends BaseModelConfig implements IZe
   }
 }
 
+// SpeechRecognition Config Class (Whisper)
+export class SpeechRecognitionConfig extends BaseModelConfig implements ISpeechRecognitionConfig {
+  dtype: Dtype;
+  device: Device;
+  useExternalData: boolean;
+  pipelineType: 'automatic-speech-recognition' = 'automatic-speech-recognition';
+  audioOptions?: { language?: string; task?: 'transcribe' | 'translate'; maxNewTokens?: number };
+
+  constructor(config: ISpeechRecognitionConfig) {
+    super(config);
+    this.dtype = config.dtype;
+    this.device = config.device;
+    this.useExternalData = config.useExternalData;
+    this.audioOptions = config.audioOptions;
+  }
+
+  /**
+   * Create config with auto-detected device and dtype
+   */
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: {
+      dtype?: Dtype;
+      device?: Device;
+      useExternalData?: boolean;
+      audioOptions?: { language?: string; task?: 'transcribe' | 'translate'; maxNewTokens?: number };
+    }
+  ): Promise<SpeechRecognitionConfig> {
+    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
+    const hasFP16 = await DeviceCapabilities.hasFP16();
+    
+    // Default dtype for Whisper - encoder fp32, decoder q4
+    const dtype = options?.dtype ?? (hasFP16 ? {
+      encoder_model: 'fp16' as DtypeSimple,
+      decoder_model_merged: 'q4' as DtypeSimple
+    } : {
+      encoder_model: 'fp32' as DtypeSimple,
+      decoder_model_merged: 'q4' as DtypeSimple
+    });
+    
+    return new SpeechRecognitionConfig({
+      modelId,
+      dtype,
+      device,
+      useExternalData: options?.useExternalData ?? false,
+      pipelineType: 'automatic-speech-recognition',
+      audioOptions: options?.audioOptions
+    });
+  }
+
+  equals(other: SpeechRecognitionConfig | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+           JSON.stringify(this.device) === JSON.stringify(other.device) &&
+           this.useExternalData === other.useExternalData &&
+           this.pipelineType === other.pipelineType &&
+           JSON.stringify(this.audioOptions) === JSON.stringify(other.audioOptions);
+  }
+
+  clone(): SpeechRecognitionConfig {
+    return new SpeechRecognitionConfig({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      audioOptions: this.audioOptions
+    });
+  }
+
+  toObject(): ISpeechRecognitionConfig {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      audioOptions: this.audioOptions
+    };
+  }
+}
+
 // Multimodal Config Class
 export class MultimodalConfig extends BaseModelConfig implements IMultimodalConfig {
   dtype: Dtype;
@@ -560,6 +661,193 @@ export class MultimodalConfig extends BaseModelConfig implements IMultimodalConf
       useExternalData: this.useExternalData,
       pipelineType: this.pipelineType,
       imageOptions: this.imageOptions
+    };
+  }
+}
+
+// Florence2 Config Class
+export class Florence2Config extends BaseModelConfig implements IFlorence2Config {
+  dtype: Dtype;
+  device: Device;
+  useExternalData: boolean;
+  pipelineType: 'image-to-text' = 'image-to-text';
+  visionOptions?: { task?: string };
+
+  constructor(config: IFlorence2Config) {
+    super(config);
+    this.dtype = config.dtype;
+    this.device = config.device;
+    this.useExternalData = config.useExternalData;
+    this.visionOptions = config.visionOptions;
+  }
+
+  /**
+   * Create config with auto-detected device and dtype
+   */
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: {
+      dtype?: Dtype;
+      device?: Device;
+      useExternalData?: boolean;
+      visionOptions?: { task?: string };
+    }
+  ): Promise<Florence2Config> {
+    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
+    const hasFP16 = await DeviceCapabilities.hasFP16();
+    
+    // Default dtype for Florence2 - per-component optimization
+    const dtype = options?.dtype ?? (hasFP16 ? {
+      embed_tokens: 'fp16' as DtypeSimple,
+      vision_encoder: 'fp16' as DtypeSimple,
+      encoder_model: 'q4' as DtypeSimple,
+      decoder_model_merged: 'q4' as DtypeSimple
+    } : {
+      embed_tokens: 'fp32' as DtypeSimple,
+      vision_encoder: 'fp32' as DtypeSimple,
+      encoder_model: 'q4' as DtypeSimple,
+      decoder_model_merged: 'q4' as DtypeSimple
+    });
+    
+    return new Florence2Config({
+      modelId,
+      dtype,
+      device,
+      useExternalData: options?.useExternalData ?? false,
+      pipelineType: 'image-to-text',
+      visionOptions: options?.visionOptions
+    });
+  }
+
+  equals(other: Florence2Config | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+           JSON.stringify(this.device) === JSON.stringify(other.device) &&
+           this.useExternalData === other.useExternalData &&
+           this.pipelineType === other.pipelineType &&
+           JSON.stringify(this.visionOptions) === JSON.stringify(other.visionOptions);
+  }
+
+  clone(): Florence2Config {
+    return new Florence2Config({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      visionOptions: this.visionOptions
+    });
+  }
+
+  toObject(): IFlorence2Config {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      visionOptions: this.visionOptions
+    };
+  }
+}
+
+// Janus Config Class
+export class JanusConfig extends BaseModelConfig implements IJanusConfig {
+  dtype: Dtype;
+  device: Device;
+  useExternalData: boolean;
+  pipelineType: 'visual-language' = 'visual-language';
+  multimodalOptions?: { maxNewTextTokens?: number; numImageTokens?: number };
+
+  constructor(config: IJanusConfig) {
+    super(config);
+    this.dtype = config.dtype;
+    this.device = config.device;
+    this.useExternalData = config.useExternalData;
+    this.multimodalOptions = config.multimodalOptions;
+  }
+
+  /**
+   * Create config with auto-detected device and dtype
+   */
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: {
+      dtype?: Dtype;
+      device?: Device;
+      useExternalData?: boolean;
+      multimodalOptions?: { maxNewTextTokens?: number; numImageTokens?: number };
+    }
+  ): Promise<JanusConfig> {
+    const hasFP16 = await DeviceCapabilities.hasFP16();
+    
+    // Default dtype for Janus - complex per-component config
+    const dtype = options?.dtype ?? (hasFP16 ? {
+      prepare_inputs_embeds: 'q4' as DtypeSimple,
+      language_model: 'q4f16' as DtypeSimple,
+      lm_head: 'fp16' as DtypeSimple,
+      gen_head: 'fp16' as DtypeSimple,
+      gen_img_embeds: 'fp16' as DtypeSimple,
+      image_decode: 'fp32' as DtypeSimple
+    } : {
+      prepare_inputs_embeds: 'fp32' as DtypeSimple,
+      language_model: 'q4' as DtypeSimple,
+      lm_head: 'fp32' as DtypeSimple,
+      gen_head: 'fp32' as DtypeSimple,
+      gen_img_embeds: 'fp32' as DtypeSimple,
+      image_decode: 'fp32' as DtypeSimple
+    });
+    
+    // Default device for Janus - per-component device assignment
+    const device = options?.device ?? {
+      prepare_inputs_embeds: 'wasm' as DeviceSimple,
+      language_model: 'webgpu' as DeviceSimple,
+      lm_head: 'webgpu' as DeviceSimple,
+      gen_head: 'webgpu' as DeviceSimple,
+      gen_img_embeds: 'webgpu' as DeviceSimple,
+      image_decode: 'webgpu' as DeviceSimple
+    };
+    
+    return new JanusConfig({
+      modelId,
+      dtype,
+      device,
+      useExternalData: options?.useExternalData ?? false,
+      pipelineType: 'visual-language',
+      multimodalOptions: options?.multimodalOptions
+    });
+  }
+
+  equals(other: JanusConfig | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+           JSON.stringify(this.device) === JSON.stringify(other.device) &&
+           this.useExternalData === other.useExternalData &&
+           this.pipelineType === other.pipelineType &&
+           JSON.stringify(this.multimodalOptions) === JSON.stringify(other.multimodalOptions);
+  }
+
+  clone(): JanusConfig {
+    return new JanusConfig({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      multimodalOptions: this.multimodalOptions
+    });
+  }
+
+  toObject(): IJanusConfig {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      multimodalOptions: this.multimodalOptions
     };
   }
 }
@@ -941,6 +1229,284 @@ export class ZeroShotClassificationPipeline extends BasePipeline<ZeroShotClassif
   }
 
   /**
+ * WhisperPipeline - For automatic speech recognition
+ * Uses low-level API with AutoTokenizer + AutoProcessor + WhisperForConditionalGeneration
+ */
+export class WhisperPipeline extends BasePipeline<SpeechRecognitionConfig> {
+  async load(config: SpeechRecognitionConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
+    const needsReload = this.needsReload(config);
+
+    if (needsReload) {
+      if (this.currentConfig !== null) {
+        if (LOG_CONFIG_CHANGE) {
+          console.log(prefix, '[Whisper] Config changed, resetting pipeline');
+        }
+        this.reset();
+      }
+      
+      this.currentConfig = config;
+      
+      if (LOG_LOADING) {
+        console.log(prefix, '[Whisper] Loading model:', config.toObject());
+      }
+    }
+
+    // Send initiate progress
+    progressCallback?.({
+      status: LoadingStatusTypes.INITIATE,
+      file: JSON.stringify(config.dtype),
+      progress: 0,
+      loadId,
+      message: 'Starting Whisper model load...'
+    });
+
+    // Lazy load tokenizer
+    if (!this.tokenizer) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'tokenizer',
+        progress: 10,
+        loadId,
+        message: 'Loading tokenizer...'
+      });
+
+      const { AutoTokenizer } = await import('@huggingface/transformers');
+      this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 30])
+      });
+    }
+
+    // Lazy load processor
+    if (!this.processor) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'processor',
+        progress: 30,
+        loadId,
+        message: 'Loading processor...'
+      });
+
+      const { AutoProcessor } = await import('@huggingface/transformers');
+      this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [30, 50])
+      });
+    }
+
+    // Lazy load model
+    if (!this.model) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'model',
+        progress: 50,
+        loadId,
+        message: 'Loading Whisper model...'
+      });
+
+      const { WhisperForConditionalGeneration } = await import('@huggingface/transformers');
+      this.model = await WhisperForConditionalGeneration.from_pretrained(config.modelId, {
+        dtype: config.dtype as any,
+        device: config.device as any,
+        use_external_data_format: config.useExternalData,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+      });
+    }
+
+    // Send completion message
+    progressCallback?.({
+      status: LoadingStatusTypes.DONE,
+      file: 'model',
+      progress: 100,
+      loadId,
+      message: 'Whisper model ready!'
+    });
+  }
+
+  override isLoaded(): boolean {
+    return this.tokenizer !== null && this.processor !== null && this.model !== null;
+    }
+  }
+
+  /**
+ * Florence2Pipeline - For multi-task vision models
+ * Uses low-level API with AutoProcessor + AutoTokenizer + Florence2ForConditionalGeneration
+ */
+export class Florence2Pipeline extends BasePipeline<Florence2Config> {
+  async load(config: Florence2Config, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
+    const needsReload = this.needsReload(config);
+
+    if (needsReload) {
+      if (this.currentConfig !== null) {
+        if (LOG_CONFIG_CHANGE) {
+          console.log(prefix, '[Florence2] Config changed, resetting pipeline');
+        }
+        this.reset();
+      }
+      
+      this.currentConfig = config;
+      
+      if (LOG_LOADING) {
+        console.log(prefix, '[Florence2] Loading model:', config.toObject());
+      }
+    }
+
+    // Send initiate progress
+    progressCallback?.({
+      status: LoadingStatusTypes.INITIATE,
+      file: JSON.stringify(config.dtype),
+      progress: 0,
+      loadId,
+      message: 'Starting Florence2 model load...'
+    });
+
+    // Lazy load processor
+    if (!this.processor) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'processor',
+        progress: 10,
+        loadId,
+        message: 'Loading processor...'
+      });
+
+      const { AutoProcessor } = await import('@huggingface/transformers');
+      this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 30])
+      });
+    }
+
+    // Lazy load tokenizer
+    if (!this.tokenizer) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'tokenizer',
+        progress: 30,
+        loadId,
+        message: 'Loading tokenizer...'
+      });
+
+      const { AutoTokenizer } = await import('@huggingface/transformers');
+      this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [30, 50])
+      });
+    }
+
+    // Lazy load model
+    if (!this.model) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'model',
+        progress: 50,
+        loadId,
+        message: 'Loading Florence2 model...'
+      });
+
+      const { Florence2ForConditionalGeneration } = await import('@huggingface/transformers');
+      this.model = await Florence2ForConditionalGeneration.from_pretrained(config.modelId, {
+        dtype: config.dtype as any,
+        device: config.device as any,
+        use_external_data_format: config.useExternalData,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+      });
+    }
+
+    // Send completion message
+    progressCallback?.({
+      status: LoadingStatusTypes.DONE,
+      file: 'model',
+      progress: 100,
+      loadId,
+      message: 'Florence2 model ready!'
+    });
+  }
+
+  override isLoaded(): boolean {
+    return this.processor !== null && this.tokenizer !== null && this.model !== null;
+  }
+}
+
+/**
+ * JanusPipeline - For multimodal image+text generation
+ * Uses low-level API with AutoProcessor + MultiModalityCausalLM
+ */
+export class JanusPipeline extends BasePipeline<JanusConfig> {
+  async load(config: JanusConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
+    const needsReload = this.needsReload(config);
+
+    if (needsReload) {
+      if (this.currentConfig !== null) {
+        if (LOG_CONFIG_CHANGE) {
+          console.log(prefix, '[Janus] Config changed, resetting pipeline');
+        }
+        this.reset();
+      }
+      
+      this.currentConfig = config;
+      
+      if (LOG_LOADING) {
+        console.log(prefix, '[Janus] Loading model:', config.toObject());
+      }
+    }
+
+    // Send initiate progress
+    progressCallback?.({
+      status: LoadingStatusTypes.INITIATE,
+      file: JSON.stringify(config.dtype),
+      progress: 0,
+      loadId,
+      message: 'Starting Janus model load...'
+    });
+
+    // Lazy load processor
+    if (!this.processor) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'processor',
+        progress: 10,
+        loadId,
+        message: 'Loading processor...'
+      });
+
+      const { AutoProcessor } = await import('@huggingface/transformers');
+      this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 50])
+      });
+    }
+
+    // Lazy load model
+    if (!this.model) {
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'model',
+        progress: 50,
+        loadId,
+        message: 'Loading Janus model...'
+      });
+
+      const { MultiModalityCausalLM } = await import('@huggingface/transformers');
+      this.model = await MultiModalityCausalLM.from_pretrained(config.modelId, {
+        dtype: config.dtype as any,
+        device: config.device as any,
+        use_external_data_format: config.useExternalData,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+      });
+    }
+
+    // Send completion message
+    progressCallback?.({
+      status: LoadingStatusTypes.DONE,
+      file: 'model',
+      progress: 100,
+      loadId,
+      message: 'Janus model ready!'
+    });
+  }
+
+  override isLoaded(): boolean {
+    return this.processor !== null && this.model !== null;
+  }
+}
+
+/**
  * MultimodalPipeline - For vision-language models
  * Handles image + text inputs
  */
@@ -1026,9 +1592,7 @@ export class PipelineFactory {
         return new MultimodalPipeline();
         
       case PipelineTypeEnum.AUTOMATIC_SPEECH_RECOGNITION:
-        // TODO: Implement WhisperPipeline
-        console.warn(prefix, '[PipelineFactory] Speech recognition pipeline not yet implemented, defaulting to text-generation');
-        return new TextGenerationPipeline();
+        return new WhisperPipeline();
         
       default:
         // Fallback to text generation for unknown tasks

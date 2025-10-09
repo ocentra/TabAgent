@@ -23,6 +23,10 @@ export * from './WhisperPipeline';
 export * from './Florence2Pipeline';
 export * from './JanusPipeline';
 export * from './MultimodalPipeline';
+export * from './ImageClassificationPipeline';
+export * from './CrossEncoderPipeline';
+export * from './ClapPipeline';
+export * from './ClipPipeline';
 
 // Factory
 export * from './PipelineFactory';

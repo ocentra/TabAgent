@@ -9,6 +9,10 @@ import { WhisperPipeline } from './WhisperPipeline';
 import { Florence2Pipeline } from './Florence2Pipeline';
 import { JanusPipeline } from './JanusPipeline';
 import { MultimodalPipeline } from './MultimodalPipeline';
+import { ImageClassificationPipeline } from './ImageClassificationPipeline';
+import { CrossEncoderPipeline } from './CrossEncoderPipeline';
+import { ClapPipeline } from './ClapPipeline';
+import { ClipPipeline } from './ClipPipeline';
 
 /**
  * PipelineFactory.ts
@@ -62,12 +66,44 @@ export class PipelineFactory {
         return new JanusPipeline();
       }
       
-      // Whisper detection (for when task is not set correctly)
+      // Whisper detection
       if (lowerModelId.includes('whisper') || lowerModelId.includes('moonshine')) {
         if (LOG_GENERAL) {
           console.log(prefix, 'Detected Whisper-like model, using WhisperPipeline');
         }
         return new WhisperPipeline();
+      }
+      
+      // CLIP detection (semantic image search)
+      if (lowerModelId.includes('clip')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, 'Detected CLIP model, using ClipPipeline');
+        }
+        return new ClipPipeline();
+      }
+      
+      // CLAP detection (semantic audio search)
+      if (lowerModelId.includes('clap')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, 'Detected CLAP model, using ClapPipeline');
+        }
+        return new ClapPipeline();
+      }
+      
+      // Cross-encoder detection (reranking)
+      if (lowerModelId.includes('rerank') || lowerModelId.includes('cross-encoder')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, 'Detected cross-encoder model, using CrossEncoderPipeline');
+        }
+        return new CrossEncoderPipeline();
+      }
+      
+      // DINOv2 / Attention visualization detection
+      if (lowerModelId.includes('dino') || lowerModelId.includes('with-attentions')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, 'Detected image classification model with attentions, using ImageClassificationPipeline');
+        }
+        return new ImageClassificationPipeline();
       }
     }
     
@@ -97,6 +133,17 @@ export class PipelineFactory {
         
       case PipelineTypeEnum.AUTOMATIC_SPEECH_RECOGNITION:
         return new WhisperPipeline();
+        
+      case PipelineTypeEnum.IMAGE_CLASSIFICATION:
+        return new ImageClassificationPipeline();
+        
+      case PipelineTypeEnum.TEXT_CLASSIFICATION:
+        // Check if it's a cross-encoder based on modelId
+        if (modelId && (modelId.toLowerCase().includes('rerank') || modelId.toLowerCase().includes('cross-encoder'))) {
+          return new CrossEncoderPipeline();
+        }
+        // Default text classification pipeline (can use high-level API if needed)
+        return new CrossEncoderPipeline();
         
       default:
         // Fallback to text generation for unknown tasks

@@ -6842,6 +6842,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   ADVANCED_SETTINGS: () => (/* binding */ ADVANCED_SETTINGS),
 /* harmony export */   COMMON_SETTINGS: () => (/* binding */ COMMON_SETTINGS),
 /* harmony export */   DEFAULT_INFERENCE_SETTINGS: () => (/* binding */ DEFAULT_INFERENCE_SETTINGS),
+/* harmony export */   DEFAULT_SYSTEM_PROMPT: () => (/* binding */ DEFAULT_SYSTEM_PROMPT),
+/* harmony export */   DEFAULT_SYSTEM_PROMPT_JSON: () => (/* binding */ DEFAULT_SYSTEM_PROMPT_JSON),
+/* harmony export */   DEFAULT_SYSTEM_PROMPT_NORMAL: () => (/* binding */ DEFAULT_SYSTEM_PROMPT_NORMAL),
 /* harmony export */   INFERENCE_SETTINGS_SINGLETON_ID: () => (/* binding */ INFERENCE_SETTINGS_SINGLETON_ID),
 /* harmony export */   INFERENCE_SETTING_KEYS: () => (/* binding */ INFERENCE_SETTING_KEYS),
 /* harmony export */   SYSTEM_PROMPT_SETTING: () => (/* binding */ SYSTEM_PROMPT_SETTING),
@@ -6899,10 +6902,7 @@ const INFERENCE_SETTING_KEYS = {
     // N-gram and repetition control
     no_repeat_ngram_size: 'no_repeat_ngram_size',
     encoder_no_repeat_ngram_size: 'encoder_no_repeat_ngram_size',
-    // Token control
-    pad_token_id: 'pad_token_id',
-    bos_token_id: 'bos_token_id',
-    eos_token_id: 'eos_token_id',
+    // Token control (advanced - only for special generation scenarios)
     decoder_start_token_id: 'decoder_start_token_id',
     forced_bos_token_id: 'forced_bos_token_id',
     forced_eos_token_id: 'forced_eos_token_id',
@@ -6929,62 +6929,152 @@ const INFERENCE_SETTING_KEYS = {
     forced_decoder_ids: 'forced_decoder_ids',
     // System prompt
     system_prompt: 'system_prompt',
+    // JSON output mode
+    json_mode: 'json_mode',
 };
+// Normal system prompt (default)
+const DEFAULT_SYSTEM_PROMPT_NORMAL = `
+
+Core Identity : You are an expert AI assistant. Your purpose is to provide factual, direct, and structured answers.
+Response Strategy : First, analyze the user's question to determine its complexity. Then, choose one of the following two response formats.
+
+Format 1: Simple Question
+If the question is simple, factual, or can be answered directly, provide a brief and concise answer immediately.
+
+Simple Question Examples :
+
+User: What is the capital of Japan?
+Assistant: Tokyo.
+
+User: Briefly explain what a CPU does.
+Assistant: A CPU, or Central Processing Unit, is the primary component of a computer that performs most of the processing for instructions.
+
+User: What will the price of gold be next year?
+Assistant: I cannot predict future market prices.
+
+User: Who is Mr, ABC?
+Assistant: From my knowledge, Mr. ABC is a lead programmer who has worked at LinkedIn. Would you like to know more specific details?
+
+Format 2: Complex Question
+If the question requires reasoning, calculation, or a step-by-step explanation, you MUST:
+
+1.  First, explain your reasoning by breaking down the problem step-by-step.
+2.  After the complete step-by-step breakdown, provide the final, concise answer enclosed in \`<answer>\` tags.
+
+Complex Question Example :
+
+User: If a train leaves station A at 3 PM traveling at 60 mph and station B is 150 miles away, what time will it arrive?
+
+Assistant:
+Step 1: The goal is to find the arrival time given the distance (150 miles) and speed (60 mph).
+Step 2: Calculate the travel time by dividing distance by speed: Time = 150 / 60 = 2.5 hours.
+Step 3: Convert 2.5 hours to 2 hours and 30 minutes.
+Step 4: Add the travel time to the 3:00 PM departure time.
+Step 5: 3:00 PM + 2 hours 30 minutes = 5:30 PM.
+<answer>5:30 PM</answer>
+
+Core Rules 
+-Be Direct: Do not use conversational filler like "Certainly," or "Here is the information."
+-Be Concise: Do not ramble or add unsolicited information. If you have more details, ask the user if they want them.
+-Acknowledge Limits : If a question is subjective, state: "I cannot provide a subjective answer." -If you lack information, state: "I do not have enough information to answer."
+- Format Clearly: Use lists for multiple items.
+`;
+// JSON mode system prompt
+const DEFAULT_SYSTEM_PROMPT_JSON = `
+Core Identity : You are an AI data extraction and formatting assistant. Your ONLY function is to respond with a single, valid JSON object.
+
+Primary Directive
+- Do not include any text, explanations, code comments, or markdown formatting before or after the JSON object.
+- Your entire output must be a single block of valid JSON.
+
+JSON Output Schema
+Your response must follow this structure:
+{
+  "data": { ... extracted data ... },
+  "error": "A brief explanation if the request fails, otherwise null"
+}
+
+Success Case:
+If you can extract the requested information, populate the \`data\` object and set \`error\` to \`null\`.
+
+Success Example
+User: Alice from Google is meeting Bob in New York tomorrow. Extract person, organization, and location details. 
+Assistant:
+{
+  "data": {
+    "person_name": ["Alice", "Bob"],
+    "organization": ["Google"],
+    "location": ["New York"]
+  },
+  "error": null
+}
+
+Failure Case:
+If the user's request is unclear, subjective, or you cannot extract the data, populate the \`error\` field with a brief reason and set \`data\` to \`null\`.
+
+[Failure Example:
+User: What is the best color? 
+Assistant:
+{
+  "data": null,
+  "error": "The request is subjective and data cannot be extracted into JSON format."
+}`;
+// Default system prompt (uses normal mode)
+const DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT_NORMAL;
 const DEFAULT_INFERENCE_SETTINGS = {
-    // Core generation parameters - Updated with web search optimal values
-    temperature: 0.7, // Optimal: 0.7 for focused but not too deterministic responses
-    max_length: 8192, // Large context window for modern models
-    max_new_tokens: 100, // Optimal: 100 tokens to prevent rambling (was 1024)
-    min_length: 0, // Default: 0 (from docs)
-    min_new_tokens: 0, // Default: null (from docs) - we use 0 for user experience
-    top_k: 50, // Optimal: 50 for balanced diversity and coherence
-    top_p: 0.9, // Optimal: 0.9 for nucleus sampling (proven optimal)
-    typical_p: 1.0, // Default: 1.0 (from docs)
-    epsilon_cutoff: 0.0, // Default: 0.0 (from docs)
-    eta_cutoff: 0.0, // Default: 0.0 (from docs)
-    repetition_penalty: 1.2, // Optimal: 1.2 to discourage repetition and rambling
-    encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
-    do_sample: true, // Default: false (from docs) - we use true for user experience
+    // Core generation parameters
+    temperature: 0.3,
+    max_length: 8192,
+    max_new_tokens: 1024,
+    min_length: 0,
+    min_new_tokens: 0,
+    top_k: 50,
+    top_p: 0.9,
+    typical_p: 1.0,
+    epsilon_cutoff: 0.0,
+    eta_cutoff: 0.0,
+    repetition_penalty: 1.2,
+    encoder_repetition_penalty: 1.0,
+    do_sample: true,
     // Beam search parameters
-    num_beams: 1, // Default: 1 (from docs)
-    num_beam_groups: 1, // Default: 1 (from docs)
-    diversity_penalty: 0.0, // Default: 0.0 (from docs)
-    early_stopping: true, // Default: false (from docs) - we use true for better stopping
-    length_penalty: 0.8, // Optimal: 0.8 to encourage shorter, more concise responses
-    penalty_alpha: 0.0, // Default: null (from docs) - we use 0.0 for user experience
+    num_beams: 1,
+    num_beam_groups: 1,
+    diversity_penalty: 0.0,
+    early_stopping: true,
+    length_penalty: 0.8,
+    penalty_alpha: 0.0,
     // N-gram and repetition control
-    no_repeat_ngram_size: 3, // Proven optimal value for preventing repetition
-    encoder_no_repeat_ngram_size: 0, // Default: 0 (from docs)
+    no_repeat_ngram_size: 3,
+    encoder_no_repeat_ngram_size: 0,
     // Token control
-    pad_token_id: null, // Default: null (from docs)
-    bos_token_id: null, // Default: null (from docs)
-    eos_token_id: null, // Will be dynamically set from tokenizer (was hardcoded to 2)
-    decoder_start_token_id: null, // Default: null (from docs)
-    forced_bos_token_id: null, // Default: null (from docs)
-    forced_eos_token_id: null, // Default: null (from docs)
+    decoder_start_token_id: null,
+    forced_bos_token_id: null,
+    forced_eos_token_id: null,
     // Advanced filtering
-    bad_words_ids: null, // Default: null (from docs)
-    force_words_ids: null, // Default: null (from docs)
-    suppress_tokens: null, // Default: null (from docs)
-    begin_suppress_tokens: null, // Default: null (from docs)
+    bad_words_ids: null,
+    force_words_ids: null,
+    suppress_tokens: null,
+    begin_suppress_tokens: null,
     // Output control
-    num_return_sequences: 1, // Default: 1 (from docs)
-    output_attentions: false, // Default: false (from docs)
-    output_hidden_states: false, // Default: false (from docs)
-    output_scores: false, // Default: false (from docs)
-    return_dict_in_generate: false, // Default: false (from docs)
+    num_return_sequences: 1,
+    output_attentions: false,
+    output_hidden_states: false,
+    output_scores: false,
+    return_dict_in_generate: false,
     // Performance and caching
-    use_cache: true, // Default: true (from docs)
-    remove_invalid_values: false, // Default: false (from docs)
-    renormalize_logits: false, // Default: false (from docs)
+    use_cache: true,
+    remove_invalid_values: false,
+    renormalize_logits: false,
     // Advanced features
-    guidance_scale: 1.0, // Default: null (from docs) - we use 1.0 for user experience
-    max_time: null, // Default: null (from docs)
-    exponential_decay_length_penalty: null, // Default: null (from docs)
-    constraints: null, // Default: null (from docs)
-    forced_decoder_ids: null, // Default: null (from docs)
+    guidance_scale: 1.0,
+    max_time: null,
+    exponential_decay_length_penalty: null,
+    constraints: null,
+    forced_decoder_ids: null,
     // System prompt
-    system_prompt: `You are a helpful AI assistant. Give brief, direct answers. Be concise and to the point. No rambling or repetition. If you don't know something, say so.\n`,
+    system_prompt: DEFAULT_SYSTEM_PROMPT,
+    // JSON output mode
+    json_mode: false,
 };
 const SYSTEM_PROMPT_SETTING = {
     key: INFERENCE_SETTING_KEYS.system_prompt,
@@ -7090,6 +7180,14 @@ const COMMON_SETTINGS = [
         defaultValue: true, // Official default: false
         description: `When ON, the AI will generate more varied and creative answers by sampling from possible words. When OFF, the AI will always pick the most likely next word, making answers more predictable and less creative.`,
         example: `ON = creative, varied output. OFF = more predictable, sometimes repetitive.`
+    },
+    {
+        key: INFERENCE_SETTING_KEYS.json_mode,
+        label: 'JSON Output Mode',
+        type: 'checkbox',
+        defaultValue: false,
+        description: `When enabled, the AI will only respond in valid JSON format for structured data extraction. Useful for extracting entities like person names, organizations, and locations from text.`,
+        example: `Enable when you need structured data output. Disable for normal conversational responses.`
     },
     {
         key: INFERENCE_SETTING_KEYS.num_beams,
@@ -7392,6 +7490,8 @@ function createSettingControl(setting) {
         return '';
     }
     let controlHTML = '';
+    // Handle null/undefined default values
+    const safeDefaultValue = setting.defaultValue ?? '';
     switch (setting.type) {
         case 'slider':
             controlHTML = `
@@ -7400,16 +7500,16 @@ function createSettingControl(setting) {
                min="${setting.min}" 
                max="${setting.max}" 
                step="${setting.step}" 
-               value="${setting.defaultValue}"
+               value="${safeDefaultValue}"
                class="flex-1 mx-2 accent-blue-500">
-        <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
+        <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${safeDefaultValue}</span>
       `;
             break;
         case 'input':
             controlHTML = `
         <input type="number" 
                id="${controlId}" 
-               value="${setting.defaultValue}"
+               ${safeDefaultValue !== '' ? `value="${safeDefaultValue}"` : ''}
                class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
       `;
             break;
@@ -7423,7 +7523,7 @@ function createSettingControl(setting) {
             break;
         case 'textarea':
             controlHTML = `
-        <textarea id="${controlId}" rows="6" style="min-height: 3.5rem; max-height: 12rem; overflow-y: auto;" placeholder="You are a helpful AI assistant..." class="flex-1 mx-2 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm resize-vertical">${setting.defaultValue}</textarea>
+        <textarea id="${controlId}" rows="6" style="min-height: 3.5rem; max-height: 12rem; overflow-y: auto;" placeholder="You are a helpful AI assistant..." class="flex-1 mx-2 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm resize-vertical">${safeDefaultValue}</textarea>
       `;
             break;
     }
@@ -7543,9 +7643,12 @@ function applySettings(settings) {
                 control.checked = Boolean(value);
             }
             else {
-                control.value = String(value);
-                if (valueSpan) {
-                    valueSpan.textContent = String(value);
+                // Only set value if it's not null or undefined
+                if (value !== null && value !== undefined) {
+                    control.value = String(value);
+                    if (valueSpan) {
+                        valueSpan.textContent = String(value);
+                    }
                 }
             }
         }
@@ -8361,7 +8464,7 @@ function getBypassSizeLimitModels() {
     return defaultBypassModels;
 }
 const prefix = '[IDBModel]';
-const LOG_GENERAL = true; // General operational logs
+const LOG_GENERAL = false; // General operational logs
 const LOG_DEBUG = false; // Detailed debugging logs (can be noisy)
 const LOG_ERROR = true; // Error logs (always enabled)
 const LOG_WARN = true; // Warning logs
@@ -9570,6 +9673,728 @@ const dbChannel = new BroadcastChannel('tabagent-db');
 
 /***/ }),
 
+/***/ "./src/Pipelines/PipelineDBHandler.ts":
+/*!********************************************!*\
+  !*** ./src/Pipelines/PipelineDBHandler.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   PipelineDBHandler: () => (/* binding */ PipelineDBHandler)
+/* harmony export */ });
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
+/// <reference lib="dom" />
+
+const prefix = '[PipelineDBHandler]';
+// Logging flags
+const LOG_GENERAL = false;
+const LOG_ERROR = true;
+const LOG_MESSAGES = false;
+// Throttling for high-frequency manifest logs
+let manifestLogCount = 0;
+const MANIFEST_LOG_THROTTLE_INTERVAL = 5;
+/**
+ * PipelineDBHandler - Handles IndexedDB operations for pipelines
+ * Manages manifest updates, file path rewriting, and dtype extraction
+ */
+class PipelineDBHandler {
+    /**
+     * Extract clean quantization type from file path
+     *
+     * @param filePath - Path to the model file
+     * @returns Clean dtype string (e.g., 'q4f16', 'fp32')
+     */
+    static extractCleanDtypeFromPath(filePath) {
+        if (!filePath || typeof filePath !== 'string')
+            return 'fp32';
+        // Extract filename from path
+        const filename = filePath.split('/').pop() || filePath;
+        // Remove .onnx extension
+        const nameWithoutExt = filename.replace(/\.onnx$/, '');
+        // Extract quantization type from filename (check longer patterns first)
+        if (nameWithoutExt.includes('q4f16'))
+            return 'q4f16';
+        if (nameWithoutExt.includes('uint8'))
+            return 'uint8'; // Check uint8 before int8
+        if (nameWithoutExt.includes('int8'))
+            return 'int8';
+        if (nameWithoutExt.includes('bnb4'))
+            return 'bnb4';
+        if (nameWithoutExt.includes('q4'))
+            return 'q4';
+        if (nameWithoutExt.includes('q8'))
+            return 'q8';
+        if (nameWithoutExt.includes('fp16'))
+            return 'fp16';
+        if (nameWithoutExt.includes('fp32'))
+            return 'fp32';
+        if (nameWithoutExt.includes('quantized'))
+            return 'quantized';
+        // Default to fp32 if no match (for "model.onnx" files)
+        return 'fp32';
+    }
+    /**
+     * Set manifest quant status for a model
+     * Updates all manifest entries matching the dtype
+     *
+     * @param repo - Repository ID
+     * @param dtype - Quantization type
+     * @param status - New status to set
+     * @param onUpdate - Optional callback when manifest is updated
+     */
+    static async setManifestQuantStatus(repo, dtype, status, onUpdate) {
+        try {
+            let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getManifestEntry)(repo);
+            if (!manifest) {
+                if (LOG_ERROR)
+                    console.warn(prefix, `[setManifestQuantStatus] No manifest found for repo: ${repo}`);
+                return;
+            }
+            // Find ALL manifest entries that correspond to this dtype
+            const entriesToUpdate = [];
+            for (const [modelPath, quantInfo] of Object.entries(manifest.quants)) {
+                if (quantInfo.dtype === dtype) {
+                    entriesToUpdate.push(modelPath);
+                }
+            }
+            if (entriesToUpdate.length === 0) {
+                if (LOG_ERROR)
+                    console.warn(prefix, `[setManifestQuantStatus] No manifest entries found for dtype: ${dtype} in repo: ${repo}`);
+                return;
+            }
+            // Update the status of ALL found entries
+            for (const entryKey of entriesToUpdate) {
+                if (manifest.quants[entryKey]) {
+                    manifest.quants[entryKey].status = status;
+                    manifestLogCount++;
+                    if (LOG_MESSAGES && (manifestLogCount % MANIFEST_LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
+                        console.log(prefix, `[setManifestQuantStatus] ✅ Updated quant entry: ${entryKey} (dtype: ${dtype}) to status: ${status} (operation #${manifestLogCount})`);
+                    }
+                }
+            }
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.addManifestEntry)(repo, manifest);
+            // Call optional update callback
+            if (onUpdate) {
+                onUpdate();
+            }
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(prefix, `[setManifestQuantStatus] Error updating manifest:`, error);
+        }
+    }
+    /**
+     * Rewrite generation config path to match available files
+     *
+     * @param resourceUrl - Original resource URL
+     * @param files - Available files from manifest
+     * @returns Rewritten URL or original if no match
+     */
+    static async rewriteGenerationConfigPath(resourceUrl, files) {
+        const resourceFileName = resourceUrl.split('/').pop() || '';
+        if (resourceFileName !== 'generation_config.json') {
+            return resourceUrl;
+        }
+        const exact = files.find((f) => f.endsWith('/generation_config.json') || f === 'generation_config.json');
+        if (exact) {
+            const exactFile = exact.split('/').pop() || 'generation_config.json';
+            return resourceUrl.replace('generation_config.json', exactFile);
+        }
+        const genai = files.find((f) => f.endsWith('genai_config.json'));
+        if (genai) {
+            return resourceUrl.replace('generation_config.json', 'genai_config.json');
+        }
+        const config = files.find((f) => f.endsWith('config.json'));
+        if (config) {
+            return resourceUrl.replace('generation_config.json', 'config.json');
+        }
+        return resourceUrl;
+    }
+    /**
+     * Rewrite main model file path to match manifest
+     *
+     * @param resourceUrl - Original resource URL
+     * @param resourceFileName - File name from URL
+     * @param files - Available files from manifest
+     * @returns Rewritten URL or original if no match
+     */
+    static async rewriteMainModelFilePath(resourceUrl, resourceFileName, files) {
+        if (!resourceFileName.endsWith('.onnx')) {
+            return resourceUrl;
+        }
+        const manifestFile = files.find((f) => f.endsWith(resourceFileName));
+        if (manifestFile && resourceUrl.endsWith(manifestFile)) {
+            return resourceUrl;
+        }
+        const quantFile = files.find((f) => f.endsWith('.onnx'));
+        if (quantFile) {
+            return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${quantFile}`);
+        }
+        return resourceUrl;
+    }
+    /**
+     * Rewrite supporting file path (json, bin, pt, txt, model)
+     *
+     * @param resourceUrl - Original resource URL
+     * @param resourceFileName - File name from URL
+     * @param files - Available files from manifest
+     * @returns Rewritten URL or original if no match
+     */
+    static async rewriteSupportingFilePath(resourceUrl, resourceFileName, files) {
+        const SUPPORTING_FILE_REGEX = /\.(json|bin|pt|txt|model)$/i;
+        if (!SUPPORTING_FILE_REGEX.test(resourceFileName)) {
+            return resourceUrl;
+        }
+        const manifestPath = files.find((f) => f.endsWith('/' + resourceFileName) || f === resourceFileName);
+        if (manifestPath && !resourceUrl.endsWith(manifestPath)) {
+            return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${manifestPath}`);
+        }
+        return resourceUrl;
+    }
+    /**
+     * Handle model file rewriting based on manifest
+     * Coordinates all rewriting logic
+     *
+     * @param resourceUrl - Original resource URL
+     * @param currentModelRepoId - Current model repository ID
+     * @param currentModelQuantPath - Current model quantization path
+     * @returns Rewritten URL or original
+     */
+    static async handleModelFileRewriting(resourceUrl, currentModelRepoId, currentModelQuantPath) {
+        if (!currentModelRepoId || !currentModelQuantPath) {
+            return resourceUrl;
+        }
+        const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getManifestEntry)(currentModelRepoId);
+        if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
+            if (resourceUrl.match(/\.(onnx|onnx_data|bin|pt)$/i)) {
+                await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.addQuantToManifest)(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.QuantStatus.Downloaded);
+            }
+            return resourceUrl;
+        }
+        const files = manifest.quants[currentModelQuantPath].files;
+        const resourceFileName = resourceUrl.split('/').pop() || '';
+        let rewrittenUrl = await this.rewriteGenerationConfigPath(resourceUrl, files);
+        if (rewrittenUrl === resourceUrl && resourceFileName === 'generation_config.json') {
+            return rewrittenUrl;
+        }
+        rewrittenUrl = await this.rewriteMainModelFilePath(rewrittenUrl, resourceFileName, files);
+        rewrittenUrl = await this.rewriteSupportingFilePath(rewrittenUrl, resourceFileName, files);
+        return rewrittenUrl;
+    }
+    /**
+     * Create empty generation config response
+     * Used as fallback when config file is not found
+     *
+     * @returns Response with empty JSON object
+     */
+    static createEmptyGenerationConfig() {
+        return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    /**
+     * Extract resource URL from fetch input
+     * Handles string, URL, and Request objects
+     *
+     * @param input - Fetch input (string | Request | URL)
+     * @returns Object with url and isRequestObject flag
+     */
+    static extractResourceUrl(input) {
+        let resourceUrl = undefined;
+        let isRequestObject = false;
+        if (typeof input === 'string') {
+            resourceUrl = input;
+        }
+        else if (input instanceof URL) {
+            resourceUrl = input.href;
+        }
+        else if (input instanceof Request) {
+            resourceUrl = input.url;
+            isRequestObject = true;
+        }
+        return { url: resourceUrl, isRequestObject };
+    }
+    /**
+     * Determine fetch input (handles URL rewriting)
+     *
+     * @param input - Original fetch input
+     * @param resourceUrl - Potentially rewritten URL
+     * @returns Object with fetchInput and isRewritten flag
+     */
+    static determineFetchInput(input, resourceUrl) {
+        let fetchInput = input;
+        let isRewritten = false;
+        if (resourceUrl &&
+            ((typeof input === 'string' && resourceUrl !== input) ||
+                (input instanceof Request && resourceUrl !== input.url) ||
+                (input instanceof URL && resourceUrl !== input.href))) {
+            fetchInput = resourceUrl;
+            isRewritten = true;
+        }
+        return { fetchInput, isRewritten };
+    }
+    /**
+     * Save to dual IndexedDB (both rewritten and original URLs)
+     * Saves large model files only once, but small files to both URLs for compatibility
+     *
+     * @param resourceUrl - Rewritten resource URL
+     * @param blob - File blob to save
+     * @param originalInput - Original fetch input
+     */
+    static async saveToDualIndexedDB(resourceUrl, blob, originalInput) {
+        await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveToIndexedDB)(resourceUrl, blob);
+        let originalUrl = undefined;
+        if (typeof originalInput === 'string')
+            originalUrl = originalInput;
+        else if (originalInput instanceof Request)
+            originalUrl = originalInput.url;
+        else if (originalInput instanceof URL)
+            originalUrl = originalInput.href;
+        const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|bin|pt)$/i;
+        if (originalUrl && resourceUrl !== originalUrl && !LARGE_FILE_REGEX.test(resourceUrl)) {
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveToIndexedDB)(originalUrl, blob);
+        }
+    }
+    /**
+     * Try to serve file from IndexedDB cache
+     * Handles both chunked and regular files
+     *
+     * @param resourceUrl - Resource URL to serve
+     * @param currentModelRepoId - Current model repository ID (for chunked files)
+     * @param logChunked - Enable chunked file logging
+     * @returns Response from cache or null if not found
+     */
+    static async tryServeFromIndexedDB(resourceUrl, currentModelRepoId, logChunked = false) {
+        if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
+            return null;
+        }
+        try {
+            const urlParts = resourceUrl.split('/');
+            const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
+            const modelId = currentModelRepoId;
+            if (modelId) {
+                const chunkedInfo = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getChunkInfo)(modelId, fileName);
+                if (chunkedInfo.isChunked && chunkedInfo.totalChunks && chunkedInfo.totalSize) {
+                    if (logChunked) {
+                        console.log(prefix, `🔄 [tryServeFromIndexedDB] FOUND CHUNKED FILE: ${fileName}`);
+                        console.log(prefix, `   Total chunks: ${chunkedInfo.totalChunks}, Total size: ${(chunkedInfo.totalSize / 1024 / 1024).toFixed(1)}MB`);
+                    }
+                    try {
+                        // For files over 100MB, use streaming to avoid RAM issues
+                        if (chunkedInfo.totalSize > 100 * 1024 * 1024) {
+                            if (logChunked)
+                                console.log(prefix, `   Using streaming response (file > 100MB)`);
+                            return await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.createStreamingResponseFromChunks)(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
+                        }
+                        else {
+                            if (logChunked)
+                                console.log(prefix, `   Assembling in memory (file < 100MB)`);
+                            // For smaller chunked files, assemble in memory
+                            const assembledBuffer = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.assembleChunks)(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
+                            const headers = new Headers();
+                            if (resourceUrl.endsWith('.json')) {
+                                headers.set('Content-Type', 'application/json');
+                            }
+                            else {
+                                headers.set('Content-Type', 'application/octet-stream');
+                            }
+                            headers.set('Content-Length', assembledBuffer.byteLength.toString());
+                            return new Response(assembledBuffer, { headers });
+                        }
+                    }
+                    catch (assembleError) {
+                        // Fall through to regular cache check
+                    }
+                }
+            }
+            // Fall back to regular cache check
+            const cached = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getFromIndexedDB)(resourceUrl);
+            if (cached) {
+                const headers = new Headers();
+                if (cached.type) {
+                    headers.set('Content-Type', cached.type);
+                }
+                else if (resourceUrl.endsWith('.json')) {
+                    headers.set('Content-Type', 'application/json');
+                }
+                else {
+                    headers.set('Content-Type', 'application/octet-stream');
+                }
+                headers.set('Content-Length', cached.size.toString());
+                return new Response(cached, { headers: headers });
+            }
+            return null;
+        }
+        catch (dbError) {
+            return null;
+        }
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/PipelineHelpers.ts":
+/*!******************************************!*\
+  !*** ./src/Pipelines/PipelineHelpers.ts ***!
+  \******************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   PipelineHelpers: () => (/* binding */ PipelineHelpers)
+/* harmony export */ });
+/// <reference lib="dom" />
+const prefix = '[PipelineHelpers]';
+// Logging flags
+const LOG_GENERAL = false;
+/**
+ * PipelineHelpers - Utility functions for pipeline operations
+ * Shared helper functions that can be used across different pipelines
+ */
+class PipelineHelpers {
+    /**
+     * Filter scraped content from messages
+     * Extracts only essential fields from scraped data to reduce token usage
+     *
+     * @param messages - Array of chat messages
+     * @returns Filtered messages with cleaned scraped content
+     */
+    static filterScrapedContent(messages) {
+        if (LOG_GENERAL) {
+            console.log(prefix, `[filterScrapedContent] Processing ${messages.length} messages`);
+        }
+        return messages.map((msg, index) => {
+            let content = msg.content.trim();
+            let isJsonContent = false;
+            let jsonData = null;
+            // Check for markdown-wrapped JSON (```json ... ```)
+            if (content.startsWith('```json') && content.endsWith('```')) {
+                try {
+                    const jsonStart = content.indexOf('```json') + 7; // Skip ```json
+                    const jsonEnd = content.lastIndexOf('```');
+                    const jsonString = content.substring(jsonStart, jsonEnd).trim();
+                    jsonData = JSON.parse(jsonString);
+                    isJsonContent = true;
+                }
+                catch (error) {
+                    // If JSON parsing fails, treat as regular content
+                }
+            }
+            // Check for direct JSON (starts with { and ends with })
+            else if (content.startsWith('{') && content.endsWith('}')) {
+                try {
+                    jsonData = JSON.parse(content);
+                    isJsonContent = true;
+                }
+                catch (error) {
+                    // If JSON parsing fails, treat as regular content
+                }
+            }
+            // Check for scraped data patterns
+            const isScrapedData = isJsonContent &&
+                jsonData &&
+                (jsonData.method === 'tempTabExecuteScript' ||
+                    jsonData.extractedAt ||
+                    jsonData.wordCount ||
+                    jsonData.readingTime ||
+                    jsonData.segments ||
+                    jsonData.images ||
+                    jsonData.links);
+            if (isScrapedData) {
+                // Extract only essential fields
+                const filteredContent = {
+                    title: jsonData.title || 'Untitled',
+                    text: jsonData.text || jsonData.content || '',
+                    url: jsonData.url || '',
+                };
+                const newContent = `Title: ${filteredContent.title}\nURL: ${filteredContent.url}\nContent: ${filteredContent.text}`;
+                // Return clean, minimal content
+                return {
+                    ...msg,
+                    content: newContent,
+                };
+            }
+            // Return original content if not scraped data
+            return msg;
+        });
+    }
+    /**
+     * Truncate messages to fit within token limit
+     * Keeps system message and recent messages, truncates older ones
+     *
+     * @param messages - Array of chat messages
+     * @param maxTokens - Maximum number of tokens (approximate)
+     * @param tokensPerChar - Approximate tokens per character (default: 0.25)
+     * @returns Truncated messages
+     */
+    static truncateMessages(messages, maxTokens, tokensPerChar = 0.25) {
+        if (messages.length === 0)
+            return messages;
+        // Separate system message from others
+        const systemMessages = messages.filter((msg) => msg.role === 'system');
+        const nonSystemMessages = messages.filter((msg) => msg.role !== 'system');
+        // Calculate approximate tokens
+        const estimateTokens = (text) => Math.ceil(text.length * tokensPerChar);
+        let totalTokens = systemMessages.reduce((sum, msg) => sum + estimateTokens(msg.content), 0);
+        const result = [...systemMessages];
+        // Add messages from most recent, working backwards
+        for (let i = nonSystemMessages.length - 1; i >= 0; i--) {
+            const msg = nonSystemMessages[i];
+            const msgTokens = estimateTokens(msg.content);
+            if (totalTokens + msgTokens <= maxTokens) {
+                result.unshift(msg);
+                totalTokens += msgTokens;
+            }
+            else {
+                // Stop if we exceed limit
+                break;
+            }
+        }
+        // Re-sort to maintain chronological order (system first, then chronological)
+        const systemMsgs = result.filter((msg) => msg.role === 'system');
+        const otherMsgs = result.filter((msg) => msg.role !== 'system');
+        return [...systemMsgs, ...otherMsgs];
+    }
+    /**
+     * Validate message format
+     * Ensures messages have required fields and valid roles
+     *
+     * @param messages - Array of messages to validate
+     * @returns True if valid, false otherwise
+     */
+    static validateMessages(messages) {
+        if (!Array.isArray(messages)) {
+            if (LOG_GENERAL) {
+                console.error(prefix, '[validateMessages] Messages is not an array');
+            }
+            return false;
+        }
+        const validRoles = ['system', 'user', 'assistant'];
+        for (const msg of messages) {
+            if (!msg.role || !msg.content) {
+                if (LOG_GENERAL) {
+                    console.error(prefix, '[validateMessages] Message missing role or content:', msg);
+                }
+                return false;
+            }
+            if (!validRoles.includes(msg.role)) {
+                if (LOG_GENERAL) {
+                    console.error(prefix, '[validateMessages] Invalid role:', msg.role);
+                }
+                return false;
+            }
+            if (typeof msg.content !== 'string') {
+                if (LOG_GENERAL) {
+                    console.error(prefix, '[validateMessages] Content is not a string:', msg);
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+    /**
+     * Clean whitespace from messages
+     * Trims excessive whitespace and normalizes line breaks
+     *
+     * @param messages - Array of messages
+     * @returns Messages with cleaned content
+     */
+    static cleanMessages(messages) {
+        return messages.map((msg) => ({
+            ...msg,
+            content: msg.content
+                .trim()
+                .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
+                .replace(/[ \t]+/g, ' '), // Normalize spaces/tabs
+        }));
+    }
+    /**
+     * Add system message if not present
+     *
+     * @param messages - Array of messages
+     * @param systemPrompt - System prompt to add
+     * @returns Messages with system prompt
+     */
+    static ensureSystemPrompt(messages, systemPrompt) {
+        const hasSystemMessage = messages.some((msg) => msg.role === 'system');
+        if (!hasSystemMessage && systemPrompt && systemPrompt.trim().length > 0) {
+            return [{ role: 'system', content: systemPrompt }, ...messages];
+        }
+        return messages;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/PipelineStateManager.ts":
+/*!***********************************************!*\
+  !*** ./src/Pipelines/PipelineStateManager.ts ***!
+  \***********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   PipelineStateManager: () => (/* binding */ PipelineStateManager)
+/* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/// <reference lib="dom" />
+
+const prefix = '[PipelineStateManager]';
+// Logging flags
+const LOG_GENERAL = false;
+const LOG_ERROR = true;
+/**
+ * PipelineStateManager - Manages persistent state for pipelines
+ * Handles saving/loading model state, chat sessions, and active tabs
+ */
+class PipelineStateManager {
+    /**
+     * Load persistent state from storage
+     */
+    static async loadState() {
+        return new Promise((resolve) => {
+            try {
+                webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(this.STATE_STORAGE_KEY).then((result) => {
+                    if (result[this.STATE_STORAGE_KEY]) {
+                        this.state = result[this.STATE_STORAGE_KEY];
+                        if (LOG_GENERAL) {
+                            console.log(prefix, '📂 Loaded persistent state:', {
+                                lastLoadedModel: this.state.lastLoadedModel,
+                                lastChatSessionId: this.state.lastChatSessionId,
+                                lastActiveTabId: this.state.lastActiveTabId
+                            });
+                        }
+                    }
+                    else {
+                        this.state = {};
+                        if (LOG_GENERAL) {
+                            console.log(prefix, '📂 No persistent state found, starting fresh');
+                        }
+                    }
+                    resolve();
+                }).catch((error) => {
+                    if (LOG_ERROR) {
+                        console.error(prefix, '❌ Failed to load persistent state:', error);
+                    }
+                    this.state = {};
+                    resolve();
+                });
+            }
+            catch (error) {
+                if (LOG_ERROR) {
+                    console.error(prefix, '❌ Error loading persistent state:', error);
+                }
+                this.state = {};
+                resolve();
+            }
+        });
+    }
+    /**
+     * Save persistent state to storage
+     */
+    static saveState() {
+        try {
+            if (LOG_GENERAL) {
+                console.log(prefix, '💾 Saving persistent state:', {
+                    lastLoadedModel: this.state.lastLoadedModel,
+                    lastChatSessionId: this.state.lastChatSessionId,
+                    lastActiveTabId: this.state.lastActiveTabId
+                });
+            }
+            // Store in memory and sync storage
+            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ [this.STATE_STORAGE_KEY]: this.state }).catch((error) => {
+                if (LOG_ERROR) {
+                    console.error(prefix, '❌ Failed to save persistent state:', error);
+                }
+            });
+        }
+        catch (error) {
+            if (LOG_ERROR) {
+                console.error(prefix, '❌ Error saving persistent state:', error);
+            }
+        }
+    }
+    /**
+     * Update last loaded model
+     */
+    static updateLastLoadedModel(repoId, quantPath) {
+        this.state.lastLoadedModel = {
+            repoId,
+            quantPath,
+            loadedAt: Date.now()
+        };
+        this.saveState();
+    }
+    /**
+     * Get last loaded model
+     */
+    static getLastLoadedModel() {
+        return this.state.lastLoadedModel || null;
+    }
+    /**
+     * Update last chat session
+     */
+    static updateLastChatSession(sessionId) {
+        this.state.lastChatSessionId = sessionId;
+        this.saveState();
+    }
+    /**
+     * Get last chat session
+     */
+    static getLastChatSession() {
+        return this.state.lastChatSessionId || null;
+    }
+    /**
+     * Update last active tab
+     */
+    static updateLastActiveTab(tabId) {
+        this.state.lastActiveTabId = tabId;
+        this.saveState();
+    }
+    /**
+     * Get last active tab
+     */
+    static getLastActiveTab() {
+        return this.state.lastActiveTabId || null;
+    }
+    /**
+     * Get entire state (read-only copy)
+     */
+    static getState() {
+        return { ...this.state };
+    }
+    /**
+     * Clear all persistent state
+     */
+    static clearState() {
+        this.state = {};
+        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(this.STATE_STORAGE_KEY).catch((error) => {
+            if (LOG_ERROR) {
+                console.error(prefix, '❌ Failed to clear persistent state:', error);
+            }
+        });
+    }
+    /**
+     * Initialize state manager (loads state from storage)
+     */
+    static async initialize() {
+        await this.loadState();
+        if (LOG_GENERAL) {
+            console.log(prefix, '📂 State manager initialized');
+        }
+    }
+}
+PipelineStateManager.STATE_STORAGE_KEY = 'tabagent_background_state';
+PipelineStateManager.state = {};
+
+
+/***/ }),
+
 /***/ "./src/Utilities/dbChannels.ts":
 /*!*************************************!*\
   !*** ./src/Utilities/dbChannels.ts ***!
@@ -9629,7 +10454,6 @@ module.exports = __webpack_require__.p + "icons/popup.png";
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   TextGenerationPipeline: () => (/* binding */ TextGenerationPipeline),
 /* harmony export */   clearCache: () => (/* binding */ clearCache),
 /* harmony export */   generate: () => (/* binding */ generate),
 /* harmony export */   getActiveUICount: () => (/* binding */ getActiveUICount),
@@ -9655,7 +10479,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
 /* harmony import */ var _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Controllers/InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
 /* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _Pipelines_PipelineHelpers__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Pipelines/PipelineHelpers */ "./src/Pipelines/PipelineHelpers.ts");
+/* harmony import */ var _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Pipelines/PipelineStateManager */ "./src/Pipelines/PipelineStateManager.ts");
+/* harmony import */ var _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Pipelines/PipelineDBHandler */ "./src/Pipelines/PipelineDBHandler.ts");
 /// <reference lib="dom" />
+
+
+
 
 
 
@@ -9666,23 +10496,20 @@ const prefix = '[BackgroundModelManager]';
 const LOG_ERROR = true; // Keep error logs enabled
 const LOG_WARN = false; // Disable warning logs
 // CORE GENERATION FUNCTIONALITY
-const LOG_GEN_PARAMS = false; // Generation parameters being used
-const LOG_GEN_DETAILED = false; // Detailed generation process logs
-const LOG_GEN_COMPARISON = false; // Parameter comparison logs
-const LOG_GEN_ANALYSIS = false; // Detailed analysis logs
+const LOG_GEN_PARAMS = true; // Generation parameters being used
 // Legacy Q&A flags (for backward compatibility)
-const LOG_QA_START = false; // Generation lifecycle (start/stop/complete)
-const LOG_QA_OUTPUT = false; // Generated text output
-const LOG_QA_STATS = false; // Output statistics
+const LOG_QA_START = true; // Generation lifecycle (start/stop/complete)
+const LOG_QA_OUTPUT = true; // Generated text output
+const LOG_QA_STATS = true; // Output statistics
 // Model loading and configuration
-const LOG_MODEL_LOADING = false; // Model loading progress
-const LOG_MODEL_CONFIG = false; // Detailed model configuration
-const LOG_TOKEN_IDS = false; // Token ID extraction
+const LOG_MODEL_LOADING = true; // Model loading progress
+const LOG_MODEL_CONFIG = true; // Detailed model configuration
+const LOG_TOKEN_IDS = true; // Token ID extraction
 // Transformers.js specific
-const LOG_TRANSFORMERS = false; // Transformers.js debugging
-const LOG_TRANSFORMERS_SETTINGS = false; // Settings comparison
-const LOG_GENERATION = false; // Detailed generation parameters
-const LOG_GENERATION_FLOW = false; // Track full generation flow
+const LOG_TRANSFORMERS = true; // Transformers.js debugging
+const LOG_TRANSFORMERS_SETTINGS = true; // Settings comparison
+const LOG_GENERATION = true; // Detailed generation parameters
+const LOG_GENERATION_FLOW = true; // Track full generation flow
 // Network and storage
 const LOG_FETCH = false; // Fetch interception logs
 const LOG_FETCH_INIT = false; // Fetch override initialization
@@ -9695,12 +10522,10 @@ const LOG_MESSAGE_PASSING = false; // Message passing to sidepanel
 // Debug flags
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
+const LOG_PING_PONG = false; // Ping/pong VRAM cleanup system
 // CRITICAL: Disable browser cache to force transformers.js to use our custom fetch
 // This ensures ALL model file requests go through our fetch intercept
 _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.env.useBrowserCache = false;
-if (LOG_TRANSFORMERS || LOG_FETCH_INIT) {
-    console.log(prefix, '🚫 Disabled transformers.js browser cache - will use custom fetch for all requests');
-}
 let currentLoadId = undefined;
 let isGenerating = false;
 let shouldStopGeneration = false;
@@ -9715,100 +10540,7 @@ const PING_INTERVAL_MS = 2 * 60 * 1000; // Ping every 2 minutes
 const PONG_TIMEOUT_MS = 5 * 1000; // Wait 5 seconds for pong
 // Legacy flag for backward compatibility - will be removed
 let hasActiveUIConnection = false;
-const STATE_STORAGE_KEY = 'tabagent_background_state';
-let persistentState = {};
-// State persistence functions
-function savePersistentState() {
-    try {
-        if (LOG_GENERAL) {
-            console.log(`[BackgroundModelManager] 💾 Saving persistent state:`, {
-                lastLoadedModel: persistentState.lastLoadedModel,
-                lastChatSessionId: persistentState.lastChatSessionId,
-                lastActiveTabId: persistentState.lastActiveTabId
-            });
-        }
-        // Store in memory and sync storage
-        webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.set({ [STATE_STORAGE_KEY]: persistentState }).catch((error) => {
-            if (LOG_ERROR) {
-                console.error(`[BackgroundModelManager] ❌ Failed to save persistent state:`, error);
-            }
-        });
-    }
-    catch (error) {
-        if (LOG_ERROR) {
-            console.error(`[BackgroundModelManager] ❌ Error saving persistent state:`, error);
-        }
-    }
-}
-function loadPersistentState() {
-    return new Promise((resolve) => {
-        try {
-            webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.get(STATE_STORAGE_KEY).then((result) => {
-                if (result[STATE_STORAGE_KEY]) {
-                    persistentState = result[STATE_STORAGE_KEY];
-                    if (LOG_GENERAL) {
-                        console.log(`[BackgroundModelManager] 📂 Loaded persistent state:`, {
-                            lastLoadedModel: persistentState.lastLoadedModel,
-                            lastChatSessionId: persistentState.lastChatSessionId,
-                            lastActiveTabId: persistentState.lastActiveTabId
-                        });
-                    }
-                }
-                else {
-                    persistentState = {};
-                    if (LOG_GENERAL) {
-                        console.log(`[BackgroundModelManager] 📂 No persistent state found, starting fresh`);
-                    }
-                }
-                resolve();
-            }).catch((error) => {
-                if (LOG_ERROR) {
-                    console.error(`[BackgroundModelManager] ❌ Failed to load persistent state:`, error);
-                }
-                persistentState = {};
-                resolve();
-            });
-        }
-        catch (error) {
-            if (LOG_ERROR) {
-                console.error(`[BackgroundModelManager] ❌ Error loading persistent state:`, error);
-            }
-            persistentState = {};
-            resolve();
-        }
-    });
-}
-function updateLastLoadedModel(repoId, quantPath) {
-    persistentState.lastLoadedModel = {
-        repoId,
-        quantPath,
-        loadedAt: Date.now()
-    };
-    savePersistentState();
-}
-function updateLastChatSession(sessionId) {
-    persistentState.lastChatSessionId = sessionId;
-    savePersistentState();
-}
-function updateLastActiveTab(tabId) {
-    persistentState.lastActiveTabId = tabId;
-    savePersistentState();
-}
-function getLastLoadedModel() {
-    return persistentState.lastLoadedModel || null;
-}
-function getLastChatSession() {
-    return persistentState.lastChatSessionId || null;
-}
-function clearPersistentState() {
-    persistentState = {};
-    webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().storage.local.remove(STATE_STORAGE_KEY).catch((error) => {
-        if (LOG_ERROR) {
-            console.error(`[BackgroundModelManager] ❌ Failed to clear persistent state:`, error);
-        }
-    });
-}
-// Example-style global variables
+// global variables
 const stopping_criteria = new _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.InterruptableStoppingCriteria();
 let past_key_values_cache = null;
 let isTransformersModelReady = false;
@@ -9817,6 +10549,10 @@ let modelContextLength = 2048;
 let numAttentionHeads;
 let numKeyValueHeads;
 let headDim;
+// Token IDs extracted from model/tokenizer
+let eosTokenId;
+let padTokenId;
+let bosTokenId;
 let currentModelRepoId = null;
 let currentModelQuantPath = null;
 let currentTask = null;
@@ -9825,12 +10561,9 @@ let inferenceSettings = _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_
 const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
 let hasWebGPU = _isNavigatorGpuAvailable;
 let webgpuCheckPromise = Promise.resolve();
-// Throttling for high-frequency manifest logs
-let manifestLogCount = 0;
-const MANIFEST_LOG_THROTTLE_INTERVAL = 5;
 // Throttling for progress messages
 let lastProgressLogTime = 0;
-const PROGRESS_LOG_THROTTLE_MS = 500; // Log progress messages max once per 500ms
+const PROGRESS_LOG_THROTTLE_MS = 500;
 // Safe message posting for different contexts
 function safePostMessage(message) {
     // Throttle progress message logging
@@ -9900,8 +10633,8 @@ function safePostMessage(message) {
     safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.WORKER_ENV_READY });
     if (LOG_MODEL_LOADING)
         console.log(prefix, 'Environment initialized and ready');
-    // Initialize persistent state
-    loadPersistentState().then(() => {
+    // Initialize persistent state using PipelineStateManager
+    _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.initialize().then(() => {
         if (LOG_GENERAL) {
             console.log(prefix, '📂 Persistent state loaded during initialization');
         }
@@ -9911,333 +10644,10 @@ function safePostMessage(message) {
         }
     });
 })();
-// Singleton pattern for model management
-class TextGenerationPipeline {
-    static getInstance(callback) {
-        if (TextGenerationPipeline.instance) {
-            return Promise.resolve(TextGenerationPipeline.instance);
-        }
-        TextGenerationPipeline.instance = new TextGenerationPipeline();
-        return Promise.resolve(TextGenerationPipeline.instance);
-    }
-    constructor() {
-        // Private constructor for singleton
-    }
-}
-TextGenerationPipeline.instance = null;
-// Extract resource URL helper
-function extractResourceUrl(input) {
-    let resourceUrl = undefined;
-    let isRequestObject = false;
-    if (typeof input === 'string') {
-        resourceUrl = input;
-    }
-    else if (input instanceof URL) {
-        resourceUrl = input.href;
-    }
-    else if (input instanceof Request) {
-        resourceUrl = input.url;
-        isRequestObject = true;
-    }
-    return { url: resourceUrl, isRequestObject };
-}
-// Rewrite generation config path
-async function rewriteGenerationConfigPath(resourceUrl, files) {
-    const resourceFileName = resourceUrl.split('/').pop() || '';
-    if (resourceFileName !== 'generation_config.json') {
-        return resourceUrl;
-    }
-    const exact = files.find(f => f.endsWith('/generation_config.json') || f === 'generation_config.json');
-    if (exact) {
-        const exactFile = exact.split('/').pop() || 'generation_config.json';
-        return resourceUrl.replace('generation_config.json', exactFile);
-    }
-    const genai = files.find(f => f.endsWith('genai_config.json'));
-    if (genai) {
-        return resourceUrl.replace('generation_config.json', 'genai_config.json');
-    }
-    const config = files.find(f => f.endsWith('config.json'));
-    if (config) {
-        return resourceUrl.replace('generation_config.json', 'config.json');
-    }
-    return resourceUrl;
-}
-// Rewrite main model file path
-async function rewriteMainModelFilePath(resourceUrl, resourceFileName, files) {
-    if (!resourceFileName.endsWith('.onnx')) {
-        return resourceUrl;
-    }
-    const manifestFile = files.find(f => f.endsWith(resourceFileName));
-    if (manifestFile && resourceUrl.endsWith(manifestFile)) {
-        return resourceUrl;
-    }
-    const quantFile = files.find(f => f.endsWith('.onnx'));
-    if (quantFile) {
-        return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${quantFile}`);
-    }
-    return resourceUrl;
-}
-// Rewrite supporting file path
-async function rewriteSupportingFilePath(resourceUrl, resourceFileName, files) {
-    const SUPPORTING_FILE_REGEX = /\.(json|bin|pt|txt|model)$/i;
-    if (!SUPPORTING_FILE_REGEX.test(resourceFileName)) {
-        return resourceUrl;
-    }
-    const manifestPath = files.find(f => f.endsWith('/' + resourceFileName) || f === resourceFileName);
-    if (manifestPath && !resourceUrl.endsWith(manifestPath)) {
-        return resourceUrl.replace(/resolve\/main\/.*$/, `resolve/main/${manifestPath}`);
-    }
-    return resourceUrl;
-}
-// Handle model file rewriting
-async function handleModelFileRewriting(resourceUrl) {
-    if (!currentModelRepoId || !currentModelQuantPath) {
-        return resourceUrl;
-    }
-    const manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(currentModelRepoId);
-    if (!manifest || !manifest.quants || !manifest.quants[currentModelQuantPath]) {
-        if (resourceUrl.match(/\.(onnx|onnx_data|bin|pt)$/i)) {
-            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.addQuantToManifest)(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded);
-        }
-        return resourceUrl;
-    }
-    const files = manifest.quants[currentModelQuantPath].files;
-    const resourceFileName = resourceUrl.split('/').pop() || '';
-    let rewrittenUrl = await rewriteGenerationConfigPath(resourceUrl, files);
-    if (rewrittenUrl === resourceUrl && resourceFileName === 'generation_config.json') {
-        return rewrittenUrl;
-    }
-    rewrittenUrl = await rewriteMainModelFilePath(rewrittenUrl, resourceFileName, files);
-    rewrittenUrl = await rewriteSupportingFilePath(rewrittenUrl, resourceFileName, files);
-    return rewrittenUrl;
-}
-// Create empty generation config
-function createEmptyGenerationConfig() {
-    return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
-}
-// Extract clean quantization type from file path
-function extractCleanDtypeFromPath(filePath) {
-    if (!filePath || typeof filePath !== 'string')
-        return 'fp32';
-    // Extract filename from path
-    const filename = filePath.split('/').pop() || filePath;
-    // Remove .onnx extension
-    const nameWithoutExt = filename.replace(/\.onnx$/, '');
-    // Extract quantization type from filename (check longer patterns first)
-    if (nameWithoutExt.includes('q4f16'))
-        return 'q4f16';
-    if (nameWithoutExt.includes('uint8'))
-        return 'uint8'; // Check uint8 before int8
-    if (nameWithoutExt.includes('int8'))
-        return 'int8';
-    if (nameWithoutExt.includes('bnb4'))
-        return 'bnb4';
-    if (nameWithoutExt.includes('q4'))
-        return 'q4';
-    if (nameWithoutExt.includes('q8'))
-        return 'q8';
-    if (nameWithoutExt.includes('fp16'))
-        return 'fp16';
-    if (nameWithoutExt.includes('fp32'))
-        return 'fp32';
-    if (nameWithoutExt.includes('quantized'))
-        return 'quantized';
-    // Default to fp32 if no match (for "model.onnx" files)
-    return 'fp32';
-}
-// Filter scraped content
-function filterScrapedContent(messages) {
-    if (LOG_TRANSFORMERS) {
-        console.log(prefix, `[filterScrapedContent] Processing ${messages.length} messages`);
-    }
-    return messages.map((msg, index) => {
-        let content = msg.content.trim();
-        let isJsonContent = false;
-        let jsonData = null;
-        // Check for markdown-wrapped JSON (``json ... ```)
-        if (content.startsWith('```json') && content.endsWith('```')) {
-            try {
-                const jsonStart = content.indexOf('```json') + 7; // Skip ```json
-                const jsonEnd = content.lastIndexOf('```');
-                const jsonString = content.substring(jsonStart, jsonEnd).trim();
-                jsonData = JSON.parse(jsonString);
-                isJsonContent = true;
-            }
-            catch (error) {
-                // If JSON parsing fails, treat as regular content
-            }
-        }
-        // Check for direct JSON (starts with { and ends with })
-        else if (content.startsWith('{') && content.endsWith('}')) {
-            try {
-                jsonData = JSON.parse(content);
-                isJsonContent = true;
-            }
-            catch (error) {
-                // If JSON parsing fails, treat as regular content
-            }
-        }
-        // Check for scraped data patterns
-        const isScrapedData = isJsonContent && jsonData && (jsonData.method === "tempTabExecuteScript" ||
-            jsonData.extractedAt ||
-            jsonData.wordCount ||
-            jsonData.readingTime ||
-            jsonData.segments ||
-            jsonData.images ||
-            jsonData.links);
-        if (isScrapedData) {
-            // Extract only essential fields
-            const filteredContent = {
-                title: jsonData.title || 'Untitled',
-                text: jsonData.text || jsonData.content || '',
-                url: jsonData.url || ''
-            };
-            const newContent = `Title: ${filteredContent.title}\nURL: ${filteredContent.url}\nContent: ${filteredContent.text}`;
-            // Return clean, minimal content
-            return {
-                ...msg,
-                content: newContent
-            };
-        }
-        // Return original content if not scraped data
-        return msg;
-    });
-}
-// Set manifest quant status
-async function setManifestQuantStatus(repo, dtype, status) {
-    try {
-        let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(repo);
-        if (!manifest) {
-            if (LOG_ERROR)
-                console.warn(prefix, `[setManifestQuantStatus] No manifest found for repo: ${repo}`);
-            return;
-        }
-        // Find ALL manifest entries that correspond to this dtype
-        const entriesToUpdate = [];
-        for (const [modelPath, quantInfo] of Object.entries(manifest.quants)) {
-            if (quantInfo.dtype === dtype) {
-                entriesToUpdate.push(modelPath);
-            }
-        }
-        if (entriesToUpdate.length === 0) {
-            if (LOG_ERROR)
-                console.warn(prefix, `[setManifestQuantStatus] No manifest entries found for dtype: ${dtype} in repo: ${repo}`);
-            return;
-        }
-        // Update the status of ALL found entries
-        for (const entryKey of entriesToUpdate) {
-            if (manifest.quants[entryKey]) {
-                manifest.quants[entryKey].status = status;
-                manifestLogCount++;
-                if (LOG_MESSAGES && (manifestLogCount % MANIFEST_LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
-                    console.log(prefix, `[setManifestQuantStatus] ✅ Updated quant entry: ${entryKey} (dtype: ${dtype}) to status: ${status} (operation #${manifestLogCount})`);
-                }
-            }
-        }
-        await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.addManifestEntry)(repo, manifest);
-        safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
-    }
-    catch (error) {
-        if (LOG_ERROR)
-            console.error(prefix, `[setManifestQuantStatus] Error updating manifest:`, error);
-    }
-}
 // Try to serve from IndexedDB
-async function tryServeFromIndexedDB(resourceUrl) {
-    if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
-        return null;
-    }
-    try {
-        const urlParts = resourceUrl.split('/');
-        const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
-        const modelId = currentModelRepoId;
-        if (modelId) {
-            const chunkedInfo = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getChunkInfo)(modelId, fileName);
-            if (chunkedInfo.isChunked && chunkedInfo.totalChunks && chunkedInfo.totalSize) {
-                if (LOG_CHUNKED) {
-                    console.log(prefix, `🔄 [tryServeFromIndexedDB] FOUND CHUNKED FILE: ${fileName}`);
-                    console.log(prefix, `   Total chunks: ${chunkedInfo.totalChunks}, Total size: ${(chunkedInfo.totalSize / 1024 / 1024).toFixed(1)}MB`);
-                }
-                try {
-                    // For files over 100MB, use streaming to avoid RAM issues
-                    if (chunkedInfo.totalSize > 100 * 1024 * 1024) {
-                        if (LOG_CHUNKED)
-                            console.log(prefix, `   Using streaming response (file > 100MB)`);
-                        return await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.createStreamingResponseFromChunks)(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
-                    }
-                    else {
-                        if (LOG_CHUNKED)
-                            console.log(prefix, `   Assembling in memory (file < 100MB)`);
-                        // For smaller chunked files, assemble in memory
-                        const assembledBuffer = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.assembleChunks)(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
-                        const headers = new Headers();
-                        if (resourceUrl.endsWith('.json')) {
-                            headers.set('Content-Type', 'application/json');
-                        }
-                        else {
-                            headers.set('Content-Type', 'application/octet-stream');
-                        }
-                        headers.set('Content-Length', assembledBuffer.byteLength.toString());
-                        return new Response(assembledBuffer, { headers });
-                    }
-                }
-                catch (assembleError) {
-                    // Fall through to regular cache check
-                }
-            }
-        }
-        // Fall back to regular cache check
-        const cached = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getFromIndexedDB)(resourceUrl);
-        if (cached) {
-            const headers = new Headers();
-            if (cached.type) {
-                headers.set('Content-Type', cached.type);
-            }
-            else if (resourceUrl.endsWith('.json')) {
-                headers.set('Content-Type', 'application/json');
-            }
-            else {
-                headers.set('Content-Type', 'application/octet-stream');
-            }
-            headers.set('Content-Length', cached.size.toString());
-            return new Response(cached, { headers: headers });
-        }
-        return null;
-    }
-    catch (dbError) {
-        return null;
-    }
-}
-// Determine fetch input
-function determineFetchInput(input, resourceUrl) {
-    let fetchInput = input;
-    let isRewritten = false;
-    if (resourceUrl && ((typeof input === 'string' && resourceUrl !== input) ||
-        (input instanceof Request && resourceUrl !== input.url) ||
-        (input instanceof URL && resourceUrl !== input.href))) {
-        fetchInput = resourceUrl;
-        isRewritten = true;
-    }
-    return { fetchInput, isRewritten };
-}
-// Save to dual IndexedDB
-async function saveToDualIndexedDB(resourceUrl, blob, originalInput) {
-    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.saveToIndexedDB)(resourceUrl, blob);
-    let originalUrl = undefined;
-    if (typeof originalInput === 'string')
-        originalUrl = originalInput;
-    else if (originalInput instanceof Request)
-        originalUrl = originalInput.url;
-    else if (originalInput instanceof URL)
-        originalUrl = originalInput.href;
-    const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|bin|pt)$/i;
-    if (originalUrl && resourceUrl !== originalUrl && !LARGE_FILE_REGEX.test(resourceUrl)) {
-        await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.saveToIndexedDB)(originalUrl, blob);
-    }
-}
 // Fetch from network and cache
 async function fetchFromNetworkAndCache(input, resourceUrl, options) {
-    const { fetchInput } = determineFetchInput(input, resourceUrl);
+    const { fetchInput } = _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.determineFetchInput(input, resourceUrl);
     if (LOG_FETCH)
         console.log(prefix, `[fetchFromNetworkAndCache] Fetching from: ${resourceUrl}, fetchInput: ${fetchInput}`);
     // Send download start event (progress range: 0-25%)
@@ -10245,7 +10655,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
     safePostMessage({
         type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
         payload: {
-            status: 'downloading',
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
             file: fileName,
             progress: 0,
             loadId: currentLoadId,
@@ -10257,7 +10667,9 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
         if (LOG_FETCH)
             console.log(prefix, `[fetchFromNetworkAndCache] Updating manifest status: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}", status=Available`);
         try {
-            await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Available);
+            await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Available, () => {
+                safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
+            });
         }
         catch (manifestError) {
             if (LOG_ERROR)
@@ -10293,7 +10705,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
                         safePostMessage({
                             type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
                             payload: {
-                                status: 'downloading',
+                                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
                                 file: fileName,
                                 progress: downloadProgress,
                                 loadId: currentLoadId,
@@ -10315,7 +10727,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
                 safePostMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
                     payload: {
-                        status: 'downloading',
+                        status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
                         file: fileName,
                         progress: 25,
                         loadId: currentLoadId,
@@ -10360,7 +10772,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
                         if (LOG_ERROR)
                             console.error(prefix, '[fetchFromNetworkAndCache] Error saving chunked file:', resourceUrl, chunkError);
                         // Fall back to regular storage
-                        await saveToDualIndexedDB(resourceUrl, blob, input);
+                        await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
                     }
                 }
                 else {
@@ -10368,7 +10780,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
                     if (LOG_FETCH)
                         console.log(prefix, `[fetchFromNetworkAndCache] Small file (${fileSize} bytes), using regular storage: ${resourceUrl}`);
                     try {
-                        await saveToDualIndexedDB(resourceUrl, blob, input);
+                        await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
                         if (LOG_FETCH)
                             console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved regular file: ${resourceUrl}`);
                     }
@@ -10397,7 +10809,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
     safePostMessage({
         type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
         payload: {
-            status: 'downloading',
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
             file: fileName,
             progress: 25,
             loadId: currentLoadId,
@@ -10407,7 +10819,9 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
     // Update manifest status to indicate download completed
     if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
         try {
-            await setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded);
+            await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded, () => {
+                safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
+            });
         }
         catch (manifestError) {
             if (LOG_ERROR)
@@ -10447,7 +10861,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
             if (LOG_ERROR)
                 console.error(prefix, '[fetchFromNetworkAndCache] Error saving chunked file:', resourceUrl, chunkError);
             // Fall back to regular storage
-            await saveToDualIndexedDB(resourceUrl, blob, input);
+            await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
         }
     }
     else {
@@ -10455,7 +10869,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
         if (LOG_FETCH)
             console.log(prefix, `[fetchFromNetworkAndCache] Small file (${fileSize} bytes), using regular storage: ${resourceUrl}`);
         try {
-            await saveToDualIndexedDB(resourceUrl, blob, input);
+            await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.saveToDualIndexedDB(resourceUrl, blob, input);
             if (LOG_FETCH)
                 console.log(prefix, `[fetchFromNetworkAndCache] Successfully saved regular file: ${resourceUrl}`);
         }
@@ -10480,7 +10894,7 @@ if (LOG_FETCH_INIT) {
 }
 // Override global fetch for caching
 const customFetchHandler = async function (input, options) {
-    const { url: resourceUrl } = extractResourceUrl(input);
+    const { url: resourceUrl } = _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.extractResourceUrl(input);
     // Log ALL fetch requests to see what's being requested
     if (LOG_FETCH_DETAILED) {
         const fetchInfo = `🌐 [Custom Fetch] INTERCEPTED:
@@ -10516,7 +10930,7 @@ const customFetchHandler = async function (input, options) {
             // Handle HuggingFace files with rewriting
             let finalResourceUrl = resourceUrl;
             if (isHuggingFaceModelFile) {
-                finalResourceUrl = await handleModelFileRewriting(resourceUrl);
+                finalResourceUrl = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.handleModelFileRewriting(resourceUrl, currentModelRepoId, currentModelQuantPath);
                 if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
                     if (LOG_FETCH)
                         console.log(prefix, `[Custom Fetch] DEBUG - Original URL: ${resourceUrl}`);
@@ -10544,13 +10958,13 @@ const customFetchHandler = async function (input, options) {
                     if (!configFiles.includes(fileName)) {
                         if (LOG_FETCH)
                             console.log(prefix, `[Custom Fetch] Creating empty generation config for: ${fileName}`);
-                        return createEmptyGenerationConfig();
+                        return _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.createEmptyGenerationConfig();
                     }
                 }
             }
             if (LOG_FETCH)
                 console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
-            const cachedResponse = await tryServeFromIndexedDB(finalResourceUrl);
+            const cachedResponse = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.tryServeFromIndexedDB(finalResourceUrl, currentModelRepoId, LOG_CHUNKED);
             if (cachedResponse) {
                 const fileSize = cachedResponse.headers.get('Content-Length');
                 const sizeMB = fileSize ? (parseInt(fileSize) / 1024 / 1024).toFixed(1) : 'unknown';
@@ -10588,8 +11002,440 @@ if (LOG_FETCH_INIT) {
     globalThisFetchOverridden: ${globalThis.fetch === customFetchHandler}`;
     console.log(prefix, verificationInfo);
 }
-const generate = async (messages, callback) => {
+// Auto-load model if not ready (tries last model, then default)
+const ensureModelReady = async (callback) => {
+    if (isTransformersModelReady && transformersTokenizer && transformersModel) {
+        return true; // Already ready
+    }
     if (LOG_GENERATION_FLOW) {
+        console.log(prefix, '❌ Model not ready! Attempting auto-restoration...');
+    }
+    // Try to restore last loaded model
+    const lastModel = _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.getLastLoadedModel();
+    if (lastModel) {
+        if (LOG_GENERATION_FLOW) {
+            console.log(prefix, `🔄 Auto-restoring last model: ${lastModel.repoId}/${lastModel.quantPath}`);
+        }
+        if (callback) {
+            callback({ status: 'progress', progress: 10, message: 'Auto-restoring last model...' });
+        }
+        else {
+            safePostMessage({
+                type: 'modelWorkerLoadingProgress',
+                payload: { status: 'progress', progress: 10, message: 'Auto-restoring last model...' }
+            });
+        }
+        await loadModel({
+            modelId: `${lastModel.repoId}/${lastModel.quantPath}`,
+            dtype: lastModel.quantPath
+        }, callback);
+        if (LOG_GENERATION_FLOW) {
+            console.log(prefix, '✅ Auto-restoration successful');
+        }
+        return true;
+    }
+    // No last model - try default model (Phi-3.5)
+    if (LOG_GENERATION_FLOW) {
+        console.log(prefix, '❌ No last model to restore, trying default model...');
+    }
+    const defaultModel = {
+        repoId: 'onnx-community/Phi-3.5-mini-instruct-onnx-web',
+        quantPath: 'q4f16'
+    };
+    if (LOG_GENERATION_FLOW) {
+        console.log(prefix, `🔄 Auto-loading default model: ${defaultModel.repoId}/${defaultModel.quantPath}`);
+    }
+    if (callback) {
+        callback({ status: 'progress', progress: 10, message: 'Auto-loading default model...' });
+    }
+    else {
+        safePostMessage({
+            type: 'modelWorkerLoadingProgress',
+            payload: { status: 'progress', progress: 10, message: 'Auto-loading default model...' }
+        });
+    }
+    await loadModel({
+        modelId: `${defaultModel.repoId}/${defaultModel.quantPath}`,
+        dtype: defaultModel.quantPath
+    }, callback);
+    if (LOG_GENERATION_FLOW) {
+        console.log(prefix, '✅ Default model auto-loading successful');
+    }
+    return true;
+};
+// Enhanced Model loading function
+const loadModel = async (payload, callback) => {
+    const { modelId, dtype, task, loadId } = payload;
+    if (LOG_MODEL_LOADING) {
+        const loadInfo = `loadModel called with:
+      modelId: ${modelId}
+      dtype: ${dtype}
+      task: ${task}
+      loadId: ${loadId}`;
+        console.log(prefix, loadInfo);
+    }
+    try {
+        currentLoadId = loadId;
+        currentModelRepoId = modelId;
+        currentModelQuantPath = dtype;
+        currentTask = task || null;
+        if (LOG_MODEL_LOADING)
+            console.log(prefix, `Loading: ${modelId}, dtype: ${dtype}`);
+        // Send initial progress message
+        if (callback) {
+            callback({ status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.INITIATE, file: dtype, progress: 0, loadId });
+        }
+        else {
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                payload: { status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.INITIATE, file: dtype, progress: 0, loadId }
+            });
+        }
+        const validDtypes = ['auto', 'fp32', 'fp16', 'q8', 'int8', 'uint8', 'q4', 'bnb4', 'q4f16', 'quantized'];
+        const modelDtype = validDtypes.includes(dtype) ? dtype : 'auto';
+        // Get hasExternalData from manifest
+        const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(modelId);
+        let hasExternalData = false;
+        if (manifestEntry && manifestEntry.quants) {
+            // Find the quant info for this dtype
+            for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
+                if (quantInfo.dtype === dtype) {
+                    hasExternalData = quantInfo.hasExternalData || false;
+                    break;
+                }
+            }
+        }
+        // Load tokenizer and model with detailed progress tracking
+        if (callback) {
+            callback({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer from cache...'
+            });
+        }
+        else {
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                payload: {
+                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+                    file: 'tokenizer',
+                    progress: 10,
+                    loadId,
+                    message: 'Loading tokenizer from cache...'
+                }
+            });
+        }
+        transformersTokenizer = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.AutoTokenizer.from_pretrained(modelId, {
+            progress_callback: (data) => {
+                let progress = 10;
+                let status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
+                let message = 'Loading tokenizer from cache...';
+                if (data.status === 'progress') {
+                    progress = 25 + (data.progress * 0.15); // 25-40% range for tokenizer
+                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
+                    message = `Loading tokenizer from cache... ${Math.round(progress)}%`;
+                }
+                else if (data.status === 'ready' || data.status === 'done') {
+                    progress = 40;
+                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE;
+                    message = 'Tokenizer ready';
+                }
+                if (callback) {
+                    callback({
+                        status,
+                        file: data.file || 'tokenizer',
+                        progress,
+                        loadId,
+                        loaded: data.loaded,
+                        total: data.total,
+                        message
+                    });
+                }
+                else {
+                    if (LOG_PROGRESS_CALLBACK) {
+                        const tokenizerProgress = `Sending tokenizer progress to sidepanel:
+              status: ${status}
+              file: ${data.file || 'tokenizer'}
+              progress: ${progress}
+              loadId: ${loadId}
+              loaded: ${data.loaded}
+              total: ${data.total}
+              message: ${message}`;
+                        console.log(prefix, tokenizerProgress);
+                    }
+                    safePostMessage({
+                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                        payload: {
+                            status,
+                            file: data.file || 'tokenizer',
+                            progress,
+                            loadId,
+                            loaded: data.loaded,
+                            total: data.total,
+                            message
+                        }
+                    });
+                }
+            }
+        });
+        // Load model configuration to get context length and token IDs
+        let modelConfig = null;
+        try {
+            const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
+            if (LOG_TRANSFORMERS)
+                console.log(prefix, '[loadModel] Loading model config from:', configUrl);
+            const configResponse = await fetch(configUrl);
+            if (configResponse.ok) {
+                modelConfig = await configResponse.json();
+            }
+        }
+        catch (configError) {
+            if (LOG_ERROR)
+                console.error(prefix, '[loadModel] Failed to load model config:', configError);
+        }
+        const modelConfigContextLength = modelConfig?.max_position_embeddings ||
+            modelConfig?.n_positions ||
+            modelConfig?.max_sequence_length ||
+            modelConfig?.n_ctx ||
+            modelConfig?.context_length;
+        // Get user's current settings as fallback
+        const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getInferenceSettings)();
+        const userMaxLength = currentSettings?.max_length || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.max_length;
+        // Use model config if available, otherwise use user's setting
+        modelContextLength = modelConfigContextLength || userMaxLength;
+        if (LOG_TRANSFORMERS) {
+            const contextLengthInfo = `[loadModel] Context length: ${modelContextLength} (source: ${modelConfigContextLength ? 'model-config' : 'user-settings'})`;
+            console.log(prefix, contextLengthInfo);
+            // Full config dump (only when MODEL_CONFIG debug is on)
+            if (LOG_MODEL_CONFIG) {
+                console.log(prefix, '[loadModel] Full model config JSON:', JSON.stringify(modelConfig, null, 2));
+            }
+        }
+        // Extract model architecture details and store globally
+        numAttentionHeads = modelConfig?.num_attention_heads || modelConfig?.n_head || modelConfig?.num_heads;
+        const hiddenSize = modelConfig?.hidden_size || modelConfig?.n_embd;
+        numKeyValueHeads = modelConfig?.num_key_value_heads || numAttentionHeads;
+        headDim = (hiddenSize && numAttentionHeads) ? (modelConfig?.head_dim || hiddenSize / numAttentionHeads) : undefined;
+        // Extract token IDs from tokenizer and config with advanced fallback logic
+        eosTokenId = undefined;
+        padTokenId = undefined;
+        bosTokenId = undefined;
+        if (transformersTokenizer) {
+            // Try tokenizer first
+            eosTokenId = transformersTokenizer.eos_token_id;
+            padTokenId = transformersTokenizer.pad_token_id;
+            bosTokenId = transformersTokenizer.bos_token_id;
+        }
+        // Fallback to model config if tokenizer doesn't have the IDs
+        if (modelConfig) {
+            if (eosTokenId === null || eosTokenId === undefined) {
+                if (typeof modelConfig.eos_token_id === 'number') {
+                    eosTokenId = modelConfig.eos_token_id;
+                }
+                else if (Array.isArray(modelConfig.eos_token_ids) && typeof modelConfig.eos_token_ids[0] === 'number') {
+                    eosTokenId = modelConfig.eos_token_ids[0];
+                }
+                else if (modelConfig?.tokenizer_class?.includes("LlamaTokenizer")) {
+                    eosTokenId = 2;
+                }
+                else if (modelConfig?.tokenizer_class?.includes("GPT2Tokenizer")) {
+                    eosTokenId = 50256;
+                }
+            }
+            if (padTokenId === null || padTokenId === undefined) {
+                padTokenId = modelConfig.pad_token_id;
+            }
+            if (bosTokenId === null || bosTokenId === undefined) {
+                bosTokenId = modelConfig.bos_token_id;
+            }
+        }
+        // Log final token IDs (always from model/tokenizer, never from user settings)
+        if (LOG_TRANSFORMERS && LOG_TOKEN_IDS) {
+            const finalTokenInfo = `[loadModel] Token IDs: eos=${eosTokenId}, pad=${padTokenId}, bos=${bosTokenId}`;
+            console.log(prefix, finalTokenInfo);
+        }
+        // Set pad_token_id to eos_token_id if not set (common pattern)
+        if (transformersTokenizer && (padTokenId === null || padTokenId === undefined) && eosTokenId !== undefined) {
+            transformersTokenizer.pad_token_id = eosTokenId;
+            padTokenId = eosTokenId;
+            if (LOG_TRANSFORMERS)
+                console.log(prefix, '[loadModel] Set pad_token_id to eos_token_id:', eosTokenId);
+        }
+        // Load model
+        if (callback) {
+            callback({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 30,
+                loadId,
+                message: 'Loading model from cache...'
+            });
+        }
+        else {
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                payload: {
+                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+                    file: 'model',
+                    progress: 30,
+                    loadId,
+                    message: 'Loading model from cache...'
+                }
+            });
+        }
+        const modelOptions = {
+            ...(modelDtype !== 'auto' && { dtype: modelDtype }),
+            device: (hasWebGPU ? "webgpu" : "cpu"),
+            use_external_data_format: hasExternalData,
+            progress_callback: (data) => {
+                let progress = 30; // Initial value, will be remapped
+                let status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
+                let message = 'Loading model from cache...';
+                if (data.status === 'progress') {
+                    progress = 40 + (data.progress * 0.5); // 40-90% range for model
+                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
+                    message = `Loading model from cache... ${Math.round(progress)}%`;
+                }
+                else if (data.status === 'ready' || data.status === 'done') {
+                    progress = 90;
+                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE;
+                    message = 'Model loaded from cache';
+                }
+                if (callback) {
+                    callback({
+                        status,
+                        file: data.file || 'model',
+                        progress,
+                        loadId,
+                        loaded: data.loaded,
+                        total: data.total,
+                        message
+                    });
+                }
+                else {
+                    if (LOG_PROGRESS_CALLBACK) {
+                        const modelProgress = `Sending model progress to sidepanel:
+              status: ${status}
+              file: ${data.file || 'model'}
+              progress: ${progress}
+              loadId: ${loadId}
+              loaded: ${data.loaded}
+              total: ${data.total}
+              message: ${message}`;
+                        console.log(prefix, modelProgress);
+                    }
+                    safePostMessage({
+                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                        payload: {
+                            status,
+                            file: data.file || 'model',
+                            progress,
+                            loadId,
+                            loaded: data.loaded,
+                            total: data.total,
+                            message
+                        }
+                    });
+                }
+            }
+        };
+        // Send processing message
+        if (callback) {
+            callback({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 90,
+                loadId,
+                message: 'Initializing model...'
+            });
+        }
+        else {
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                payload: {
+                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+                    file: 'model',
+                    progress: 90,
+                    loadId,
+                    message: 'Initializing model...'
+                }
+            });
+        }
+        transformersModel = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.AutoModelForCausalLM.from_pretrained(modelId, modelOptions);
+        isTransformersModelReady = true;
+        if (LOG_MODEL_LOADING)
+            console.log(prefix, `Model loaded successfully: ${modelId}`);
+        // Update manifest status to indicate successful download/loading
+        await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded, () => {
+            safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
+        });
+        // Send completion messages
+        if (callback) {
+            callback({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE,
+                file: 'model',
+                progress: 100,
+                loadId,
+                message: 'Model ready for inference!'
+            });
+        }
+        else {
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.WORKER_READY,
+                payload: { modelId, dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
+            });
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                payload: {
+                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE,
+                    file: 'model',
+                    progress: 100,
+                    loadId,
+                    message: 'Model ready for inference!'
+                }
+            });
+        }
+        currentLoadId = undefined;
+    }
+    catch (error) {
+        isTransformersModelReady = false;
+        currentModelRepoId = null;
+        currentModelQuantPath = null;
+        currentTask = null;
+        currentLoadId = undefined;
+        console.error(prefix, `Error loading model:`, error);
+        // Update manifest status to indicate failed download/loading
+        try {
+            await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Failed, () => {
+                safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
+            });
+        }
+        catch (manifestError) {
+            if (LOG_ERROR)
+                console.error(prefix, `[loadModel] Failed to update manifest status on error:`, manifestError);
+        }
+        if (callback) {
+            callback({ status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.ERROR, file: dtype, error: error.message, loadId });
+        }
+        else {
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.ERROR,
+                payload: { error: `Failed to load model ${dtype}: ${error.message}` }
+            });
+            safePostMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                payload: { status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.ERROR, file: dtype, error: error.message, loadId }
+            });
+        }
+    }
+};
+const LOG_GEN_PARAMS_CURRENT = true;
+const LOG_GEN_PARAMS_CURRENT_State_check = true;
+const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = true;
+const generate = async (messages, callback) => {
+    if (LOG_GEN_PARAMS_CURRENT_State_check) {
         const stateInfo = `🎯 GENERATE called - State check:
       isTransformersModelReady: ${isTransformersModelReady}
       hasTokenizer: ${!!transformersTokenizer}
@@ -10598,109 +11444,21 @@ const generate = async (messages, callback) => {
       currentModelQuantPath: ${currentModelQuantPath}`;
         console.log(prefix, stateInfo);
     }
+    // Ensure model is ready (auto-load if needed)
     if (!isTransformersModelReady || !transformersTokenizer || !transformersModel) {
-        if (LOG_GENERATION_FLOW) {
-            console.log(prefix, '❌ GENERATE BLOCKED - Model not ready! Attempting auto-restoration...');
-        }
-        // Try to auto-restore the last loaded model
         try {
-            const lastModel = getLastLoadedModel();
-            if (lastModel) {
-                if (LOG_GENERATION_FLOW) {
-                    console.log(prefix, `🔄 Auto-restoring last model: ${lastModel.repoId}/${lastModel.quantPath}`);
-                }
-                // Send loading progress to UI
-                if (callback) {
-                    callback({
-                        status: 'progress',
-                        progress: 10,
-                        message: 'Auto-restoring last model...'
-                    });
-                }
-                else {
-                    safePostMessage({
-                        type: 'modelWorkerLoadingProgress',
-                        payload: {
-                            status: 'progress',
-                            progress: 10,
-                            message: 'Auto-restoring last model...'
-                        }
-                    });
-                }
-                // Load the model
-                await loadModel({
-                    modelId: `${lastModel.repoId}/${lastModel.quantPath}`,
-                    dtype: lastModel.quantPath
-                }, callback);
-                if (LOG_GENERATION_FLOW) {
-                    console.log(prefix, '✅ Auto-restoration successful, continuing with generation...');
-                }
-            }
-            else {
-                if (LOG_GENERATION_FLOW) {
-                    console.log(prefix, '❌ No last model to restore, trying default model...');
-                }
-                // Try to load a default model - use Phi-3.5 as default
-                const defaultModel = {
-                    repoId: 'onnx-community/Phi-3.5-mini-instruct-onnx-web',
-                    quantPath: 'q4f16'
-                };
-                try {
-                    if (LOG_GENERATION_FLOW) {
-                        console.log(prefix, `🔄 Auto-loading default model: ${defaultModel.repoId}/${defaultModel.quantPath}`);
-                    }
-                    // Send loading progress to UI
-                    if (callback) {
-                        callback({
-                            status: 'progress',
-                            progress: 10,
-                            message: 'Auto-loading default model...'
-                        });
-                    }
-                    else {
-                        safePostMessage({
-                            type: 'modelWorkerLoadingProgress',
-                            payload: {
-                                status: 'progress',
-                                progress: 10,
-                                message: 'Auto-loading default model...'
-                            }
-                        });
-                    }
-                    // Load the default model
-                    await loadModel({
-                        modelId: `${defaultModel.repoId}/${defaultModel.quantPath}`,
-                        dtype: defaultModel.quantPath
-                    }, callback);
-                    if (LOG_GENERATION_FLOW) {
-                        console.log(prefix, '✅ Default model auto-loading successful, continuing with generation...');
-                    }
-                }
-                catch (defaultLoadError) {
-                    if (LOG_ERROR) {
-                        console.error(prefix, '❌ Default model auto-loading failed:', defaultLoadError);
-                    }
-                    const error = 'Model not ready. Please load a model first.';
-                    if (callback) {
-                        callback({ status: 'error', error });
-                    }
-                    else {
-                        safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.GENERATION_ERROR, payload: { error } });
-                    }
-                    return;
-                }
-            }
+            await ensureModelReady(callback);
         }
-        catch (restoreError) {
+        catch (error) {
             if (LOG_ERROR) {
-                console.error(prefix, '❌ Auto-restoration failed:', restoreError);
+                console.error(prefix, '❌ Failed to ensure model ready:', error);
             }
-            const error = 'Model not ready. Please load a model first.';
+            const errorMsg = 'Model not ready. Please load a model first.';
             if (callback) {
-                callback({ status: 'error', error });
+                callback({ status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.ERROR, error: errorMsg });
             }
             else {
-                safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.GENERATION_ERROR, payload: { error } });
+                safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.GENERATION_ERROR, payload: { error: errorMsg } });
             }
             return;
         }
@@ -10709,39 +11467,35 @@ const generate = async (messages, callback) => {
         isGenerating = true;
         shouldStopGeneration = false;
         stopping_criteria.reset();
-        if (LOG_QA_START)
-            console.log(prefix, '🚀 Generation started');
         const settings = inferenceSettings;
         // Log current settings for debugging
-        if (LOG_GEN_PARAMS) {
-            console.log(prefix, 'Current inference settings:');
-            console.log(prefix, `  temperature: ${settings.temperature}`);
-            console.log(prefix, `  max_length: ${settings.max_length}`);
-            console.log(prefix, `  max_new_tokens: ${settings.max_new_tokens}`);
-            console.log(prefix, `  top_k: ${settings.top_k}`);
-            console.log(prefix, `  top_p: ${settings.top_p}`);
-            console.log(prefix, `  repetition_penalty: ${settings.repetition_penalty}`);
-            console.log(prefix, `  do_sample: ${settings.do_sample}`);
+        if (LOG_GEN_PARAMS_CURRENT) {
+            const settingsEntries = Object.entries(settings)
+                .map(([key, value]) => `        ${key}: ${JSON.stringify(value)}`)
+                .join('\n');
+            const settingsInfo = `Current inference settings:\n${settingsEntries}`;
+            console.log(prefix, settingsInfo);
         }
         let messagesForTemplate = [];
-        if (settings.system_prompt && typeof settings.system_prompt === 'string' && settings.system_prompt.trim().length > 0) {
+        // Determine which system prompt to use based on json_mode
+        const effectiveSystemPrompt = settings.json_mode
+            ? _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_SYSTEM_PROMPT_JSON
+            : (settings.system_prompt || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_SYSTEM_PROMPT_NORMAL);
+        if (effectiveSystemPrompt && effectiveSystemPrompt.trim().length > 0) {
             if (!(Array.isArray(messages) && messages.some(msg => msg.role === 'system'))) {
-                messagesForTemplate.push({ role: 'system', content: settings.system_prompt });
+                messagesForTemplate.push({ role: 'system', content: effectiveSystemPrompt });
             }
         }
         if (Array.isArray(messages)) {
             messagesForTemplate.push(...messages);
         }
         // Filter scraped content
-        const filteredMessages = filterScrapedContent(messagesForTemplate);
-        if (LOG_GEN_DETAILED) {
-            console.log(prefix, `[generate] Original messages:`, messagesForTemplate.length);
-            console.log(prefix, `[generate] Filtered messages:`, filteredMessages.length);
-        }
-        if (LOG_GEN_ANALYSIS) {
-            console.log(prefix, `[generate] 📨 MESSAGE DETAILS:`);
-            console.log(prefix, `  Original messages:`, messagesForTemplate);
-            console.log(prefix, `  Filtered messages:`, filteredMessages);
+        const filteredMessages = _Pipelines_PipelineHelpers__WEBPACK_IMPORTED_MODULE_5__.PipelineHelpers.filterScrapedContent(messagesForTemplate);
+        if (LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER) {
+            const messageDetailsInfo = `[generate] 📨 MESSAGE DETAILS:
+        Original messages: ${JSON.stringify(messagesForTemplate, null, 2)}
+        Filtered messages: ${JSON.stringify(filteredMessages, null, 2)}`;
+            console.log(prefix, messageDetailsInfo);
         }
         const inputs = transformersTokenizer.apply_chat_template(filteredMessages, {
             add_generation_prompt: true,
@@ -10788,77 +11542,78 @@ const generate = async (messages, callback) => {
             },
             token_callback_function,
         });
-        const padTokenId = transformersTokenizer?.pad_token_id ?? settings.pad_token_id;
-        const bosTokenId = transformersTokenizer?.bos_token_id ?? settings.bos_token_id;
-        const eosTokenId = transformersTokenizer?.eos_token_id ?? settings.eos_token_id;
-        // Calculate effective max length - prioritize model's context length over user settings
-        // For modern models with large context windows, use the model's actual capacity
-        const effectiveMaxLength = modelContextLength;
-        if (LOG_GEN_DETAILED) {
-            console.log(prefix, '[generate] Context length calculation:');
-            console.log(prefix, '  settingsMaxLength:', settings.max_length);
-            console.log(prefix, '  modelContextLength:', modelContextLength);
-            console.log(prefix, '  effectiveMaxLength:', effectiveMaxLength);
-            console.log(prefix, '  strategy: using model context length (not user settings)');
-        }
         const generateParams = {
             ...inputs,
+            // Core sampling parameters
             do_sample: settings.do_sample,
-            top_k: settings.top_k,
             temperature: settings.temperature,
+            top_k: settings.top_k,
             top_p: settings.top_p,
-            repetition_penalty: settings.repetition_penalty,
+            typical_p: settings.typical_p,
+            epsilon_cutoff: settings.epsilon_cutoff,
+            eta_cutoff: settings.eta_cutoff,
+            // Length and repetition control
+            max_length: modelContextLength,
             max_new_tokens: settings.max_new_tokens,
-            no_repeat_ngram_size: settings.no_repeat_ngram_size,
             min_length: settings.min_length,
-            max_length: effectiveMaxLength,
-            pad_token_id: padTokenId,
-            bos_token_id: bosTokenId,
-            eos_token_id: eosTokenId,
+            min_new_tokens: settings.min_new_tokens,
+            repetition_penalty: settings.repetition_penalty,
+            encoder_repetition_penalty: settings.encoder_repetition_penalty,
+            no_repeat_ngram_size: settings.no_repeat_ngram_size,
+            encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
+            // Beam search parameters
+            num_beams: settings.num_beams,
+            num_beam_groups: settings.num_beam_groups,
+            diversity_penalty: settings.diversity_penalty,
+            length_penalty: settings.length_penalty,
+            early_stopping: settings.early_stopping,
+            penalty_alpha: settings.penalty_alpha,
+            // Token IDs (only forced/decoder variants - basic IDs already set on tokenizer during load)
+            decoder_start_token_id: settings.decoder_start_token_id,
+            forced_bos_token_id: settings.forced_bos_token_id,
+            forced_eos_token_id: settings.forced_eos_token_id,
+            // Advanced filtering
+            bad_words_ids: settings.bad_words_ids,
+            force_words_ids: settings.force_words_ids,
+            suppress_tokens: settings.suppress_tokens,
+            begin_suppress_tokens: settings.begin_suppress_tokens,
+            // Output control
+            num_return_sequences: settings.num_return_sequences,
+            output_attentions: settings.output_attentions,
+            output_hidden_states: settings.output_hidden_states,
+            output_scores: settings.output_scores,
+            return_dict_in_generate: settings.return_dict_in_generate,
+            // Performance and caching
+            use_cache: settings.use_cache,
+            remove_invalid_values: settings.remove_invalid_values,
+            renormalize_logits: settings.renormalize_logits,
+            // Advanced features
+            guidance_scale: settings.guidance_scale,
+            max_time: settings.max_time,
+            exponential_decay_length_penalty: settings.exponential_decay_length_penalty,
+            constraints: settings.constraints,
+            forced_decoder_ids: settings.forced_decoder_ids,
+            // Streamer and stopping
             streamer: ourStreamer,
             stopping_criteria,
         };
-        // Detailed parameter logging
-        if (LOG_GEN_PARAMS) {
-            const detailedParams = `[generate] 📋 DETAILED GENERATION PARAMETERS:
-        Input Info:
-            input_ids length: ${inputs.input_ids.length}
-            attention_mask length: ${inputs.attention_mask.length}
-        
-        Core Generation:
-            do_sample: ${generateParams.do_sample}
-            temperature: ${generateParams.temperature}
-            top_k: ${generateParams.top_k}
-            top_p: ${generateParams.top_p}
-            repetition_penalty: ${generateParams.repetition_penalty}
-            max_new_tokens: ${generateParams.max_new_tokens}
-            min_length: ${generateParams.min_length}
-            max_length: ${generateParams.max_length} (effective: ${effectiveMaxLength})
-        
-        Token Control:
-            pad_token_id: ${generateParams.pad_token_id}
-            bos_token_id: ${generateParams.bos_token_id}
-            eos_token_id: ${generateParams.eos_token_id}
-        
-        Advanced:
-            no_repeat_ngram_size: ${generateParams.no_repeat_ngram_size}
-            has_streamer: ${!!generateParams.streamer}
-            has_stopping_criteria: ${!!generateParams.stopping_criteria}`;
-            console.log(prefix, detailedParams);
-        }
         // Log key generation parameters for debugging (as string to avoid truncation)
         if (LOG_GEN_PARAMS) {
-            const activeParams = `[generate] 🔧 ACTIVE GENERATION PARAMETERS:
-        temperature: ${generateParams.temperature}
-        max_length: ${generateParams.max_length} (effective: ${effectiveMaxLength})
-        max_new_tokens: ${generateParams.max_new_tokens}
-        top_k: ${generateParams.top_k}
-        top_p: ${generateParams.top_p}
-        repetition_penalty: ${generateParams.repetition_penalty}
-        length_penalty: ${settings.length_penalty}
-        no_repeat_ngram_size: ${generateParams.no_repeat_ngram_size}
-        do_sample: ${generateParams.do_sample}`;
-            console.log(prefix, activeParams);
+            const paramsEntries = Object.entries(generateParams)
+                .map(([key, value]) => {
+                // Handle BigInt values which JSON.stringify can't serialize
+                if (typeof value === 'bigint') {
+                    return `        ${key}: ${value.toString()}`;
+                }
+                try {
+                    return `        ${key}: ${JSON.stringify(value)}`;
+                }
+                catch (e) {
+                    return `        ${key}: [unserializable: ${typeof value}]`;
+                }
+            })
+                .join('\n');
+            console.log(prefix, `[generate] 🔧 ACTIVE GENERATION PARAMETERS:\n${paramsEntries}`);
         }
         // Check for stop request before generation
         if (shouldStopGeneration) {
@@ -10959,7 +11714,7 @@ const generate = async (messages, callback) => {
             past_key_values_cache = null;
         }
         if (callback) {
-            callback({ status: 'error', error: error.message || 'Generation failed' });
+            callback({ status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.ERROR, error: error.message || 'Generation failed' });
         }
         else {
             safePostMessage({
@@ -10969,445 +11724,8 @@ const generate = async (messages, callback) => {
         }
     }
     finally {
-        if (LOG_QA_START)
-            console.log(prefix, '🔄 Generation state reset');
         isGenerating = false;
         shouldStopGeneration = false;
-    }
-};
-// Enhanced Model loading function
-const loadModel = async (payload, callback) => {
-    const { modelId, dtype, task, loadId } = payload;
-    if (LOG_MODEL_LOADING) {
-        const loadInfo = `loadModel called with:
-      modelId: ${modelId}
-      dtype: ${dtype}
-      task: ${task}
-      loadId: ${loadId}`;
-        console.log(prefix, loadInfo);
-    }
-    try {
-        currentLoadId = loadId;
-        currentModelRepoId = modelId;
-        currentModelQuantPath = dtype;
-        currentTask = task || null;
-        if (LOG_MODEL_LOADING)
-            console.log(prefix, `Loading: ${modelId}, dtype: ${dtype}`);
-        // Send initial progress message
-        if (callback) {
-            callback({ status: 'initiate', file: dtype, progress: 0, loadId });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: { status: 'initiate', file: dtype, progress: 0, loadId }
-            });
-        }
-        const validDtypes = ['auto', 'fp32', 'fp16', 'q8', 'int8', 'uint8', 'q4', 'bnb4', 'q4f16', 'quantized'];
-        const modelDtype = validDtypes.includes(dtype) ? dtype : 'auto';
-        // Get hasExternalData from manifest
-        const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(modelId);
-        let hasExternalData = false;
-        if (manifestEntry && manifestEntry.quants) {
-            // Find the quant info for this dtype
-            for (const [modelPath, quantInfo] of Object.entries(manifestEntry.quants)) {
-                if (quantInfo.dtype === dtype) {
-                    hasExternalData = quantInfo.hasExternalData || false;
-                    break;
-                }
-            }
-        }
-        // Load tokenizer and model with detailed progress tracking
-        if (callback) {
-            callback({
-                status: 'loading',
-                file: 'tokenizer',
-                progress: 10,
-                loadId,
-                message: 'Loading tokenizer from cache...'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: 'loading',
-                    file: 'tokenizer',
-                    progress: 10,
-                    loadId,
-                    message: 'Loading tokenizer from cache...'
-                }
-            });
-        }
-        transformersTokenizer = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.AutoTokenizer.from_pretrained(modelId, {
-            progress_callback: (data) => {
-                let progress = 10;
-                let status = 'loading';
-                let message = 'Loading tokenizer from cache...';
-                if (data.status === 'progress') {
-                    progress = 25 + (data.progress * 0.15); // 25-40% range for tokenizer
-                    status = 'loading';
-                    message = `Loading tokenizer from cache... ${Math.round(progress)}%`;
-                }
-                else if (data.status === 'ready' || data.status === 'done') {
-                    progress = 40;
-                    status = 'done';
-                    message = 'Tokenizer ready';
-                }
-                if (callback) {
-                    callback({
-                        status,
-                        file: data.file || 'tokenizer',
-                        progress,
-                        loadId,
-                        loaded: data.loaded,
-                        total: data.total,
-                        message
-                    });
-                }
-                else {
-                    if (LOG_PROGRESS_CALLBACK) {
-                        const tokenizerProgress = `Sending tokenizer progress to sidepanel:
-              status: ${status}
-              file: ${data.file || 'tokenizer'}
-              progress: ${progress}
-              loadId: ${loadId}
-              loaded: ${data.loaded}
-              total: ${data.total}
-              message: ${message}`;
-                        console.log(prefix, tokenizerProgress);
-                    }
-                    safePostMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                        payload: {
-                            status,
-                            file: data.file || 'tokenizer',
-                            progress,
-                            loadId,
-                            loaded: data.loaded,
-                            total: data.total,
-                            message
-                        }
-                    });
-                }
-            }
-        });
-        // Load model configuration to get context length and token IDs
-        let modelConfig = null;
-        try {
-            const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
-            if (LOG_TRANSFORMERS)
-                console.log(prefix, '[loadModel] Loading model config from:', configUrl);
-            const configResponse = await fetch(configUrl);
-            if (configResponse.ok) {
-                modelConfig = await configResponse.json();
-                if (LOG_TRANSFORMERS) {
-                    if (LOG_MODEL_LOADING) {
-                        const modelConfigInfo = `[loadModel] Model config loaded:
-              max_position_embeddings: ${modelConfig?.max_position_embeddings}
-              n_positions: ${modelConfig?.n_positions}
-              max_sequence_length: ${modelConfig?.max_sequence_length}
-              n_ctx: ${modelConfig?.n_ctx}
-              context_length: ${modelConfig?.context_length}
-              eos_token_id: ${modelConfig?.eos_token_id}
-              pad_token_id: ${modelConfig?.pad_token_id}
-              bos_token_id: ${modelConfig?.bos_token_id}
-              tokenizer_class: ${modelConfig?.tokenizer_class}
-              num_attention_heads: ${modelConfig?.num_attention_heads}
-              num_key_value_heads: ${modelConfig?.num_key_value_heads}
-              hidden_size: ${modelConfig?.hidden_size}
-              n_embd: ${modelConfig?.n_embd}
-              head_dim: ${modelConfig?.head_dim}
-              vocab_size: ${modelConfig?.vocab_size}
-              model_type: ${modelConfig?.model_type}
-              architectures: ${modelConfig?.architectures?.join(', ')}`;
-                        console.log(prefix, modelConfigInfo);
-                    }
-                }
-            }
-        }
-        catch (configError) {
-            if (LOG_ERROR)
-                console.error(prefix, '[loadModel] Failed to load model config:', configError);
-        }
-        const modelConfigContextLength = modelConfig?.max_position_embeddings ||
-            modelConfig?.n_positions ||
-            modelConfig?.max_sequence_length ||
-            modelConfig?.n_ctx ||
-            modelConfig?.context_length;
-        // Get user's current settings as fallback
-        const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getInferenceSettings)();
-        const userMaxLength = currentSettings?.max_length || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.max_length;
-        // Use model config if available, otherwise use user's setting
-        modelContextLength = modelConfigContextLength || userMaxLength;
-        if (LOG_TRANSFORMERS) {
-            const contextLengthInfo = `[loadModel] Model context length extracted:
-        Full model config keys: ${Object.keys(modelConfig || {}).join(', ')}
-        modelConfigContextLength: ${modelConfigContextLength}
-        userMaxLength: ${userMaxLength}
-        final modelContextLength: ${modelContextLength}
-        source: ${modelConfigContextLength ? 'model-config' : 'user-settings'}
-        max_position_embeddings: ${modelConfig?.max_position_embeddings}
-        n_positions: ${modelConfig?.n_positions}
-        max_sequence_length: ${modelConfig?.max_sequence_length}
-        n_ctx: ${modelConfig?.n_ctx}
-        context_length: ${modelConfig?.context_length}`;
-            console.log(prefix, contextLengthInfo);
-            // Keep JSON.stringify separate for full config dump (only when MODEL_CONFIG debug is on)
-            if (LOG_MODEL_CONFIG) {
-                console.log(prefix, '[loadModel] Full model config JSON:', JSON.stringify(modelConfig, null, 2));
-            }
-        }
-        // Extract model architecture details and store globally
-        numAttentionHeads = modelConfig?.num_attention_heads || modelConfig?.n_head || modelConfig?.num_heads;
-        const hiddenSize = modelConfig?.hidden_size || modelConfig?.n_embd;
-        numKeyValueHeads = modelConfig?.num_key_value_heads || numAttentionHeads;
-        headDim = (hiddenSize && numAttentionHeads) ? (modelConfig?.head_dim || hiddenSize / numAttentionHeads) : undefined;
-        if (LOG_TRANSFORMERS) {
-            const archInfo = `[loadModel] Model architecture:
-        numAttentionHeads: ${numAttentionHeads}
-        hiddenSize: ${hiddenSize}
-        numKeyValueHeads: ${numKeyValueHeads}
-        headDim: ${headDim}`;
-            console.log(prefix, archInfo);
-        }
-        // Extract token IDs from tokenizer and config with advanced fallback logic
-        let eosTokenId = undefined;
-        let padTokenId = undefined;
-        let bosTokenId = undefined;
-        if (transformersTokenizer) {
-            // Try tokenizer first
-            eosTokenId = transformersTokenizer.eos_token_id;
-            padTokenId = transformersTokenizer.pad_token_id;
-            bosTokenId = transformersTokenizer.bos_token_id;
-            if (LOG_TRANSFORMERS && LOG_TOKEN_IDS) {
-                const tokenizerTokenInfo = `[loadModel] Tokenizer token IDs:
-          eos_token_id: ${eosTokenId}
-          pad_token_id: ${padTokenId}
-          bos_token_id: ${bosTokenId}`;
-                console.log(prefix, tokenizerTokenInfo);
-            }
-        }
-        // Fallback to model config if tokenizer doesn't have the IDs
-        if (modelConfig) {
-            if (eosTokenId === null || eosTokenId === undefined) {
-                if (typeof modelConfig.eos_token_id === 'number') {
-                    eosTokenId = modelConfig.eos_token_id;
-                }
-                else if (Array.isArray(modelConfig.eos_token_ids) && typeof modelConfig.eos_token_ids[0] === 'number') {
-                    eosTokenId = modelConfig.eos_token_ids[0];
-                }
-                else if (modelConfig?.tokenizer_class?.includes("LlamaTokenizer")) {
-                    eosTokenId = 2;
-                }
-                else if (modelConfig?.tokenizer_class?.includes("GPT2Tokenizer")) {
-                    eosTokenId = 50256;
-                }
-            }
-            if (padTokenId === null || padTokenId === undefined) {
-                padTokenId = modelConfig.pad_token_id;
-            }
-            if (bosTokenId === null || bosTokenId === undefined) {
-                bosTokenId = modelConfig.bos_token_id;
-            }
-            if (LOG_TRANSFORMERS && LOG_TOKEN_IDS) {
-                const fallbackTokenInfo = `[loadModel] Final token IDs after fallback:
-          eos_token_id: ${eosTokenId}
-          pad_token_id: ${padTokenId}
-          bos_token_id: ${bosTokenId}`;
-                console.log(prefix, fallbackTokenInfo);
-            }
-        }
-        // Fallback to user settings if still not set
-        if (eosTokenId === null || eosTokenId === undefined) {
-            const userEosTokenId = currentSettings?.eos_token_id ?? _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.eos_token_id;
-            eosTokenId = userEosTokenId !== null ? userEosTokenId : undefined;
-        }
-        if (padTokenId === null || padTokenId === undefined) {
-            const userPadTokenId = currentSettings?.pad_token_id ?? _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.pad_token_id;
-            padTokenId = userPadTokenId !== null ? userPadTokenId : undefined;
-        }
-        if (bosTokenId === null || bosTokenId === undefined) {
-            const userBosTokenId = currentSettings?.bos_token_id ?? _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.bos_token_id;
-            bosTokenId = userBosTokenId !== null ? userBosTokenId : undefined;
-        }
-        if (LOG_TRANSFORMERS && LOG_TOKEN_IDS) {
-            const finalTokenInfo = `[loadModel] Final token IDs after user settings fallback:
-        eos_token_id: ${eosTokenId} (source: ${eosTokenId === currentSettings?.eos_token_id ? 'user-settings' : 'model/tokenizer'})
-        pad_token_id: ${padTokenId} (source: ${padTokenId === currentSettings?.pad_token_id ? 'user-settings' : 'model/tokenizer'})
-        bos_token_id: ${bosTokenId} (source: ${bosTokenId === currentSettings?.bos_token_id ? 'user-settings' : 'model/tokenizer'})`;
-            console.log(prefix, finalTokenInfo);
-        }
-        // Set pad_token_id to eos_token_id if not set (common pattern)
-        if (transformersTokenizer && (padTokenId === null || padTokenId === undefined) && eosTokenId !== undefined) {
-            transformersTokenizer.pad_token_id = eosTokenId;
-            padTokenId = eosTokenId;
-            if (LOG_TRANSFORMERS)
-                console.log(prefix, '[loadModel] Set pad_token_id to eos_token_id:', eosTokenId);
-        }
-        // Load model
-        if (callback) {
-            callback({
-                status: 'loading',
-                file: 'model',
-                progress: 30,
-                loadId,
-                message: 'Loading model from cache...'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: 'loading',
-                    file: 'model',
-                    progress: 30,
-                    loadId,
-                    message: 'Loading model from cache...'
-                }
-            });
-        }
-        const modelOptions = {
-            ...(modelDtype !== 'auto' && { dtype: modelDtype }),
-            device: (hasWebGPU ? "webgpu" : "cpu"),
-            use_external_data_format: hasExternalData,
-            progress_callback: (data) => {
-                let progress = 30; // Initial value, will be remapped
-                let status = 'loading';
-                let message = 'Loading model from cache...';
-                if (data.status === 'progress') {
-                    progress = 40 + (data.progress * 0.5); // 40-90% range for model
-                    status = 'loading';
-                    message = `Loading model from cache... ${Math.round(progress)}%`;
-                }
-                else if (data.status === 'ready' || data.status === 'done') {
-                    progress = 90;
-                    status = 'done';
-                    message = 'Model loaded from cache';
-                }
-                if (callback) {
-                    callback({
-                        status,
-                        file: data.file || 'model',
-                        progress,
-                        loadId,
-                        loaded: data.loaded,
-                        total: data.total,
-                        message
-                    });
-                }
-                else {
-                    if (LOG_PROGRESS_CALLBACK) {
-                        const modelProgress = `Sending model progress to sidepanel:
-              status: ${status}
-              file: ${data.file || 'model'}
-              progress: ${progress}
-              loadId: ${loadId}
-              loaded: ${data.loaded}
-              total: ${data.total}
-              message: ${message}`;
-                        console.log(prefix, modelProgress);
-                    }
-                    safePostMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                        payload: {
-                            status,
-                            file: data.file || 'model',
-                            progress,
-                            loadId,
-                            loaded: data.loaded,
-                            total: data.total,
-                            message
-                        }
-                    });
-                }
-            }
-        };
-        // Send processing message
-        if (callback) {
-            callback({
-                status: 'processing',
-                file: 'model',
-                progress: 90,
-                loadId,
-                message: 'Initializing model...'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: 'processing',
-                    file: 'model',
-                    progress: 90,
-                    loadId,
-                    message: 'Initializing model...'
-                }
-            });
-        }
-        transformersModel = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.AutoModelForCausalLM.from_pretrained(modelId, modelOptions);
-        isTransformersModelReady = true;
-        if (LOG_MODEL_LOADING)
-            console.log(prefix, `Model loaded successfully: ${modelId}`);
-        // Model loaded successfully - persistent state was already saved when INIT message was received
-        // Update manifest status to indicate successful download/loading
-        await setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded);
-        // Send completion messages
-        if (callback) {
-            callback({
-                status: 'done',
-                file: 'model',
-                progress: 100,
-                loadId,
-                message: 'Model ready for inference!'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.WORKER_READY,
-                payload: { modelId, dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
-            });
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: 'done',
-                    file: 'model',
-                    progress: 100,
-                    loadId,
-                    message: 'Model ready for inference!'
-                }
-            });
-        }
-        currentLoadId = undefined;
-    }
-    catch (error) {
-        isTransformersModelReady = false;
-        currentModelRepoId = null;
-        currentModelQuantPath = null;
-        currentTask = null;
-        currentLoadId = undefined;
-        console.error(prefix, `Error loading model:`, error);
-        // Update manifest status to indicate failed download/loading
-        try {
-            await setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Failed);
-        }
-        catch (manifestError) {
-            if (LOG_ERROR)
-                console.error(prefix, `[loadModel] Failed to update manifest status on error:`, manifestError);
-        }
-        if (callback) {
-            callback({ status: 'error', file: dtype, error: error.message, loadId });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.ERROR,
-                payload: { error: `Failed to load model ${dtype}: ${error.message}` }
-            });
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: { status: 'error', file: dtype, error: error.message, loadId }
-            });
-        }
     }
 };
 // Stop generation function
@@ -11445,15 +11763,18 @@ const handleUIConnected = (senderId, context) => {
     if (pongTimeout) {
         clearTimeout(pongTimeout);
         pongTimeout = null;
-        console.log(prefix, `⏸️ VRAM cleanup cancelled - UI reconnected (${context}, total: ${activeUIConnections.size})`);
+        if (LOG_PING_PONG)
+            console.log(prefix, `⏸️ VRAM cleanup cancelled - UI reconnected (${context}, total: ${activeUIConnections.size})`);
     }
     if (wasEmpty) {
-        console.log(prefix, `✅ First UI connected (${context}) - ready to communicate [ID: ${senderId}]`);
+        if (LOG_PING_PONG)
+            console.log(prefix, `✅ First UI connected (${context}) - ready to communicate [ID: ${senderId}]`);
         // Start ping timer for the first UI
         startPingTimer();
     }
     else {
-        console.log(prefix, `✅ Additional UI connected (${context}) - total connections: ${activeUIConnections.size} [ID: ${senderId}]`);
+        if (LOG_PING_PONG)
+            console.log(prefix, `✅ Additional UI connected (${context}) - total connections: ${activeUIConnections.size} [ID: ${senderId}]`);
     }
 };
 // Start periodic ping timer
@@ -11471,13 +11792,15 @@ const startPingTimer = () => {
             pingTimer = null;
         }
     }, PING_INTERVAL_MS);
-    console.log(prefix, `🔄 Started ping timer (every ${PING_INTERVAL_MS / 1000}s)`);
+    if (LOG_PING_PONG)
+        console.log(prefix, `🔄 Started ping timer (every ${PING_INTERVAL_MS / 1000}s)`);
 };
 // Send ping to all connected UIs
 const sendPingToAllUIs = () => {
     if (activeUIConnections.size === 0)
         return;
-    console.log(prefix, `🏓 Pinging ${activeUIConnections.size} UI(s) - waiting for pong...`);
+    if (LOG_PING_PONG)
+        console.log(prefix, `🏓 Pinging ${activeUIConnections.size} UI(s) - waiting for pong...`);
     // Send ping via BroadcastChannel
     (async () => {
         try {
@@ -11495,23 +11818,27 @@ const sendPingToAllUIs = () => {
     })();
     // Set timeout - if no pong received, cleanup VRAM
     pongTimeout = setTimeout(() => {
-        console.log(prefix, '⏰ No pong received - cleaning up VRAM and resetting model');
+        if (LOG_PING_PONG)
+            console.log(prefix, '⏰ No pong received - cleaning up VRAM and resetting model');
         resetModel();
         pongTimeout = null;
     }, PONG_TIMEOUT_MS);
 };
 const handleUIDisconnected = (senderId, context) => {
     if (!activeUIConnections.has(senderId)) {
-        console.log(prefix, `⚠️ Disconnect from unknown UI [ID: ${senderId}]`);
+        if (LOG_PING_PONG)
+            console.log(prefix, `⚠️ Disconnect from unknown UI [ID: ${senderId}]`);
         return;
     }
     activeUIConnections.delete(senderId);
-    console.log(prefix, `🔌 UI disconnected (${context}) - remaining connections: ${activeUIConnections.size} [ID: ${senderId}]`);
+    if (LOG_PING_PONG)
+        console.log(prefix, `🔌 UI disconnected (${context}) - remaining connections: ${activeUIConnections.size} [ID: ${senderId}]`);
     // Check if any remaining connections are sidepanels
     const hasSidepanelConnection = Array.from(activeUIConnections).some(id => id.startsWith('sidepanel-'));
     if (activeUIConnections.size === 0) {
         hasActiveUIConnection = false; // Legacy flag
-        console.log(prefix, `⚠️ Last UI disconnected - will ping in ${PING_INTERVAL_MS / 1000}s to check if still alive`);
+        if (LOG_PING_PONG)
+            console.log(prefix, `⚠️ Last UI disconnected - will ping in ${PING_INTERVAL_MS / 1000}s to check if still alive`);
         // Stop ping timer since no UIs are connected
         if (pingTimer) {
             clearInterval(pingTimer);
@@ -11523,20 +11850,22 @@ const handleUIDisconnected = (senderId, context) => {
         if (pongTimeout) {
             clearTimeout(pongTimeout);
             pongTimeout = null;
-            console.log(prefix, `⏸️ VRAM cleanup cancelled - sidepanel still active (${activeUIConnections.size} connections)`);
+            if (LOG_PING_PONG)
+                console.log(prefix, `⏸️ VRAM cleanup cancelled - sidepanel still active (${activeUIConnections.size} connections)`);
         }
     }
 };
 const handleUIPong = (senderId) => {
     // UI responded to ping - it's alive!
-    if (LOG_GENERAL) {
+    if (LOG_PING_PONG) {
         console.log(prefix, `🏓 Pong received from UI [ID: ${senderId}]`);
     }
     // Cancel the pong timeout since we got a response
     if (pongTimeout) {
         clearTimeout(pongTimeout);
         pongTimeout = null;
-        console.log(prefix, '⏸️ VRAM cleanup cancelled - pong received');
+        if (LOG_PING_PONG)
+            console.log(prefix, '⏸️ VRAM cleanup cancelled - pong received');
     }
 };
 const getActiveUICount = () => activeUIConnections.size;
@@ -11586,18 +11915,18 @@ const updateInferenceSettings = async () => {
             console.error(prefix, '[updateInferenceSettings] Error updating settings:', error);
     }
 };
-// State persistence functions
+// State persistence functions (now using PipelineStateManager)
 const initializePersistentState = async () => {
-    await loadPersistentState();
+    await _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.initialize();
     if (LOG_GENERAL) {
         console.log(prefix, '📂 Persistent state initialized');
     }
 };
 const getPersistentState = () => {
-    return { ...persistentState };
+    return _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.getState();
 };
 const saveLastChatSession = (sessionId) => {
-    updateLastChatSession(sessionId);
+    _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.updateLastChatSession(sessionId);
     if (LOG_GENERAL) {
         console.log(prefix, `💾 Saved last chat session: ${sessionId}`);
     }
@@ -11614,13 +11943,13 @@ const saveLastLoadedModel = (modelId, dtype) => {
     // dtype is the quantization (e.g., "q4f16")
     const repoId = modelId;
     const quantPath = dtype;
-    updateLastLoadedModel(repoId, quantPath);
+    _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.updateLastLoadedModel(repoId, quantPath);
     if (LOG_GENERAL) {
         console.log(prefix, `💾 Saved last loaded model: ${modelId} (dtype: ${dtype})`);
     }
 };
 const restoreLastLoadedModel = async () => {
-    const lastModel = getLastLoadedModel();
+    const lastModel = _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__.PipelineStateManager.getLastLoadedModel();
     if (!lastModel) {
         if (LOG_GENERAL) {
             console.log(prefix, '📂 No last loaded model to restore');
@@ -11695,6 +12024,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
+/* harmony export */   LoadingStatusTypes: () => (/* binding */ LoadingStatusTypes),
 /* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
 /* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
@@ -11706,6 +12036,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
+const LoadingStatusTypes = Object.freeze({
+    INITIATE: 'initiate',
+    PROGRESS: 'progress',
+    DONE: 'done',
+    READY: 'ready',
+    ERROR: 'error'
+});
 const UIEventNames = Object.freeze({
     QUERY_SUBMITTED: 'querySubmitted',
     BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',

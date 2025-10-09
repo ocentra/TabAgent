@@ -6,10 +6,10 @@ import { setupInferenceSettings } from './InferenceSettings';
 import { getAllCachedModels, deleteCachedModel, deleteAllCachedModels, CachedModelInfo } from '../DB/idbModel';
 
 // Logging constants
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;
 const prefix = '[SettingsController]';
 
 let isInitialized = false;

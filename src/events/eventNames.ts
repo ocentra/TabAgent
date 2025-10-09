@@ -1,3 +1,11 @@
+export const LoadingStatusTypes = Object.freeze({
+  INITIATE: 'initiate',
+  PROGRESS: 'progress',
+  DONE: 'done',
+  READY: 'ready',
+  ERROR: 'error'
+});
+
 export const UIEventNames = Object.freeze({
   QUERY_SUBMITTED: 'querySubmitted',
   BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',

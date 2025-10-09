@@ -1,5 +1,5 @@
 const prefix = '[idbWorker]';
-console.log(`${prefix} indexedDBBackendWorker loaded and running`);
+// console.log(`${prefix} indexedDBBackendWorker loaded and running`);
 /// <reference lib="dom" />
 // indexedDBBackendWorker.ts
 
@@ -111,7 +111,7 @@ const FTS_INDEX_STORE_PREFIX = '__fts_';
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;  // Disabled for generation debugging
 const LOG_INFO = false;
 const LOG_PUT = false;
 const LOG_GET = false;
@@ -150,7 +150,7 @@ class CustomIDBManager {
         }
 
         return new Promise((resolve, reject) => {
-            console.log(`${prefix} Opening DB '${dbName}' with requested version ${version}.`);
+            if (LOG_GENERAL) console.log(`${prefix} Opening DB '${dbName}' with requested version ${version}.`);
             const request = indexedDB.open(dbName, version);
 
             request.onupgradeneeded = async (event: IDBVersionChangeEvent) => {
@@ -198,7 +198,7 @@ class CustomIDBManager {
 
             request.onsuccess = (event: Event) => {
                 const db = (event.target as IDBOpenDBRequest).result;
-                console.log(`${prefix} Successfully opened DB '${dbName}' version ${db.version}.`);
+                if (LOG_GENERAL) console.log(`${prefix} Successfully opened DB '${dbName}' version ${db.version}.`);
 
                 // Check if an upgrade actually happened based on the current transaction being null.
                 // event.oldVersion is 0 if the database is new.
@@ -688,7 +688,7 @@ class DataOperations {
                                 });
                             }
                         }
-                        console.log(`${prefix} Matched records count for store '${from}'${where ? ` with where: ${JSON.stringify(where)}` : ''}:`, count);
+                        if (LOG_QUERY) console.log(`${prefix} Matched records count for store '${from}'${where ? ` with where: ${JSON.stringify(where)}` : ''}:`, count);
                         resolve(results.slice(0, limit || results.length));
                     }).catch(reject);
                 }

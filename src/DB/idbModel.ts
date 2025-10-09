@@ -120,7 +120,7 @@ export type ManifestEntry = {
 };
 
 const prefix = '[IDBModel]';
-const LOG_GENERAL = true;  // General operational logs
+const LOG_GENERAL = false;  // General operational logs
 const LOG_DEBUG = false;   // Detailed debugging logs (can be noisy)
 const LOG_ERROR = true;    // Error logs (always enabled)
 const LOG_WARN = true;     // Warning logs

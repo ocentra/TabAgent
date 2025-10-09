@@ -1560,20 +1560,52 @@ export class MultimodalPipeline extends BasePipeline<MultimodalConfig> {
  */
 export class PipelineFactory {
   /**
-   * Create appropriate pipeline based on task type
+   * Create appropriate pipeline based on task type and optional modelId
+   * Supports model-specific routing for specialized pipelines
    * Defaults to TextGenerationPipeline if task is unknown or not provided
    * 
    * @param task - Pipeline task type (e.g., 'text-generation', 'feature-extraction')
+   * @param modelId - Optional model ID for specialized routing (e.g., 'Florence-2', 'Janus')
    * @returns Concrete pipeline instance
    */
-  static createPipeline(task?: string): BasePipeline {
+  static createPipeline(task?: string, modelId?: string): BasePipeline {
     // Default to text generation if no task specified
     const pipelineTask = task || PipelineTypeEnum.TEXT_GENERATION;
     
     if (LOG_GENERAL) {
-      console.log(prefix, `[PipelineFactory] Creating pipeline for task: ${pipelineTask}`);
+      console.log(prefix, `[PipelineFactory] Creating pipeline for task: ${pipelineTask}, modelId: ${modelId || 'none'}`);
     }
     
+    // Model-specific routing for specialized models
+    if (modelId) {
+      const lowerModelId = modelId.toLowerCase();
+      
+      // Florence2 detection
+      if (lowerModelId.includes('florence') || lowerModelId.includes('florence-2')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, '[PipelineFactory] Detected Florence2 model, using Florence2Pipeline');
+        }
+        return new Florence2Pipeline();
+      }
+      
+      // Janus detection
+      if (lowerModelId.includes('janus')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, '[PipelineFactory] Detected Janus model, using JanusPipeline');
+        }
+        return new JanusPipeline();
+      }
+      
+      // Whisper detection (for when task is not set correctly)
+      if (lowerModelId.includes('whisper') || lowerModelId.includes('moonshine')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, '[PipelineFactory] Detected Whisper-like model, using WhisperPipeline');
+        }
+        return new WhisperPipeline();
+      }
+    }
+    
+    // Task-based routing (standard pipeline selection)
     switch (pipelineTask) {
       case PipelineTypeEnum.TEXT_GENERATION:
         return new TextGenerationPipeline();
@@ -1588,7 +1620,13 @@ export class PipelineFactory {
         return new ZeroShotClassificationPipeline();
         
       case PipelineTypeEnum.IMAGE_TO_TEXT:
+        // Default to generic MultimodalPipeline for image-to-text
+        // (Florence2 is handled above via model-specific routing)
+        return new MultimodalPipeline();
+        
       case PipelineTypeEnum.VISUAL_LANGUAGE:
+        // Default to generic MultimodalPipeline for visual-language
+        // (Janus is handled above via model-specific routing)
         return new MultimodalPipeline();
         
       case PipelineTypeEnum.AUTOMATIC_SPEECH_RECOGNITION:

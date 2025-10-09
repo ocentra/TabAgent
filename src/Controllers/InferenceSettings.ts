@@ -41,10 +41,7 @@ export const INFERENCE_SETTING_KEYS = {
   no_repeat_ngram_size: 'no_repeat_ngram_size',
   encoder_no_repeat_ngram_size: 'encoder_no_repeat_ngram_size',
   
-  // Token control
-  pad_token_id: 'pad_token_id',
-  bos_token_id: 'bos_token_id',
-  eos_token_id: 'eos_token_id',
+  // Token control (advanced - only for special generation scenarios)
   decoder_start_token_id: 'decoder_start_token_id',
   forced_bos_token_id: 'forced_bos_token_id',
   forced_eos_token_id: 'forced_eos_token_id',
@@ -76,7 +73,12 @@ export const INFERENCE_SETTING_KEYS = {
   
   // System prompt
   system_prompt: 'system_prompt',
+  
+  // JSON output mode
+  json_mode: 'json_mode',
 } as const;
+
+
 
 export type InferenceSettingTypes = {
   // Core generation parameters
@@ -106,10 +108,7 @@ export type InferenceSettingTypes = {
   no_repeat_ngram_size: number;
   encoder_no_repeat_ngram_size: number;
   
-  // Token control
-  pad_token_id: number | null;
-  bos_token_id: number | null;
-  eos_token_id: number | null;
+  // Token control (advanced - only for special generation scenarios)
   decoder_start_token_id: number | null;
   forced_bos_token_id: number | null;
   forced_eos_token_id: number | null;
@@ -141,6 +140,9 @@ export type InferenceSettingTypes = {
   
   // System prompt
   system_prompt: string;
+  
+  // JSON output mode
+  json_mode: boolean;
 };
 
 export type InferenceSettings = {
@@ -160,69 +162,163 @@ export interface SettingDefinition {
   options?: { value: any; label: string }[];
 }
 
+// Normal system prompt (default)
+export const DEFAULT_SYSTEM_PROMPT_NORMAL = `
+
+Core Identity : You are an expert AI assistant. Your purpose is to provide factual, direct, and structured answers.
+Response Strategy : First, analyze the user's question to determine its complexity. Then, choose one of the following two response formats.
+
+Format 1: Simple Question
+If the question is simple, factual, or can be answered directly, provide a brief and concise answer immediately.
+
+Simple Question Examples :
+
+User: What is the capital of Japan?
+Assistant: Tokyo.
+
+User: Briefly explain what a CPU does.
+Assistant: A CPU, or Central Processing Unit, is the primary component of a computer that performs most of the processing for instructions.
+
+User: What will the price of gold be next year?
+Assistant: I cannot predict future market prices.
+
+User: Who is Mr, ABC?
+Assistant: From my knowledge, Mr. ABC is a lead programmer who has worked at LinkedIn. Would you like to know more specific details?
+
+Format 2: Complex Question
+If the question requires reasoning, calculation, or a step-by-step explanation, you MUST:
+
+1.  First, explain your reasoning by breaking down the problem step-by-step.
+2.  After the complete step-by-step breakdown, provide the final, concise answer enclosed in \`<answer>\` tags.
+
+Complex Question Example :
+
+User: If a train leaves station A at 3 PM traveling at 60 mph and station B is 150 miles away, what time will it arrive?
+
+Assistant:
+Step 1: The goal is to find the arrival time given the distance (150 miles) and speed (60 mph).
+Step 2: Calculate the travel time by dividing distance by speed: Time = 150 / 60 = 2.5 hours.
+Step 3: Convert 2.5 hours to 2 hours and 30 minutes.
+Step 4: Add the travel time to the 3:00 PM departure time.
+Step 5: 3:00 PM + 2 hours 30 minutes = 5:30 PM.
+<answer>5:30 PM</answer>
+
+Core Rules 
+-Be Direct: Do not use conversational filler like "Certainly," or "Here is the information."
+-Be Concise: Do not ramble or add unsolicited information. If you have more details, ask the user if they want them.
+-Acknowledge Limits : If a question is subjective, state: "I cannot provide a subjective answer." -If you lack information, state: "I do not have enough information to answer."
+- Format Clearly: Use lists for multiple items.
+`;
+
+
+// JSON mode system prompt
+export const DEFAULT_SYSTEM_PROMPT_JSON = `
+Core Identity : You are an AI data extraction and formatting assistant. Your ONLY function is to respond with a single, valid JSON object.
+
+Primary Directive
+- Do not include any text, explanations, code comments, or markdown formatting before or after the JSON object.
+- Your entire output must be a single block of valid JSON.
+
+JSON Output Schema
+Your response must follow this structure:
+{
+  "data": { ... extracted data ... },
+  "error": "A brief explanation if the request fails, otherwise null"
+}
+
+Success Case:
+If you can extract the requested information, populate the \`data\` object and set \`error\` to \`null\`.
+
+Success Example
+User: Alice from Google is meeting Bob in New York tomorrow. Extract person, organization, and location details. 
+Assistant:
+{
+  "data": {
+    "person_name": ["Alice", "Bob"],
+    "organization": ["Google"],
+    "location": ["New York"]
+  },
+  "error": null
+}
+
+Failure Case:
+If the user's request is unclear, subjective, or you cannot extract the data, populate the \`error\` field with a brief reason and set \`data\` to \`null\`.
+
+[Failure Example:
+User: What is the best color? 
+Assistant:
+{
+  "data": null,
+  "error": "The request is subjective and data cannot be extracted into JSON format."
+}`;
+
+
+// Default system prompt (uses normal mode)
+export const DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT_NORMAL;
+
 export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
-  // Core generation parameters - Updated with web search optimal values
-  temperature: 0.7,           // Optimal: 0.7 for focused but not too deterministic responses
-  max_length: 8192,           // Large context window for modern models
-  max_new_tokens: 100,        // Optimal: 100 tokens to prevent rambling (was 1024)
-  min_length: 0,              // Default: 0 (from docs)
-  min_new_tokens: 0,          // Default: null (from docs) - we use 0 for user experience
-  top_k: 50,                  // Optimal: 50 for balanced diversity and coherence
-  top_p: 0.9,                 // Optimal: 0.9 for nucleus sampling (proven optimal)
-  typical_p: 1.0,             // Default: 1.0 (from docs)
-  epsilon_cutoff: 0.0,        // Default: 0.0 (from docs)
-  eta_cutoff: 0.0,            // Default: 0.0 (from docs)
-  repetition_penalty: 1.2,    // Optimal: 1.2 to discourage repetition and rambling
-  encoder_repetition_penalty: 1.0, // Default: 1.0 (from docs)
-  do_sample: true,            // Default: false (from docs) - we use true for user experience
+  // Core generation parameters
+  temperature: 0.3,
+  max_length: 8192,
+  max_new_tokens: 1024,
+  min_length: 0,
+  min_new_tokens: 0,
+  top_k: 50,
+  top_p: 0.9,
+  typical_p: 1.0,
+  epsilon_cutoff: 0.0,
+  eta_cutoff: 0.0,
+  repetition_penalty: 1.2,
+  encoder_repetition_penalty: 1.0,
+  do_sample: true,
   
   // Beam search parameters
-  num_beams: 1,               // Default: 1 (from docs)
-  num_beam_groups: 1,         // Default: 1 (from docs)
-  diversity_penalty: 0.0,     // Default: 0.0 (from docs)
-  early_stopping: true,       // Default: false (from docs) - we use true for better stopping
-  length_penalty: 0.8,        // Optimal: 0.8 to encourage shorter, more concise responses
-  penalty_alpha: 0.0,         // Default: null (from docs) - we use 0.0 for user experience
+  num_beams: 1,
+  num_beam_groups: 1,
+  diversity_penalty: 0.0,
+  early_stopping: true,
+  length_penalty: 0.8,
+  penalty_alpha: 0.0,
   
   // N-gram and repetition control
-  no_repeat_ngram_size: 3,    // Proven optimal value for preventing repetition
-  encoder_no_repeat_ngram_size: 0, // Default: 0 (from docs)
+  no_repeat_ngram_size: 3,
+  encoder_no_repeat_ngram_size: 0,
   
   // Token control
-  pad_token_id: null,        // Default: null (from docs)
-  bos_token_id: null,         // Default: null (from docs)
-  eos_token_id: null,        // Will be dynamically set from tokenizer (was hardcoded to 2)
-  decoder_start_token_id: null, // Default: null (from docs)
-  forced_bos_token_id: null,  // Default: null (from docs)
-  forced_eos_token_id: null,  // Default: null (from docs)
+  decoder_start_token_id: null,
+  forced_bos_token_id: null,
+  forced_eos_token_id: null,
   
   // Advanced filtering
-  bad_words_ids: null,        // Default: null (from docs)
-  force_words_ids: null,      // Default: null (from docs)
-  suppress_tokens: null,      // Default: null (from docs)
-  begin_suppress_tokens: null, // Default: null (from docs)
+  bad_words_ids: null,
+  force_words_ids: null,
+  suppress_tokens: null,
+  begin_suppress_tokens: null,
   
   // Output control
-  num_return_sequences: 1,     // Default: 1 (from docs)
-  output_attentions: false,   // Default: false (from docs)
-  output_hidden_states: false, // Default: false (from docs)
-  output_scores: false,       // Default: false (from docs)
-  return_dict_in_generate: false, // Default: false (from docs)
+  num_return_sequences: 1,
+  output_attentions: false,
+  output_hidden_states: false,
+  output_scores: false,
+  return_dict_in_generate: false,
   
   // Performance and caching
-  use_cache: true,            // Default: true (from docs)
-  remove_invalid_values: false, // Default: false (from docs)
-  renormalize_logits: false,  // Default: false (from docs)
+  use_cache: true,
+  remove_invalid_values: false,
+  renormalize_logits: false,
   
   // Advanced features
-  guidance_scale: 1.0,        // Default: null (from docs) - we use 1.0 for user experience
-  max_time: null,             // Default: null (from docs)
-  exponential_decay_length_penalty: null, // Default: null (from docs)
-  constraints: null,          // Default: null (from docs)
-  forced_decoder_ids: null,   // Default: null (from docs)
+  guidance_scale: 1.0,
+  max_time: null,
+  exponential_decay_length_penalty: null,
+  constraints: null,
+  forced_decoder_ids: null,
   
   // System prompt
-  system_prompt: `You are a helpful AI assistant. Give brief, direct answers. Be concise and to the point. No rambling or repetition. If you don't know something, say so.\n`,
+  system_prompt: DEFAULT_SYSTEM_PROMPT,
+  
+  // JSON output mode
+  json_mode: false,
 };
 
 export const SYSTEM_PROMPT_SETTING: SettingDefinition = {
@@ -331,6 +427,14 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       defaultValue: true, // Official default: false
       description: `When ON, the AI will generate more varied and creative answers by sampling from possible words. When OFF, the AI will always pick the most likely next word, making answers more predictable and less creative.`,
       example: `ON = creative, varied output. OFF = more predictable, sometimes repetitive.`
+  },
+  {
+      key: INFERENCE_SETTING_KEYS.json_mode,
+      label: 'JSON Output Mode',
+      type: 'checkbox',
+      defaultValue: false,
+      description: `When enabled, the AI will only respond in valid JSON format for structured data extraction. Useful for extracting entities like person names, organizations, and locations from text.`,
+      example: `Enable when you need structured data output. Disable for normal conversational responses.`
   },
   {
       key: INFERENCE_SETTING_KEYS.num_beams,
@@ -653,6 +757,9 @@ function createSettingControl(setting: SettingDefinition): string {
   }
 
   let controlHTML = '';
+  // Handle null/undefined default values
+  const safeDefaultValue = setting.defaultValue ?? '';
+  
   switch (setting.type) {
     case 'slider':
       controlHTML = `
@@ -661,16 +768,16 @@ function createSettingControl(setting: SettingDefinition): string {
                min="${setting.min}" 
                max="${setting.max}" 
                step="${setting.step}" 
-               value="${setting.defaultValue}"
+               value="${safeDefaultValue}"
                class="flex-1 mx-2 accent-blue-500">
-        <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${setting.defaultValue}</span>
+        <span id="${valueId}" class="min-w-[3rem] text-sm font-mono text-gray-600 dark:text-gray-300">${safeDefaultValue}</span>
       `;
       break;
     case 'input':
       controlHTML = `
         <input type="number" 
                id="${controlId}" 
-               value="${setting.defaultValue}"
+               ${safeDefaultValue !== '' ? `value="${safeDefaultValue}"` : ''}
                class="flex-1 mx-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
       `;
       break;
@@ -684,7 +791,7 @@ function createSettingControl(setting: SettingDefinition): string {
       break;
     case 'textarea':
       controlHTML = `
-        <textarea id="${controlId}" rows="6" style="min-height: 3.5rem; max-height: 12rem; overflow-y: auto;" placeholder="You are a helpful AI assistant..." class="flex-1 mx-2 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm resize-vertical">${setting.defaultValue}</textarea>
+        <textarea id="${controlId}" rows="6" style="min-height: 3.5rem; max-height: 12rem; overflow-y: auto;" placeholder="You are a helpful AI assistant..." class="flex-1 mx-2 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm resize-vertical">${safeDefaultValue}</textarea>
       `;
       break;
   }
@@ -819,9 +926,12 @@ export function applySettings(settings: Partial<InferenceSettings>): void {
           if (control.type === 'checkbox') {
               control.checked = Boolean(value);
           } else {
-              control.value = String(value);
-              if (valueSpan) {
-                  valueSpan.textContent = String(value);
+              // Only set value if it's not null or undefined
+              if (value !== null && value !== undefined) {
+                  control.value = String(value);
+                  if (valueSpan) {
+                      valueSpan.textContent = String(value);
+                  }
               }
           }
       }

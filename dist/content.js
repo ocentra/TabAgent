@@ -1780,6 +1780,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   Contexts: () => (/* binding */ Contexts),
 /* harmony export */   InternalEventBusMessageTypes: () => (/* binding */ InternalEventBusMessageTypes),
+/* harmony export */   LoadingStatusTypes: () => (/* binding */ LoadingStatusTypes),
 /* harmony export */   MessageContentTypes: () => (/* binding */ MessageContentTypes),
 /* harmony export */   MessageSenderTypes: () => (/* binding */ MessageSenderTypes),
 /* harmony export */   ModelLoaderMessageTypes: () => (/* binding */ ModelLoaderMessageTypes),
@@ -1791,6 +1792,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   UIEventNames: () => (/* binding */ UIEventNames),
 /* harmony export */   WorkerEventNames: () => (/* binding */ WorkerEventNames)
 /* harmony export */ });
+const LoadingStatusTypes = Object.freeze({
+    INITIATE: 'initiate',
+    PROGRESS: 'progress',
+    DONE: 'done',
+    READY: 'ready',
+    ERROR: 'error'
+});
 const UIEventNames = Object.freeze({
     QUERY_SUBMITTED: 'querySubmitted',
     BACKGROUND_RESPONSE_RECEIVED: 'background:responseReceived',

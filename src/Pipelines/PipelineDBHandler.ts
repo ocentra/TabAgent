@@ -4,7 +4,11 @@ import {
   addManifestEntry, 
   addQuantToManifest, 
   QuantStatus,
-  saveToIndexedDB
+  saveToIndexedDB,
+  getFromIndexedDB,
+  getChunkInfo,
+  assembleChunks,
+  createStreamingResponseFromChunks
 } from '../DB/idbModel';
 
 const prefix = '[PipelineDBHandler]';
@@ -325,6 +329,85 @@ export class PipelineDBHandler {
     const LARGE_FILE_REGEX = /\.(onnx(\.data)?|onnx_data|bin|pt)$/i;
     if (originalUrl && resourceUrl !== originalUrl && !LARGE_FILE_REGEX.test(resourceUrl)) {
       await saveToIndexedDB(originalUrl, blob);
+    }
+  }
+
+  /**
+   * Try to serve file from IndexedDB cache
+   * Handles both chunked and regular files
+   * 
+   * @param resourceUrl - Resource URL to serve
+   * @param currentModelRepoId - Current model repository ID (for chunked files)
+   * @param logChunked - Enable chunked file logging
+   * @returns Response from cache or null if not found
+   */
+  static async tryServeFromIndexedDB(
+    resourceUrl: string,
+    currentModelRepoId: string | null,
+    logChunked: boolean = false
+  ): Promise<Response | null> {
+    if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
+      return null;
+    }
+
+    try {
+      const urlParts = resourceUrl.split('/');
+      const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
+      const modelId = currentModelRepoId;
+
+      if (modelId) {
+        const chunkedInfo = await getChunkInfo(modelId, fileName);
+        if (chunkedInfo.isChunked && chunkedInfo.totalChunks && chunkedInfo.totalSize) {
+          if (logChunked) {
+            console.log(prefix, `🔄 [tryServeFromIndexedDB] FOUND CHUNKED FILE: ${fileName}`);
+            console.log(
+              prefix,
+              `   Total chunks: ${chunkedInfo.totalChunks}, Total size: ${(chunkedInfo.totalSize / 1024 / 1024).toFixed(1)}MB`
+            );
+          }
+          try {
+            // For files over 100MB, use streaming to avoid RAM issues
+            if (chunkedInfo.totalSize > 100 * 1024 * 1024) {
+              if (logChunked) console.log(prefix, `   Using streaming response (file > 100MB)`);
+              return await createStreamingResponseFromChunks(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
+            } else {
+              if (logChunked) console.log(prefix, `   Assembling in memory (file < 100MB)`);
+              // For smaller chunked files, assemble in memory
+              const assembledBuffer = await assembleChunks(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
+
+              const headers = new Headers();
+              if (resourceUrl.endsWith('.json')) {
+                headers.set('Content-Type', 'application/json');
+              } else {
+                headers.set('Content-Type', 'application/octet-stream');
+              }
+              headers.set('Content-Length', assembledBuffer.byteLength.toString());
+
+              return new Response(assembledBuffer, { headers });
+            }
+          } catch (assembleError) {
+            // Fall through to regular cache check
+          }
+        }
+      }
+
+      // Fall back to regular cache check
+      const cached = await getFromIndexedDB(resourceUrl);
+      if (cached) {
+        const headers = new Headers();
+        if (cached.type) {
+          headers.set('Content-Type', cached.type);
+        } else if (resourceUrl.endsWith('.json')) {
+          headers.set('Content-Type', 'application/json');
+        } else {
+          headers.set('Content-Type', 'application/octet-stream');
+        }
+        headers.set('Content-Length', cached.size.toString());
+        return new Response(cached, { headers: headers });
+      }
+      return null;
+    } catch (dbError) {
+      return null;
     }
   }
 }

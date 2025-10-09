@@ -331,7 +331,7 @@ function updateHeaderState(): void {
 }
 
 export function initializeDriveController(dependencies: any): void {
-    console.log("Initializing DriveController...");
+    if (LOG_GENERAL) console.log("Initializing DriveController...");
 
     if (!dependencies || !dependencies.showNotification || !dependencies.debounce) {
         console.error("DriveController requires dependencies: showNotification, debounce!");
@@ -383,7 +383,7 @@ export function initializeDriveController(dependencies: any): void {
         driveViewerBack.addEventListener('click', handleDriveBackButtonClick);
     }
 
-    console.log("DriveController Initialized successfully.");
+    if (LOG_GENERAL) console.log("DriveController Initialized successfully.");
 }
 
 

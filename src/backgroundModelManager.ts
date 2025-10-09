@@ -1,16 +1,15 @@
 /// <reference lib="dom" />
 import browser from 'webextension-polyfill';
 import { env, AutoTokenizer, AutoModelForCausalLM, TextStreamer, InterruptableStoppingCriteria } from '@huggingface/transformers';
-import { WorkerEventNames, UIEventNames } from './events/eventNames';
+import { WorkerEventNames, UIEventNames, LoadingStatusTypes } from './events/eventNames';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings, DEFAULT_SYSTEM_PROMPT_NORMAL, DEFAULT_SYSTEM_PROMPT_JSON } from './Controllers/InferenceSettings';
 import { 
-  getFromIndexedDB, saveToIndexedDB, getManifestEntry, addManifestEntry, addQuantToManifest, 
-  QuantStatus, getInferenceSettings as dbGetInferenceSettings, CHUNK_SIZE, shouldChunkFile, saveChunkedFileSafe, 
-  getChunkInfo, assembleChunks, createStreamingResponseFromChunks 
+  getFromIndexedDB, getManifestEntry, QuantStatus, getInferenceSettings as dbGetInferenceSettings, CHUNK_SIZE, shouldChunkFile, saveChunkedFileSafe 
 } from './DB/idbModel';
 import { PipelineHelpers } from './Pipelines/PipelineHelpers';
 import { PipelineStateManager } from './Pipelines/PipelineStateManager';
 import { PipelineDBHandler } from './Pipelines/PipelineDBHandler';
+import { PipelineProgressInfo, EnhancedProgressCallback } from './Pipelines/GenerationPipeline';
 
 const prefix = '[BackgroundModelManager]';
 
@@ -192,69 +191,6 @@ function safePostMessage(message: any) {
 
 
 // Try to serve from IndexedDB
-async function tryServeFromIndexedDB(resourceUrl: string): Promise<Response | null> {
-  if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
-    return null;
-  }
-  
-  try {
-    const urlParts = resourceUrl.split('/');
-    const fileName = urlParts.slice(urlParts.indexOf('main') + 1).join('/'); // Get everything after '/main/'
-    const modelId = currentModelRepoId;
-    
-    if (modelId) {
-      const chunkedInfo = await getChunkInfo(modelId, fileName);
-      if (chunkedInfo.isChunked && chunkedInfo.totalChunks && chunkedInfo.totalSize) {
-        if (LOG_CHUNKED) {
-          console.log(prefix, `🔄 [tryServeFromIndexedDB] FOUND CHUNKED FILE: ${fileName}`);
-          console.log(prefix, `   Total chunks: ${chunkedInfo.totalChunks}, Total size: ${(chunkedInfo.totalSize / 1024 / 1024).toFixed(1)}MB`);
-        }
-        try {
-          // For files over 100MB, use streaming to avoid RAM issues
-          if (chunkedInfo.totalSize > 100 * 1024 * 1024) {
-            if (LOG_CHUNKED) console.log(prefix, `   Using streaming response (file > 100MB)`);
-            return await createStreamingResponseFromChunks(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
-          } else {
-            if (LOG_CHUNKED) console.log(prefix, `   Assembling in memory (file < 100MB)`);
-            // For smaller chunked files, assemble in memory
-            const assembledBuffer = await assembleChunks(modelId, fileName, chunkedInfo.totalChunks, chunkedInfo.totalSize);
-            
-            const headers = new Headers();
-            if (resourceUrl.endsWith('.json')) {
-              headers.set('Content-Type', 'application/json');
-            } else {
-              headers.set('Content-Type', 'application/octet-stream');
-            }
-            headers.set('Content-Length', assembledBuffer.byteLength.toString());
-            
-            return new Response(assembledBuffer, { headers });
-          }
-        } catch (assembleError) {
-          // Fall through to regular cache check
-        }
-      }
-    }
-    
-    // Fall back to regular cache check
-    const cached = await getFromIndexedDB(resourceUrl);
-    if (cached) {
-      const headers = new Headers();
-      if (cached.type) {
-        headers.set('Content-Type', cached.type);
-      } else if (resourceUrl.endsWith('.json')) {
-        headers.set('Content-Type', 'application/json');
-      } else {
-        headers.set('Content-Type', 'application/octet-stream');
-      }
-      headers.set('Content-Length', cached.size.toString());
-      return new Response(cached, { headers: headers });
-    }
-    return null;
-  } catch (dbError) {
-    return null;
-  }
-}
-
 // Fetch from network and cache
 async function fetchFromNetworkAndCache(input: string | Request | URL, resourceUrl: string, options?: any): Promise<Response> {
   const { fetchInput } = PipelineDBHandler.determineFetchInput(input, resourceUrl);
@@ -265,7 +201,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
   safePostMessage({ 
     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
     payload: { 
-      status: 'downloading', 
+      status: LoadingStatusTypes.PROGRESS, 
       file: fileName, 
       progress: 0, 
       loadId: currentLoadId,
@@ -318,7 +254,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
             safePostMessage({ 
               type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
               payload: { 
-                status: 'downloading', 
+                status: LoadingStatusTypes.PROGRESS, 
                 file: fileName, 
                 progress: downloadProgress, 
                 loadId: currentLoadId,
@@ -342,7 +278,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
         safePostMessage({ 
           type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
           payload: { 
-            status: 'downloading', 
+            status: LoadingStatusTypes.PROGRESS, 
             file: fileName, 
             progress: 25, 
             loadId: currentLoadId,
@@ -417,7 +353,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
   safePostMessage({ 
     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
     payload: { 
-      status: 'downloading', 
+      status: LoadingStatusTypes.PROGRESS, 
       file: fileName, 
       progress: 25, 
       loadId: currentLoadId,
@@ -569,7 +505,7 @@ const customFetchHandler = async function(input: string | Request | URL, options
       }
       
       if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
-      const cachedResponse = await tryServeFromIndexedDB(finalResourceUrl);
+      const cachedResponse = await PipelineDBHandler.tryServeFromIndexedDB(finalResourceUrl, currentModelRepoId, LOG_CHUNKED);
       if (cachedResponse) {
         const fileSize = cachedResponse.headers.get('Content-Length');
         const sizeMB = fileSize ? (parseInt(fileSize) / 1024 / 1024).toFixed(1) : 'unknown';
@@ -606,7 +542,7 @@ if (LOG_FETCH_INIT) {
 }
 
 // Auto-load model if not ready (tries last model, then default)
-const ensureModelReady = async (callback?: (data: any) => void): Promise<boolean> => {
+const ensureModelReady = async (callback?: EnhancedProgressCallback): Promise<boolean> => {
   if (isTransformersModelReady && transformersTokenizer && transformersModel) {
     return true; // Already ready
   }
@@ -677,7 +613,7 @@ const ensureModelReady = async (callback?: (data: any) => void): Promise<boolean
 };
 
 // Enhanced Model loading function
-export const loadModel = async (payload: { modelId: string, dtype: string, task?: string, loadId?: string }, callback?: (data: any) => void): Promise<void> => {
+export const loadModel = async (payload: { modelId: string, dtype: string, task?: string, loadId?: string }, callback?: EnhancedProgressCallback): Promise<void> => {
   const { modelId, dtype, task, loadId } = payload;
   
   if (LOG_MODEL_LOADING) {
@@ -699,11 +635,11 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     
     // Send initial progress message
     if (callback) {
-      callback({ status: 'initiate', file: dtype, progress: 0, loadId });
+      callback({ status: LoadingStatusTypes.INITIATE, file: dtype, progress: 0, loadId });
     } else {
       safePostMessage({ 
         type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-        payload: { status: 'initiate', file: dtype, progress: 0, loadId } 
+        payload: { status: LoadingStatusTypes.INITIATE, file: dtype, progress: 0, loadId } 
       });
     }
     
@@ -726,7 +662,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     // Load tokenizer and model with detailed progress tracking
     if (callback) {
       callback({ 
-        status: 'loading', 
+        status: LoadingStatusTypes.PROGRESS, 
         file: 'tokenizer', 
         progress: 10, 
         loadId,
@@ -736,7 +672,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       safePostMessage({ 
         type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
         payload: { 
-          status: 'loading', 
+          status: LoadingStatusTypes.PROGRESS, 
           file: 'tokenizer', 
           progress: 10, 
           loadId,
@@ -748,16 +684,16 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     transformersTokenizer = await AutoTokenizer.from_pretrained(modelId, {
       progress_callback: (data: any) => {
         let progress = 10; 
-        let status = 'loading';
+        let status: PipelineProgressInfo['status'] = LoadingStatusTypes.PROGRESS;
         let message = 'Loading tokenizer from cache...';
         
         if (data.status === 'progress') {
           progress = 25 + (data.progress * 0.15); // 25-40% range for tokenizer
-          status = 'loading';
+          status = LoadingStatusTypes.PROGRESS;
           message = `Loading tokenizer from cache... ${Math.round(progress)}%`;
         } else if (data.status === 'ready' || data.status === 'done') {
           progress = 40;
-          status = 'done';
+          status = LoadingStatusTypes.DONE;
           message = 'Tokenizer ready';
         }
         
@@ -891,7 +827,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     // Load model
     if (callback) {
       callback({ 
-        status: 'loading', 
+        status: LoadingStatusTypes.PROGRESS, 
         file: 'model', 
         progress: 30, 
         loadId,
@@ -901,7 +837,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       safePostMessage({ 
         type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
         payload: { 
-          status: 'loading', 
+          status: LoadingStatusTypes.PROGRESS, 
           file: 'model', 
           progress: 30, 
           loadId,
@@ -916,16 +852,16 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       use_external_data_format: hasExternalData,
       progress_callback: (data: any) => {
         let progress = 30; // Initial value, will be remapped
-        let status = 'loading';
+        let status: PipelineProgressInfo['status'] = LoadingStatusTypes.PROGRESS;
         let message = 'Loading model from cache...';
         
         if (data.status === 'progress') {
           progress = 40 + (data.progress * 0.5); // 40-90% range for model
-          status = 'loading';
+          status = LoadingStatusTypes.PROGRESS;
           message = `Loading model from cache... ${Math.round(progress)}%`;
         } else if (data.status === 'ready' || data.status === 'done') {
           progress = 90;
-          status = 'done';
+          status = LoadingStatusTypes.DONE;
           message = 'Model loaded from cache';
         }
         
@@ -970,7 +906,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     // Send processing message
     if (callback) {
       callback({ 
-        status: 'processing', 
+        status: LoadingStatusTypes.PROGRESS, 
         file: 'model', 
         progress: 90, 
         loadId,
@@ -980,7 +916,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       safePostMessage({ 
         type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
         payload: { 
-          status: 'processing', 
+          status: LoadingStatusTypes.PROGRESS, 
           file: 'model', 
           progress: 90, 
           loadId,
@@ -1003,7 +939,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     // Send completion messages
     if (callback) {
       callback({ 
-        status: 'done', 
+        status: LoadingStatusTypes.DONE, 
         file: 'model', 
         progress: 100, 
         loadId,
@@ -1017,7 +953,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       safePostMessage({ 
         type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
         payload: { 
-          status: 'done', 
+          status: LoadingStatusTypes.DONE, 
           file: 'model', 
           progress: 100, 
           loadId,
@@ -1047,7 +983,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     }
     
     if (callback) {
-      callback({ status: 'error', file: dtype, error: error.message, loadId });
+      callback({ status: LoadingStatusTypes.ERROR, file: dtype, error: error.message, loadId });
     } else {
       safePostMessage({ 
         type: WorkerEventNames.ERROR, 
@@ -1055,7 +991,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       });
       safePostMessage({ 
         type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
-        payload: { status: 'error', file: dtype, error: error.message, loadId } 
+        payload: { status: LoadingStatusTypes.ERROR, file: dtype, error: error.message, loadId } 
       });
     }
   }
@@ -1065,7 +1001,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
 const LOG_GEN_PARAMS_CURRENT = true;  
 const LOG_GEN_PARAMS_CURRENT_State_check = true; 
 const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = true;
-export const generate = async (messages: Array<{role: string, content: string}>, callback?: (data: any) => void) => {
+export const generate = async (messages: Array<{role: string, content: string}>, callback?: EnhancedProgressCallback) => {
   if (LOG_GEN_PARAMS_CURRENT_State_check) {
     const stateInfo = `🎯 GENERATE called - State check:
       isTransformersModelReady: ${isTransformersModelReady}
@@ -1086,7 +1022,7 @@ export const generate = async (messages: Array<{role: string, content: string}>,
       }
       const errorMsg = 'Model not ready. Please load a model first.';
       if (callback) {
-        callback({ status: 'error', error: errorMsg });
+        callback({ status: LoadingStatusTypes.ERROR, error: errorMsg });
       } else {
         safePostMessage({ type: WorkerEventNames.GENERATION_ERROR, payload: { error: errorMsg } });
       }
@@ -1371,7 +1307,7 @@ export const generate = async (messages: Array<{role: string, content: string}>,
     }
     
     if (callback) {
-      callback({ status: 'error', error: error.message || 'Generation failed' });
+      callback({ status: LoadingStatusTypes.ERROR, error: error.message || 'Generation failed' });
     } else {
       safePostMessage({ 
         type: WorkerEventNames.GENERATION_ERROR, 

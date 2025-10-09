@@ -1,4 +1,4 @@
-import {  UIEventNames, WorkerEventNames } from '../events/eventNames';
+import {  UIEventNames, WorkerEventNames, LoadingStatusTypes } from '../events/eventNames';
 import {  DBEventNames } from '../DB/dbEvents';
 import { clearTemporaryMessages, renderTemporaryMessage } from './chatRenderer';
 import browser from 'webextension-polyfill';
@@ -286,10 +286,10 @@ async function handleModelManagerLoadingProgress(payload: any) {
     let text = '';
     let shortFile = payload.file ? truncateFileName(payload.file) : '';
     switch (payload.status) {
-        case 'initiate':
+        case LoadingStatusTypes.INITIATE:
             text = `Starting download: ${shortFile}`;
             break;
-        case 'progress':
+        case LoadingStatusTypes.PROGRESS:
             text = `Downloading ${shortFile}`;
             if (typeof payload.loaded === 'number' && typeof payload.total === 'number') {
                 text += `... ${Math.round(percent)}% (${formatBytes(payload.loaded)} / ${formatBytes(payload.total)})`;
@@ -297,10 +297,10 @@ async function handleModelManagerLoadingProgress(payload: any) {
                 text += `... ${Math.round(percent)}%`;
             }
             break;
-        case 'done':
+        case LoadingStatusTypes.DONE:
             text = `${shortFile} downloaded. Preparing pipeline...`;
             break;
-        case 'ready':
+        case LoadingStatusTypes.READY:
             text = `Model ready!`;
             break;
         default:
@@ -308,7 +308,7 @@ async function handleModelManagerLoadingProgress(payload: any) {
     }
     statusText.textContent = text;
 
-    if ((percent >= 100 || payload.status === 'done' || payload.status === 'ready') && !(payload.status === 'error' || payload.error)) {
+    if ((percent >= 100 || payload.status === LoadingStatusTypes.DONE || payload.status === LoadingStatusTypes.READY) && !(payload.status === LoadingStatusTypes.ERROR || payload.error)) {
         if (LOG_PROGRESS_HANDLING) console.log(prefix, 'Model loading completed successfully');
         isLoadingModel = false;
         

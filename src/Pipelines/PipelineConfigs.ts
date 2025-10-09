@@ -13,7 +13,9 @@ import {
   IMultimodalConfig,
   IFlorence2Config,
   IJanusConfig,
-  ISpeechRecognitionConfig
+  ISpeechRecognitionConfig,
+  ICodeCompletionConfig,
+  ITokenizerConfig
 } from './PipelineTypes';
 
 /**
@@ -715,6 +717,130 @@ export class SpeechRecognitionConfig extends BaseModelConfig implements ISpeechR
       useExternalData: this.useExternalData,
       pipelineType: this.pipelineType,
       audioOptions: this.audioOptions
+    };
+  }
+}
+
+// =============================================================================
+// CODE COMPLETION CONFIG
+// =============================================================================
+
+export class CodeCompletionConfig extends BaseModelConfig implements ICodeCompletionConfig {
+  dtype: Dtype;
+  device: Device;
+  useExternalData: boolean;
+  pipelineType: 'text-generation' = 'text-generation';
+  codeOptions?: { language?: string; contextWindow?: number };
+
+  constructor(config: ICodeCompletionConfig) {
+    super(config);
+    this.dtype = config.dtype;
+    this.device = config.device;
+    this.useExternalData = config.useExternalData;
+    this.codeOptions = config.codeOptions;
+  }
+
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: {
+      dtype?: Dtype;
+      device?: Device;
+      useExternalData?: boolean;
+      codeOptions?: { language?: string; contextWindow?: number };
+    }
+  ): Promise<CodeCompletionConfig> {
+    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
+    const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+    
+    return new CodeCompletionConfig({
+      modelId,
+      dtype,
+      device,
+      useExternalData: options?.useExternalData ?? false,
+      pipelineType: 'text-generation',
+      codeOptions: options?.codeOptions
+    });
+  }
+
+  equals(other: CodeCompletionConfig | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+           JSON.stringify(this.device) === JSON.stringify(other.device) &&
+           this.useExternalData === other.useExternalData &&
+           this.pipelineType === other.pipelineType &&
+           JSON.stringify(this.codeOptions) === JSON.stringify(other.codeOptions);
+  }
+
+  clone(): CodeCompletionConfig {
+    return new CodeCompletionConfig({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      codeOptions: this.codeOptions
+    });
+  }
+
+  toObject(): ICodeCompletionConfig {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      device: this.device,
+      useExternalData: this.useExternalData,
+      pipelineType: this.pipelineType,
+      codeOptions: this.codeOptions
+    };
+  }
+}
+
+// =============================================================================
+// TOKENIZER CONFIG (tokenizer playground - no model loading)
+// =============================================================================
+
+export class TokenizerConfig extends BaseModelConfig implements ITokenizerConfig {
+  dtype: DtypeSimple;
+  pipelineType: 'token-classification' = 'token-classification';
+
+  constructor(config: ITokenizerConfig) {
+    super(config);
+    this.dtype = config.dtype;
+  }
+
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: { dtype?: DtypeSimple }
+  ): Promise<TokenizerConfig> {
+    const dtype = options?.dtype ?? 'fp32';
+    
+    return new TokenizerConfig({
+      modelId,
+      dtype,
+      pipelineType: 'token-classification'
+    });
+  }
+
+  equals(other: TokenizerConfig | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           this.dtype === other.dtype &&
+           this.pipelineType === other.pipelineType;
+  }
+
+  clone(): TokenizerConfig {
+    return new TokenizerConfig({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      pipelineType: this.pipelineType
+    });
+  }
+
+  toObject(): ITokenizerConfig {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      pipelineType: this.pipelineType
     };
   }
 }

@@ -14,6 +14,8 @@ import { CrossEncoderPipeline } from './CrossEncoderPipeline';
 import { ClapPipeline } from './ClapPipeline';
 import { ClipPipeline } from './ClipPipeline';
 import { TextToSpeechPipeline } from './TextToSpeechPipeline';
+import { CodeCompletionPipeline } from './CodeCompletionPipeline';
+import { TokenizerPipeline } from './TokenizerPipeline';
 
 /**
  * PipelineFactory.ts
@@ -114,6 +116,14 @@ export class PipelineFactory {
         }
         return new TextToSpeechPipeline();
       }
+      
+      // Code completion models detection
+      if (lowerModelId.includes('code') || lowerModelId.includes('codellama') || lowerModelId.includes('starcoder')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, 'Detected code completion model, using CodeCompletionPipeline');
+        }
+        return new CodeCompletionPipeline();
+      }
     }
     
     // Task-based routing (standard pipeline selection)
@@ -157,6 +167,9 @@ export class PipelineFactory {
       case PipelineTypeEnum.TEXT_TO_SPEECH:
         return new TextToSpeechPipeline();
         
+      case PipelineTypeEnum.TOKEN_CLASSIFICATION:
+        return new TokenizerPipeline();
+        
       default:
         // Fallback to text generation for unknown tasks
         console.warn(prefix, `Unknown task "${pipelineTask}", defaulting to text-generation`);
@@ -164,4 +177,3 @@ export class PipelineFactory {
     }
   }
 }
-

@@ -180,6 +180,18 @@ export interface ITextToSpeechConfig extends IComplexPipelineConfig {
   speakerEmbeddingsUrl?: string;
 }
 
+export interface ICodeCompletionConfig extends IComplexPipelineConfig {
+  pipelineType: 'text-generation';
+  codeOptions?: {
+    language?: string;
+    contextWindow?: number;
+  };
+}
+
+export interface ITokenizerConfig extends ISimplePipelineConfig {
+  pipelineType: 'token-classification';
+}
+
 // =============================================================================
 // UNION TYPE FOR ALL CONFIGS
 // =============================================================================
@@ -194,5 +206,7 @@ export type ModelConfig =
   | ITranslationConfig
   | IZeroShotClassificationConfig
   | IClassificationConfig
-  | ITextToSpeechConfig;
+  | ITextToSpeechConfig
+  | ICodeCompletionConfig
+  | ITokenizerConfig;
 

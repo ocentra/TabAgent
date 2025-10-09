@@ -28,6 +28,8 @@ export * from './CrossEncoderPipeline';
 export * from './ClapPipeline';
 export * from './ClipPipeline';
 export * from './TextToSpeechPipeline';
+export { CodeCompletionPipeline } from './CodeCompletionPipeline';
+export { TokenizerPipeline } from './TokenizerPipeline';
 
 // Factory
 export * from './PipelineFactory';
@@ -36,4 +38,3 @@ export * from './PipelineFactory';
 export * from './PipelineHelpers';
 export * from './PipelineStateManager';
 export * from './PipelineDBHandler';
-

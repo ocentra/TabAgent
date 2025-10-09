@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 import { PipelineTypeEnum } from './PipelineTypes';
 import { BasePipeline } from './BasePipeline';
+import { BaseModelConfig } from './PipelineConfigs';
 import { TextGenerationPipeline } from './TextGenerationPipeline';
 import { EmbeddingPipeline } from './EmbeddingPipeline';
 import { TranslationPipeline } from './TranslationPipeline';
@@ -16,6 +17,23 @@ import { ClipPipeline } from './ClipPipeline';
 import { TextToSpeechPipeline } from './TextToSpeechPipeline';
 import { CodeCompletionPipeline } from './CodeCompletionPipeline';
 import { TokenizerPipeline } from './TokenizerPipeline';
+import {
+  TextGenerationConfig,
+  EmbeddingConfig,
+  TranslationConfig,
+  ZeroShotClassificationConfig,
+  SpeechRecognitionConfig,
+  Florence2Config,
+  JanusConfig,
+  MultimodalConfig,
+  CodeCompletionConfig,
+  TokenizerConfig
+} from './PipelineConfigs';
+import { ImageClassificationConfig } from './ImageClassificationPipeline';
+import { CrossEncoderConfig } from './CrossEncoderPipeline';
+import { ClapConfig } from './ClapPipeline';
+import { ClipConfig } from './ClipPipeline';
+import { TextToSpeechConfig } from './TextToSpeechPipeline';
 
 /**
  * PipelineFactory.ts
@@ -175,5 +193,82 @@ export class PipelineFactory {
         console.warn(prefix, `Unknown task "${pipelineTask}", defaulting to text-generation`);
         return new TextGenerationPipeline();
     }
+  }
+
+  /**
+   * Create pipeline and its corresponding config in one call
+   * Automatically matches the correct config type to the pipeline type
+   * 
+   * @param task - Pipeline task type (optional)
+   * @param modelId - Model ID for specialized routing
+   * @param options - Configuration options (dtype, device, etc.)
+   * @returns Object with pipeline instance and its config
+   */
+  static async createPipelineWithConfig(
+    task: string | undefined,
+    modelId: string,
+    options: {
+      dtype?: any;
+      device?: any;
+      useExternalData?: boolean;
+      // Additional pipeline-specific options
+      audioOptions?: any;
+      visionOptions?: any;
+      multimodalOptions?: any;
+      codeOptions?: any;
+      imageOptions?: any;
+    }
+  ): Promise<{
+    pipeline: BasePipeline;
+    config: BaseModelConfig;
+  }> {
+    // Create pipeline instance
+    const pipeline = this.createPipeline(task, modelId);
+    
+    if (LOG_GENERAL) {
+      console.log(prefix, `Creating config for pipeline: ${pipeline.constructor.name}`);
+    }
+    
+    // Create appropriate config based on pipeline type
+    let config: BaseModelConfig;
+    
+    if (pipeline instanceof TextGenerationPipeline) {
+      config = await TextGenerationConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof CodeCompletionPipeline) {
+      config = await CodeCompletionConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof WhisperPipeline) {
+      config = await SpeechRecognitionConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof Florence2Pipeline) {
+      config = await Florence2Config.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof JanusPipeline) {
+      config = await JanusConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof MultimodalPipeline) {
+      // Determine pipelineType based on task
+      const pipelineType = task === 'visual-language' ? 'visual-language' : 'image-to-text';
+      config = await MultimodalConfig.createWithAutoDetect(modelId, pipelineType, options);
+    } else if (pipeline instanceof EmbeddingPipeline) {
+      config = await EmbeddingConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof TranslationPipeline) {
+      config = await TranslationConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof ZeroShotClassificationPipeline) {
+      config = await ZeroShotClassificationConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof ImageClassificationPipeline) {
+      config = await ImageClassificationConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof CrossEncoderPipeline) {
+      config = await CrossEncoderConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof ClapPipeline) {
+      config = await ClapConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof ClipPipeline) {
+      config = await ClipConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof TextToSpeechPipeline) {
+      config = await TextToSpeechConfig.createWithAutoDetect(modelId, options);
+    } else if (pipeline instanceof TokenizerPipeline) {
+      config = await TokenizerConfig.createWithAutoDetect(modelId, options);
+    } else {
+      // Fallback to TextGenerationConfig for unknown pipeline types
+      config = await TextGenerationConfig.createWithAutoDetect(modelId, options);
+    }
+    
+    return { pipeline, config };
   }
 }

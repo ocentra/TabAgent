@@ -12040,6 +12040,98 @@ class PipelineDBHandler {
         return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     /**
+     * Fetch model configuration from HuggingFace
+     *
+     * @param modelId - HuggingFace model ID (e.g., 'openai/whisper-tiny')
+     * @returns Model config JSON or null if not found
+     */
+    static async fetchModelConfig(modelId) {
+        try {
+            const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
+            if (LOG_GENERAL)
+                console.log(prefix, '[fetchModelConfig] Fetching from:', configUrl);
+            const configResponse = await fetch(configUrl);
+            if (configResponse.ok) {
+                const config = await configResponse.json();
+                if (LOG_GENERAL)
+                    console.log(prefix, '[fetchModelConfig] Config loaded successfully');
+                return config;
+            }
+            if (LOG_GENERAL)
+                console.log(prefix, '[fetchModelConfig] Config not found (non-OK response)');
+            return null;
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(prefix, '[fetchModelConfig] Failed to load model config:', error);
+            return null;
+        }
+    }
+    /**
+     * Extract context length from model config
+     *
+     * @param modelConfig - Model configuration object
+     * @param userFallback - Fallback value from user settings
+     * @returns Context length
+     */
+    static extractContextLength(modelConfig, userFallback) {
+        if (!modelConfig)
+            return userFallback;
+        const contextLength = modelConfig.max_position_embeddings ||
+            modelConfig.n_positions ||
+            modelConfig.max_sequence_length ||
+            modelConfig.n_ctx ||
+            modelConfig.context_length;
+        return contextLength || userFallback;
+    }
+    /**
+     * Extract model architecture details from config
+     *
+     * @param modelConfig - Model configuration object
+     * @returns Architecture details (attention heads, dimensions, etc.)
+     */
+    static extractArchitecture(modelConfig) {
+        if (!modelConfig) {
+            return {
+                numAttentionHeads: undefined,
+                numKeyValueHeads: undefined,
+                headDim: undefined
+            };
+        }
+        const numAttentionHeads = modelConfig.num_attention_heads || modelConfig.n_head || modelConfig.num_heads;
+        const hiddenSize = modelConfig.hidden_size || modelConfig.n_embd;
+        const numKeyValueHeads = modelConfig.num_key_value_heads || numAttentionHeads;
+        const headDim = (hiddenSize && numAttentionHeads) ? (modelConfig.head_dim || hiddenSize / numAttentionHeads) : undefined;
+        return {
+            numAttentionHeads,
+            numKeyValueHeads,
+            headDim
+        };
+    }
+    /**
+     * Fetch model metadata (config, context length, architecture) in one call
+     * Combines fetchModelConfig, extractContextLength, and extractArchitecture
+     *
+     * @param modelId - HuggingFace model ID
+     * @param userMaxLengthFallback - Fallback context length from user settings
+     * @returns Object with config, contextLength, and architecture
+     */
+    static async fetchModelMetadata(modelId, userMaxLengthFallback) {
+        // Fetch config
+        const config = await this.fetchModelConfig(modelId);
+        // Extract context length
+        const contextLength = this.extractContextLength(config, userMaxLengthFallback);
+        // Extract architecture
+        const architecture = this.extractArchitecture(config);
+        if (LOG_GENERAL) {
+            console.log(prefix, `[fetchModelMetadata] Metadata extracted for ${modelId}:`, {
+                contextLength,
+                architecture
+            });
+        }
+        return { config, contextLength, architecture };
+    }
+    /**
      * Determine if a file should be intercepted for caching
      * Checks for HuggingFace model files and local model files
      *
@@ -12368,7 +12460,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./TextToSpeechPipeline */ "./src/Pipelines/TextToSpeechPipeline.ts");
 /* harmony import */ var _CodeCompletionPipeline__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./CodeCompletionPipeline */ "./src/Pipelines/CodeCompletionPipeline.ts");
 /* harmony import */ var _TokenizerPipeline__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./TokenizerPipeline */ "./src/Pipelines/TokenizerPipeline.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
 /// <reference lib="dom" />
+
+
+
+
+
+
 
 
 
@@ -12518,6 +12617,76 @@ class PipelineFactory {
                 console.warn(prefix, `Unknown task "${pipelineTask}", defaulting to text-generation`);
                 return new _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_1__.TextGenerationPipeline();
         }
+    }
+    /**
+     * Create pipeline and its corresponding config in one call
+     * Automatically matches the correct config type to the pipeline type
+     *
+     * @param task - Pipeline task type (optional)
+     * @param modelId - Model ID for specialized routing
+     * @param options - Configuration options (dtype, device, etc.)
+     * @returns Object with pipeline instance and its config
+     */
+    static async createPipelineWithConfig(task, modelId, options) {
+        // Create pipeline instance
+        const pipeline = this.createPipeline(task, modelId);
+        if (LOG_GENERAL) {
+            console.log(prefix, `Creating config for pipeline: ${pipeline.constructor.name}`);
+        }
+        // Create appropriate config based on pipeline type
+        let config;
+        if (pipeline instanceof _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_1__.TextGenerationPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.TextGenerationConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _CodeCompletionPipeline__WEBPACK_IMPORTED_MODULE_14__.CodeCompletionPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.CodeCompletionConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _WhisperPipeline__WEBPACK_IMPORTED_MODULE_5__.WhisperPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.SpeechRecognitionConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _Florence2Pipeline__WEBPACK_IMPORTED_MODULE_6__.Florence2Pipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.Florence2Config.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _JanusPipeline__WEBPACK_IMPORTED_MODULE_7__.JanusPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.JanusConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _MultimodalPipeline__WEBPACK_IMPORTED_MODULE_8__.MultimodalPipeline) {
+            // Determine pipelineType based on task
+            const pipelineType = task === 'visual-language' ? 'visual-language' : 'image-to-text';
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.MultimodalConfig.createWithAutoDetect(modelId, pipelineType, options);
+        }
+        else if (pipeline instanceof _EmbeddingPipeline__WEBPACK_IMPORTED_MODULE_2__.EmbeddingPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.EmbeddingConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _TranslationPipeline__WEBPACK_IMPORTED_MODULE_3__.TranslationPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.TranslationConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _ZeroShotClassificationPipeline__WEBPACK_IMPORTED_MODULE_4__.ZeroShotClassificationPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.ZeroShotClassificationConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_9__.ImageClassificationPipeline) {
+            config = await _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_9__.ImageClassificationConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_10__.CrossEncoderPipeline) {
+            config = await _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_10__.CrossEncoderConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _ClapPipeline__WEBPACK_IMPORTED_MODULE_11__.ClapPipeline) {
+            config = await _ClapPipeline__WEBPACK_IMPORTED_MODULE_11__.ClapConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _ClipPipeline__WEBPACK_IMPORTED_MODULE_12__.ClipPipeline) {
+            config = await _ClipPipeline__WEBPACK_IMPORTED_MODULE_12__.ClipConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_13__.TextToSpeechPipeline) {
+            config = await _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_13__.TextToSpeechConfig.createWithAutoDetect(modelId, options);
+        }
+        else if (pipeline instanceof _TokenizerPipeline__WEBPACK_IMPORTED_MODULE_15__.TokenizerPipeline) {
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.TokenizerConfig.createWithAutoDetect(modelId, options);
+        }
+        else {
+            // Fallback to TextGenerationConfig for unknown pipeline types
+            config = await _PipelineConfigs__WEBPACK_IMPORTED_MODULE_16__.TextGenerationConfig.createWithAutoDetect(modelId, options);
+        }
+        return { pipeline, config };
     }
 }
 
@@ -13838,6 +14007,7 @@ let isGenerating = false;
 let shouldStopGeneration = false;
 let transformersTokenizer = null;
 let transformersModel = null;
+let currentPipeline = null;
 // UI Connection tracking using BroadcastChannel system
 // Tracks all active UI instances by their unique sender IDs
 const activeUIConnections = new Set();
@@ -14217,8 +14387,6 @@ const loadModel = async (payload, callback) => {
                 payload: { status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.INITIATE, file: dtype, progress: 0, loadId }
             });
         }
-        const validDtypes = ['auto', 'fp32', 'fp16', 'q8', 'int8', 'uint8', 'q4', 'bnb4', 'q4f16', 'quantized'];
-        const modelDtype = validDtypes.includes(dtype) ? dtype : 'auto';
         // Get hasExternalData from manifest
         const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getManifestEntry)(modelId);
         let hasExternalData = false;
@@ -14231,119 +14399,60 @@ const loadModel = async (payload, callback) => {
                 }
             }
         }
-        // Load tokenizer and model with detailed progress tracking
-        if (callback) {
-            callback({
-                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
-                file: 'tokenizer',
-                progress: 10,
-                loadId,
-                message: 'Loading tokenizer from cache...'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
-                    file: 'tokenizer',
-                    progress: 10,
-                    loadId,
-                    message: 'Loading tokenizer from cache...'
-                }
-            });
-        }
-        transformersTokenizer = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.AutoTokenizer.from_pretrained(modelId, {
-            progress_callback: (data) => {
-                let progress = 10;
-                let status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
-                let message = 'Loading tokenizer from cache...';
-                if (data.status === 'progress') {
-                    progress = 25 + (data.progress * 0.15); // 25-40% range for tokenizer
-                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
-                    message = `Loading tokenizer from cache... ${Math.round(progress)}%`;
-                }
-                else if (data.status === 'ready' || data.status === 'done') {
-                    progress = 40;
-                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE;
-                    message = 'Tokenizer ready';
-                }
-                if (callback) {
-                    callback({
-                        status,
-                        file: data.file || 'tokenizer',
-                        progress,
-                        loadId,
-                        loaded: data.loaded,
-                        total: data.total,
-                        message
-                    });
-                }
-                else {
-                    if (LOG_PROGRESS_CALLBACK) {
-                        const tokenizerProgress = `Sending tokenizer progress to sidepanel:
-              status: ${status}
-              file: ${data.file || 'tokenizer'}
-              progress: ${progress}
-              loadId: ${loadId}
-              loaded: ${data.loaded}
-              total: ${data.total}
-              message: ${message}`;
-                        console.log(prefix, tokenizerProgress);
-                    }
-                    safePostMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                        payload: {
-                            status,
-                            file: data.file || 'tokenizer',
-                            progress,
-                            loadId,
-                            loaded: data.loaded,
-                            total: data.total,
-                            message
-                        }
-                    });
-                }
-            }
-        });
-        // Load model configuration to get context length and token IDs
-        let modelConfig = null;
-        try {
-            const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
-            if (LOG_TRANSFORMERS)
-                console.log(prefix, '[loadModel] Loading model config from:', configUrl);
-            const configResponse = await fetch(configUrl);
-            if (configResponse.ok) {
-                modelConfig = await configResponse.json();
-            }
-        }
-        catch (configError) {
-            if (LOG_ERROR)
-                console.error(prefix, '[loadModel] Failed to load model config:', configError);
-        }
-        const modelConfigContextLength = modelConfig?.max_position_embeddings ||
-            modelConfig?.n_positions ||
-            modelConfig?.max_sequence_length ||
-            modelConfig?.n_ctx ||
-            modelConfig?.context_length;
-        // Get user's current settings as fallback
+        // Fetch model metadata (config, context length, architecture) in one call
         const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getInferenceSettings)();
         const userMaxLength = currentSettings?.max_length || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.max_length;
-        // Use model config if available, otherwise use user's setting
-        modelContextLength = modelConfigContextLength || userMaxLength;
+        const { config: modelConfig, contextLength, architecture } = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.fetchModelMetadata(modelId, userMaxLength);
+        modelContextLength = contextLength;
+        numAttentionHeads = architecture.numAttentionHeads;
+        numKeyValueHeads = architecture.numKeyValueHeads;
+        headDim = architecture.headDim;
         if (LOG_TRANSFORMERS) {
-            const contextLengthInfo = `[loadModel] Context length: ${modelContextLength} (source: ${modelConfigContextLength ? 'model-config' : 'user-settings'})`;
+            const contextLengthInfo = `[loadModel] Context length: ${modelContextLength} (source: ${modelConfig ? 'model-config' : 'user-settings'})`;
             console.log(prefix, contextLengthInfo);
-            // Full config dump (only when MODEL_CONFIG debug is on)
-            if (LOG_MODEL_CONFIG) {
+            if (LOG_MODEL_CONFIG && modelConfig) {
                 console.log(prefix, '[loadModel] Full model config JSON:', JSON.stringify(modelConfig, null, 2));
             }
         }
-        // Extract model architecture details and store globally
-        numAttentionHeads = modelConfig?.num_attention_heads || modelConfig?.n_head || modelConfig?.num_heads;
-        const hiddenSize = modelConfig?.hidden_size || modelConfig?.n_embd;
-        numKeyValueHeads = modelConfig?.num_key_value_heads || numAttentionHeads;
-        headDim = (hiddenSize && numAttentionHeads) ? (modelConfig?.head_dim || hiddenSize / numAttentionHeads) : undefined;
+        // Create pipeline and config using factory
+        const { pipeline, config: pipelineConfig } = await _Pipelines__WEBPACK_IMPORTED_MODULE_8__.PipelineFactory.createPipelineWithConfig(task, modelId, {
+            dtype: dtype, // Pass raw dtype - pipeline uses presets if needed
+            device: hasWebGPU ? 'webgpu' : 'cpu',
+            useExternalData: hasExternalData
+        });
+        currentPipeline = pipeline;
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `Pipeline created: ${pipeline.constructor.name}`);
+            console.log(prefix, '[loadModel] Pipeline config created:', pipelineConfig.toObject());
+        }
+        // Wrap the callback to handle both direct callback and safePostMessage
+        const callbackWrapper = (info) => {
+            if (callback) {
+                callback(info);
+            }
+            else {
+                if (LOG_PROGRESS_CALLBACK && info.status === _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS) {
+                    const progressInfo = `Sending progress to sidepanel:
+            status: ${info.status}
+            file: ${info.file}
+            progress: ${info.progress}
+            loadId: ${info.loadId}
+            message: ${info.message}`;
+                    console.log(prefix, progressInfo);
+                }
+                safePostMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+                    payload: info
+                });
+            }
+        };
+        // Load via pipeline (loads both tokenizer and model internally)
+        await pipeline.load(pipelineConfig, callbackWrapper, loadId);
+        // Get tokenizer from pipeline
+        transformersTokenizer = pipeline.getTokenizer();
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, '[loadModel] Tokenizer loaded via pipeline');
+        }
         // Extract token IDs from tokenizer and config with advanced fallback logic
         eosTokenId = undefined;
         padTokenId = undefined;
@@ -14389,110 +14498,11 @@ const loadModel = async (payload, callback) => {
             if (LOG_TRANSFORMERS)
                 console.log(prefix, '[loadModel] Set pad_token_id to eos_token_id:', eosTokenId);
         }
-        // Load model
-        if (callback) {
-            callback({
-                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
-                file: 'model',
-                progress: 30,
-                loadId,
-                message: 'Loading model from cache...'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
-                    file: 'model',
-                    progress: 30,
-                    loadId,
-                    message: 'Loading model from cache...'
-                }
-            });
-        }
-        const modelOptions = {
-            ...(modelDtype !== 'auto' && { dtype: modelDtype }),
-            device: (hasWebGPU ? "webgpu" : "cpu"),
-            use_external_data_format: hasExternalData,
-            progress_callback: (data) => {
-                let progress = 30; // Initial value, will be remapped
-                let status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
-                let message = 'Loading model from cache...';
-                if (data.status === 'progress') {
-                    progress = 40 + (data.progress * 0.5); // 40-90% range for model
-                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS;
-                    message = `Loading model from cache... ${Math.round(progress)}%`;
-                }
-                else if (data.status === 'ready' || data.status === 'done') {
-                    progress = 90;
-                    status = _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE;
-                    message = 'Model loaded from cache';
-                }
-                if (callback) {
-                    callback({
-                        status,
-                        file: data.file || 'model',
-                        progress,
-                        loadId,
-                        loaded: data.loaded,
-                        total: data.total,
-                        message
-                    });
-                }
-                else {
-                    if (LOG_PROGRESS_CALLBACK) {
-                        const modelProgress = `Sending model progress to sidepanel:
-              status: ${status}
-              file: ${data.file || 'model'}
-              progress: ${progress}
-              loadId: ${loadId}
-              loaded: ${data.loaded}
-              total: ${data.total}
-              message: ${message}`;
-                        console.log(prefix, modelProgress);
-                    }
-                    safePostMessage({
-                        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                        payload: {
-                            status,
-                            file: data.file || 'model',
-                            progress,
-                            loadId,
-                            loaded: data.loaded,
-                            total: data.total,
-                            message
-                        }
-                    });
-                }
-            }
-        };
-        // Send processing message
-        if (callback) {
-            callback({
-                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
-                file: 'model',
-                progress: 90,
-                loadId,
-                message: 'Initializing model...'
-            });
-        }
-        else {
-            safePostMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
-                payload: {
-                    status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
-                    file: 'model',
-                    progress: 90,
-                    loadId,
-                    message: 'Initializing model...'
-                }
-            });
-        }
-        transformersModel = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.AutoModelForCausalLM.from_pretrained(modelId, modelOptions);
+        // Get model from pipeline (already loaded by pipeline.load() above)
+        transformersModel = pipeline.getModel();
         isTransformersModelReady = true;
         if (LOG_MODEL_LOADING)
-            console.log(prefix, `Model loaded successfully: ${modelId}`);
+            console.log(prefix, `Model loaded successfully via pipeline: ${modelId}`);
         // Update manifest status to indicate successful download/loading
         await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded, () => {
             safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
@@ -15004,6 +15014,7 @@ const setUIConnectionActive = (active) => {
 const resetModel = () => {
     transformersModel = null;
     transformersTokenizer = null;
+    currentPipeline = null; // Clear pipeline instance
     isTransformersModelReady = false;
     past_key_values_cache = null;
     stopping_criteria.reset();

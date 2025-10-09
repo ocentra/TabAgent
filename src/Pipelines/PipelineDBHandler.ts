@@ -259,6 +259,121 @@ export class PipelineDBHandler {
   }
 
   /**
+   * Fetch model configuration from HuggingFace
+   * 
+   * @param modelId - HuggingFace model ID (e.g., 'openai/whisper-tiny')
+   * @returns Model config JSON or null if not found
+   */
+  static async fetchModelConfig(modelId: string): Promise<any | null> {
+    try {
+      const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
+      if (LOG_GENERAL) console.log(prefix, '[fetchModelConfig] Fetching from:', configUrl);
+      
+      const configResponse = await fetch(configUrl);
+      if (configResponse.ok) {
+        const config = await configResponse.json();
+        if (LOG_GENERAL) console.log(prefix, '[fetchModelConfig] Config loaded successfully');
+        return config;
+      }
+      
+      if (LOG_GENERAL) console.log(prefix, '[fetchModelConfig] Config not found (non-OK response)');
+      return null;
+    } catch (error) {
+      if (LOG_ERROR) console.error(prefix, '[fetchModelConfig] Failed to load model config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract context length from model config
+   * 
+   * @param modelConfig - Model configuration object
+   * @param userFallback - Fallback value from user settings
+   * @returns Context length
+   */
+  static extractContextLength(modelConfig: any, userFallback: number): number {
+    if (!modelConfig) return userFallback;
+    
+    const contextLength = modelConfig.max_position_embeddings || 
+                         modelConfig.n_positions || 
+                         modelConfig.max_sequence_length ||
+                         modelConfig.n_ctx ||
+                         modelConfig.context_length;
+    
+    return contextLength || userFallback;
+  }
+
+  /**
+   * Extract model architecture details from config
+   * 
+   * @param modelConfig - Model configuration object
+   * @returns Architecture details (attention heads, dimensions, etc.)
+   */
+  static extractArchitecture(modelConfig: any): {
+    numAttentionHeads?: number;
+    numKeyValueHeads?: number;
+    headDim?: number;
+  } {
+    if (!modelConfig) {
+      return {
+        numAttentionHeads: undefined,
+        numKeyValueHeads: undefined,
+        headDim: undefined
+      };
+    }
+    
+    const numAttentionHeads = modelConfig.num_attention_heads || modelConfig.n_head || modelConfig.num_heads;
+    const hiddenSize = modelConfig.hidden_size || modelConfig.n_embd;
+    const numKeyValueHeads = modelConfig.num_key_value_heads || numAttentionHeads;
+    const headDim = (hiddenSize && numAttentionHeads) ? (modelConfig.head_dim || hiddenSize / numAttentionHeads) : undefined;
+    
+    return {
+      numAttentionHeads,
+      numKeyValueHeads,
+      headDim
+    };
+  }
+
+  /**
+   * Fetch model metadata (config, context length, architecture) in one call
+   * Combines fetchModelConfig, extractContextLength, and extractArchitecture
+   * 
+   * @param modelId - HuggingFace model ID
+   * @param userMaxLengthFallback - Fallback context length from user settings
+   * @returns Object with config, contextLength, and architecture
+   */
+  static async fetchModelMetadata(
+    modelId: string,
+    userMaxLengthFallback: number
+  ): Promise<{
+    config: any | null;
+    contextLength: number;
+    architecture: {
+      numAttentionHeads?: number;
+      numKeyValueHeads?: number;
+      headDim?: number;
+    };
+  }> {
+    // Fetch config
+    const config = await this.fetchModelConfig(modelId);
+    
+    // Extract context length
+    const contextLength = this.extractContextLength(config, userMaxLengthFallback);
+    
+    // Extract architecture
+    const architecture = this.extractArchitecture(config);
+    
+    if (LOG_GENERAL) {
+      console.log(prefix, `[fetchModelMetadata] Metadata extracted for ${modelId}:`, {
+        contextLength,
+        architecture
+      });
+    }
+    
+    return { config, contextLength, architecture };
+  }
+
+  /**
    * Determine if a file should be intercepted for caching
    * Checks for HuggingFace model files and local model files
    * 

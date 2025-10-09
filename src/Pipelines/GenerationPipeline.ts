@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 import { AutoTokenizer, AutoModelForCausalLM } from '@huggingface/transformers';
+import { LoadingStatusTypes } from '../events/eventNames';
 
 const prefix = '[GenerationPipeline]';
 
@@ -7,6 +8,26 @@ const prefix = '[GenerationPipeline]';
 const LOG_GENERAL = false;
 const LOG_CONFIG_CHANGE = false;
 const LOG_LOADING = false;
+
+/**
+ * Enhanced progress callback interface for detailed UI updates
+ */
+export interface PipelineProgressInfo {
+  status: typeof LoadingStatusTypes[keyof typeof LoadingStatusTypes] | 'generating' | 'stopped' | 'complete';
+  file?: string;
+  progress?: number; // 0-100 (optional for error/generating states)
+  loadId?: string;
+  loaded?: number;
+  total?: number;
+  message?: string;
+  error?: string;
+  output?: string; // For generation output
+  generatedText?: string; // For generation complete
+  tps?: string; // Tokens per second
+  numTokens?: number; // Number of tokens generated
+}
+
+export type EnhancedProgressCallback = (info: PipelineProgressInfo) => void;
 
 /**
  * DeviceCapabilities - Utility class for GPU detection and capabilities
@@ -127,6 +148,30 @@ export type PipelineType =
   | 'visual-language'
   | 'text-to-speech';
 
+// Enum for type-safe pipeline selection
+export enum PipelineTypeEnum {
+  TEXT_GENERATION = 'text-generation',
+  TEXT_CLASSIFICATION = 'text-classification',
+  TOKEN_CLASSIFICATION = 'token-classification',
+  QUESTION_ANSWERING = 'question-answering',
+  FILL_MASK = 'fill-mask',
+  SUMMARIZATION = 'summarization',
+  TRANSLATION = 'translation',
+  TEXT2TEXT_GENERATION = 'text2text-generation',
+  FEATURE_EXTRACTION = 'feature-extraction',
+  IMAGE_CLASSIFICATION = 'image-classification',
+  ZERO_SHOT_CLASSIFICATION = 'zero-shot-classification',
+  AUTOMATIC_SPEECH_RECOGNITION = 'automatic-speech-recognition',
+  IMAGE_TO_TEXT = 'image-to-text',
+  OBJECT_DETECTION = 'object-detection',
+  ZERO_SHOT_OBJECT_DETECTION = 'zero-shot-object-detection',
+  DOCUMENT_QUESTION_ANSWERING = 'document-question-answering',
+  IMAGE_SEGMENTATION = 'image-segmentation',
+  DEPTH_ESTIMATION = 'depth-estimation',
+  VISUAL_LANGUAGE = 'visual-language',
+  TEXT_TO_SPEECH = 'text-to-speech'
+}
+
 // Dtype types - can be simple string or complex per-component object
 export type DtypeSimple = 'fp32' | 'fp16' | 'q8' | 'q4' | 'q4f16' | 'int8' | 'uint8' | 'bnb4' | 'auto';
 export type DtypeComplex = Record<string, DtypeSimple>;
@@ -160,6 +205,10 @@ export interface ITextGenerationConfig extends IComplexPipelineConfig {
   pipelineType: 'text-generation';
 }
 
+export interface ITranslationConfig extends ISimplePipelineConfig {
+  pipelineType: 'translation';
+}
+
 export interface IMultimodalConfig extends IComplexPipelineConfig {
   pipelineType: 'image-to-text' | 'visual-language';
   imageOptions?: {
@@ -179,12 +228,12 @@ export interface IEmbeddingConfig extends ISimplePipelineConfig {
   pipelineType: 'feature-extraction';
 }
 
-export interface ITranslationConfig extends ISimplePipelineConfig {
-  pipelineType: 'translation';
+export interface IZeroShotClassificationConfig extends ISimplePipelineConfig {
+  pipelineType: 'zero-shot-classification';
 }
 
 export interface IClassificationConfig extends ISimplePipelineConfig {
-  pipelineType: 'zero-shot-classification' | 'text-classification';
+  pipelineType: 'text-classification';
 }
 
 // Union type for all possible configs
@@ -194,6 +243,7 @@ export type ModelConfig =
   | ISpeechRecognitionConfig
   | IEmbeddingConfig
   | ITranslationConfig
+  | IZeroShotClassificationConfig
   | IClassificationConfig;
 
 // Base model configuration class
@@ -335,6 +385,106 @@ export class EmbeddingConfig extends BaseModelConfig implements IEmbeddingConfig
   }
 }
 
+// Translation Config Class
+export class TranslationConfig extends BaseModelConfig implements ITranslationConfig {
+  dtype: DtypeSimple;
+  pipelineType: 'translation' = 'translation';
+
+  constructor(config: ITranslationConfig) {
+    super(config);
+    this.dtype = config.dtype;
+  }
+
+  /**
+   * Create config with auto-detected dtype
+   */
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: { dtype?: DtypeSimple }
+  ): Promise<TranslationConfig> {
+    const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+    
+    return new TranslationConfig({
+      modelId,
+      dtype,
+      pipelineType: 'translation'
+    });
+  }
+
+  equals(other: TranslationConfig | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           this.dtype === other.dtype &&
+           this.pipelineType === other.pipelineType;
+  }
+
+  clone(): TranslationConfig {
+    return new TranslationConfig({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      pipelineType: this.pipelineType
+    });
+  }
+
+  toObject(): ITranslationConfig {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      pipelineType: this.pipelineType
+    };
+  }
+}
+
+// ZeroShotClassification Config Class
+export class ZeroShotClassificationConfig extends BaseModelConfig implements IZeroShotClassificationConfig {
+  dtype: DtypeSimple;
+  pipelineType: 'zero-shot-classification' = 'zero-shot-classification';
+
+  constructor(config: IZeroShotClassificationConfig) {
+    super(config);
+    this.dtype = config.dtype;
+  }
+
+  /**
+   * Create config with auto-detected dtype
+   */
+  static async createWithAutoDetect(
+    modelId: string,
+    options?: { dtype?: DtypeSimple }
+  ): Promise<ZeroShotClassificationConfig> {
+    const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+    
+    return new ZeroShotClassificationConfig({
+      modelId,
+      dtype,
+      pipelineType: 'zero-shot-classification'
+    });
+  }
+
+  equals(other: ZeroShotClassificationConfig | null): boolean {
+    if (other === null) return false;
+    return this.modelId === other.modelId &&
+           this.dtype === other.dtype &&
+           this.pipelineType === other.pipelineType;
+  }
+
+  clone(): ZeroShotClassificationConfig {
+    return new ZeroShotClassificationConfig({
+      modelId: this.modelId,
+      dtype: this.dtype,
+      pipelineType: this.pipelineType
+    });
+  }
+
+  toObject(): IZeroShotClassificationConfig {
+    return {
+      modelId: this.modelId,
+      dtype: this.dtype,
+      pipelineType: this.pipelineType
+    };
+  }
+}
+
 // Multimodal Config Class
 export class MultimodalConfig extends BaseModelConfig implements IMultimodalConfig {
   dtype: Dtype;
@@ -434,10 +584,58 @@ export abstract class BasePipeline<TConfig extends BaseModelConfig = BaseModelCo
   }
 
   /**
+   * Create a wrapped progress callback for transformers.js
+   * Converts transformers.js progress format to our PipelineProgressInfo format
+   * 
+   * @param progressCallback - Our enhanced callback
+   * @param loadId - Load ID for tracking
+   * @param component - Component name ('tokenizer', 'model', 'processor')
+   * @param progressRange - [min, max] percentage range to remap to (e.g., [10, 40])
+   * @returns Wrapped callback compatible with transformers.js
+   */
+  protected wrapProgressCallback(
+    progressCallback: EnhancedProgressCallback | undefined,
+    loadId: string | undefined,
+    component: string,
+    progressRange: [number, number]
+  ): ((data: any) => void) | undefined {
+    if (!progressCallback) return undefined;
+
+    const [minProgress, maxProgress] = progressRange;
+    const progressSpan = maxProgress - minProgress;
+
+    return (data: any) => {
+      let progress = minProgress;
+      let status: PipelineProgressInfo['status'] = LoadingStatusTypes.PROGRESS;
+      let message = `Loading ${component} from cache...`;
+
+      if (data.status === 'progress') {
+        progress = minProgress + (data.progress * progressSpan);
+        status = LoadingStatusTypes.PROGRESS;
+        message = `Loading ${component} from cache... ${Math.round(progress)}%`;
+      } else if (data.status === 'ready' || data.status === 'done') {
+        progress = maxProgress;
+        status = LoadingStatusTypes.DONE;
+        message = `${component.charAt(0).toUpperCase() + component.slice(1)} ready`;
+      }
+
+      progressCallback({
+        status,
+        file: data.file || component,
+        progress,
+        loadId,
+        loaded: data.loaded,
+        total: data.total,
+        message
+      });
+    };
+  }
+
+  /**
    * Load the model and required components
    * Must be implemented by each pipeline type
    */
-  abstract load(config: TConfig, progressCallback?: (data: any) => void): Promise<void>;
+  abstract load(config: TConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void>;
 
   /**
    * Reset the pipeline (clears loaded components)
@@ -501,7 +699,11 @@ export class TextGenerationPipeline extends BasePipeline<TextGenerationConfig> {
    * If config matches current loaded model, skips reload
    * If config differs, resets and loads new model
    */
-  async load(config: TextGenerationConfig, progressCallback?: (data: any) => void): Promise<void> {
+  async load(
+    config: TextGenerationConfig, 
+    progressCallback?: EnhancedProgressCallback,
+    loadId?: string
+  ): Promise<void> {
     // Check if we need to reload (config changed)
     const needsReload = this.needsReload(config);
 
@@ -522,22 +724,67 @@ export class TextGenerationPipeline extends BasePipeline<TextGenerationConfig> {
       }
     }
 
+    // Send initiate progress
+    progressCallback?.({
+      status: LoadingStatusTypes.INITIATE,
+      file: config.dtype.toString(),
+      progress: 0,
+      loadId,
+      message: 'Starting model load...'
+    });
+
     // Lazy load tokenizer (only if not already loaded)
     if (!this.tokenizer) {
+      // Send tokenizer loading start
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'tokenizer',
+        progress: 10,
+        loadId,
+        message: 'Loading tokenizer from cache...'
+      });
+
       this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
-      progress_callback: progressCallback,
-    });
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 40])
+      });
     }
 
     // Lazy load model (only if not already loaded)
     if (!this.model) {
+      // Send model loading start
+      progressCallback?.({
+        status: LoadingStatusTypes.PROGRESS,
+        file: 'model',
+        progress: 30,
+        loadId,
+        message: 'Loading model from cache...'
+      });
+
       this.model = await AutoModelForCausalLM.from_pretrained(config.modelId, {
       dtype: config.dtype as any,
         device: config.device as any,
       use_external_data_format: config.useExternalData,
-      progress_callback: progressCallback,
-    });
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [40, 90])
+      });
     }
+
+    // Send processing message
+    progressCallback?.({
+      status: LoadingStatusTypes.PROGRESS,
+      file: 'model',
+      progress: 90,
+      loadId,
+      message: 'Initializing model...'
+    });
+
+    // Send completion message
+    progressCallback?.({
+      status: LoadingStatusTypes.DONE,
+      file: 'model',
+      progress: 100,
+      loadId,
+      message: 'Model ready for inference!'
+    });
   }
 }
 
@@ -548,7 +795,7 @@ export class TextGenerationPipeline extends BasePipeline<TextGenerationConfig> {
 export class EmbeddingPipeline extends BasePipeline<EmbeddingConfig> {
   private pipelineInstance: any = null;
 
-  async load(config: EmbeddingConfig, progressCallback?: (data: any) => void): Promise<void> {
+  async load(config: EmbeddingConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
     const needsReload = this.needsReload(config);
 
     if (needsReload) {
@@ -571,7 +818,7 @@ export class EmbeddingPipeline extends BasePipeline<EmbeddingConfig> {
       const { pipeline } = await import('@huggingface/transformers');
       this.pipelineInstance = await pipeline('feature-extraction', config.modelId, {
         dtype: config.dtype,
-        progress_callback: progressCallback,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'embedding', [0, 100])
       });
       // Store for compatibility
       this.model = this.pipelineInstance;
@@ -592,11 +839,113 @@ export class EmbeddingPipeline extends BasePipeline<EmbeddingConfig> {
 }
 
 /**
+ * TranslationPipeline - For translation tasks
+ * Uses high-level pipeline API for simplicity
+ */
+export class TranslationPipeline extends BasePipeline<TranslationConfig> {
+  private pipelineInstance: any = null;
+
+  async load(config: TranslationConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
+    const needsReload = this.needsReload(config);
+
+    if (needsReload) {
+      if (this.currentConfig !== null) {
+        if (LOG_CONFIG_CHANGE) {
+          console.log(prefix, '[Translation] Config changed, resetting pipeline');
+        }
+        this.reset();
+      }
+      
+      this.currentConfig = config;
+      
+      if (LOG_LOADING) {
+        console.log(prefix, '[Translation] Loading model:', config.toObject());
+      }
+    }
+
+    // Lazy load using high-level pipeline API
+    if (!this.pipelineInstance) {
+      const { pipeline } = await import('@huggingface/transformers');
+      this.pipelineInstance = await pipeline('translation', config.modelId, {
+        dtype: config.dtype,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'translation', [0, 100])
+      });
+      // Store for compatibility
+      this.model = this.pipelineInstance;
+      this.tokenizer = this.pipelineInstance.tokenizer;
+    }
+  }
+
+  /**
+   * Get the pipeline instance for calling
+   */
+  getPipeline(): any {
+    return this.pipelineInstance;
+  }
+
+  override reset(): void {
+    super.reset();
+    this.pipelineInstance = null;
+  }
+}
+
+/**
+ * ZeroShotClassificationPipeline - For zero-shot classification tasks
+ * Uses high-level pipeline API for simplicity
+ */
+export class ZeroShotClassificationPipeline extends BasePipeline<ZeroShotClassificationConfig> {
+  private pipelineInstance: any = null;
+
+  async load(config: ZeroShotClassificationConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
+    const needsReload = this.needsReload(config);
+
+    if (needsReload) {
+      if (this.currentConfig !== null) {
+        if (LOG_CONFIG_CHANGE) {
+          console.log(prefix, '[ZeroShotClassification] Config changed, resetting pipeline');
+        }
+        this.reset();
+      }
+      
+      this.currentConfig = config;
+      
+      if (LOG_LOADING) {
+        console.log(prefix, '[ZeroShotClassification] Loading model:', config.toObject());
+      }
+    }
+
+    // Lazy load using high-level pipeline API
+    if (!this.pipelineInstance) {
+      const { pipeline } = await import('@huggingface/transformers');
+      this.pipelineInstance = await pipeline('zero-shot-classification', config.modelId, {
+        dtype: config.dtype,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'zero-shot-classification', [0, 100])
+      });
+      // Store for compatibility
+      this.model = this.pipelineInstance;
+      this.tokenizer = this.pipelineInstance.tokenizer;
+    }
+  }
+
+  /**
+   * Get the pipeline instance for calling
+   */
+  getPipeline(): any {
+    return this.pipelineInstance;
+  }
+
+  override reset(): void {
+    super.reset();
+    this.pipelineInstance = null;
+    }
+  }
+
+  /**
  * MultimodalPipeline - For vision-language models
  * Handles image + text inputs
  */
 export class MultimodalPipeline extends BasePipeline<MultimodalConfig> {
-  async load(config: MultimodalConfig, progressCallback?: (data: any) => void): Promise<void> {
+  async load(config: MultimodalConfig, progressCallback?: EnhancedProgressCallback, loadId?: string): Promise<void> {
     const needsReload = this.needsReload(config);
 
     if (needsReload) {
@@ -618,7 +967,7 @@ export class MultimodalPipeline extends BasePipeline<MultimodalConfig> {
     if (!this.processor) {
       const { AutoProcessor } = await import('@huggingface/transformers');
       this.processor = await AutoProcessor.from_pretrained(config.modelId, {
-        progress_callback: progressCallback,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 50])
       });
     }
 
@@ -629,13 +978,63 @@ export class MultimodalPipeline extends BasePipeline<MultimodalConfig> {
         dtype: config.dtype as any,
         device: config.device as any,
         use_external_data_format: config.useExternalData,
-        progress_callback: progressCallback,
+        progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 100])
       });
     }
   }
 
   override isLoaded(): boolean {
     return this.processor !== null && this.model !== null;
+  }
+}
+
+/**
+ * PipelineFactory - Factory pattern for creating appropriate pipeline instances
+ * Pure factory with no dependencies on DB or external services
+ */
+export class PipelineFactory {
+  /**
+   * Create appropriate pipeline based on task type
+   * Defaults to TextGenerationPipeline if task is unknown or not provided
+   * 
+   * @param task - Pipeline task type (e.g., 'text-generation', 'feature-extraction')
+   * @returns Concrete pipeline instance
+   */
+  static createPipeline(task?: string): BasePipeline {
+    // Default to text generation if no task specified
+    const pipelineTask = task || PipelineTypeEnum.TEXT_GENERATION;
+    
+    if (LOG_GENERAL) {
+      console.log(prefix, `[PipelineFactory] Creating pipeline for task: ${pipelineTask}`);
+    }
+    
+    switch (pipelineTask) {
+      case PipelineTypeEnum.TEXT_GENERATION:
+        return new TextGenerationPipeline();
+        
+      case PipelineTypeEnum.FEATURE_EXTRACTION:
+        return new EmbeddingPipeline();
+        
+      case PipelineTypeEnum.TRANSLATION:
+        return new TranslationPipeline();
+        
+      case PipelineTypeEnum.ZERO_SHOT_CLASSIFICATION:
+        return new ZeroShotClassificationPipeline();
+        
+      case PipelineTypeEnum.IMAGE_TO_TEXT:
+      case PipelineTypeEnum.VISUAL_LANGUAGE:
+        return new MultimodalPipeline();
+        
+      case PipelineTypeEnum.AUTOMATIC_SPEECH_RECOGNITION:
+        // TODO: Implement WhisperPipeline
+        console.warn(prefix, '[PipelineFactory] Speech recognition pipeline not yet implemented, defaulting to text-generation');
+        return new TextGenerationPipeline();
+        
+      default:
+        // Fallback to text generation for unknown tasks
+        console.warn(prefix, `[PipelineFactory] Unknown task "${pipelineTask}", defaulting to text-generation`);
+        return new TextGenerationPipeline();
+    }
   }
 }
 

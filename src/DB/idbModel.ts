@@ -1253,3 +1253,144 @@ export async function createStreamingResponseFromChunks(modelId: string, fileNam
     return new Response(stream, { headers });
 }
 
+// ============================================================================
+// User-Added Models Management
+// ============================================================================
+
+export type UserAddedModel = {
+    repo: string; // HuggingFace repo ID
+    displayName: string; // User-friendly name
+    task: string; // e.g., "text-generation"
+    addedAt: number; // Timestamp
+    isUserAdded: true; // Flag to distinguish from defaults
+};
+
+/**
+ * Save a user-added model to IndexedDB
+ */
+export async function saveUserAddedModel(model: Omit<UserAddedModel, 'addedAt' | 'isUserAdded'>): Promise<void> {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        
+        const userModel: ManifestEntry = {
+            repo: model.repo,
+            quants: {}, // Will be populated when model is actually loaded
+            task: model.task,
+            manifestVersion: CURRENT_MANIFEST_VERSION,
+        };
+        
+        const req = store.put(userModel);
+        req.onsuccess = () => {
+            if (LOG_DEBUG) console.log(prefix, '[saveUserAddedModel] success:', model.repo);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR) console.error(prefix, '[saveUserAddedModel] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            db.close();
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+        };
+    });
+}
+
+/**
+ * Remove a user-added model from IndexedDB
+ */
+export async function removeUserAddedModel(repo: string): Promise<void> {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        
+        const req = store.delete(repo);
+        req.onsuccess = () => {
+            if (LOG_DEBUG) console.log(prefix, '[removeUserAddedModel] success:', repo);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR) console.error(prefix, '[removeUserAddedModel] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            db.close();
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+        };
+    });
+}
+
+/**
+ * Get all user-added models (those not in AVAILABLE_MODELS)
+ */
+export async function getUserAddedModels(defaultModels: Set<string>): Promise<ManifestEntry[]> {
+    const allManifests = await getAllManifestEntries();
+    return allManifests.filter(manifest => !defaultModels.has(manifest.repo));
+}
+
+/**
+ * Validate if a HuggingFace model exists and has ONNX files
+ */
+export async function validateHuggingFaceModel(repoId: string): Promise<{
+    valid: boolean;
+    error?: string;
+    task?: string;
+    onnxFiles?: string[];
+}> {
+    try {
+        // Fetch model info from HuggingFace API
+        const response = await fetch(`https://huggingface.co/api/models/${repoId}`);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                return { valid: false, error: 'Model not found on HuggingFace' };
+            }
+            return { valid: false, error: `API error: ${response.status}` };
+        }
+        
+        const modelInfo = await response.json();
+        
+        // Check if model has ONNX files
+        const filesResponse = await fetch(`https://huggingface.co/api/models/${repoId}/tree/main`);
+        if (!filesResponse.ok) {
+            return { valid: false, error: 'Could not fetch model files' };
+        }
+        
+        const files = await filesResponse.json();
+        const onnxFiles = files.filter((file: any) => 
+            file.path && file.path.endsWith('.onnx')
+        ).map((file: any) => file.path);
+        
+        if (onnxFiles.length === 0) {
+            return { 
+                valid: false, 
+                error: 'No ONNX files found. Only ONNX models are supported by Transformers.js' 
+            };
+        }
+        
+        // Extract task from model info
+        const task = modelInfo.pipeline_tag || 'text-generation';
+        
+        return {
+            valid: true,
+            task,
+            onnxFiles
+        };
+        
+    } catch (error) {
+        if (LOG_ERROR) console.error(prefix, '[validateHuggingFaceModel] error:', error);
+        return { 
+            valid: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        };
+    }
+}
+

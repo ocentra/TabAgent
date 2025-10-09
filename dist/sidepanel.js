@@ -2040,6 +2040,416 @@ function showSystemPromptPopup(currentPrompt, onSave) {
 
 /***/ }),
 
+/***/ "./src/Controllers/ConnectorsController.ts":
+/*!*************************************************!*\
+  !*** ./src/Controllers/ConnectorsController.ts ***!
+  \*************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   initializeConnectorsController: () => (/* binding */ initializeConnectorsController)
+/* harmony export */ });
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[ConnectorsController]';
+let isInitialized = false;
+// Helper to create a foldout section (matching other controllers style)
+function createFoldoutSection({ title, contentHTML, sectionClass = '', initiallyOpen = true }) {
+    const section = document.createElement('div');
+    section.className = `${sectionClass} mb-6`;
+    section.innerHTML = `
+        <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
+            <button class="foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
+                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">${title}</h3>
+                <span class="fold-icon transform transition-transform duration-200">▼</span>
+            </button>
+            <div class="foldout-content p-3 space-y-3${initiallyOpen ? '' : ' hidden'}">
+                ${contentHTML}
+            </div>
+        </div>
+    `;
+    // Setup foldout toggle
+    const toggle = section.querySelector('.foldout-toggle');
+    const content = section.querySelector('.foldout-content');
+    const icon = toggle?.querySelector('.fold-icon');
+    if (toggle && content && icon) {
+        toggle.addEventListener('click', () => {
+            const isHidden = content.classList.contains('hidden');
+            content.classList.toggle('hidden');
+            icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-180deg)';
+        });
+    }
+    return section;
+}
+function createCloudStorageFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="text-gray-600 dark:text-gray-400">
+                <p>Connect to cloud storage services to access and analyze your files using <strong>MCP</strong>.</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">G</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Google Drive</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access files from Google Drive via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">M</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Microsoft OneDrive</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access files from OneDrive via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-blue-400 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">D</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Dropbox</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access files from Dropbox via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-400 text-white rounded hover:bg-blue-500 text-xs">
+                        Connect
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between p-2 border border-dashed border-gray-300 dark:border-gray-500 rounded hover:border-gray-400 dark:hover:border-gray-400 transition-colors cursor-pointer" id="add-cloud-storage">
+                <div class="flex items-center space-x-2">
+                    <div class="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center">
+                        <span class="text-gray-600 dark:text-gray-300 text-xs font-bold">+</span>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700 dark:text-gray-300">Add Custom Cloud Storage</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Connect your own MCP cloud storage service</p>
+                    </div>
+                </div>
+                <button class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs">
+                    Add
+                </button>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Cloud Storage',
+        contentHTML,
+        sectionClass: 'cloud-storage-section',
+        initiallyOpen: true
+    });
+}
+function createEmailFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="text-gray-600 dark:text-gray-400">
+                <p>Connect to email services to analyze messages and attachments.</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-red-500 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">G</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Gmail</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Gmail messages and attachments</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">O</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Outlook</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Outlook messages and attachments</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs">
+                        Connect
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between p-2 border border-dashed border-gray-300 dark:border-gray-500 rounded hover:border-gray-400 dark:hover:border-gray-400 transition-colors cursor-pointer" id="add-email-service">
+                <div class="flex items-center space-x-2">
+                    <div class="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center">
+                        <span class="text-gray-600 dark:text-gray-300 text-xs font-bold">+</span>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700 dark:text-gray-300">Add Custom Email Service</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Connect your own MCP email provider</p>
+                    </div>
+                </div>
+                <button class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs">
+                    Add
+                </button>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Email Services',
+        contentHTML,
+        sectionClass: 'email-services-section',
+        initiallyOpen: true
+    });
+}
+function createProductivityFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="text-gray-600 dark:text-gray-400">
+                <p>Connect to productivity tools and document services using <strong>MCP (Model Context Protocol)</strong>.</p>
+                <p class="mt-2 text-xs bg-blue-50 dark:bg-blue-900 p-2 rounded border-l-4 border-blue-400">
+                    <strong>MCP:</strong> A standardized protocol for AI models to securely access external data sources and tools. 
+                    Enables real-time integration with your productivity ecosystem.
+                </p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-green-600 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">N</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Notion</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Notion pages and databases via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-yellow-500 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">C</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Confluence</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Confluence pages and spaces via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-orange-500 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">A</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Airtable</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Airtable bases and records via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-purple-600 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">M</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Microsoft Office 365</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Word, Excel, PowerPoint via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-red-600 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">G</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Google Workspace</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access Docs, Sheets, Slides via MCP</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs">
+                        Connect
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between p-2 border border-dashed border-gray-300 dark:border-gray-500 rounded hover:border-gray-400 dark:hover:border-gray-400 transition-colors cursor-pointer" id="add-productivity-tool">
+                <div class="flex items-center space-x-2">
+                    <div class="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center">
+                        <span class="text-gray-600 dark:text-gray-300 text-xs font-bold">+</span>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-gray-700 dark:text-gray-300">Add Custom Productivity Tool</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Connect your own MCP document service</p>
+                    </div>
+                </div>
+                <button class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs">
+                    Add
+                </button>
+            </div>
+            <div class="mt-3 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
+                <p class="text-gray-600 dark:text-gray-400">
+                    <strong>MCP Benefits:</strong> Secure authentication, real-time data access, standardized API, 
+                    and seamless integration with AI models for intelligent document processing.
+                </p>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Productivity Tools & Documents (MCP)',
+        contentHTML,
+        sectionClass: 'productivity-tools-section',
+        initiallyOpen: true
+    });
+}
+function createDeveloperToolsFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="text-gray-600 dark:text-gray-400">
+                <p>Connect to developer platforms and repositories.</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-yellow-500 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">🤗</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">HuggingFace</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Browse and add ONNX models from HuggingFace Hub</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-gray-800 dark:bg-gray-200 rounded flex items-center justify-center">
+                            <span class="text-white dark:text-gray-800 text-xs font-bold">GH</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">GitHub</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access repositories, issues, and code</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-gray-800 text-white rounded hover:bg-gray-700 text-xs">
+                        Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Developer Tools',
+        contentHTML,
+        sectionClass: 'developer-tools-section',
+        initiallyOpen: true
+    });
+}
+function setupCustomConnectorButtons() {
+    // Cloud Storage Add Button
+    const addCloudStorageBtn = document.getElementById('add-cloud-storage');
+    if (addCloudStorageBtn) {
+        addCloudStorageBtn.addEventListener('click', () => {
+            showCustomConnectorDialog('Cloud Storage', 'Enter the name of your custom cloud storage service');
+        });
+    }
+    // Email Service Add Button
+    const addEmailServiceBtn = document.getElementById('add-email-service');
+    if (addEmailServiceBtn) {
+        addEmailServiceBtn.addEventListener('click', () => {
+            showCustomConnectorDialog('Email Service', 'Enter the name of your custom email service');
+        });
+    }
+    // Productivity Tool Add Button
+    const addProductivityToolBtn = document.getElementById('add-productivity-tool');
+    if (addProductivityToolBtn) {
+        addProductivityToolBtn.addEventListener('click', () => {
+            showCustomConnectorDialog('Productivity Tool', 'Enter the name of your custom productivity tool');
+        });
+    }
+}
+function showCustomConnectorDialog(connectorType, placeholder) {
+    const serviceName = prompt(`${placeholder}:`);
+    if (serviceName && serviceName.trim()) {
+        const trimmedName = serviceName.trim();
+        // Show confirmation dialog
+        const confirmMessage = `Add "${trimmedName}" as a custom ${connectorType.toLowerCase()}?\n\nThis will allow you to configure an MCP connection to this service.`;
+        const confirmed = confirm(confirmMessage);
+        if (confirmed) {
+            // TODO: Implement actual MCP connector addition logic
+            // For now, just show a success message
+            alert(`Custom ${connectorType} "${trimmedName}" will be added.\n\nMCP connector configuration will be implemented in a future update.`);
+            if (LOG_DEBUG)
+                console.log(`${prefix} User added custom ${connectorType}: ${trimmedName}`);
+        }
+    }
+}
+function initializeConnectorsController() {
+    if (isInitialized) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Already initialized.`);
+        return;
+    }
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing...`);
+    const connectorsPageContainer = document.getElementById('page-connectors');
+    if (!connectorsPageContainer) {
+        console.warn("[ConnectorsController] Could not find #page-connectors container.");
+        return;
+    }
+    // Remove placeholder content
+    const placeholder = connectorsPageContainer.querySelector('p');
+    if (placeholder)
+        placeholder.remove();
+    // Inject foldout sections
+    const cloudStorageFoldout = createCloudStorageFoldout();
+    connectorsPageContainer.appendChild(cloudStorageFoldout);
+    const emailFoldout = createEmailFoldout();
+    connectorsPageContainer.appendChild(emailFoldout);
+    const productivityFoldout = createProductivityFoldout();
+    connectorsPageContainer.appendChild(productivityFoldout);
+    const developerToolsFoldout = createDeveloperToolsFoldout();
+    connectorsPageContainer.appendChild(developerToolsFoldout);
+    // Setup custom connector add buttons
+    setupCustomConnectorButtons();
+    isInitialized = true;
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initialized successfully.`);
+    return {};
+}
+
+
+/***/ }),
+
 /***/ "./src/Controllers/DiscoverController.ts":
 /*!***********************************************!*\
   !*** ./src/Controllers/DiscoverController.ts ***!
@@ -3767,6 +4177,501 @@ async function resetSettingsToDefault() {
 
 /***/ }),
 
+/***/ "./src/Controllers/IntegrationsController.ts":
+/*!***************************************************!*\
+  !*** ./src/Controllers/IntegrationsController.ts ***!
+  \***************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   initializeIntegrationsController: () => (/* binding */ initializeIntegrationsController)
+/* harmony export */ });
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _Home_uiController__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Home/uiController */ "./src/Home/uiController.ts");
+
+
+// Logging constants
+const LOG_GENERAL = false;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[IntegrationsController]';
+let isInitialized = false;
+// Helper to create a foldout section (matching other controllers style)
+function createFoldoutSection({ title, contentHTML, sectionClass = '', initiallyOpen = true }) {
+    const section = document.createElement('div');
+    section.className = `${sectionClass} mb-6`;
+    section.innerHTML = `
+        <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
+            <button class="foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
+                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">${title}</h3>
+                <span class="fold-icon transform transition-transform duration-200">▼</span>
+            </button>
+            <div class="foldout-content p-3 space-y-3${initiallyOpen ? '' : ' hidden'}">
+                ${contentHTML}
+            </div>
+        </div>
+    `;
+    // Setup foldout toggle
+    const toggle = section.querySelector('.foldout-toggle');
+    const content = section.querySelector('.foldout-content');
+    const icon = toggle?.querySelector('.fold-icon');
+    if (toggle && content && icon) {
+        toggle.addEventListener('click', () => {
+            const isHidden = content.classList.contains('hidden');
+            content.classList.toggle('hidden');
+            icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-180deg)';
+        });
+    }
+    return section;
+}
+function createBrowserModelsFoldout() {
+    const contentHTML = `
+        <div class="space-y-4 text-sm">
+            <!-- Add Custom Model Section -->
+            <div class="border border-blue-200 dark:border-blue-700 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20">
+                <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Add Custom Model</h4>
+                <div class="space-y-2">
+                    <input 
+                        type="text" 
+                        id="customModelRepoId" 
+                        placeholder="e.g., onnx-community/Phi-3-mini-4k-instruct-onnx"
+                        class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+                    />
+                    <div class="flex gap-2">
+                        <button id="validateModelButton" class="flex-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
+                            Validate & Add
+                        </button>
+                        <button id="clearInputButton" class="px-2 py-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500 text-xs">
+                            Clear
+                        </button>
+                    </div>
+                    <div id="validationMessage" class="text-xs hidden"></div>
+                </div>
+            </div>
+            
+            <!-- User-Added Models Section -->
+            <div id="userAddedModelsSection" class="hidden">
+                <h5 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Your Custom Models</h5>
+                <div id="userAddedModelsList" class="space-y-1 max-h-32 overflow-y-auto text-xs border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between">
+                <h4 class="font-medium text-gray-800 dark:text-gray-200">Cached Models</h4>
+                <div class="flex gap-2">
+                    <button id="refreshModelsButton" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">Refresh</button>
+                    <button id="deleteAllModelsButton" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs">Delete All</button>
+                </div>
+            </div>
+            
+            <div id="modelsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                    Loading cached models...
+                </div>
+            </div>
+            
+            <div id="totalStorageInfo" class="text-xs text-gray-500 dark:text-gray-400 border-t pt-2">
+                Total storage used: <span id="totalStorageValue">0 MB</span>
+            </div>
+            
+            <div class="mt-4">
+                <h5 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Available Models</h5>
+                <div id="availableModelsList" class="space-y-1 max-h-32 overflow-y-auto text-xs text-gray-600 dark:text-gray-400">
+                    <div class="text-center py-2">Loading available models...</div>
+                </div>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Browser Models',
+        contentHTML,
+        sectionClass: 'browser-models-section',
+        initiallyOpen: true
+    });
+}
+function createNativeAppFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="text-gray-600 dark:text-gray-400">
+                <p>Connect to local AI applications running on your machine.</p>
+                <p class="mt-2 text-xs">Requires LMStudio, Ollama, or similar local AI server.</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200">LMStudio</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Local model server</p>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200">Ollama</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Local model runner</p>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
+                        Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'Native Applications',
+        contentHTML,
+        sectionClass: 'native-apps-section',
+        initiallyOpen: true
+    });
+}
+function createExternalAPIFoldout() {
+    const contentHTML = `
+        <div class="space-y-3 text-sm">
+            <div class="text-gray-600 dark:text-gray-400">
+                <p>Connect to external AI API providers for cloud-based models.</p>
+                <p class="mt-2 text-xs">Requires API keys and internet connection.</p>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200">OpenAI</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">GPT models</p>
+                    </div>
+                    <button class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs">
+                        Configure
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200">Google AI</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Gemini models</p>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
+                        Configure
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div>
+                        <h4 class="font-medium text-gray-800 dark:text-gray-200">OpenRouter</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Multiple providers</p>
+                    </div>
+                    <button class="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 text-xs">
+                        Configure
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    return createFoldoutSection({
+        title: 'External APIs',
+        contentHTML,
+        sectionClass: 'external-apis-section',
+        initiallyOpen: true
+    });
+}
+function setupModelManagement(container) {
+    const modelsList = container.querySelector('#modelsList');
+    const availableModelsList = container.querySelector('#availableModelsList');
+    const refreshButton = container.querySelector('#refreshModelsButton');
+    const deleteAllButton = container.querySelector('#deleteAllModelsButton');
+    const totalStorageValue = container.querySelector('#totalStorageValue');
+    // Custom model elements
+    const customModelInput = container.querySelector('#customModelRepoId');
+    const validateButton = container.querySelector('#validateModelButton');
+    const clearButton = container.querySelector('#clearInputButton');
+    const validationMessage = container.querySelector('#validationMessage');
+    const userAddedModelsSection = container.querySelector('#userAddedModelsSection');
+    const userAddedModelsList = container.querySelector('#userAddedModelsList');
+    // Load models on initialization
+    loadCachedModels();
+    loadAvailableModels();
+    loadUserAddedModels();
+    // Refresh button
+    refreshButton?.addEventListener('click', () => {
+        loadCachedModels();
+        loadAvailableModels();
+        loadUserAddedModels();
+    });
+    // Clear button
+    clearButton?.addEventListener('click', () => {
+        customModelInput.value = '';
+        validationMessage.classList.add('hidden');
+    });
+    // Validate and add model button
+    validateButton?.addEventListener('click', async () => {
+        const repoId = customModelInput.value.trim();
+        if (!repoId) {
+            showValidationMessage('Please enter a HuggingFace repository ID', 'error');
+            return;
+        }
+        // Check if already exists
+        const defaultModels = new Set(Object.keys(_Home_uiController__WEBPACK_IMPORTED_MODULE_1__.AVAILABLE_MODELS));
+        if (defaultModels.has(repoId)) {
+            showValidationMessage('This model is already in the default list', 'error');
+            return;
+        }
+        showValidationMessage('Validating model...', 'info');
+        validateButton.disabled = true;
+        try {
+            const validation = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.validateHuggingFaceModel)(repoId);
+            if (!validation.valid) {
+                showValidationMessage(validation.error || 'Invalid model', 'error');
+                validateButton.disabled = false;
+                return;
+            }
+            // Save to IndexedDB
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.saveUserAddedModel)({
+                repo: repoId,
+                displayName: repoId.split('/').pop() || repoId,
+                task: validation.task || 'text-generation'
+            });
+            showValidationMessage(`✓ Model added successfully! (${validation.onnxFiles?.length || 0} ONNX files found)`, 'success');
+            customModelInput.value = '';
+            // Refresh lists
+            loadAvailableModels();
+            loadUserAddedModels();
+            // Dispatch event to refresh model dropdown
+            window.dispatchEvent(new CustomEvent('userModelsUpdated'));
+        }
+        catch (error) {
+            showValidationMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        }
+        finally {
+            validateButton.disabled = false;
+        }
+    });
+    function showValidationMessage(message, type) {
+        validationMessage.textContent = message;
+        validationMessage.classList.remove('hidden', 'text-green-600', 'text-red-600', 'text-blue-600');
+        if (type === 'success') {
+            validationMessage.classList.add('text-green-600', 'dark:text-green-400');
+        }
+        else if (type === 'error') {
+            validationMessage.classList.add('text-red-600', 'dark:text-red-400');
+        }
+        else {
+            validationMessage.classList.add('text-blue-600', 'dark:text-blue-400');
+        }
+        validationMessage.classList.remove('hidden');
+    }
+    // Delete all button
+    deleteAllButton?.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete all cached models? This action cannot be undone.')) {
+            try {
+                await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.deleteAllCachedModels)();
+                loadCachedModels();
+                if (LOG_GENERAL)
+                    console.log(`${prefix} All cached models deleted successfully.`);
+            }
+            catch (error) {
+                if (LOG_ERROR)
+                    console.error(`${prefix} Failed to delete all models:`, error);
+                alert('Failed to delete all models. Please try again.');
+            }
+        }
+    });
+    async function loadCachedModels() {
+        try {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loading cached models...`);
+            modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">Loading cached models...</div>';
+            const models = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getAllCachedModels)();
+            if (models.length === 0) {
+                modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">No cached models found.</div>';
+                totalStorageValue.textContent = '0 MB';
+                return;
+            }
+            // Calculate total storage
+            const totalSize = models.reduce((sum, model) => sum + model.totalSize, 0);
+            totalStorageValue.textContent = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
+            // Render models
+            modelsList.innerHTML = '';
+            models.forEach(model => {
+                const modelElement = createModelElement(model);
+                modelsList.appendChild(modelElement);
+            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loaded ${models.length} cached models.`);
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to load cached models:`, error);
+            modelsList.innerHTML = '<div class="text-center text-red-500 py-4">Failed to load cached models.</div>';
+        }
+    }
+    function createModelElement(model) {
+        const div = document.createElement('div');
+        div.className = 'border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700';
+        const sizeInMB = (model.totalSize / (1024 * 1024)).toFixed(1);
+        const sizeInGB = (model.totalSize / (1024 * 1024 * 1024)).toFixed(2);
+        const displaySize = model.totalSize > 1024 * 1024 * 1024 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
+        div.innerHTML = `
+            <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                    <h5 class="font-medium text-gray-800 dark:text-gray-200 truncate">${model.modelId}</h5>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${model.modelPath}</p>
+                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>${displaySize}</span>
+                        <span>${model.numChunks} chunks</span>
+                        <span>${new Date(model.downloadDate).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                <button class="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs delete-model-btn" data-model-id="${model.modelId}" data-model-path="${model.modelPath}">
+                    Delete
+                </button>
+            </div>
+        `;
+        // Add delete button event listener
+        const deleteButton = div.querySelector('.delete-model-btn');
+        deleteButton.addEventListener('click', async () => {
+            if (confirm(`Are you sure you want to delete ${model.modelId}? This action cannot be undone.`)) {
+                try {
+                    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.deleteCachedModel)(model);
+                    loadCachedModels(); // Refresh the list
+                    if (LOG_GENERAL)
+                        console.log(`${prefix} Model deleted: ${model.modelId}`);
+                }
+                catch (error) {
+                    if (LOG_ERROR)
+                        console.error(`${prefix} Failed to delete model:`, error);
+                    alert('Failed to delete model. Please try again.');
+                }
+            }
+        });
+        return div;
+    }
+    async function loadAvailableModels() {
+        try {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loading available models...`);
+            availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">Loading available models...</div>';
+            // Import the manifest function
+            const { getAllManifestEntries } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../DB/idbModel */ "./src/DB/idbModel.ts"));
+            const manifests = await getAllManifestEntries();
+            if (manifests.length === 0) {
+                availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">No models available.</div>';
+                return;
+            }
+            // Render available models
+            availableModelsList.innerHTML = '';
+            manifests.forEach(manifest => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between py-1 px-2 rounded bg-gray-50 dark:bg-gray-800';
+                const modelId = manifest.repo;
+                const files = Object.keys(manifest.quants || {});
+                const fileCount = files.length;
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">${modelId}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${fileCount} files</span>
+                    </div>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Available</span>
+                `;
+                availableModelsList.appendChild(div);
+            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loaded ${manifests.length} available models.`);
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to load available models:`, error);
+            availableModelsList.innerHTML = '<div class="text-center text-red-500 py-2">Failed to load available models.</div>';
+        }
+    }
+    async function loadUserAddedModels() {
+        try {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loading user-added models...`);
+            const defaultModels = new Set(Object.keys(_Home_uiController__WEBPACK_IMPORTED_MODULE_1__.AVAILABLE_MODELS));
+            const userModels = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getUserAddedModels)(defaultModels);
+            if (userModels.length === 0) {
+                userAddedModelsSection.classList.add('hidden');
+                return;
+            }
+            userAddedModelsSection.classList.remove('hidden');
+            userAddedModelsList.innerHTML = '';
+            userModels.forEach(model => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between py-1 px-2 rounded bg-gray-50 dark:bg-gray-800';
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">${model.repo}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${model.task || 'text-generation'}</span>
+                    </div>
+                    <button class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs remove-custom-model" data-repo="${model.repo}">
+                        Remove
+                    </button>
+                `;
+                // Add remove button event listener
+                const removeBtn = div.querySelector('.remove-custom-model');
+                removeBtn.addEventListener('click', async () => {
+                    if (confirm(`Remove ${model.repo} from your custom models?`)) {
+                        try {
+                            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.removeUserAddedModel)(model.repo);
+                            loadUserAddedModels();
+                            loadAvailableModels();
+                            // Dispatch event to refresh model dropdown
+                            window.dispatchEvent(new CustomEvent('userModelsUpdated'));
+                            if (LOG_GENERAL)
+                                console.log(`${prefix} Custom model removed: ${model.repo}`);
+                        }
+                        catch (error) {
+                            if (LOG_ERROR)
+                                console.error(`${prefix} Failed to remove custom model:`, error);
+                            alert('Failed to remove model. Please try again.');
+                        }
+                    }
+                });
+                userAddedModelsList.appendChild(div);
+            });
+            if (LOG_DEBUG)
+                console.log(`${prefix} Loaded ${userModels.length} user-added models.`);
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to load user-added models:`, error);
+        }
+    }
+}
+function initializeIntegrationsController() {
+    if (isInitialized) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Already initialized.`);
+        return;
+    }
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing...`);
+    const integrationsPageContainer = document.getElementById('page-integrations');
+    if (!integrationsPageContainer) {
+        console.warn("[IntegrationsController] Could not find #page-integrations container.");
+        return;
+    }
+    // Remove placeholder content
+    const placeholder = integrationsPageContainer.querySelector('p');
+    if (placeholder)
+        placeholder.remove();
+    // Inject foldout sections
+    const browserModelsFoldout = createBrowserModelsFoldout();
+    integrationsPageContainer.appendChild(browserModelsFoldout);
+    const nativeAppFoldout = createNativeAppFoldout();
+    integrationsPageContainer.appendChild(nativeAppFoldout);
+    const externalAPIFoldout = createExternalAPIFoldout();
+    integrationsPageContainer.appendChild(externalAPIFoldout);
+    // Setup model management functionality
+    setupModelManagement(integrationsPageContainer);
+    isInitialized = true;
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initialized successfully.`);
+    return {};
+}
+
+
+/***/ }),
+
 /***/ "./src/Controllers/LibraryController.ts":
 /*!**********************************************!*\
   !*** ./src/Controllers/LibraryController.ts ***!
@@ -4099,13 +5004,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../sidepanel */ "./src/sidepanel.ts");
 /* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
 /* harmony import */ var _InferenceSettings__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
-/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
 // src/Controllers/SettingsController.js
 
 
 
 
-
+// Model management moved to IntegrationsController
 // Logging constants
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
@@ -4194,42 +5098,7 @@ function createLogManagementFoldout() {
         initiallyOpen: false
     });
 }
-function createModelManagementFoldout() {
-    const contentHTML = `
-        <div class="space-y-4 text-sm">
-            <div class="flex items-center justify-between">
-                <h4 class="font-medium text-gray-800 dark:text-gray-200">Cached Models</h4>
-                <div class="flex gap-2">
-                    <button id="refreshModelsButton" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">Refresh</button>
-                    <button id="deleteAllModelsButton" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs">Delete All</button>
-                </div>
-            </div>
-            
-            <div id="modelsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
-                <div class="text-center text-gray-500 dark:text-gray-400 py-4">
-                    Loading cached models...
-                </div>
-            </div>
-            
-            <div id="totalStorageInfo" class="text-xs text-gray-500 dark:text-gray-400 border-t pt-2">
-                Total storage used: <span id="totalStorageValue">0 MB</span>
-            </div>
-            
-            <div class="mt-4">
-                <h5 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Available Models</h5>
-                <div id="availableModelsList" class="space-y-1 max-h-32 overflow-y-auto text-xs text-gray-600 dark:text-gray-400">
-                    <div class="text-center py-2">Loading available models...</div>
-                </div>
-            </div>
-        </div>
-    `;
-    return createFoldoutSection({
-        title: 'Model Management',
-        contentHTML,
-        sectionClass: 'model-management-section',
-        initiallyOpen: true
-    });
-}
+// Model Management moved to IntegrationsController
 function createModelLoadingSettingsFoldout() {
     const contentHTML = `
         <div class="space-y-4 text-sm">
@@ -4563,17 +5432,14 @@ function initializeSettingsController() {
     // Inject Common Settings foldout (theme toggle)
     const commonSettingsFoldout = createCommonSettingsFoldout();
     settingsPageContainer.appendChild(commonSettingsFoldout);
-    // Inject Model Management foldout
-    const modelManagementFoldout = createModelManagementFoldout();
-    settingsPageContainer.appendChild(modelManagementFoldout);
+    // Model Management moved to Integrations page
     // Inject Log Management foldout
     const logManagementFoldout = createLogManagementFoldout();
     settingsPageContainer.appendChild(logManagementFoldout);
     // Inject Model Loading Settings foldout
     const modelLoadingSettingsFoldout = createModelLoadingSettingsFoldout();
     settingsPageContainer.appendChild(modelLoadingSettingsFoldout);
-    // Setup model management functionality
-    setupModelManagement(settingsPageContainer);
+    // Model Management moved to Integrations page
     // Setup listeners for log management buttons
     const viewLogsButton = settingsPageContainer.querySelector('#viewLogsButton');
     if (viewLogsButton) {
@@ -4634,145 +5500,7 @@ function initializeSettingsController() {
         console.log(`${prefix} Initialized successfully.`);
     return {};
 }
-function setupModelManagement(container) {
-    const modelsList = container.querySelector('#modelsList');
-    const availableModelsList = container.querySelector('#availableModelsList');
-    const refreshButton = container.querySelector('#refreshModelsButton');
-    const deleteAllButton = container.querySelector('#deleteAllModelsButton');
-    const totalStorageValue = container.querySelector('#totalStorageValue');
-    // Load models on initialization
-    loadCachedModels();
-    loadAvailableModels();
-    // Refresh button
-    refreshButton?.addEventListener('click', () => {
-        loadCachedModels();
-        loadAvailableModels();
-    });
-    // Delete all button
-    deleteAllButton?.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete all cached models? This action cannot be undone.')) {
-            try {
-                await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.deleteAllCachedModels)();
-                loadCachedModels();
-                if (LOG_GENERAL)
-                    console.log(`${prefix} All cached models deleted successfully.`);
-            }
-            catch (error) {
-                if (LOG_ERROR)
-                    console.error(`${prefix} Failed to delete all models:`, error);
-                alert('Failed to delete all models. Please try again.');
-            }
-        }
-    });
-    async function loadCachedModels() {
-        try {
-            if (LOG_DEBUG)
-                console.log(`${prefix} Loading cached models...`);
-            modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">Loading cached models...</div>';
-            const models = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getAllCachedModels)();
-            if (models.length === 0) {
-                modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">No cached models found.</div>';
-                totalStorageValue.textContent = '0 MB';
-                return;
-            }
-            // Calculate total storage
-            const totalSize = models.reduce((sum, model) => sum + model.totalSize, 0);
-            totalStorageValue.textContent = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
-            // Render models
-            modelsList.innerHTML = '';
-            models.forEach(model => {
-                const modelElement = createModelElement(model);
-                modelsList.appendChild(modelElement);
-            });
-            if (LOG_DEBUG)
-                console.log(`${prefix} Loaded ${models.length} cached models.`);
-        }
-        catch (error) {
-            if (LOG_ERROR)
-                console.error(`${prefix} Failed to load cached models:`, error);
-            modelsList.innerHTML = '<div class="text-center text-red-500 py-4">Failed to load cached models.</div>';
-        }
-    }
-    function createModelElement(model) {
-        const div = document.createElement('div');
-        div.className = 'border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700';
-        const sizeInMB = (model.totalSize / (1024 * 1024)).toFixed(1);
-        const sizeInGB = (model.totalSize / (1024 * 1024 * 1024)).toFixed(2);
-        const displaySize = model.totalSize > 1024 * 1024 * 1024 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
-        div.innerHTML = `
-            <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                    <h5 class="font-medium text-gray-800 dark:text-gray-200 truncate">${model.modelId}</h5>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${model.modelPath}</p>
-                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>${displaySize}</span>
-                        <span>${model.numChunks} chunks</span>
-                        <span>${new Date(model.downloadDate).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                <button class="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs delete-model-btn" data-model-id="${model.modelId}" data-model-path="${model.modelPath}">
-                    Delete
-                </button>
-            </div>
-        `;
-        // Add delete button event listener
-        const deleteButton = div.querySelector('.delete-model-btn');
-        deleteButton.addEventListener('click', async () => {
-            if (confirm(`Are you sure you want to delete ${model.modelId}? This action cannot be undone.`)) {
-                try {
-                    await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.deleteCachedModel)(model);
-                    loadCachedModels(); // Refresh the list
-                    if (LOG_GENERAL)
-                        console.log(`${prefix} Model deleted: ${model.modelId}`);
-                }
-                catch (error) {
-                    if (LOG_ERROR)
-                        console.error(`${prefix} Failed to delete model:`, error);
-                    alert('Failed to delete model. Please try again.');
-                }
-            }
-        });
-        return div;
-    }
-    async function loadAvailableModels() {
-        try {
-            if (LOG_DEBUG)
-                console.log(`${prefix} Loading available models...`);
-            availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">Loading available models...</div>';
-            // Import the manifest function
-            const { getAllManifestEntries } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../DB/idbModel */ "./src/DB/idbModel.ts"));
-            const manifests = await getAllManifestEntries();
-            if (manifests.length === 0) {
-                availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">No models available.</div>';
-                return;
-            }
-            // Render available models
-            availableModelsList.innerHTML = '';
-            manifests.forEach(manifest => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center justify-between py-1 px-2 rounded bg-gray-50 dark:bg-gray-800';
-                const modelId = manifest.repo;
-                const files = Object.keys(manifest.quants || {});
-                const fileCount = files.length;
-                div.innerHTML = `
-                    <div class="flex-1 min-w-0">
-                        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">${modelId}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${fileCount} files</span>
-                    </div>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">Available</span>
-                `;
-                availableModelsList.appendChild(div);
-            });
-            if (LOG_DEBUG)
-                console.log(`${prefix} Loaded ${manifests.length} available models.`);
-        }
-        catch (error) {
-            if (LOG_ERROR)
-                console.error(`${prefix} Failed to load available models:`, error);
-            availableModelsList.innerHTML = '<div class="text-center text-red-500 py-2">Failed to load available models.</div>';
-        }
-    }
-}
+// Model Management moved to IntegrationsController 
 
 
 /***/ }),
@@ -8225,13 +8953,17 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
 /* harmony export */   getServerOnlySizeLimit: () => (/* binding */ getServerOnlySizeLimit),
+/* harmony export */   getUserAddedModels: () => (/* binding */ getUserAddedModels),
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
+/* harmony export */   removeUserAddedModel: () => (/* binding */ removeUserAddedModel),
 /* harmony export */   saveChunkedFileSafe: () => (/* binding */ saveChunkedFileSafe),
 /* harmony export */   saveInferenceSettings: () => (/* binding */ saveInferenceSettings),
 /* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB),
-/* harmony export */   shouldChunkFile: () => (/* binding */ shouldChunkFile)
+/* harmony export */   saveUserAddedModel: () => (/* binding */ saveUserAddedModel),
+/* harmony export */   shouldChunkFile: () => (/* binding */ shouldChunkFile),
+/* harmony export */   validateHuggingFaceModel: () => (/* binding */ validateHuggingFaceModel)
 /* harmony export */ });
 /* harmony import */ var _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Controllers/InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
@@ -9467,6 +10199,119 @@ async function createStreamingResponseFromChunks(modelId, fileName, totalChunks,
     headers.set('Content-Length', totalSize.toString());
     headers.set('Transfer-Encoding', 'chunked');
     return new Response(stream, { headers });
+}
+/**
+ * Save a user-added model to IndexedDB
+ */
+async function saveUserAddedModel(model) {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        const userModel = {
+            repo: model.repo,
+            quants: {}, // Will be populated when model is actually loaded
+            task: model.task,
+            manifestVersion: CURRENT_MANIFEST_VERSION,
+        };
+        const req = store.put(userModel);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[saveUserAddedModel] success:', model.repo);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveUserAddedModel] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            db.close();
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+        };
+    });
+}
+/**
+ * Remove a user-added model from IndexedDB
+ */
+async function removeUserAddedModel(repo) {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        const req = store.delete(repo);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[removeUserAddedModel] success:', repo);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[removeUserAddedModel] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            db.close();
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+        };
+    });
+}
+/**
+ * Get all user-added models (those not in AVAILABLE_MODELS)
+ */
+async function getUserAddedModels(defaultModels) {
+    const allManifests = await getAllManifestEntries();
+    return allManifests.filter(manifest => !defaultModels.has(manifest.repo));
+}
+/**
+ * Validate if a HuggingFace model exists and has ONNX files
+ */
+async function validateHuggingFaceModel(repoId) {
+    try {
+        // Fetch model info from HuggingFace API
+        const response = await fetch(`https://huggingface.co/api/models/${repoId}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return { valid: false, error: 'Model not found on HuggingFace' };
+            }
+            return { valid: false, error: `API error: ${response.status}` };
+        }
+        const modelInfo = await response.json();
+        // Check if model has ONNX files
+        const filesResponse = await fetch(`https://huggingface.co/api/models/${repoId}/tree/main`);
+        if (!filesResponse.ok) {
+            return { valid: false, error: 'Could not fetch model files' };
+        }
+        const files = await filesResponse.json();
+        const onnxFiles = files.filter((file) => file.path && file.path.endsWith('.onnx')).map((file) => file.path);
+        if (onnxFiles.length === 0) {
+            return {
+                valid: false,
+                error: 'No ONNX files found. Only ONNX models are supported by Transformers.js'
+            };
+        }
+        // Extract task from model info
+        const task = modelInfo.pipeline_tag || 'text-generation';
+        return {
+            valid: true,
+            task,
+            onnxFiles
+        };
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[validateHuggingFaceModel] error:', error);
+        return {
+            valid: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
 }
 
 
@@ -11057,6 +11902,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   checkInitialized: () => (/* binding */ checkInitialized),
 /* harmony export */   clearInput: () => (/* binding */ clearInput),
 /* harmony export */   focusInput: () => (/* binding */ focusInput),
+/* harmony export */   getCurrentModelSource: () => (/* binding */ getCurrentModelSource),
 /* harmony export */   getCurrentlySelectedModel: () => (/* binding */ getCurrentlySelectedModel),
 /* harmony export */   getInputValue: () => (/* binding */ getInputValue),
 /* harmony export */   getModelSelectorOptions: () => (/* binding */ getModelSelectorOptions),
@@ -11086,7 +11932,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-let queryInput, sendButton, chatBody, attachButton, fileInput, loadingIndicatorElement, newChatButton, modelLoadProgress;
+let queryInput, sendButton, chatBody, attachButton, fileInput, loadingIndicatorElement, newChatButton, modelLoadProgress, modelSourceButtons = null;
 let isInitialized = false;
 let attachFileCallback = null;
 let currentSessionId = null;
@@ -11096,6 +11942,7 @@ let loadModelButton = null;
 let isLoadingModel = false;
 let currentLoadId = null;
 let lastSeenLoadId = null;
+let currentModelSource = 'browser';
 const LOG_GENERAL = false; // Turn off general logs
 const LOG_DEBUG = false; // Turn off debug logs
 const LOG_ERROR = true; // Keep error logging
@@ -11124,6 +11971,12 @@ document.addEventListener(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpda
     if (LOG_INFO)
         console.log(prefix, 'Received DbStatusUpdatedNotification: ', customEvent.detail);
     handleStatusUpdate(customEvent.detail);
+});
+// Listen for user model updates from IntegrationsController
+window.addEventListener('userModelsUpdated', () => {
+    if (LOG_INFO)
+        console.log(prefix, 'User models updated, refreshing dropdown');
+    updateModelDropdown();
 });
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
     const type = message?.type;
@@ -11569,6 +12422,30 @@ async function updateModelDropdown() {
         option.textContent = displayName;
         modelSelector.appendChild(option);
     }
+    // Add user-added models
+    try {
+        const { getUserAddedModels } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ../DB/idbModel */ "./src/DB/idbModel.ts"));
+        const defaultModels = new Set(Object.keys(AVAILABLE_MODELS));
+        const userModels = await getUserAddedModels(defaultModels);
+        if (userModels.length > 0) {
+            // Add separator if there are user models
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──────────';
+            modelSelector.appendChild(separator);
+            // Add user models
+            for (const model of userModels) {
+                const option = document.createElement('option');
+                option.value = model.repo;
+                option.textContent = `${model.repo.split('/').pop()} (Custom)`;
+                modelSelector.appendChild(option);
+            }
+        }
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, 'Failed to load user-added models:', error);
+    }
     // Add Google models (always visible and selectable)
     /*
     for (const [modelId, displayName] of Object.entries(GOOGLE_MODELS)) {
@@ -11690,6 +12567,8 @@ async function initializeUI(callbacks) {
     }
     if (LOG_INFO)
         console.log(prefix, "UI Initialization complete.");
+    // Initialize model source toggle
+    initializeModelSourceToggle();
     // Check IndexedDB status for initial dropdown state
     setTimeout(async () => {
         await updateQuantDropdownStatusFromDB();
@@ -12263,6 +13142,54 @@ async function loadDefaultModel() {
         return false;
     }
 }
+// Model Source Toggle Functions
+function initializeModelSourceToggle() {
+    const buttons = document.querySelectorAll('.model-source-btn');
+    modelSourceButtons = Array.from(buttons);
+    if (!modelSourceButtons || modelSourceButtons.length === 0) {
+        if (LOG_WARN)
+            console.warn(prefix, "Model source toggle buttons not found");
+        return;
+    }
+    // Add click listeners to all toggle buttons
+    modelSourceButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const source = button.id.replace('source-', '');
+            setModelSource(source);
+        });
+    });
+    // Set initial state
+    setModelSource('browser');
+    if (LOG_INFO)
+        console.log(prefix, "Model source toggle initialized");
+}
+function setModelSource(source) {
+    if (!modelSourceButtons)
+        return;
+    // Update active button
+    modelSourceButtons.forEach(button => {
+        const buttonSource = button.id.replace('source-', '');
+        if (buttonSource === source) {
+            button.classList.add('active');
+        }
+        else {
+            button.classList.remove('active');
+        }
+    });
+    // Update global state
+    currentModelSource = source;
+    // TODO: Update model dropdown based on source
+    // For now, just log the change
+    if (LOG_INFO)
+        console.log(prefix, `Model source changed to: ${source}`);
+    // Dispatch custom event for other components to listen
+    document.dispatchEvent(new CustomEvent('modelSourceChanged', {
+        detail: { source: currentModelSource }
+    }));
+}
+function getCurrentModelSource() {
+    return currentModelSource;
+}
 
 
 /***/ }),
@@ -12628,6 +13555,50 @@ function getActiveTabUrl() {
 
 /***/ }),
 
+/***/ "./src/assets/icons/Browser.png":
+/*!**************************************!*\
+  !*** ./src/assets/icons/Browser.png ***!
+  \**************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/Browser.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/CloudServer.png":
+/*!******************************************!*\
+  !*** ./src/assets/icons/CloudServer.png ***!
+  \******************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/CloudServer.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/Connectors.png":
+/*!*****************************************!*\
+  !*** ./src/assets/icons/Connectors.png ***!
+  \*****************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/Connectors.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/Integration.png":
+/*!******************************************!*\
+  !*** ./src/assets/icons/Integration.png ***!
+  \******************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/Integration.png";
+
+/***/ }),
+
 /***/ "./src/assets/icons/LinkChain.png":
 /*!****************************************!*\
   !*** ./src/assets/icons/LinkChain.png ***!
@@ -12647,6 +13618,17 @@ module.exports = __webpack_require__.p + "icons/LinkChain.png";
 
 "use strict";
 module.exports = __webpack_require__.p + "icons/Load.png";
+
+/***/ }),
+
+/***/ "./src/assets/icons/LocalServer.png":
+/*!******************************************!*\
+  !*** ./src/assets/icons/LocalServer.png ***!
+  \******************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+module.exports = __webpack_require__.p + "icons/LocalServer.png";
 
 /***/ }),
 
@@ -13025,6 +14007,8 @@ const pageTitles = {
     'page-home': 'Tab Agent',
     'page-spaces': 'Spaces',
     'page-library': 'Library',
+    'page-integrations': 'Integrations',
+    'page-connectors': 'Connectors',
     'page-settings': 'Settings'
 };
 async function navigateTo(pageId) {
@@ -13173,24 +14157,33 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/DiscoverController */ "./src/Controllers/DiscoverController.ts");
 /* harmony import */ var _Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/SettingsController */ "./src/Controllers/SettingsController.ts");
 /* harmony import */ var _Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SpacesController */ "./src/Controllers/SpacesController.ts");
-/* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
-/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
-/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
-/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
-/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
-/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
-/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
-/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
-/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
-/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
-/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
+/* harmony import */ var _Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/IntegrationsController */ "./src/Controllers/IntegrationsController.ts");
+/* harmony import */ var _Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/ConnectorsController */ "./src/Controllers/ConnectorsController.ts");
+/* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
+/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
+/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
+/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
+/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./assets/icons/Integration.png */ "./src/assets/icons/Integration.png");
+/* harmony import */ var _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_34__ = __webpack_require__(/*! ./assets/icons/Connectors.png */ "./src/assets/icons/Connectors.png");
+/* harmony import */ var _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_35__ = __webpack_require__(/*! ./assets/icons/Browser.png */ "./src/assets/icons/Browser.png");
+/* harmony import */ var _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_36__ = __webpack_require__(/*! ./assets/icons/LocalServer.png */ "./src/assets/icons/LocalServer.png");
+/* harmony import */ var _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_37__ = __webpack_require__(/*! ./assets/icons/CloudServer.png */ "./src/assets/icons/CloudServer.png");
+/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_38__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
 // --- Imports ---
+
+
 
 
 
@@ -13248,6 +14241,11 @@ function extractCleanDtypeFromPath(filePath) {
     // Default to fp32 if no match (for "model.onnx" files)
     return 'fp32';
 }
+
+
+
+
+
 
 
 
@@ -13327,7 +14325,7 @@ function hideDetachedOverlay() {
 let sidepanelLogCount = 0;
 const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
 let currentModelIdInManager = null;
-let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
 let isModelManagerEnvReady = false;
 let isGenerating = false;
 // Track the currently loaded model and quant (onnx variant)
@@ -13363,13 +14361,13 @@ function syncToggleLoadButton() {
         const viewParam = urlParams.get('view');
         window.EXTENSION_CONTEXT =
             contextParam === 'popup'
-                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI_POPUP
+                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI_POPUP
                 : viewParam === 'logs'
-                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.OTHERS
-                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI;
+                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.OTHERS
+                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI;
     }
     catch (e) {
-        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.UNKNOWN;
+        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.UNKNOWN;
         if (LOG_ERROR)
             console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
     }
@@ -13438,7 +14436,7 @@ async function sendDbRequestSmart(request) {
     return response;
 }
 function sendDbRequestViaChannel(request) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage(request);
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage(request);
 }
 function requestDbAndWait(requestEvent) {
     return new Promise((resolve, reject) => {
@@ -13473,7 +14471,7 @@ function bufferOrWriteLog(logPayload) {
         sendDbRequestViaChannel(req);
     }
 }
-_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.logChannel.onmessage = (event) => {
+_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.logChannel.onmessage = (event) => {
     const { type, payload } = event.data;
     if (type === 'LOG_TO_DB' && payload) {
         bufferOrWriteLog(payload);
@@ -13535,7 +14533,7 @@ function handleStopGeneration() {
     if (isGenerating) {
         if (LOG_DEBUG)
             console.log(`${prefix} Sending stop generation request to background.`);
-        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.STOP_GENERATION });
+        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.STOP_GENERATION });
     }
     else {
         if (LOG_DEBUG)
@@ -13546,7 +14544,7 @@ function handleSendButtonClick() {
     // This will be handled by the UI controller
     const queryInput = document.getElementById('query-input');
     if (queryInput && queryInput.value.trim() && !queryInput.disabled) {
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.QUERY_SUBMITTED, {
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.QUERY_SUBMITTED, {
             detail: { text: queryInput.value.trim() }
         }));
         // Clear input after sending
@@ -13561,24 +14559,24 @@ function handleModelManagerMessage(event) {
     // For use in WORKER_READY case
     const loadBtn = document.getElementById('load-model-button');
     switch (type) {
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background script is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_ENV_READY:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_ENV_READY:
             isModelManagerEnvReady = true;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background environment is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background loading status:`, payload);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY: {
             const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
             currentModelIdInManager = modelId;
             currentLoadedModel = {
                 modelId: modelId,
@@ -13589,7 +14587,7 @@ function handleModelManagerMessage(event) {
                 loadBtn.style.display = 'none';
             showDeviceBadge(executionProvider, warning);
             // Update dropdown to show current model status
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_SELECTION_CHANGED));
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_SELECTION_CHANGED));
             // Always show what quantization was actually loaded
             let quantMsg = `Model loaded with quantization: '${dtype}'.`;
             if (fallback) {
@@ -13612,8 +14610,8 @@ function handleModelManagerMessage(event) {
             (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR: {
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR: {
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
             isModelManagerEnvReady = false;
             hideDeviceBadge();
             if (LOG_ERROR)
@@ -13626,18 +14624,18 @@ function handleModelManagerMessage(event) {
                 statusDiv.style.display = 'none';
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
             isModelManagerEnvReady = false;
             currentModelIdInManager = null;
             hideDeviceBadge();
             if (LOG_DEBUG)
                 console.log(`${prefix} Background model reset complete.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_UPDATE:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_UPDATE:
             if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
                 if (!isGenerating) {
                     isGenerating = true;
@@ -13651,7 +14649,7 @@ function handleModelManagerMessage(event) {
                 }));
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_COMPLETE: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_COMPLETE: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
             isGenerating = false;
@@ -13666,7 +14664,7 @@ function handleModelManagerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_STOPPED: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_STOPPED: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
             isGenerating = false;
@@ -13681,17 +14679,17 @@ function handleModelManagerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESTORE_FROM_POPUP: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESTORE_FROM_POPUP: {
             // Popup closed, remove overlay and restore full UI
             if (LOG_DEBUG)
                 console.log(`${prefix} RESTORE_FROM_POPUP received`);
             hideDetachedOverlay();
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.GENERATION_ERROR:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_ERROR:
             isGenerating = false;
             updateSendButtonForGeneration(false);
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
                 detail: {
                     chatId: payload.chatId,
                     messageId: payload.messageId,
@@ -13699,15 +14697,15 @@ function handleModelManagerMessage(event) {
                 }
             }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
             syncToggleLoadButton();
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.REQUEST_MEMORY_STATS:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.REQUEST_MEMORY_STATS:
             if (performance && performance.memory) {
                 const mem = performance.memory;
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MEMORY_STATS,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MEMORY_STATS,
                     payload: {
                         usedJSHeapSize: mem.usedJSHeapSize,
                         totalJSHeapSize: mem.totalJSHeapSize,
@@ -13719,22 +14717,22 @@ function handleModelManagerMessage(event) {
                 });
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CACHE_CLEARED:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CACHE_CLEARED:
             // Cache cleared successfully - no action needed
             if (LOG_DEBUG)
                 console.log(prefix, 'Model cache cleared successfully');
@@ -13754,7 +14752,7 @@ async function initializeModelManager() {
         console.log(`${prefix} Checking if background is ready...`);
     try {
         const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
         });
         if (response?.ready) {
             isModelManagerEnvReady = true;
@@ -13777,11 +14775,11 @@ async function terminateModelManager() {
         console.log(`${prefix} Sending reset request to background...`);
     try {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET
         });
         // Reset local state
         currentModelIdInManager = null;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
         hideDeviceBadge();
         if (LOG_DEBUG)
             console.log(`${prefix} Model reset complete. Chat input would be disabled.`);
@@ -13791,7 +14789,7 @@ async function terminateModelManager() {
             console.error(`${prefix} Failed to reset model in background:`, error);
         // Reset local state anyway
         currentModelIdInManager = null;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UNINITIALIZED;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
         hideDeviceBadge();
     }
 }
@@ -13845,8 +14843,8 @@ async function setActiveChatSessionId(newSessionId) {
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.setActiveSession)(newSessionId);
 }
 // --- Channel Handlers ---
-if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.Contexts.MAIN_UI) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.onmessage = async (event) => {
+if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI) {
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
         if (!isDbRequest(type))
             return;
@@ -13858,11 +14856,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
                 senderId: reqSenderId,
             });
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
         }
         catch (err) {
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_19__.dbChannel.postMessage({
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({
                 type: respType,
                 payload: { success: false, error: err.message },
                 requestId,
@@ -13870,7 +14868,7 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
             });
         }
     };
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.onmessage = async (event) => {
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: msgSenderId } = event.data;
         if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
             if (LOG_DEBUG)
@@ -13878,11 +14876,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
             return;
         }
         // Handle ping from background - respond with pong
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_PING) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_PING) {
             if (LOG_DEBUG)
                 console.log(`${prefix} 🏓 Received ping from background - sending pong`);
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_PONG,
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_PONG,
                 payload: { senderId, timestamp: Date.now() },
                 senderId,
                 timestamp: Date.now()
@@ -13890,40 +14888,40 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
             return;
         }
         if ([
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.WORKER_READY,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.RESET_COMPLETE
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE
         ].includes(type)) {
             return;
         }
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to background.`);
             sendToModelManager({ type: 'generate', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to background.`);
             sendToModelManager({ type: 'interrupt', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received RESET_WORKER. Resetting model in background.`);
             terminateModelManager();
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
                 payload: { success: true, message: "Worker reset." },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
             });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL) {
             if (LOG_WARN)
                 console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
             const modelToLoad = payload.modelId || payload.model;
             const onnxToLoad = payload.quant;
             if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, {
                     detail: { modelId: modelToLoad, quant: onnxToLoad }
                 }));
             }
@@ -13931,16 +14929,16 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_17_
                 const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
                 if (LOG_ERROR)
                     console.error(`${prefix} ${errorMsg}`);
-                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
                     payload: { success: false, error: errorMsg },
                     requestId, senderId: 'sidepanel', timestamp: Date.now(),
                 });
             }
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
                 payload: { state: modelManagerState, modelId: currentModelIdInManager },
                 requestId,
                 senderId: 'sidepanel',
@@ -13962,37 +14960,37 @@ function handleMessage(message, sender, sendResponse) {
         return false;
     }
     // Messages from background - redirect to handleModelManagerMessage
-    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames).includes(type) ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
+    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames).includes(type) ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
         // Convert message to event format and redirect
         handleModelManagerMessage({ data: message });
         return;
     }
-    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             text: message.text,
         });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             error: message.error,
         });
         sendResponse({});
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({ status: 'received', type });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
         // No action needed
     }
     else {
@@ -14009,7 +15007,7 @@ async function handleSessionCreated(newSessionId) {
     // Clear model cache for new chat session to prevent cross-chat contamination
     if (LOG_DEBUG)
         console.log(prefix, 'Sending CLEAR_CACHE message to background');
-    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CLEAR_CACHE });
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
@@ -14034,7 +15032,7 @@ async function handleNewChat() {
     // Clear model cache for new chat to prevent cross-chat contamination
     if (LOG_DEBUG)
         console.log(prefix, 'Sending CLEAR_CACHE message to background (New Chat button)');
-    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.CLEAR_CACHE });
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CLEAR_CACHE });
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
@@ -14140,9 +15138,9 @@ function getCurrentLoadedModel() {
 async function queryBackgroundModelState() {
     try {
         const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
         });
-        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY && response?.modelId) {
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY && response?.modelId) {
             return {
                 modelId: response.modelId,
                 quant: response.dtype || null,
@@ -14150,7 +15148,7 @@ async function queryBackgroundModelState() {
                 isLoading: false
             };
         }
-        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL) {
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL) {
             return {
                 modelId: response.modelId || null,
                 quant: response.dtype || null,
@@ -14251,9 +15249,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_navigation__WEBPACK_IMPORTED_MODULE_2__.initializeNavigation)();
         if (LOG_DEBUG)
             console.log(`${prefix} Navigation Initialized.`);
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
         // Initialize dialog instances
-        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_16__.HuggingFaceLoginDialog();
+        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__.HuggingFaceLoginDialog();
         (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.initializeFileHandling)({
             getActiveSessionIdFunc: getActiveChatSessionId,
         });
@@ -14332,7 +15330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (LOG_WARN)
                 console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
             const { modelId, dtype, loadId } = e.detail;
             if (!modelId) {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No model selected.');
@@ -14349,16 +15347,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentLoadedModel.modelId = bgState.modelId;
                 currentLoadedModel.quant = bgState.quant;
                 currentModelIdInManager = bgState.modelId;
-                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
                 // Reset UI loading state since we're not actually loading
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_ALREADY_LOADED, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_ALREADY_LOADED, {
                     detail: { modelId, dtype, loadId }
                 }));
                 return;
             }
             // Reset model if switching to different model or if in error state
             // Check background state to determine if reset is needed
-            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.ERROR;
+            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
             if (needsReset) {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Resetting model before loading new one. Current (BG): ${bgState.modelId}, New: ${modelId}, State: ${modelManagerState}`);
@@ -14397,19 +15395,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             // Get the task from the manifest
-            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(modelId);
+            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(modelId);
             const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
             if (LOG_DEBUG)
                 console.log(`${prefix} Sending model load request to background for ${modelId} with dtype: ${dtype}, task: ${task}...`);
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.LOADING_MODEL;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
             currentModelIdInManager = modelId;
             sendToModelManager({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.INIT,
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.INIT,
                 payload: { modelId, dtype, task, loadId }
             });
         });
         // Handle model selection changes (when user changes dropdown)
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
             const { modelId, dtype } = e.detail || {};
             sidepanelLogCount++;
             if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
@@ -14425,13 +15423,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         // Dialog event handlers
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
             const { modelId, modelPath: dtype, task, loadId } = e.detail;
             const token = await huggingFaceLoginDialog.show(modelId);
             if (token) {
                 // Send login event to background
                 sendToModelManager({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.HUGGINGFACE_LOGIN,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.HUGGINGFACE_LOGIN,
                     payload: { modelId, modelPath: dtype, task, loadId, token }
                 });
             }
@@ -14448,7 +15446,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__.initializeSpacesController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Spaces Controller Initialized.`);
-        (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_15__.initializeDriveController)({
+        (0,_Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_15__.initializeIntegrationsController)();
+        if (LOG_DEBUG)
+            console.log(`${prefix} Integrations Controller Initialized.`);
+        (0,_Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_16__.initializeConnectorsController)();
+        if (LOG_DEBUG)
+            console.log(`${prefix} Connectors Controller Initialized.`);
+        (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_17__.initializeDriveController)({
             requestDbAndWaitFunc: requestDbAndWait,
             getActiveChatSessionId,
             setActiveChatSessionId,
@@ -14469,28 +15473,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`${prefix} Phase 1: Setting up critical UI elements...`);
         // Set icon srcs IMMEDIATELY - this prevents broken icon display
         const iconMap = [
-            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_21__],
-            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_22__],
-            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_23__],
-            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_24__],
-            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_25__],
-            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__],
-            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_26__],
-            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
-            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
-            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
-            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
-            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
+            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__],
+            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__],
+            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__],
+            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__],
+            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
+            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
+            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
+            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
+            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__],
+            ['icon-integrations', _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_33__],
+            ['icon-connectors', _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_34__],
+            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_38__],
         ];
         for (const [id, src] of iconMap) {
             const el = document.getElementById(id);
             if (el)
                 el.src = src;
         }
+        // Set model source toggle icons
+        function setModelSourceToggleIcons() {
+            const browserBtn = document.querySelector('#source-browser .model-source-icon');
+            const nativeBtn = document.querySelector('#source-native .model-source-icon');
+            const apiBtn = document.querySelector('#source-api .model-source-icon');
+            if (browserBtn) {
+                browserBtn.src = _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_35__;
+                browserBtn.style.display = '';
+            }
+            if (nativeBtn) {
+                nativeBtn.src = _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_36__;
+                nativeBtn.style.display = '';
+            }
+            if (apiBtn) {
+                apiBtn.src = _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_37__;
+                apiBtn.style.display = '';
+            }
+        }
+        setModelSourceToggleIcons();
         // Broadcast UI_CONNECTED early to notify background script
         const contextName = window.EXTENSION_CONTEXT || 'unknown';
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_CONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_CONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -14525,7 +15550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Phase 2: Starting heavy operations (manifests, DB, model loading)...`);
                 // Check if we have bypass settings that might affect manifest status
-                const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getBypassSizeLimitModels)().size > 0;
+                const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)().size > 0;
                 await ensureManifestForDropdownRepos(hasBypassSettings);
                 // CRITICAL: Initialize database BEFORE trying to load any sessions
                 const dbInitSuccess = await initializeDatabase();
@@ -14563,12 +15588,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         quant: bgModelState.quant
                     };
                     currentModelIdInManager = bgModelState.modelId;
-                    modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+                    modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
                     syncToggleLoadButton();
                     // Model is already loaded, but we should still restore the last chat session
                     try {
                         const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESTORE_LAST_STATE
                         });
                         if (restoreResponse?.success && restoreResponse.lastChatSession) {
                             if (LOG_DEBUG)
@@ -14610,7 +15635,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (LOG_DEBUG)
                             console.log(`${prefix} No model loaded, attempting to restore last state...`);
                         const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESTORE_LAST_STATE
                         });
                         if (restoreResponse?.success) {
                             if (LOG_DEBUG) {
@@ -14634,7 +15659,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     quant: restoreResponse.currentModel.dtype
                                 };
                                 currentModelIdInManager = restoreResponse.currentModel.id;
-                                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MODEL_READY;
+                                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
                                 syncToggleLoadButton();
                                 if (LOG_DEBUG)
                                     console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
@@ -14815,7 +15840,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
     const errorRepos = [];
     for (const repo of dropdownRepos) {
         if (!forceRebuild) {
-            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(repo);
+            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
             if (existingManifest) {
                 if (LOG_MANIFEST_GENERATION)
                     console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
@@ -14829,10 +15854,10 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         }
         let oldManifest = null;
         try {
-            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getManifestEntry)(repo);
-            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.CURRENT_MANIFEST_VERSION) {
+            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
+            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION) {
                 if (LOG_WARN)
-                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
+                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
                 oldManifest = null; // Force re-creation
             }
         }
@@ -14841,7 +15866,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 console.warn(`${prefix} [ensureManifestForDropdownRepos] Error fetching existing manifest for ${repo}, will create anew if possible.`, e);
         }
         try {
-            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.fetchRepoFiles)(repo);
+            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.fetchRepoFiles)(repo);
             if (!siblings || siblings.length === 0) {
                 if (LOG_WARN)
                     console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
@@ -14892,8 +15917,8 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                     }
                     // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
-                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getServerOnlySizeLimit)();
-                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.getBypassSizeLimitModels)();
+                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getServerOnlySizeLimit)();
+                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)();
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Processing ${quantKey} for ${repo}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Size limit: ${serverOnlySizeLimit / (1024 * 1024 * 1024)} GB`);
@@ -14938,7 +15963,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                         }
                     }
                     const oldStatus = oldManifest?.quants[quantKey]?.status;
-                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.QuantStatus.Available;
+                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.Available;
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Status calculation for ${quantKey}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] - isServerOnly: ${isServerOnly}`);
@@ -14982,9 +16007,9 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 repo,
                 quants: quantMap,
                 task,
-                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.CURRENT_MANIFEST_VERSION
+                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION
             };
-            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_20__.addManifestEntry)(repo, newManifestEntry);
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.addManifestEntry)(repo, newManifestEntry);
             processedRepos.push(repo);
             if (LOG_MANIFEST_GENERATION)
                 console.log(`${prefix} [ensureManifestForDropdownRepos] Successfully created/updated manifest for repo: ${repo}`, newManifestEntry);
@@ -15003,7 +16028,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         if (errorRepos.length > 0)
             console.error(`${prefix} [ensureManifestForDropdownRepos] Repos with errors:`, errorRepos);
     }
-    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
 }
 // Listen for manifest refresh requests from settings
 document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
@@ -15015,7 +16040,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
         if (LOG_GENERAL)
             console.log('[Sidepanel] Manifest refreshed successfully');
         // Dispatch MANIFEST_UPDATED event AFTER the manifest update is complete
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.MANIFEST_UPDATED));
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
     }
     catch (e) {
         console.error('[Sidepanel] Error refreshing manifest:', e);
@@ -15025,8 +16050,8 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 // Broadcast disconnect when window unloads or becomes hidden
 window.addEventListener('beforeunload', () => {
     const contextName = window.EXTENSION_CONTEXT || 'unknown';
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_DISCONNECTED,
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_DISCONNECTED,
         payload: { senderId, context: contextName },
         senderId,
         timestamp: Date.now()
@@ -15045,8 +16070,8 @@ document.addEventListener('visibilitychange', () => {
         return;
     }
     if (document.hidden) {
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_DISCONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_DISCONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -15056,8 +16081,8 @@ document.addEventListener('visibilitychange', () => {
     }
     else {
         // Page became visible again - re-register
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_18__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_17__.WorkerEventNames.UI_CONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_CONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()

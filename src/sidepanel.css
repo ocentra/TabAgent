@@ -1,3 +1,70 @@
+/* Model Source Toggle Styles - Native App Feel */
+.model-source-toggle {
+    display: flex;
+    background-color: transparent;
+    border: 2px solid #d1d5db; /* gray-300 - increased from 1px to 2px */
+    border-radius: 0; /* No rounding for classic look */
+    padding: 0;
+    width: 100%;
+    margin: 3px 0; /* Increased margin for better separation */
+}
+
+.dark .model-source-toggle {
+    border-color: #4b5563; /* gray-600 */
+}
+
+.model-source-btn {
+    color: #374151; /* gray-700 */
+    background-color: transparent;
+    border: none;
+    border-right: 2px solid #d1d5db; /* gray-300 - increased from 1px to 2px */
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 4px 8px;
+}
+
+.model-source-btn:last-child {
+    border-right: none;
+}
+
+.model-source-btn:hover {
+    background-color: #f3f4f6; /* gray-100 */
+    color: #1f2937; /* gray-800 */
+}
+
+.dark .model-source-btn {
+    color: #d1d5db; /* gray-300 */
+    border-right-color: #4b5563; /* gray-600 */
+}
+
+.dark .model-source-btn:hover {
+    background-color: #374151; /* gray-700 */
+    color: #f9fafb; /* gray-50 */
+}
+
+.model-source-btn.active {
+    background-color: #e0f2fe; /* cyan-50 - very light blue-cyan */
+    color: #0891b2; /* cyan-600 */
+    box-shadow: none;
+}
+
+.dark .model-source-btn.active {
+    background-color: #155e75; /* cyan-800 */
+    color: #a7f3d0; /* cyan-100 */
+    box-shadow: none;
+}
+
+.model-source-icon {
+    width: 1rem; /* 16px */
+    height: 1rem; /* 16px */
+    flex-shrink: 0;
+}
+
 /* Apply basic styles, especially for scrollbars which Tailwind doesn't style extensively */
 
 /* Set body background and text color using variables */
@@ -229,12 +296,11 @@ body {
 
 /* Style for the text area to auto-expand */
 #query-input {
-
     overflow-y: auto;
     background-color: var(--input-bg);
     color: var(--text-primary);
     border: 1px solid var(--input-border);
-
+    margin-bottom: 2px; /* Reduced bottom margin */
     transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 

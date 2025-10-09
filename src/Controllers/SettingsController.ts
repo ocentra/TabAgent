@@ -3,7 +3,7 @@ import browser from 'webextension-polyfill';
 import { sendDbRequestSmart } from '../sidepanel';
 import { DbResetDatabaseRequest } from '../DB/dbEvents';
 import { setupInferenceSettings } from './InferenceSettings';
-import { getAllCachedModels, deleteCachedModel, deleteAllCachedModels, CachedModelInfo } from '../DB/idbModel';
+// Model management moved to IntegrationsController
 
 // Logging constants
 const LOG_GENERAL = false;
@@ -107,42 +107,7 @@ function createLogManagementFoldout(): HTMLElement {
     });
 }
 
-function createModelManagementFoldout(): HTMLElement {
-    const contentHTML = `
-        <div class="space-y-4 text-sm">
-            <div class="flex items-center justify-between">
-                <h4 class="font-medium text-gray-800 dark:text-gray-200">Cached Models</h4>
-                <div class="flex gap-2">
-                    <button id="refreshModelsButton" class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">Refresh</button>
-                    <button id="deleteAllModelsButton" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs">Delete All</button>
-                </div>
-            </div>
-            
-            <div id="modelsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
-                <div class="text-center text-gray-500 dark:text-gray-400 py-4">
-                    Loading cached models...
-                </div>
-            </div>
-            
-            <div id="totalStorageInfo" class="text-xs text-gray-500 dark:text-gray-400 border-t pt-2">
-                Total storage used: <span id="totalStorageValue">0 MB</span>
-            </div>
-            
-            <div class="mt-4">
-                <h5 class="font-medium text-gray-800 dark:text-gray-200 mb-2">Available Models</h5>
-                <div id="availableModelsList" class="space-y-1 max-h-32 overflow-y-auto text-xs text-gray-600 dark:text-gray-400">
-                    <div class="text-center py-2">Loading available models...</div>
-                </div>
-            </div>
-        </div>
-    `;
-    return createFoldoutSection({
-        title: 'Model Management',
-        contentHTML,
-        sectionClass: 'model-management-section',
-        initiallyOpen: true
-    });
-}
+// Model Management moved to IntegrationsController
 
 function createModelLoadingSettingsFoldout(): HTMLElement {
     const contentHTML = `
@@ -465,9 +430,7 @@ export function initializeSettingsController(): any {
     const commonSettingsFoldout = createCommonSettingsFoldout();
     settingsPageContainer.appendChild(commonSettingsFoldout);
 
-    // Inject Model Management foldout
-    const modelManagementFoldout = createModelManagementFoldout();
-    settingsPageContainer.appendChild(modelManagementFoldout);
+    // Model Management moved to Integrations page
 
     // Inject Log Management foldout
     const logManagementFoldout = createLogManagementFoldout();
@@ -477,8 +440,7 @@ export function initializeSettingsController(): any {
     const modelLoadingSettingsFoldout = createModelLoadingSettingsFoldout();
     settingsPageContainer.appendChild(modelLoadingSettingsFoldout);
 
-    // Setup model management functionality
-    setupModelManagement(settingsPageContainer);
+    // Model Management moved to Integrations page
 
     // Setup listeners for log management buttons
     const viewLogsButton = settingsPageContainer.querySelector('#viewLogsButton');
@@ -538,152 +500,4 @@ export function initializeSettingsController(): any {
     return {}; 
 }
 
-function setupModelManagement(container: HTMLElement): void {
-    const modelsList = container.querySelector('#modelsList') as HTMLElement;
-    const availableModelsList = container.querySelector('#availableModelsList') as HTMLElement;
-    const refreshButton = container.querySelector('#refreshModelsButton') as HTMLButtonElement;
-    const deleteAllButton = container.querySelector('#deleteAllModelsButton') as HTMLButtonElement;
-    const totalStorageValue = container.querySelector('#totalStorageValue') as HTMLElement;
-
-    // Load models on initialization
-    loadCachedModels();
-    loadAvailableModels();
-
-    // Refresh button
-    refreshButton?.addEventListener('click', () => {
-        loadCachedModels();
-        loadAvailableModels();
-    });
-
-    // Delete all button
-    deleteAllButton?.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete all cached models? This action cannot be undone.')) {
-            try {
-                await deleteAllCachedModels();
-                loadCachedModels();
-                if (LOG_GENERAL) console.log(`${prefix} All cached models deleted successfully.`);
-            } catch (error) {
-                if (LOG_ERROR) console.error(`${prefix} Failed to delete all models:`, error);
-                alert('Failed to delete all models. Please try again.');
-            }
-        }
-    });
-
-    async function loadCachedModels(): Promise<void> {
-        try {
-            if (LOG_DEBUG) console.log(`${prefix} Loading cached models...`);
-            
-            modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">Loading cached models...</div>';
-            
-            const models = await getAllCachedModels();
-            
-            if (models.length === 0) {
-                modelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-4">No cached models found.</div>';
-                totalStorageValue.textContent = '0 MB';
-                return;
-            }
-
-            // Calculate total storage
-            const totalSize = models.reduce((sum, model) => sum + model.totalSize, 0);
-            totalStorageValue.textContent = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
-
-            // Render models
-            modelsList.innerHTML = '';
-            models.forEach(model => {
-                const modelElement = createModelElement(model);
-                modelsList.appendChild(modelElement);
-            });
-
-            if (LOG_DEBUG) console.log(`${prefix} Loaded ${models.length} cached models.`);
-        } catch (error) {
-            if (LOG_ERROR) console.error(`${prefix} Failed to load cached models:`, error);
-            modelsList.innerHTML = '<div class="text-center text-red-500 py-4">Failed to load cached models.</div>';
-        }
-    }
-
-    function createModelElement(model: CachedModelInfo): HTMLElement {
-        const div = document.createElement('div');
-        div.className = 'border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700';
-        
-        const sizeInMB = (model.totalSize / (1024 * 1024)).toFixed(1);
-        const sizeInGB = (model.totalSize / (1024 * 1024 * 1024)).toFixed(2);
-        const displaySize = model.totalSize > 1024 * 1024 * 1024 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
-        
-        div.innerHTML = `
-            <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                    <h5 class="font-medium text-gray-800 dark:text-gray-200 truncate">${model.modelId}</h5>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${model.modelPath}</p>
-                    <div class="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>${displaySize}</span>
-                        <span>${model.numChunks} chunks</span>
-                        <span>${new Date(model.downloadDate).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                <button class="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs delete-model-btn" data-model-id="${model.modelId}" data-model-path="${model.modelPath}">
-                    Delete
-                </button>
-            </div>
-        `;
-
-        // Add delete button event listener
-        const deleteButton = div.querySelector('.delete-model-btn') as HTMLButtonElement;
-        deleteButton.addEventListener('click', async () => {
-            if (confirm(`Are you sure you want to delete ${model.modelId}? This action cannot be undone.`)) {
-                try {
-                    await deleteCachedModel(model);
-                    loadCachedModels(); // Refresh the list
-                    if (LOG_GENERAL) console.log(`${prefix} Model deleted: ${model.modelId}`);
-                } catch (error) {
-                    if (LOG_ERROR) console.error(`${prefix} Failed to delete model:`, error);
-                    alert('Failed to delete model. Please try again.');
-                }
-            }
-        });
-
-        return div;
-    }
-
-    async function loadAvailableModels(): Promise<void> {
-        try {
-            if (LOG_DEBUG) console.log(`${prefix} Loading available models...`);
-            
-            availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">Loading available models...</div>';
-            
-            // Import the manifest function
-            const { getAllManifestEntries } = await import('../DB/idbModel');
-            const manifests = await getAllManifestEntries();
-            
-            if (manifests.length === 0) {
-                availableModelsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 py-2">No models available.</div>';
-                return;
-            }
-
-            // Render available models
-            availableModelsList.innerHTML = '';
-            manifests.forEach(manifest => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center justify-between py-1 px-2 rounded bg-gray-50 dark:bg-gray-800';
-                
-                const modelId = manifest.repo;
-                const files = Object.keys(manifest.quants || {});
-                const fileCount = files.length;
-                
-                div.innerHTML = `
-                    <div class="flex-1 min-w-0">
-                        <span class="font-medium text-gray-800 dark:text-gray-200 truncate">${modelId}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">${fileCount} files</span>
-                    </div>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">Available</span>
-                `;
-
-                availableModelsList.appendChild(div);
-            });
-
-            if (LOG_DEBUG) console.log(`${prefix} Loaded ${manifests.length} available models.`);
-        } catch (error) {
-            if (LOG_ERROR) console.error(`${prefix} Failed to load available models:`, error);
-            availableModelsList.innerHTML = '<div class="text-center text-red-500 py-2">Failed to load available models.</div>';
-        }
-    }
-} 
+// Model Management moved to IntegrationsController 

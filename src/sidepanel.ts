@@ -29,6 +29,8 @@ import { initializeLibraryController } from './Controllers/LibraryController';
 import { initializeDiscoverController } from './Controllers/DiscoverController';
 import { initializeSettingsController } from './Controllers/SettingsController';
 import { initializeSpacesController } from './Controllers/SpacesController';
+import { initializeIntegrationsController } from './Controllers/IntegrationsController';
+import { initializeConnectorsController } from './Controllers/ConnectorsController';
 import { initializeDriveController } from './Controllers/DriveController';
 import { HuggingFaceLoginDialog } from './Components/HuggingFaceLoginDialog';
 import {
@@ -86,6 +88,11 @@ import homeIcon from './assets/icons/home-svgrepo-com.svg';
 import rocketIcon from './assets/icons/rocket-2-svgrepo-com.svg';
 import myspaceIcon from './assets/icons/myspace-microsoft-svgrepo-com.svg';
 import libraryIcon from './assets/icons/library-svgrepo-com.svg';
+import integrationsIcon from './assets/icons/Integration.png';
+import connectorsIcon from './assets/icons/Connectors.png';
+import browserIcon from './assets/icons/Browser.png';
+import localServerIcon from './assets/icons/LocalServer.png';
+import cloudServerIcon from './assets/icons/CloudServer.png';
 import settingsIcon from './assets/icons/settings-svgrepo-com.svg';
 
 // --- Constants ---
@@ -1252,6 +1259,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeSpacesController();
     if (LOG_DEBUG) console.log(`${prefix} Spaces Controller Initialized.`);
 
+    initializeIntegrationsController();
+    if (LOG_DEBUG) console.log(`${prefix} Integrations Controller Initialized.`);
+
+    initializeConnectorsController();
+    if (LOG_DEBUG) console.log(`${prefix} Connectors Controller Initialized.`);
+
     initializeDriveController({
       requestDbAndWaitFunc: requestDbAndWait,
       getActiveChatSessionId,
@@ -1289,12 +1302,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       ['icon-rocket', rocketIcon],
       ['icon-myspace', myspaceIcon],
       ['icon-library', libraryIcon],
+      ['icon-integrations', integrationsIcon],
+      ['icon-connectors', connectorsIcon],
       ['icon-settings', settingsIcon],
     ];
     for (const [id, src] of iconMap) {
       const el = document.getElementById(id) as HTMLImageElement | null;
       if (el) el.src = src;
     }
+
+    // Set model source toggle icons
+    function setModelSourceToggleIcons() {
+      const browserBtn = document.querySelector('#source-browser .model-source-icon') as HTMLImageElement;
+      const nativeBtn = document.querySelector('#source-native .model-source-icon') as HTMLImageElement;
+      const apiBtn = document.querySelector('#source-api .model-source-icon') as HTMLImageElement;
+      
+      if (browserBtn) {
+        browserBtn.src = browserIcon;
+        browserBtn.style.display = '';
+      }
+      if (nativeBtn) {
+        nativeBtn.src = localServerIcon;
+        nativeBtn.style.display = '';
+      }
+      if (apiBtn) {
+        apiBtn.src = cloudServerIcon;
+        apiBtn.style.display = '';
+      }
+    }
+    
+    setModelSourceToggleIcons();
     
     // Broadcast UI_CONNECTED early to notify background script
     const contextName = window.EXTENSION_CONTEXT || 'unknown';

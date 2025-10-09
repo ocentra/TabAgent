@@ -8338,13 +8338,17 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getInferenceSettings: () => (/* binding */ getInferenceSettings),
 /* harmony export */   getManifestEntry: () => (/* binding */ getManifestEntry),
 /* harmony export */   getServerOnlySizeLimit: () => (/* binding */ getServerOnlySizeLimit),
+/* harmony export */   getUserAddedModels: () => (/* binding */ getUserAddedModels),
 /* harmony export */   modelCacheSchema: () => (/* binding */ modelCacheSchema),
 /* harmony export */   openModelCacheDB: () => (/* binding */ openModelCacheDB),
 /* harmony export */   parseQuantFromFilename: () => (/* binding */ parseQuantFromFilename),
+/* harmony export */   removeUserAddedModel: () => (/* binding */ removeUserAddedModel),
 /* harmony export */   saveChunkedFileSafe: () => (/* binding */ saveChunkedFileSafe),
 /* harmony export */   saveInferenceSettings: () => (/* binding */ saveInferenceSettings),
 /* harmony export */   saveToIndexedDB: () => (/* binding */ saveToIndexedDB),
-/* harmony export */   shouldChunkFile: () => (/* binding */ shouldChunkFile)
+/* harmony export */   saveUserAddedModel: () => (/* binding */ saveUserAddedModel),
+/* harmony export */   shouldChunkFile: () => (/* binding */ shouldChunkFile),
+/* harmony export */   validateHuggingFaceModel: () => (/* binding */ validateHuggingFaceModel)
 /* harmony export */ });
 /* harmony import */ var _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Controllers/InferenceSettings */ "./src/Controllers/InferenceSettings.ts");
 /* harmony import */ var _idbSchema__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./idbSchema */ "./src/DB/idbSchema.ts");
@@ -9580,6 +9584,119 @@ async function createStreamingResponseFromChunks(modelId, fileName, totalChunks,
     headers.set('Content-Length', totalSize.toString());
     headers.set('Transfer-Encoding', 'chunked');
     return new Response(stream, { headers });
+}
+/**
+ * Save a user-added model to IndexedDB
+ */
+async function saveUserAddedModel(model) {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        const userModel = {
+            repo: model.repo,
+            quants: {}, // Will be populated when model is actually loaded
+            task: model.task,
+            manifestVersion: CURRENT_MANIFEST_VERSION,
+        };
+        const req = store.put(userModel);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[saveUserAddedModel] success:', model.repo);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[saveUserAddedModel] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            db.close();
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+        };
+    });
+}
+/**
+ * Remove a user-added model from IndexedDB
+ */
+async function removeUserAddedModel(repo) {
+    const db = await openModelCacheDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('manifest', 'readwrite');
+        const store = tx.objectStore('manifest');
+        const req = store.delete(repo);
+        req.onsuccess = () => {
+            if (LOG_DEBUG)
+                console.log(prefix, '[removeUserAddedModel] success:', repo);
+            resolve();
+        };
+        req.onerror = () => {
+            if (LOG_ERROR)
+                console.error(prefix, '[removeUserAddedModel] error:', req.error);
+            reject(req.error);
+        };
+        tx.oncomplete = () => {
+            db.close();
+        };
+        tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+        };
+    });
+}
+/**
+ * Get all user-added models (those not in AVAILABLE_MODELS)
+ */
+async function getUserAddedModels(defaultModels) {
+    const allManifests = await getAllManifestEntries();
+    return allManifests.filter(manifest => !defaultModels.has(manifest.repo));
+}
+/**
+ * Validate if a HuggingFace model exists and has ONNX files
+ */
+async function validateHuggingFaceModel(repoId) {
+    try {
+        // Fetch model info from HuggingFace API
+        const response = await fetch(`https://huggingface.co/api/models/${repoId}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return { valid: false, error: 'Model not found on HuggingFace' };
+            }
+            return { valid: false, error: `API error: ${response.status}` };
+        }
+        const modelInfo = await response.json();
+        // Check if model has ONNX files
+        const filesResponse = await fetch(`https://huggingface.co/api/models/${repoId}/tree/main`);
+        if (!filesResponse.ok) {
+            return { valid: false, error: 'Could not fetch model files' };
+        }
+        const files = await filesResponse.json();
+        const onnxFiles = files.filter((file) => file.path && file.path.endsWith('.onnx')).map((file) => file.path);
+        if (onnxFiles.length === 0) {
+            return {
+                valid: false,
+                error: 'No ONNX files found. Only ONNX models are supported by Transformers.js'
+            };
+        }
+        // Extract task from model info
+        const task = modelInfo.pipeline_tag || 'text-generation';
+        return {
+            valid: true,
+            task,
+            onnxFiles
+        };
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(prefix, '[validateHuggingFaceModel] error:', error);
+        return {
+            valid: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
 }
 
 

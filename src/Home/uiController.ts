@@ -15,7 +15,8 @@ let queryInput: HTMLTextAreaElement | null,
     fileInput: HTMLInputElement | null,
     loadingIndicatorElement: HTMLElement | null,
     newChatButton: HTMLButtonElement | null,
-    modelLoadProgress: HTMLElement | null;
+    modelLoadProgress: HTMLElement | null,
+    modelSourceButtons: HTMLButtonElement[] | null = null;
 
 let isInitialized = false;
 let attachFileCallback: (() => void) | null | undefined = null;
@@ -28,6 +29,7 @@ let loadModelButton: HTMLButtonElement | null = null;
 let isLoadingModel = false; 
 let currentLoadId: string | null = null;
 let lastSeenLoadId: string | null = null;
+let currentModelSource: 'browser' | 'native' | 'api' = 'browser';
 const LOG_GENERAL = false;  // Turn off general logs
 const LOG_DEBUG = false;  // Turn off debug logs
 const LOG_ERROR = true;  // Keep error logging
@@ -59,6 +61,12 @@ document.addEventListener(DbStatusUpdatedNotification.type, (e: Event) => {
     if (LOG_INFO) console.log(prefix, 'Received DbStatusUpdatedNotification: ', customEvent.detail);
     handleStatusUpdate(customEvent.detail);
   });
+
+// Listen for user model updates from IntegrationsController
+window.addEventListener('userModelsUpdated', () => {
+    if (LOG_INFO) console.log(prefix, 'User models updated, refreshing dropdown');
+    updateModelDropdown();
+});
 
 browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
     const type = message?.type;
@@ -531,6 +539,31 @@ async function updateModelDropdown() {
         modelSelector.appendChild(option);
     }
     
+    // Add user-added models
+    try {
+        const { getUserAddedModels } = await import('../DB/idbModel');
+        const defaultModels = new Set(Object.keys(AVAILABLE_MODELS));
+        const userModels = await getUserAddedModels(defaultModels);
+        
+        if (userModels.length > 0) {
+            // Add separator if there are user models
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──────────';
+            modelSelector.appendChild(separator);
+            
+            // Add user models
+            for (const model of userModels) {
+                const option = document.createElement('option');
+                option.value = model.repo;
+                option.textContent = `${model.repo.split('/').pop()} (Custom)`;
+                modelSelector.appendChild(option);
+            }
+        }
+    } catch (error) {
+        if (LOG_ERROR) console.error(prefix, 'Failed to load user-added models:', error);
+    }
+    
     // Add Google models (always visible and selectable)
     /*
     for (const [modelId, displayName] of Object.entries(GOOGLE_MODELS)) {
@@ -658,6 +691,9 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
 
     if (LOG_INFO) console.log(prefix, "UI Initialization complete.");
     
+    // Initialize model source toggle
+    initializeModelSourceToggle();
+
     // Check IndexedDB status for initial dropdown state
     setTimeout(async () => {
         await updateQuantDropdownStatusFromDB();
@@ -1249,5 +1285,59 @@ export async function loadDefaultModel(): Promise<boolean> {
         if (LOG_ERROR) console.error(prefix, "Error loading default model:", error);
         return false;
     }
+}
+
+// Model Source Toggle Functions
+function initializeModelSourceToggle() {
+    const buttons = document.querySelectorAll('.model-source-btn');
+    modelSourceButtons = Array.from(buttons) as HTMLButtonElement[];
+    
+    if (!modelSourceButtons || modelSourceButtons.length === 0) {
+        if (LOG_WARN) console.warn(prefix, "Model source toggle buttons not found");
+        return;
+    }
+
+    // Add click listeners to all toggle buttons
+    modelSourceButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const source = button.id.replace('source-', '') as 'browser' | 'native' | 'api';
+            setModelSource(source);
+        });
+    });
+
+    // Set initial state
+    setModelSource('browser');
+    
+    if (LOG_INFO) console.log(prefix, "Model source toggle initialized");
+}
+
+function setModelSource(source: 'browser' | 'native' | 'api') {
+    if (!modelSourceButtons) return;
+
+    // Update active button
+    modelSourceButtons.forEach(button => {
+        const buttonSource = button.id.replace('source-', '');
+        if (buttonSource === source) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+
+    // Update global state
+    currentModelSource = source;
+    
+    // TODO: Update model dropdown based on source
+    // For now, just log the change
+    if (LOG_INFO) console.log(prefix, `Model source changed to: ${source}`);
+    
+    // Dispatch custom event for other components to listen
+    document.dispatchEvent(new CustomEvent('modelSourceChanged', { 
+        detail: { source: currentModelSource } 
+    }));
+}
+
+export function getCurrentModelSource(): 'browser' | 'native' | 'api' {
+    return currentModelSource;
 }
 

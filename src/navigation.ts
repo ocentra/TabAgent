@@ -17,6 +17,8 @@ const pageTitles: { [key: string]: string } = {
     'page-home': 'Tab Agent', 
     'page-spaces': 'Spaces',
     'page-library': 'Library',
+    'page-integrations': 'Integrations',
+    'page-connectors': 'Connectors',
     'page-settings': 'Settings'
 };
 

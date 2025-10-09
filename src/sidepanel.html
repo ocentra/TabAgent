@@ -60,6 +60,21 @@
                  </div>
                  <!-- Inline messages row (full width, above controls row) -->
                  <div id="ui-inline-messages" style="margin-bottom: 4px; width: 100%;"></div>
+                 <!-- Model Source Toggle -->
+                 <div class="model-source-toggle bg-gray-100 dark:bg-gray-700 rounded-lg p-1 flex w-full" style="margin: 1px 0;">
+                     <button id="source-browser" class="model-source-btn active px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 flex-1">
+                         <img src="" alt="Browser" class="w-4 h-4 model-source-icon" style="display: none;">
+                         Browser
+                     </button>
+                     <button id="source-native" class="model-source-btn px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 flex-1">
+                         <img src="" alt="Native App" class="w-4 h-4 model-source-icon" style="display: none;">
+                         Native App
+                     </button>
+                     <button id="source-api" class="model-source-btn px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 flex-1">
+                         <img src="" alt="External API" class="w-4 h-4 model-source-icon" style="display: none;">
+                         External API
+                     </button>
+                 </div>
                  <!-- Bottom Controls Row -->
                  <div class="flex items-center justify-between text-xs">
                      <div class="flex items-center space-x-2 flex-1 min-w-0">
@@ -121,6 +136,20 @@
             <p>Starred items placeholder...</p>
             <!-- Add Library specific content here (e.g., list of starred history) -->
              <div id="starred-list"></div>
+        </div>
+
+        <!-- Integrations Page -->
+        <div id="page-integrations" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">
+            <h2 class="text-xl font-semibold mb-4">Integrations</h2>
+            <p>Manage model sources and API connections...</p>
+            <!-- Integrations content will be injected here by JS -->
+        </div>
+
+        <!-- Connectors Page -->
+        <div id="page-connectors" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">
+            <h2 class="text-xl font-semibold mb-4">Connectors</h2>
+            <p>Manage external service connections...</p>
+            <!-- Connectors content will be injected here by JS -->
         </div>
 
         <!-- Settings Page -->
@@ -270,6 +299,12 @@
         </button>
         <button data-page="page-library" class="nav-button p-2 rounded">
             <!-- Library Icon (<img>) --> <img id="icon-library" alt="Library" class="w-6 h-6 action-icon-img">
+        </button>
+        <button data-page="page-integrations" class="nav-button p-2 rounded">
+            <!-- Integrations Icon (<img>) --> <img id="icon-integrations" alt="Integrations" class="w-6 h-6 action-icon-img">
+        </button>
+        <button data-page="page-connectors" class="nav-button p-2 rounded">
+            <!-- Connectors Icon (<img>) --> <img id="icon-connectors" alt="Connectors" class="w-6 h-6 action-icon-img">
         </button>
         <button data-page="page-settings" class="nav-button p-2 rounded">
             <!-- Settings Icon (<img>) --> <img id="icon-settings" alt="Settings" class="w-6 h-6 action-icon-img">

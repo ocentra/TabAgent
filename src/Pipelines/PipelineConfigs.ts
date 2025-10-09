@@ -109,13 +109,48 @@ export class DeviceCapabilities {
   }
 
   /**
-   * Get recommended dtype based on device capabilities
+   * Get recommended dtype based on device capabilities (generic)
+   * @deprecated Use getOptimizedDtype with modelId for model-specific optimization
    */
   static async getRecommendedDtype(preferredDtype?: DtypeSimple): Promise<DtypeSimple> {
     if (preferredDtype) return preferredDtype;
     
     const hasFP16 = await this.hasFP16();
     return hasFP16 ? 'q4f16' : 'q4';
+  }
+
+  /**
+   * Get optimized dtype for a specific model
+   * Uses model-specific presets when available
+   * 
+   * @param modelId - HuggingFace model ID (e.g., 'openai/whisper-tiny')
+   * @param preferredDtype - Override with specific dtype if provided
+   * @returns Optimized dtype configuration
+   */
+  static async getOptimizedDtype(modelId: string, preferredDtype?: Dtype): Promise<Dtype> {
+    if (preferredDtype) return preferredDtype;
+    
+    const { ModelPresets } = await import('./ModelPresets');
+    const hasGPU = await this.hasWebGPU();
+    const hasFP16Support = await this.hasFP16();
+    
+    return ModelPresets.getDtypePreset(modelId, hasGPU, hasFP16Support);
+  }
+
+  /**
+   * Get optimized device for a specific model
+   * 
+   * @param modelId - HuggingFace model ID
+   * @param preferredDevice - Override with specific device if provided
+   * @returns Optimized device configuration
+   */
+  static async getOptimizedDevice(modelId: string, preferredDevice?: Device): Promise<Device> {
+    if (preferredDevice) return preferredDevice;
+    
+    const { ModelPresets } = await import('./ModelPresets');
+    const hasGPU = await this.hasWebGPU();
+    
+    return ModelPresets.getDevicePreset(modelId, hasGPU);
   }
 
   /**
@@ -172,6 +207,7 @@ export class TextGenerationConfig extends BaseModelConfig implements ITextGenera
 
   /**
    * Create config with auto-detected device and dtype
+   * Uses model-specific optimized presets
    */
   static async createWithAutoDetect(
     modelId: string, 
@@ -181,8 +217,8 @@ export class TextGenerationConfig extends BaseModelConfig implements ITextGenera
       useExternalData?: boolean;
     }
   ): Promise<TextGenerationConfig> {
-    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
-    const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+    const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+    const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
     
     return new TextGenerationConfig({
       modelId,
@@ -403,10 +439,8 @@ export class MultimodalConfig extends BaseModelConfig implements IMultimodalConf
       imageOptions?: { doImageSplitting?: boolean };
     }
   ): Promise<MultimodalConfig> {
-    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
-    const hasFP16 = await DeviceCapabilities.hasFP16();
-    
-    const dtype = options?.dtype ?? (hasFP16 ? 'fp16' : 'fp32');
+    const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+    const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
     
     return new MultimodalConfig({
       modelId,
@@ -479,21 +513,8 @@ export class Florence2Config extends BaseModelConfig implements IFlorence2Config
       visionOptions?: { task?: string };
     }
   ): Promise<Florence2Config> {
-    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
-    const hasFP16 = await DeviceCapabilities.hasFP16();
-    
-    // Default dtype for Florence2 - per-component optimization
-    const dtype = options?.dtype ?? (hasFP16 ? {
-      embed_tokens: 'fp16' as DtypeSimple,
-      vision_encoder: 'fp16' as DtypeSimple,
-      encoder_model: 'q4' as DtypeSimple,
-      decoder_model_merged: 'q4' as DtypeSimple
-    } : {
-      embed_tokens: 'fp32' as DtypeSimple,
-      vision_encoder: 'fp32' as DtypeSimple,
-      encoder_model: 'q4' as DtypeSimple,
-      decoder_model_merged: 'q4' as DtypeSimple
-    });
+    const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+    const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
     
     return new Florence2Config({
       modelId,
@@ -566,34 +587,8 @@ export class JanusConfig extends BaseModelConfig implements IJanusConfig {
       multimodalOptions?: { maxNewTextTokens?: number; numImageTokens?: number };
     }
   ): Promise<JanusConfig> {
-    const hasFP16 = await DeviceCapabilities.hasFP16();
-    
-    // Default dtype for Janus - complex per-component config
-    const dtype = options?.dtype ?? (hasFP16 ? {
-      prepare_inputs_embeds: 'q4' as DtypeSimple,
-      language_model: 'q4f16' as DtypeSimple,
-      lm_head: 'fp16' as DtypeSimple,
-      gen_head: 'fp16' as DtypeSimple,
-      gen_img_embeds: 'fp16' as DtypeSimple,
-      image_decode: 'fp32' as DtypeSimple
-    } : {
-      prepare_inputs_embeds: 'fp32' as DtypeSimple,
-      language_model: 'q4' as DtypeSimple,
-      lm_head: 'fp32' as DtypeSimple,
-      gen_head: 'fp32' as DtypeSimple,
-      gen_img_embeds: 'fp32' as DtypeSimple,
-      image_decode: 'fp32' as DtypeSimple
-    });
-    
-    // Default device for Janus - per-component device assignment
-    const device = options?.device ?? {
-      prepare_inputs_embeds: 'wasm' as DeviceSimple,
-      language_model: 'webgpu' as DeviceSimple,
-      lm_head: 'webgpu' as DeviceSimple,
-      gen_head: 'webgpu' as DeviceSimple,
-      gen_img_embeds: 'webgpu' as DeviceSimple,
-      image_decode: 'webgpu' as DeviceSimple
-    };
+    const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+    const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
     
     return new JanusConfig({
       modelId,
@@ -666,17 +661,8 @@ export class SpeechRecognitionConfig extends BaseModelConfig implements ISpeechR
       audioOptions?: { language?: string; task?: 'transcribe' | 'translate'; maxNewTokens?: number };
     }
   ): Promise<SpeechRecognitionConfig> {
-    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
-    const hasFP16 = await DeviceCapabilities.hasFP16();
-    
-    // Default dtype for Whisper - encoder fp32, decoder q4
-    const dtype = options?.dtype ?? (hasFP16 ? {
-      encoder_model: 'fp16' as DtypeSimple,
-      decoder_model_merged: 'q4' as DtypeSimple
-    } : {
-      encoder_model: 'fp32' as DtypeSimple,
-      decoder_model_merged: 'q4' as DtypeSimple
-    });
+    const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+    const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
     
     return new SpeechRecognitionConfig({
       modelId,
@@ -749,8 +735,8 @@ export class CodeCompletionConfig extends BaseModelConfig implements ICodeComple
       codeOptions?: { language?: string; contextWindow?: number };
     }
   ): Promise<CodeCompletionConfig> {
-    const device = options?.device ?? await DeviceCapabilities.getBestDevice();
-    const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+    const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+    const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
     
     return new CodeCompletionConfig({
       modelId,

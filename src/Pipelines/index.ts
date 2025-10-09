@@ -8,8 +8,9 @@
 // Types and interfaces
 export * from './PipelineTypes';
 
-// Configs and device capabilities
+// Configs, device capabilities, and model presets
 export * from './PipelineConfigs';
+export * from './ModelPresets';
 
 // Base pipeline
 export * from './BasePipeline';

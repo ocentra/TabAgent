@@ -13,6 +13,7 @@ import { ImageClassificationPipeline } from './ImageClassificationPipeline';
 import { CrossEncoderPipeline } from './CrossEncoderPipeline';
 import { ClapPipeline } from './ClapPipeline';
 import { ClipPipeline } from './ClipPipeline';
+import { TextToSpeechPipeline } from './TextToSpeechPipeline';
 
 /**
  * PipelineFactory.ts
@@ -105,6 +106,14 @@ export class PipelineFactory {
         }
         return new ImageClassificationPipeline();
       }
+      
+      // SpeechT5 detection (text-to-speech)
+      if (lowerModelId.includes('speecht5') || lowerModelId.includes('tts')) {
+        if (LOG_GENERAL) {
+          console.log(prefix, 'Detected text-to-speech model, using TextToSpeechPipeline');
+        }
+        return new TextToSpeechPipeline();
+      }
     }
     
     // Task-based routing (standard pipeline selection)
@@ -144,6 +153,9 @@ export class PipelineFactory {
         }
         // Default text classification pipeline (can use high-level API if needed)
         return new CrossEncoderPipeline();
+        
+      case PipelineTypeEnum.TEXT_TO_SPEECH:
+        return new TextToSpeechPipeline();
         
       default:
         // Fallback to text generation for unknown tasks

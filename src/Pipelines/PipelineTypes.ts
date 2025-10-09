@@ -174,6 +174,12 @@ export interface IClassificationConfig extends ISimplePipelineConfig {
   pipelineType: 'text-classification';
 }
 
+export interface ITextToSpeechConfig extends IComplexPipelineConfig {
+  pipelineType: 'text-to-speech';
+  vocoderId?: string;
+  speakerEmbeddingsUrl?: string;
+}
+
 // =============================================================================
 // UNION TYPE FOR ALL CONFIGS
 // =============================================================================
@@ -187,5 +193,6 @@ export type ModelConfig =
   | IEmbeddingConfig
   | ITranslationConfig
   | IZeroShotClassificationConfig
-  | IClassificationConfig;
+  | IClassificationConfig
+  | ITextToSpeechConfig;
 

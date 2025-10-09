@@ -27,6 +27,7 @@ export * from './ImageClassificationPipeline';
 export * from './CrossEncoderPipeline';
 export * from './ClapPipeline';
 export * from './ClipPipeline';
+export * from './TextToSpeechPipeline';
 
 // Factory
 export * from './PipelineFactory';

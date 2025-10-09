@@ -367,7 +367,11 @@ export class PipelineDBHandler {
    */
   static async fetchModelMetadata(
     modelId: string,
-    userMaxLengthFallback: number
+    userMaxLengthFallback: number,
+    options?: {
+      logContextLength?: boolean;
+      logFullConfig?: boolean;
+    }
   ): Promise<{
     config: any | null;
     contextLength: number;
@@ -385,6 +389,17 @@ export class PipelineDBHandler {
     
     // Extract architecture
     const architecture = this.extractArchitecture(config);
+    
+    // Log context length if requested
+    if (options?.logContextLength) {
+      const contextLengthInfo = `[fetchModelMetadata] Context length: ${contextLength} (source: ${config ? 'model-config' : 'user-settings'})`;
+      console.log(prefix, contextLengthInfo);
+    }
+    
+    // Log full config if requested
+    if (options?.logFullConfig && config) {
+      console.log(prefix, '[fetchModelMetadata] Full model config JSON:', JSON.stringify(config, null, 2));
+    }
     
     if (LOG_GENERAL) {
       console.log(prefix, `[fetchModelMetadata] Metadata extracted for ${modelId}:`, {

@@ -12136,13 +12136,22 @@ class PipelineDBHandler {
      * @param userMaxLengthFallback - Fallback context length from user settings
      * @returns Object with config, contextLength, and architecture
      */
-    static async fetchModelMetadata(modelId, userMaxLengthFallback) {
+    static async fetchModelMetadata(modelId, userMaxLengthFallback, options) {
         // Fetch config
         const config = await this.fetchModelConfig(modelId);
         // Extract context length
         const contextLength = this.extractContextLength(config, userMaxLengthFallback);
         // Extract architecture
         const architecture = this.extractArchitecture(config);
+        // Log context length if requested
+        if (options?.logContextLength) {
+            const contextLengthInfo = `[fetchModelMetadata] Context length: ${contextLength} (source: ${config ? 'model-config' : 'user-settings'})`;
+            console.log(prefix, contextLengthInfo);
+        }
+        // Log full config if requested
+        if (options?.logFullConfig && config) {
+            console.log(prefix, '[fetchModelMetadata] Full model config JSON:', JSON.stringify(config, null, 2));
+        }
         if (LOG_GENERAL) {
             console.log(prefix, `[fetchModelMetadata] Metadata extracted for ${modelId}:`, {
                 contextLength,
@@ -14412,18 +14421,14 @@ const loadModel = async (payload, callback) => {
         // Fetch model metadata (config, context length, architecture) in one call
         const currentSettings = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.getInferenceSettings)();
         const userMaxLength = currentSettings?.max_length || _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS.max_length;
-        const { config: modelConfig, contextLength, architecture } = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.fetchModelMetadata(modelId, userMaxLength);
+        const { config: modelConfig, contextLength, architecture } = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.fetchModelMetadata(modelId, userMaxLength, {
+            logContextLength: LOG_TRANSFORMERS,
+            logFullConfig: LOG_MODEL_CONFIG
+        });
         modelContextLength = contextLength;
         numAttentionHeads = architecture.numAttentionHeads;
         numKeyValueHeads = architecture.numKeyValueHeads;
         headDim = architecture.headDim;
-        if (LOG_TRANSFORMERS) {
-            const contextLengthInfo = `[loadModel] Context length: ${modelContextLength} (source: ${modelConfig ? 'model-config' : 'user-settings'})`;
-            console.log(prefix, contextLengthInfo);
-            if (LOG_MODEL_CONFIG && modelConfig) {
-                console.log(prefix, '[loadModel] Full model config JSON:', JSON.stringify(modelConfig, null, 2));
-            }
-        }
         // Create pipeline and config using factory
         const { pipeline, config: pipelineConfig } = await _Pipelines__WEBPACK_IMPORTED_MODULE_8__.PipelineFactory.createPipelineWithConfig(task, modelId, {
             dtype: dtype, // Pass raw dtype - pipeline uses presets if needed

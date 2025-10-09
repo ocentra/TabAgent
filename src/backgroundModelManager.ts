@@ -502,21 +502,19 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     const currentSettings = await dbGetInferenceSettings();
     const userMaxLength = currentSettings?.max_length || DEFAULT_INFERENCE_SETTINGS.max_length;
     
-    const { config: modelConfig, contextLength, architecture } = await PipelineDBHandler.fetchModelMetadata(modelId, userMaxLength);
+    const { config: modelConfig, contextLength, architecture } = await PipelineDBHandler.fetchModelMetadata(
+      modelId, 
+      userMaxLength,
+      {
+        logContextLength: LOG_TRANSFORMERS,
+        logFullConfig: LOG_MODEL_CONFIG
+      }
+    );
     
     modelContextLength = contextLength;
     numAttentionHeads = architecture.numAttentionHeads;
     numKeyValueHeads = architecture.numKeyValueHeads;
     headDim = architecture.headDim;
-    
-    if (LOG_TRANSFORMERS) {
-      const contextLengthInfo = `[loadModel] Context length: ${modelContextLength} (source: ${modelConfig ? 'model-config' : 'user-settings'})`;
-      console.log(prefix, contextLengthInfo);
-      
-      if (LOG_MODEL_CONFIG && modelConfig) {
-        console.log(prefix, '[loadModel] Full model config JSON:', JSON.stringify(modelConfig, null, 2));
-      }
-    }
     
     // Create pipeline and config using factory
     const { pipeline, config: pipelineConfig } = await PipelineFactory.createPipelineWithConfig(

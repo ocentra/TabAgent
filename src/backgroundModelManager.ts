@@ -605,20 +605,13 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
       }
     };
     
-    // Load via pipeline (loads both tokenizer and model internally)
-    await pipeline.load(pipelineConfig, callbackWrapper, loadId);
-    
-    // Get tokenizer from pipeline
-    transformersTokenizer = pipeline.getTokenizer();
-    
-    if (LOG_MODEL_LOADING) {
-      console.log(prefix, '[loadModel] Tokenizer loaded via pipeline');
-    }
-    
-    // Extract and patch token IDs from tokenizer and config
-    extractAndPatchTokenIds(transformersTokenizer, modelConfig);
-    
-    // Get model from pipeline (already loaded by pipeline.load() above)
+
+    await pipeline.load(pipelineConfig, callbackWrapper, loadId);    
+
+    transformersTokenizer = pipeline.getTokenizer();   
+
+    extractAndPatchTokenIds(transformersTokenizer, modelConfig);   
+
     transformersModel = pipeline.getModel();
     
     isTransformersModelReady = true;

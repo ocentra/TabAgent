@@ -9673,6 +9673,2153 @@ const dbChannel = new BroadcastChannel('tabagent-db');
 
 /***/ }),
 
+/***/ "./src/Pipelines/BasePipeline.ts":
+/*!***************************************!*\
+  !*** ./src/Pipelines/BasePipeline.ts ***!
+  \***************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   BasePipeline: () => (/* binding */ BasePipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/// <reference lib="dom" />
+
+/**
+ * BasePipeline.ts
+ *
+ * Abstract base class for all pipeline implementations.
+ * Provides shared functionality and enforces consistent API.
+ */
+const prefix = '[BasePipeline]';
+const LOG_GENERAL = false;
+/**
+ * Abstract base class for all pipelines
+ * Provides shared functionality and enforces consistent API
+ */
+class BasePipeline {
+    constructor() {
+        this.tokenizer = null;
+        this.model = null;
+        this.processor = null; // For vision/audio pipelines
+        this.currentConfig = null;
+    }
+    /**
+     * Check if config has changed and needs reload
+     * Shared implementation available to all pipelines
+     */
+    needsReload(newConfig) {
+        if (this.currentConfig === null)
+            return true;
+        return !this.currentConfig.equals(newConfig);
+    }
+    /**
+     * Create a wrapped progress callback for transformers.js
+     * Converts transformers.js progress format to our PipelineProgressInfo format
+     *
+     * @param progressCallback - Our enhanced callback
+     * @param loadId - Load ID for tracking
+     * @param component - Component name ('tokenizer', 'model', 'processor')
+     * @param progressRange - [min, max] percentage range to remap to (e.g., [10, 40])
+     * @returns Wrapped callback compatible with transformers.js
+     */
+    wrapProgressCallback(progressCallback, loadId, component, progressRange) {
+        if (!progressCallback)
+            return undefined;
+        const [minProgress, maxProgress] = progressRange;
+        const progressSpan = maxProgress - minProgress;
+        return (data) => {
+            let progress = minProgress;
+            let status = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS;
+            let message = `Loading ${component} from cache...`;
+            if (data.status === 'progress') {
+                progress = minProgress + (data.progress * progressSpan);
+                status = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS;
+                message = `Loading ${component} from cache... ${Math.round(progress)}%`;
+            }
+            else if (data.status === 'ready' || data.status === 'done') {
+                progress = maxProgress;
+                status = _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE;
+                message = `${component.charAt(0).toUpperCase() + component.slice(1)} ready`;
+            }
+            progressCallback({
+                status,
+                file: data.file || component,
+                progress,
+                loadId,
+                loaded: data.loaded,
+                total: data.total,
+                message
+            });
+        };
+    }
+    /**
+     * Reset the pipeline (clears loaded components)
+     * Default implementation - can be overridden if needed
+     */
+    reset() {
+        this.tokenizer = null;
+        this.model = null;
+        this.processor = null;
+        this.currentConfig = null;
+        if (LOG_GENERAL) {
+            console.log(prefix, 'Pipeline reset');
+        }
+    }
+    /**
+     * Check if pipeline is loaded
+     * Default implementation - can be overridden if needed
+     */
+    isLoaded() {
+        return this.model !== null;
+    }
+    /**
+     * Get current configuration
+     * Default implementation - can be overridden if needed
+     */
+    getConfig() {
+        return this.currentConfig;
+    }
+    /**
+     * Get tokenizer instance
+     */
+    getTokenizer() {
+        return this.tokenizer;
+    }
+    /**
+     * Get model instance
+     */
+    getModel() {
+        return this.model;
+    }
+    /**
+     * Get processor instance (for vision/audio pipelines)
+     */
+    getProcessor() {
+        return this.processor;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/ClapPipeline.ts":
+/*!***************************************!*\
+  !*** ./src/Pipelines/ClapPipeline.ts ***!
+  \***************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ClapConfig: () => (/* binding */ ClapConfig),
+/* harmony export */   ClapPipeline: () => (/* binding */ ClapPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * ClapPipeline.ts
+ *
+ * Pipeline for semantic audio search using CLAP models.
+ * Uses low-level API with AutoTokenizer + ClapTextModelWithProjection.
+ */
+const prefix = '[ClapPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+// Clap Config Class
+class ClapConfig extends _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'feature-extraction';
+        this.dtype = config.dtype;
+        this.audioOptions = config.audioOptions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const { DeviceCapabilities } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts"));
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new ClapConfig({
+            modelId,
+            dtype,
+            pipelineType: 'feature-extraction',
+            audioOptions: options?.audioOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.audioOptions) === JSON.stringify(other.audioOptions);
+    }
+    clone() {
+        return new ClapConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType,
+            audioOptions: this.audioOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType,
+            audioOptions: this.audioOptions
+        };
+    }
+}
+/**
+ * ClapPipeline - For semantic audio search
+ * Uses low-level API with AutoTokenizer + ClapTextModelWithProjection
+ */
+class ClapPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: config.dtype,
+            progress: 0,
+            loadId,
+            message: 'Starting CLAP model load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            const { AutoTokenizer } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading CLAP model...'
+            });
+            const { ClapTextModelWithProjection } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await ClapTextModelWithProjection.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'CLAP model ready!'
+        });
+    }
+    isLoaded() {
+        return this.tokenizer !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/ClipPipeline.ts":
+/*!***************************************!*\
+  !*** ./src/Pipelines/ClipPipeline.ts ***!
+  \***************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ClipConfig: () => (/* binding */ ClipConfig),
+/* harmony export */   ClipPipeline: () => (/* binding */ ClipPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * ClipPipeline.ts
+ *
+ * Pipeline for semantic image search using CLIP models.
+ * Uses low-level API with AutoTokenizer + CLIPTextModelWithProjection.
+ */
+const prefix = '[ClipPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+// Clip Config Class
+class ClipConfig extends _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'feature-extraction';
+        this.dtype = config.dtype;
+        this.imageSearchOptions = config.imageSearchOptions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const { DeviceCapabilities } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts"));
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new ClipConfig({
+            modelId,
+            dtype,
+            pipelineType: 'feature-extraction',
+            imageSearchOptions: options?.imageSearchOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.imageSearchOptions) === JSON.stringify(other.imageSearchOptions);
+    }
+    clone() {
+        return new ClipConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType,
+            imageSearchOptions: this.imageSearchOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType,
+            imageSearchOptions: this.imageSearchOptions
+        };
+    }
+}
+/**
+ * ClipPipeline - For semantic image search
+ * Uses low-level API with AutoTokenizer + CLIPTextModelWithProjection
+ */
+class ClipPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: config.dtype,
+            progress: 0,
+            loadId,
+            message: 'Starting CLIP model load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            const { AutoTokenizer } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading CLIP model...'
+            });
+            const { CLIPTextModelWithProjection } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await CLIPTextModelWithProjection.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'CLIP model ready!'
+        });
+    }
+    isLoaded() {
+        return this.tokenizer !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/CodeCompletionPipeline.ts":
+/*!*************************************************!*\
+  !*** ./src/Pipelines/CodeCompletionPipeline.ts ***!
+  \*************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   CodeCompletionPipeline: () => (/* binding */ CodeCompletionPipeline)
+/* harmony export */ });
+/* harmony import */ var _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * CodeCompletionPipeline.ts
+ *
+ * Pipeline for code completion tasks.
+ * Uses low-level API with AutoTokenizer + AutoModelForCausalLM for maximum control.
+ */
+const prefix = '[CodeCompletionPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * CodeCompletionPipeline - For code completion tasks
+ * Uses low-level API with AutoTokenizer + AutoModelForCausalLM
+ */
+class CodeCompletionPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.INITIATE,
+            file: JSON.stringify(config.dtype),
+            progress: 0,
+            loadId,
+            message: 'Starting code completion model load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            this.tokenizer = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 40])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 40,
+                loadId,
+                message: 'Loading code completion model...'
+            });
+            this.model = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoModelForCausalLM.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [40, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Code completion model ready!'
+        });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/CrossEncoderPipeline.ts":
+/*!***********************************************!*\
+  !*** ./src/Pipelines/CrossEncoderPipeline.ts ***!
+  \***********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   CrossEncoderConfig: () => (/* binding */ CrossEncoderConfig),
+/* harmony export */   CrossEncoderPipeline: () => (/* binding */ CrossEncoderPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * CrossEncoderPipeline.ts
+ *
+ * Pipeline for sequence classification and reranking.
+ * Uses low-level API with AutoTokenizer + AutoModelForSequenceClassification.
+ */
+const prefix = '[CrossEncoderPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+// CrossEncoder Config Class
+class CrossEncoderConfig extends _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'text-classification';
+        this.dtype = config.dtype;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const { DeviceCapabilities } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts"));
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new CrossEncoderConfig({
+            modelId,
+            dtype,
+            pipelineType: 'text-classification'
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType;
+    }
+    clone() {
+        return new CrossEncoderConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        };
+    }
+}
+/**
+ * CrossEncoderPipeline - For reranking and sequence classification
+ * Uses low-level API with AutoTokenizer + AutoModelForSequenceClassification
+ */
+class CrossEncoderPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: config.dtype,
+            progress: 0,
+            loadId,
+            message: 'Starting cross-encoder model load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            const { AutoTokenizer } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading cross-encoder model...'
+            });
+            const { AutoModelForSequenceClassification } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await AutoModelForSequenceClassification.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Cross-encoder model ready!'
+        });
+    }
+    isLoaded() {
+        return this.tokenizer !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/EmbeddingPipeline.ts":
+/*!********************************************!*\
+  !*** ./src/Pipelines/EmbeddingPipeline.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   EmbeddingPipeline: () => (/* binding */ EmbeddingPipeline)
+/* harmony export */ });
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+
+/**
+ * EmbeddingPipeline.ts
+ *
+ * Pipeline for feature extraction and semantic search.
+ * Uses high-level pipeline() API for simplicity.
+ */
+const prefix = '[EmbeddingPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * EmbeddingPipeline - For feature extraction and semantic search
+ * Uses high-level pipeline() API
+ */
+class EmbeddingPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_0__.BasePipeline {
+    constructor() {
+        super(...arguments);
+        this.pipelineInstance = null;
+    }
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Lazy load using high-level pipeline API
+        if (!this.pipelineInstance) {
+            const { pipeline } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.pipelineInstance = await pipeline('feature-extraction', config.modelId, {
+                dtype: config.dtype,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'embedding', [0, 100])
+            });
+            // Store for compatibility
+            this.model = this.pipelineInstance;
+        }
+    }
+    /**
+     * Get the pipeline instance for calling
+     */
+    getPipeline() {
+        return this.pipelineInstance;
+    }
+    reset() {
+        super.reset();
+        this.pipelineInstance = null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/Florence2Pipeline.ts":
+/*!********************************************!*\
+  !*** ./src/Pipelines/Florence2Pipeline.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   Florence2Pipeline: () => (/* binding */ Florence2Pipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+/**
+ * Florence2Pipeline.ts
+ *
+ * Pipeline for multi-task vision models (Florence2).
+ * Uses low-level API with AutoProcessor + AutoTokenizer + Florence2ForConditionalGeneration.
+ */
+const prefix = '[Florence2Pipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * Florence2Pipeline - For multi-task vision models
+ * Uses low-level API with AutoProcessor + AutoTokenizer + Florence2ForConditionalGeneration
+ */
+class Florence2Pipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_1__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: JSON.stringify(config.dtype),
+            progress: 0,
+            loadId,
+            message: 'Starting Florence2 model load...'
+        });
+        // Lazy load processor
+        if (!this.processor) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'processor',
+                progress: 10,
+                loadId,
+                message: 'Loading processor...'
+            });
+            const { AutoProcessor } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 30])
+            });
+        }
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 30,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            const { AutoTokenizer } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [30, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading Florence2 model...'
+            });
+            const { Florence2ForConditionalGeneration } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await Florence2ForConditionalGeneration.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Florence2 model ready!'
+        });
+    }
+    isLoaded() {
+        return this.processor !== null && this.tokenizer !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/ImageClassificationPipeline.ts":
+/*!******************************************************!*\
+  !*** ./src/Pipelines/ImageClassificationPipeline.ts ***!
+  \******************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ImageClassificationConfig: () => (/* binding */ ImageClassificationConfig),
+/* harmony export */   ImageClassificationPipeline: () => (/* binding */ ImageClassificationPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * ImageClassificationPipeline.ts
+ *
+ * Pipeline for image classification with optional attention visualization.
+ * Uses low-level API with AutoProcessor + AutoModelForImageClassification.
+ */
+const prefix = '[ImageClassificationPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+// Image Classification Config Class
+class ImageClassificationConfig extends _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'image-classification';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.includeAttentions = config.includeAttentions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const { DeviceCapabilities } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts"));
+        const device = options?.device ?? await DeviceCapabilities.getBestDevice();
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new ImageClassificationConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'image-classification',
+            includeAttentions: options?.includeAttentions ?? false
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            this.includeAttentions === other.includeAttentions;
+    }
+    clone() {
+        return new ImageClassificationConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            includeAttentions: this.includeAttentions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            includeAttentions: this.includeAttentions
+        };
+    }
+}
+/**
+ * ImageClassificationPipeline - For image classification
+ * Uses low-level API with AutoProcessor + AutoModelForImageClassification
+ */
+class ImageClassificationPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: JSON.stringify(config.dtype),
+            progress: 0,
+            loadId,
+            message: 'Starting image classification model load...'
+        });
+        // Lazy load processor
+        if (!this.processor) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'processor',
+                progress: 10,
+                loadId,
+                message: 'Loading processor...'
+            });
+            const { AutoProcessor } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading image classification model...'
+            });
+            const { AutoModelForImageClassification } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await AutoModelForImageClassification.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Image classification model ready!'
+        });
+    }
+    isLoaded() {
+        return this.processor !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/JanusPipeline.ts":
+/*!****************************************!*\
+  !*** ./src/Pipelines/JanusPipeline.ts ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   JanusPipeline: () => (/* binding */ JanusPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+/**
+ * JanusPipeline.ts
+ *
+ * Pipeline for multimodal image+text generation (Janus models).
+ * Uses low-level API with AutoProcessor + MultiModalityCausalLM.
+ */
+const prefix = '[JanusPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * JanusPipeline - For multimodal image+text generation
+ * Uses low-level API with AutoProcessor + MultiModalityCausalLM
+ */
+class JanusPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_1__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: JSON.stringify(config.dtype),
+            progress: 0,
+            loadId,
+            message: 'Starting Janus model load...'
+        });
+        // Lazy load processor
+        if (!this.processor) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'processor',
+                progress: 10,
+                loadId,
+                message: 'Loading processor...'
+            });
+            const { AutoProcessor } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading Janus model...'
+            });
+            const { MultiModalityCausalLM } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await MultiModalityCausalLM.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Janus model ready!'
+        });
+    }
+    isLoaded() {
+        return this.processor !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/ModelPresets.ts":
+/*!***************************************!*\
+  !*** ./src/Pipelines/ModelPresets.ts ***!
+  \***************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ModelPresets: () => (/* binding */ ModelPresets)
+/* harmony export */ });
+/**
+ * ModelPresets.ts
+ *
+ * Model-specific optimized dtype and device configurations.
+ * Based on transformers.js examples and best practices.
+ */
+const prefix = '[ModelPresets]';
+const LOG_GENERAL = false;
+// =============================================================================
+// MODEL-SPECIFIC DTYPE PRESETS
+// =============================================================================
+/**
+ * Whisper model dtype presets
+ * Used for automatic speech recognition
+ */
+const WHISPER_DTYPE_PRESETS = {
+    webgpu_fp16: {
+        encoder_model: 'fp16',
+        decoder_model_merged: 'q4'
+    },
+    webgpu_no_fp16: {
+        encoder_model: 'fp32',
+        decoder_model_merged: 'q4'
+    },
+    wasm: {
+        encoder_model: 'fp32',
+        decoder_model_merged: 'q8'
+    },
+    default: 'q4'
+};
+/**
+ * Florence2 model dtype presets
+ * Multi-task vision model
+ */
+const FLORENCE2_DTYPE_PRESETS = {
+    webgpu_fp16: {
+        embed_tokens: 'fp16',
+        vision_encoder: 'fp16',
+        encoder_model: 'q4',
+        decoder_model_merged: 'q4'
+    },
+    webgpu_no_fp16: {
+        embed_tokens: 'fp32',
+        vision_encoder: 'fp32',
+        encoder_model: 'q4',
+        decoder_model_merged: 'q4'
+    },
+    wasm: {
+        embed_tokens: 'fp32',
+        vision_encoder: 'fp32',
+        encoder_model: 'q8',
+        decoder_model_merged: 'q8'
+    },
+    default: 'q4'
+};
+/**
+ * Janus model dtype presets
+ * Multimodal image+text model
+ */
+const JANUS_DTYPE_PRESETS = {
+    webgpu_fp16: {
+        prepare_inputs_embeds: 'q4',
+        language_model: 'q4f16',
+        lm_head: 'fp16',
+        gen_head: 'fp16',
+        gen_img_embeds: 'fp16',
+        image_decode: 'fp32'
+    },
+    webgpu_no_fp16: {
+        prepare_inputs_embeds: 'q4',
+        language_model: 'q4',
+        lm_head: 'fp32',
+        gen_head: 'fp32',
+        gen_img_embeds: 'fp32',
+        image_decode: 'fp32'
+    },
+    wasm: {
+        prepare_inputs_embeds: 'q8',
+        language_model: 'q8',
+        lm_head: 'fp32',
+        gen_head: 'fp32',
+        gen_img_embeds: 'fp32',
+        image_decode: 'fp32'
+    },
+    default: 'q4'
+};
+/**
+ * DeepSeek-R1 model dtype presets
+ * Reasoning-focused text generation
+ */
+const DEEPSEEK_R1_DTYPE_PRESETS = {
+    webgpu_fp16: 'q4f16',
+    webgpu_no_fp16: 'q4',
+    wasm: 'q8',
+    default: 'q4f16'
+};
+/**
+ * Llama model dtype presets
+ * General text generation
+ */
+const LLAMA_DTYPE_PRESETS = {
+    webgpu_fp16: 'q4f16',
+    webgpu_no_fp16: 'q4',
+    wasm: 'q8',
+    default: 'q4'
+};
+/**
+ * Phi model dtype presets
+ * Efficient text generation
+ */
+const PHI_DTYPE_PRESETS = {
+    webgpu_fp16: 'q4f16',
+    webgpu_no_fp16: 'q4',
+    wasm: 'q8',
+    default: 'q4'
+};
+/**
+ * Qwen model dtype presets
+ * Multilingual text generation
+ */
+const QWEN_DTYPE_PRESETS = {
+    webgpu_fp16: 'q4f16',
+    webgpu_no_fp16: 'q4',
+    wasm: 'q8',
+    default: 'q4'
+};
+/**
+ * SmolLM/SmolVLM model dtype presets
+ * Small language models
+ */
+const SMOL_DTYPE_PRESETS = {
+    webgpu_fp16: 'q4f16',
+    webgpu_no_fp16: 'q4',
+    wasm: 'q8',
+    default: 'q4'
+};
+/**
+ * Gemma model dtype presets
+ * Google's language models
+ */
+const GEMMA_DTYPE_PRESETS = {
+    webgpu_fp16: 'q4f16',
+    webgpu_no_fp16: 'q4',
+    wasm: 'q8',
+    default: 'q4'
+};
+/**
+ * SpeechT5 model dtype presets
+ * Text-to-speech models
+ */
+const SPEECHT5_DTYPE_PRESETS = {
+    webgpu_fp16: {
+        text_model: 'fp16',
+        vocoder: 'fp32'
+    },
+    webgpu_no_fp16: {
+        text_model: 'fp32',
+        vocoder: 'fp32'
+    },
+    wasm: {
+        text_model: 'fp32',
+        vocoder: 'fp32'
+    },
+    default: 'fp32'
+};
+/**
+ * CLIP model dtype presets
+ * Image-text similarity
+ */
+const CLIP_DTYPE_PRESETS = {
+    webgpu_fp16: 'fp16',
+    webgpu_no_fp16: 'fp32',
+    wasm: 'fp32',
+    default: 'fp32'
+};
+/**
+ * CLAP model dtype presets
+ * Audio-text similarity
+ */
+const CLAP_DTYPE_PRESETS = {
+    webgpu_fp16: 'fp16',
+    webgpu_no_fp16: 'fp32',
+    wasm: 'fp32',
+    default: 'fp32'
+};
+/**
+ * DINOv2 model dtype presets
+ * Image classification with attention
+ */
+const DINO_DTYPE_PRESETS = {
+    webgpu_fp16: 'fp16',
+    webgpu_no_fp16: 'fp32',
+    wasm: 'fp32',
+    default: 'fp32'
+};
+/**
+ * Cross-encoder/Reranker model dtype presets
+ * Text similarity and reranking
+ */
+const CROSS_ENCODER_DTYPE_PRESETS = {
+    webgpu_fp16: 'fp16',
+    webgpu_no_fp16: 'fp32',
+    wasm: 'fp32',
+    default: 'fp32'
+};
+/**
+ * Embedding model dtype presets
+ * Feature extraction
+ */
+const EMBEDDING_DTYPE_PRESETS = {
+    webgpu_fp16: 'fp16',
+    webgpu_no_fp16: 'fp32',
+    wasm: 'fp32',
+    default: 'fp32'
+};
+const MODEL_PATTERNS = [
+    // Speech models
+    { pattern: /whisper|moonshine/i, preset: WHISPER_DTYPE_PRESETS, description: 'Whisper/Moonshine ASR' },
+    // Vision models
+    { pattern: /florence-?2/i, preset: FLORENCE2_DTYPE_PRESETS, description: 'Florence2 vision' },
+    { pattern: /dino/i, preset: DINO_DTYPE_PRESETS, description: 'DINOv2 vision' },
+    // Multimodal models
+    { pattern: /janus/i, preset: JANUS_DTYPE_PRESETS, description: 'Janus multimodal' },
+    { pattern: /smolvlm/i, preset: SMOL_DTYPE_PRESETS, description: 'SmolVLM multimodal' },
+    // Text generation models
+    { pattern: /deepseek-?r1/i, preset: DEEPSEEK_R1_DTYPE_PRESETS, description: 'DeepSeek-R1 reasoning' },
+    { pattern: /llama|llama-?3/i, preset: LLAMA_DTYPE_PRESETS, description: 'Llama text generation' },
+    { pattern: /phi-?3/i, preset: PHI_DTYPE_PRESETS, description: 'Phi text generation' },
+    { pattern: /qwen/i, preset: QWEN_DTYPE_PRESETS, description: 'Qwen text generation' },
+    { pattern: /smollm/i, preset: SMOL_DTYPE_PRESETS, description: 'SmolLM text generation' },
+    { pattern: /gemma/i, preset: GEMMA_DTYPE_PRESETS, description: 'Gemma text generation' },
+    // Audio models
+    { pattern: /speecht5|tts/i, preset: SPEECHT5_DTYPE_PRESETS, description: 'SpeechT5 TTS' },
+    { pattern: /clap/i, preset: CLAP_DTYPE_PRESETS, description: 'CLAP audio-text' },
+    // Embedding and similarity models
+    { pattern: /clip/i, preset: CLIP_DTYPE_PRESETS, description: 'CLIP image-text' },
+    { pattern: /cross-encoder|rerank/i, preset: CROSS_ENCODER_DTYPE_PRESETS, description: 'Cross-encoder reranking' },
+    { pattern: /bge|gte|e5|sentence-transformers/i, preset: EMBEDDING_DTYPE_PRESETS, description: 'Embedding models' },
+];
+// =============================================================================
+// PRESET RESOLUTION LOGIC
+// =============================================================================
+class ModelPresets {
+    /**
+     * Get optimized dtype preset for a specific model
+     *
+     * @param modelId - HuggingFace model ID (e.g., 'openai/whisper-tiny')
+     * @param hasWebGPU - Whether WebGPU is available
+     * @param hasFP16 - Whether FP16 is supported
+     * @returns Optimized dtype configuration
+     */
+    static getDtypePreset(modelId, hasWebGPU = true, hasFP16 = true) {
+        // Match model against patterns
+        for (const { pattern, preset, description } of MODEL_PATTERNS) {
+            if (pattern.test(modelId)) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, `Matched "${modelId}" to ${description}`);
+                }
+                // Select appropriate preset based on device capabilities
+                if (hasWebGPU && hasFP16 && preset.webgpu_fp16) {
+                    return preset.webgpu_fp16;
+                }
+                else if (hasWebGPU && !hasFP16 && preset.webgpu_no_fp16) {
+                    return preset.webgpu_no_fp16;
+                }
+                else if (!hasWebGPU && preset.wasm) {
+                    return preset.wasm;
+                }
+                else {
+                    return preset.default ?? 'q4';
+                }
+            }
+        }
+        // No match - return generic optimized dtype
+        if (LOG_GENERAL) {
+            console.log(prefix, `No preset for "${modelId}", using generic`);
+        }
+        if (hasWebGPU && hasFP16)
+            return 'q4f16';
+        if (hasWebGPU && !hasFP16)
+            return 'q4';
+        return 'q8'; // WASM fallback
+    }
+    /**
+     * Get optimized device for a specific model
+     *
+     * @param modelId - HuggingFace model ID
+     * @param hasWebGPU - Whether WebGPU is available
+     * @returns Optimized device configuration
+     */
+    static getDevicePreset(modelId, hasWebGPU = true) {
+        // For now, simple logic: use WebGPU if available, otherwise WASM
+        // Can be extended with model-specific device preferences
+        return hasWebGPU ? 'webgpu' : 'wasm';
+    }
+    /**
+     * Check if a model has a specific preset
+     *
+     * @param modelId - HuggingFace model ID
+     * @returns true if model has a specific preset
+     */
+    static hasPreset(modelId) {
+        return MODEL_PATTERNS.some(({ pattern }) => pattern.test(modelId));
+    }
+    /**
+     * Get preset description for a model
+     *
+     * @param modelId - HuggingFace model ID
+     * @returns Description of the preset or null
+     */
+    static getPresetDescription(modelId) {
+        const match = MODEL_PATTERNS.find(({ pattern }) => pattern.test(modelId));
+        return match ? match.description : null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/MultimodalPipeline.ts":
+/*!*********************************************!*\
+  !*** ./src/Pipelines/MultimodalPipeline.ts ***!
+  \*********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MultimodalPipeline: () => (/* binding */ MultimodalPipeline)
+/* harmony export */ });
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+
+/**
+ * MultimodalPipeline.ts
+ *
+ * Generic pipeline for vision-language models.
+ * Uses low-level API with AutoProcessor + AutoModelForVision2Seq.
+ */
+const prefix = '[MultimodalPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * MultimodalPipeline - For vision-language models
+ * Handles image + text inputs
+ */
+class MultimodalPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_0__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Lazy load processor (handles images)
+        if (!this.processor) {
+            const { AutoProcessor } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [10, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            const { AutoModelForVision2Seq } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await AutoModelForVision2Seq.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 100])
+            });
+        }
+    }
+    isLoaded() {
+        return this.processor !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/PipelineConfigs.ts":
+/*!******************************************!*\
+  !*** ./src/Pipelines/PipelineConfigs.ts ***!
+  \******************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   BaseModelConfig: () => (/* binding */ BaseModelConfig),
+/* harmony export */   CodeCompletionConfig: () => (/* binding */ CodeCompletionConfig),
+/* harmony export */   DeviceCapabilities: () => (/* binding */ DeviceCapabilities),
+/* harmony export */   EmbeddingConfig: () => (/* binding */ EmbeddingConfig),
+/* harmony export */   Florence2Config: () => (/* binding */ Florence2Config),
+/* harmony export */   JanusConfig: () => (/* binding */ JanusConfig),
+/* harmony export */   MultimodalConfig: () => (/* binding */ MultimodalConfig),
+/* harmony export */   SpeechRecognitionConfig: () => (/* binding */ SpeechRecognitionConfig),
+/* harmony export */   TextGenerationConfig: () => (/* binding */ TextGenerationConfig),
+/* harmony export */   TokenizerConfig: () => (/* binding */ TokenizerConfig),
+/* harmony export */   TranslationConfig: () => (/* binding */ TranslationConfig),
+/* harmony export */   ZeroShotClassificationConfig: () => (/* binding */ ZeroShotClassificationConfig)
+/* harmony export */ });
+/**
+ * PipelineConfigs.ts
+ *
+ * All configuration classes for different pipeline types.
+ * Includes DeviceCapabilities utility for GPU detection.
+ */
+const prefix = '[PipelineConfigs]';
+const LOG_GENERAL = false;
+// =============================================================================
+// DEVICE CAPABILITIES
+// =============================================================================
+/**
+ * DeviceCapabilities - Utility class for GPU detection and capabilities
+ * Shared across all pipelines to avoid redundant checks
+ */
+class DeviceCapabilities {
+    /**
+     * Initialize and detect GPU capabilities
+     */
+    static async initialize() {
+        if (this._checkPromise) {
+            return this._checkPromise;
+        }
+        this._checkPromise = (async () => {
+            try {
+                const isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
+                if (!isNavigatorGpuAvailable) {
+                    this._hasWebGPU = false;
+                    this._hasFP16 = false;
+                    return;
+                }
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    this._hasWebGPU = false;
+                    this._hasFP16 = false;
+                    return;
+                }
+                this._hasWebGPU = true;
+                this._hasFP16 = adapter.features.has('shader-f16');
+                if (LOG_GENERAL) {
+                    console.log(prefix, `[DeviceCapabilities] WebGPU: ${this._hasWebGPU}, FP16: ${this._hasFP16}`);
+                }
+            }
+            catch (error) {
+                this._hasWebGPU = false;
+                this._hasFP16 = false;
+                if (LOG_GENERAL) {
+                    console.error(prefix, '[DeviceCapabilities] Detection failed:', error);
+                }
+            }
+        })();
+        return this._checkPromise;
+    }
+    /**
+     * Check if WebGPU is available
+     */
+    static async hasWebGPU() {
+        await this.initialize();
+        return this._hasWebGPU ?? false;
+    }
+    /**
+     * Check if FP16 is supported
+     */
+    static async hasFP16() {
+        await this.initialize();
+        return this._hasFP16 ?? false;
+    }
+    /**
+     * Get best available device
+     */
+    static async getBestDevice() {
+        const hasGPU = await this.hasWebGPU();
+        return hasGPU ? 'webgpu' : 'cpu';
+    }
+    /**
+     * Get recommended dtype based on device capabilities (generic)
+     * @deprecated Use getOptimizedDtype with modelId for model-specific optimization
+     */
+    static async getRecommendedDtype(preferredDtype) {
+        if (preferredDtype)
+            return preferredDtype;
+        const hasFP16 = await this.hasFP16();
+        return hasFP16 ? 'q4f16' : 'q4';
+    }
+    /**
+     * Get optimized dtype for a specific model
+     * Uses model-specific presets when available
+     *
+     * @param modelId - HuggingFace model ID (e.g., 'openai/whisper-tiny')
+     * @param preferredDtype - Override with specific dtype if provided
+     * @returns Optimized dtype configuration
+     */
+    static async getOptimizedDtype(modelId, preferredDtype) {
+        if (preferredDtype)
+            return preferredDtype;
+        const { ModelPresets } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./ModelPresets */ "./src/Pipelines/ModelPresets.ts"));
+        const hasGPU = await this.hasWebGPU();
+        const hasFP16Support = await this.hasFP16();
+        return ModelPresets.getDtypePreset(modelId, hasGPU, hasFP16Support);
+    }
+    /**
+     * Get optimized device for a specific model
+     *
+     * @param modelId - HuggingFace model ID
+     * @param preferredDevice - Override with specific device if provided
+     * @returns Optimized device configuration
+     */
+    static async getOptimizedDevice(modelId, preferredDevice) {
+        if (preferredDevice)
+            return preferredDevice;
+        const { ModelPresets } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./ModelPresets */ "./src/Pipelines/ModelPresets.ts"));
+        const hasGPU = await this.hasWebGPU();
+        return ModelPresets.getDevicePreset(modelId, hasGPU);
+    }
+    /**
+     * Reset cached values (for testing)
+     */
+    static reset() {
+        this._hasWebGPU = null;
+        this._hasFP16 = null;
+        this._checkPromise = null;
+    }
+}
+DeviceCapabilities._hasWebGPU = null;
+DeviceCapabilities._hasFP16 = null;
+DeviceCapabilities._checkPromise = null;
+// =============================================================================
+// BASE MODEL CONFIGURATION CLASS
+// =============================================================================
+class BaseModelConfig {
+    constructor(config) {
+        this.modelId = config.modelId;
+        this.pipelineType = config.pipelineType;
+        this.validate();
+    }
+    validate() {
+        if (!this.modelId || this.modelId.trim().length === 0) {
+            throw new Error('ModelConfig: modelId is required');
+        }
+    }
+}
+// =============================================================================
+// TEXT GENERATION CONFIG
+// =============================================================================
+class TextGenerationConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'text-generation';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+    }
+    /**
+     * Create config with auto-detected device and dtype
+     * Uses model-specific optimized presets
+     */
+    static async createWithAutoDetect(modelId, options) {
+        const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+        const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        return new TextGenerationConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'text-generation'
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType;
+    }
+    clone() {
+        return new TextGenerationConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType
+        };
+    }
+}
+// =============================================================================
+// EMBEDDING CONFIG
+// =============================================================================
+class EmbeddingConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'feature-extraction';
+        this.dtype = config.dtype;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new EmbeddingConfig({
+            modelId,
+            dtype,
+            pipelineType: 'feature-extraction'
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType;
+    }
+    clone() {
+        return new EmbeddingConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        };
+    }
+}
+// =============================================================================
+// TRANSLATION CONFIG
+// =============================================================================
+class TranslationConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'translation';
+        this.dtype = config.dtype;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new TranslationConfig({
+            modelId,
+            dtype,
+            pipelineType: 'translation'
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType;
+    }
+    clone() {
+        return new TranslationConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        };
+    }
+}
+// =============================================================================
+// ZERO-SHOT CLASSIFICATION CONFIG
+// =============================================================================
+class ZeroShotClassificationConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'zero-shot-classification';
+        this.dtype = config.dtype;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const dtype = options?.dtype ?? await DeviceCapabilities.getRecommendedDtype();
+        return new ZeroShotClassificationConfig({
+            modelId,
+            dtype,
+            pipelineType: 'zero-shot-classification'
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType;
+    }
+    clone() {
+        return new ZeroShotClassificationConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        };
+    }
+}
+// =============================================================================
+// MULTIMODAL CONFIG
+// =============================================================================
+class MultimodalConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.pipelineType = config.pipelineType;
+        this.imageOptions = config.imageOptions;
+    }
+    static async createWithAutoDetect(modelId, pipelineType, options) {
+        const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+        const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        return new MultimodalConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType,
+            imageOptions: options?.imageOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.imageOptions) === JSON.stringify(other.imageOptions);
+    }
+    clone() {
+        return new MultimodalConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            imageOptions: this.imageOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            imageOptions: this.imageOptions
+        };
+    }
+}
+// =============================================================================
+// FLORENCE2 CONFIG
+// =============================================================================
+class Florence2Config extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'image-to-text';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.visionOptions = config.visionOptions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+        const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        return new Florence2Config({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'image-to-text',
+            visionOptions: options?.visionOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.visionOptions) === JSON.stringify(other.visionOptions);
+    }
+    clone() {
+        return new Florence2Config({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            visionOptions: this.visionOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            visionOptions: this.visionOptions
+        };
+    }
+}
+// =============================================================================
+// JANUS CONFIG
+// =============================================================================
+class JanusConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'visual-language';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.multimodalOptions = config.multimodalOptions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+        const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        return new JanusConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'visual-language',
+            multimodalOptions: options?.multimodalOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.multimodalOptions) === JSON.stringify(other.multimodalOptions);
+    }
+    clone() {
+        return new JanusConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            multimodalOptions: this.multimodalOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            multimodalOptions: this.multimodalOptions
+        };
+    }
+}
+// =============================================================================
+// SPEECH RECOGNITION CONFIG (WHISPER)
+// =============================================================================
+class SpeechRecognitionConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'automatic-speech-recognition';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.audioOptions = config.audioOptions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+        const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        return new SpeechRecognitionConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'automatic-speech-recognition',
+            audioOptions: options?.audioOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.audioOptions) === JSON.stringify(other.audioOptions);
+    }
+    clone() {
+        return new SpeechRecognitionConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            audioOptions: this.audioOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            audioOptions: this.audioOptions
+        };
+    }
+}
+// =============================================================================
+// CODE COMPLETION CONFIG
+// =============================================================================
+class CodeCompletionConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'text-generation';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.codeOptions = config.codeOptions;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
+        const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        return new CodeCompletionConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'text-generation',
+            codeOptions: options?.codeOptions
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            JSON.stringify(this.codeOptions) === JSON.stringify(other.codeOptions);
+    }
+    clone() {
+        return new CodeCompletionConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            codeOptions: this.codeOptions
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            codeOptions: this.codeOptions
+        };
+    }
+}
+// =============================================================================
+// TOKENIZER CONFIG (tokenizer playground - no model loading)
+// =============================================================================
+class TokenizerConfig extends BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'token-classification';
+        this.dtype = config.dtype;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const dtype = options?.dtype ?? 'fp32';
+        return new TokenizerConfig({
+            modelId,
+            dtype,
+            pipelineType: 'token-classification'
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            this.dtype === other.dtype &&
+            this.pipelineType === other.pipelineType;
+    }
+    clone() {
+        return new TokenizerConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            pipelineType: this.pipelineType
+        };
+    }
+}
+
+
+/***/ }),
+
 /***/ "./src/Pipelines/PipelineDBHandler.ts":
 /*!********************************************!*\
   !*** ./src/Pipelines/PipelineDBHandler.ts ***!
@@ -10147,6 +12294,189 @@ class PipelineDBHandler {
 
 /***/ }),
 
+/***/ "./src/Pipelines/PipelineFactory.ts":
+/*!******************************************!*\
+  !*** ./src/Pipelines/PipelineFactory.ts ***!
+  \******************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   PipelineFactory: () => (/* binding */ PipelineFactory)
+/* harmony export */ });
+/* harmony import */ var _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./PipelineTypes */ "./src/Pipelines/PipelineTypes.ts");
+/* harmony import */ var _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./TextGenerationPipeline */ "./src/Pipelines/TextGenerationPipeline.ts");
+/* harmony import */ var _EmbeddingPipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./EmbeddingPipeline */ "./src/Pipelines/EmbeddingPipeline.ts");
+/* harmony import */ var _TranslationPipeline__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./TranslationPipeline */ "./src/Pipelines/TranslationPipeline.ts");
+/* harmony import */ var _ZeroShotClassificationPipeline__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./ZeroShotClassificationPipeline */ "./src/Pipelines/ZeroShotClassificationPipeline.ts");
+/* harmony import */ var _WhisperPipeline__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./WhisperPipeline */ "./src/Pipelines/WhisperPipeline.ts");
+/* harmony import */ var _Florence2Pipeline__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Florence2Pipeline */ "./src/Pipelines/Florence2Pipeline.ts");
+/* harmony import */ var _JanusPipeline__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./JanusPipeline */ "./src/Pipelines/JanusPipeline.ts");
+/* harmony import */ var _MultimodalPipeline__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./MultimodalPipeline */ "./src/Pipelines/MultimodalPipeline.ts");
+/* harmony import */ var _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./ImageClassificationPipeline */ "./src/Pipelines/ImageClassificationPipeline.ts");
+/* harmony import */ var _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./CrossEncoderPipeline */ "./src/Pipelines/CrossEncoderPipeline.ts");
+/* harmony import */ var _ClapPipeline__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./ClapPipeline */ "./src/Pipelines/ClapPipeline.ts");
+/* harmony import */ var _ClipPipeline__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./ClipPipeline */ "./src/Pipelines/ClipPipeline.ts");
+/* harmony import */ var _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./TextToSpeechPipeline */ "./src/Pipelines/TextToSpeechPipeline.ts");
+/* harmony import */ var _CodeCompletionPipeline__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./CodeCompletionPipeline */ "./src/Pipelines/CodeCompletionPipeline.ts");
+/* harmony import */ var _TokenizerPipeline__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./TokenizerPipeline */ "./src/Pipelines/TokenizerPipeline.ts");
+/// <reference lib="dom" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * PipelineFactory.ts
+ *
+ * Factory pattern for creating appropriate pipeline instances.
+ * Supports both task-based and model-specific routing.
+ */
+const prefix = '[PipelineFactory]';
+const LOG_GENERAL = false;
+/**
+ * PipelineFactory - Factory pattern for creating appropriate pipeline instances
+ * Pure factory with no dependencies on DB or external services
+ */
+class PipelineFactory {
+    /**
+     * Create appropriate pipeline based on task type and optional modelId
+     * Supports model-specific routing for specialized pipelines
+     * Defaults to TextGenerationPipeline if task is unknown or not provided
+     *
+     * @param task - Pipeline task type (e.g., 'text-generation', 'feature-extraction')
+     * @param modelId - Optional model ID for specialized routing (e.g., 'Florence-2', 'Janus')
+     * @returns Concrete pipeline instance
+     */
+    static createPipeline(task, modelId) {
+        // Default to text generation if no task specified
+        const pipelineTask = task || _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.TEXT_GENERATION;
+        if (LOG_GENERAL) {
+            console.log(prefix, `Creating pipeline for task: ${pipelineTask}, modelId: ${modelId || 'none'}`);
+        }
+        // Model-specific routing for specialized models
+        if (modelId) {
+            const lowerModelId = modelId.toLowerCase();
+            // Florence2 detection
+            if (lowerModelId.includes('florence') || lowerModelId.includes('florence-2')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected Florence2 model, using Florence2Pipeline');
+                }
+                return new _Florence2Pipeline__WEBPACK_IMPORTED_MODULE_6__.Florence2Pipeline();
+            }
+            // Janus detection
+            if (lowerModelId.includes('janus')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected Janus model, using JanusPipeline');
+                }
+                return new _JanusPipeline__WEBPACK_IMPORTED_MODULE_7__.JanusPipeline();
+            }
+            // Whisper detection
+            if (lowerModelId.includes('whisper') || lowerModelId.includes('moonshine')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected Whisper-like model, using WhisperPipeline');
+                }
+                return new _WhisperPipeline__WEBPACK_IMPORTED_MODULE_5__.WhisperPipeline();
+            }
+            // CLIP detection (semantic image search)
+            if (lowerModelId.includes('clip')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected CLIP model, using ClipPipeline');
+                }
+                return new _ClipPipeline__WEBPACK_IMPORTED_MODULE_12__.ClipPipeline();
+            }
+            // CLAP detection (semantic audio search)
+            if (lowerModelId.includes('clap')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected CLAP model, using ClapPipeline');
+                }
+                return new _ClapPipeline__WEBPACK_IMPORTED_MODULE_11__.ClapPipeline();
+            }
+            // Cross-encoder detection (reranking)
+            if (lowerModelId.includes('rerank') || lowerModelId.includes('cross-encoder')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected cross-encoder model, using CrossEncoderPipeline');
+                }
+                return new _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_10__.CrossEncoderPipeline();
+            }
+            // DINOv2 / Attention visualization detection
+            if (lowerModelId.includes('dino') || lowerModelId.includes('with-attentions')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected image classification model with attentions, using ImageClassificationPipeline');
+                }
+                return new _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_9__.ImageClassificationPipeline();
+            }
+            // SpeechT5 detection (text-to-speech)
+            if (lowerModelId.includes('speecht5') || lowerModelId.includes('tts')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected text-to-speech model, using TextToSpeechPipeline');
+                }
+                return new _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_13__.TextToSpeechPipeline();
+            }
+            // Code completion models detection
+            if (lowerModelId.includes('code') || lowerModelId.includes('codellama') || lowerModelId.includes('starcoder')) {
+                if (LOG_GENERAL) {
+                    console.log(prefix, 'Detected code completion model, using CodeCompletionPipeline');
+                }
+                return new _CodeCompletionPipeline__WEBPACK_IMPORTED_MODULE_14__.CodeCompletionPipeline();
+            }
+        }
+        // Task-based routing (standard pipeline selection)
+        switch (pipelineTask) {
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.TEXT_GENERATION:
+                return new _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_1__.TextGenerationPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.FEATURE_EXTRACTION:
+                return new _EmbeddingPipeline__WEBPACK_IMPORTED_MODULE_2__.EmbeddingPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.TRANSLATION:
+                return new _TranslationPipeline__WEBPACK_IMPORTED_MODULE_3__.TranslationPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.ZERO_SHOT_CLASSIFICATION:
+                return new _ZeroShotClassificationPipeline__WEBPACK_IMPORTED_MODULE_4__.ZeroShotClassificationPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.IMAGE_TO_TEXT:
+                // Default to generic MultimodalPipeline for image-to-text
+                // (Florence2 is handled above via model-specific routing)
+                return new _MultimodalPipeline__WEBPACK_IMPORTED_MODULE_8__.MultimodalPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.VISUAL_LANGUAGE:
+                // Default to generic MultimodalPipeline for visual-language
+                // (Janus is handled above via model-specific routing)
+                return new _MultimodalPipeline__WEBPACK_IMPORTED_MODULE_8__.MultimodalPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.AUTOMATIC_SPEECH_RECOGNITION:
+                return new _WhisperPipeline__WEBPACK_IMPORTED_MODULE_5__.WhisperPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.IMAGE_CLASSIFICATION:
+                return new _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_9__.ImageClassificationPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.TEXT_CLASSIFICATION:
+                // Check if it's a cross-encoder based on modelId
+                if (modelId && (modelId.toLowerCase().includes('rerank') || modelId.toLowerCase().includes('cross-encoder'))) {
+                    return new _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_10__.CrossEncoderPipeline();
+                }
+                // Default text classification pipeline (can use high-level API if needed)
+                return new _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_10__.CrossEncoderPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.TEXT_TO_SPEECH:
+                return new _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_13__.TextToSpeechPipeline();
+            case _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum.TOKEN_CLASSIFICATION:
+                return new _TokenizerPipeline__WEBPACK_IMPORTED_MODULE_15__.TokenizerPipeline();
+            default:
+                // Fallback to text generation for unknown tasks
+                console.warn(prefix, `Unknown task "${pipelineTask}", defaulting to text-generation`);
+                return new _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_1__.TextGenerationPipeline();
+        }
+    }
+}
+
+
+/***/ }),
+
 /***/ "./src/Pipelines/PipelineHelpers.ts":
 /*!******************************************!*\
   !*** ./src/Pipelines/PipelineHelpers.ts ***!
@@ -10508,6 +12838,821 @@ PipelineStateManager.state = {};
 
 /***/ }),
 
+/***/ "./src/Pipelines/PipelineTypes.ts":
+/*!****************************************!*\
+  !*** ./src/Pipelines/PipelineTypes.ts ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   PipelineTypeEnum: () => (/* binding */ PipelineTypeEnum)
+/* harmony export */ });
+// Enum for type-safe pipeline selection
+var PipelineTypeEnum;
+(function (PipelineTypeEnum) {
+    PipelineTypeEnum["TEXT_GENERATION"] = "text-generation";
+    PipelineTypeEnum["TEXT_CLASSIFICATION"] = "text-classification";
+    PipelineTypeEnum["TOKEN_CLASSIFICATION"] = "token-classification";
+    PipelineTypeEnum["QUESTION_ANSWERING"] = "question-answering";
+    PipelineTypeEnum["FILL_MASK"] = "fill-mask";
+    PipelineTypeEnum["SUMMARIZATION"] = "summarization";
+    PipelineTypeEnum["TRANSLATION"] = "translation";
+    PipelineTypeEnum["TEXT2TEXT_GENERATION"] = "text2text-generation";
+    PipelineTypeEnum["FEATURE_EXTRACTION"] = "feature-extraction";
+    PipelineTypeEnum["IMAGE_CLASSIFICATION"] = "image-classification";
+    PipelineTypeEnum["ZERO_SHOT_CLASSIFICATION"] = "zero-shot-classification";
+    PipelineTypeEnum["AUTOMATIC_SPEECH_RECOGNITION"] = "automatic-speech-recognition";
+    PipelineTypeEnum["IMAGE_TO_TEXT"] = "image-to-text";
+    PipelineTypeEnum["OBJECT_DETECTION"] = "object-detection";
+    PipelineTypeEnum["ZERO_SHOT_OBJECT_DETECTION"] = "zero-shot-object-detection";
+    PipelineTypeEnum["DOCUMENT_QUESTION_ANSWERING"] = "document-question-answering";
+    PipelineTypeEnum["IMAGE_SEGMENTATION"] = "image-segmentation";
+    PipelineTypeEnum["DEPTH_ESTIMATION"] = "depth-estimation";
+    PipelineTypeEnum["VISUAL_LANGUAGE"] = "visual-language";
+    PipelineTypeEnum["TEXT_TO_SPEECH"] = "text-to-speech";
+})(PipelineTypeEnum || (PipelineTypeEnum = {}));
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/TextGenerationPipeline.ts":
+/*!*************************************************!*\
+  !*** ./src/Pipelines/TextGenerationPipeline.ts ***!
+  \*************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   TextGenerationPipeline: () => (/* binding */ TextGenerationPipeline)
+/* harmony export */ });
+/* harmony import */ var _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * TextGenerationPipeline.ts
+ *
+ * Pipeline for causal language models (text generation).
+ * Uses low-level API for maximum control and streaming support.
+ */
+const prefix = '[TextGenerationPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * TextGenerationPipeline - For causal language models
+ * Follows transformers.js example pattern with proper OOP structure
+ */
+class TextGenerationPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    /**
+     * Load the text generation model and tokenizer
+     * If config matches current loaded model, skips reload
+     * If config differs, resets and loads new model
+     */
+    async load(config, progressCallback, loadId) {
+        // Check if we need to reload (config changed)
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            // Reset existing instances if config changed
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            // Store new config
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.INITIATE,
+            file: config.dtype.toString(),
+            progress: 0,
+            loadId,
+            message: 'Starting model load...'
+        });
+        // Lazy load tokenizer (only if not already loaded)
+        if (!this.tokenizer) {
+            // Send tokenizer loading start
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer from cache...'
+            });
+            this.tokenizer = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 40])
+            });
+        }
+        // Lazy load model (only if not already loaded)
+        if (!this.model) {
+            // Send model loading start
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 30,
+                loadId,
+                message: 'Loading model from cache...'
+            });
+            this.model = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoModelForCausalLM.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [40, 90])
+            });
+        }
+        // Send processing message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.PROGRESS,
+            file: 'model',
+            progress: 90,
+            loadId,
+            message: 'Initializing model...'
+        });
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Model ready for inference!'
+        });
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/TextToSpeechPipeline.ts":
+/*!***********************************************!*\
+  !*** ./src/Pipelines/TextToSpeechPipeline.ts ***!
+  \***********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   TextToSpeechConfig: () => (/* binding */ TextToSpeechConfig),
+/* harmony export */   TextToSpeechPipeline: () => (/* binding */ TextToSpeechPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * TextToSpeechPipeline.ts
+ *
+ * Pipeline for text-to-speech synthesis (SpeechT5 models).
+ * Uses low-level API with AutoTokenizer + SpeechT5ForTextToSpeech + SpeechT5HifiGan.
+ */
+const prefix = '[TextToSpeechPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+// TextToSpeech Config Class
+class TextToSpeechConfig extends _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.BaseModelConfig {
+    constructor(config) {
+        super(config);
+        this.pipelineType = 'text-to-speech';
+        this.dtype = config.dtype;
+        this.device = config.device;
+        this.useExternalData = config.useExternalData;
+        this.vocoderId = config.vocoderId;
+        this.speakerEmbeddingsUrl = config.speakerEmbeddingsUrl;
+    }
+    static async createWithAutoDetect(modelId, options) {
+        const { DeviceCapabilities } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts"));
+        const device = options?.device ?? await DeviceCapabilities.getBestDevice();
+        // TTS typically uses fp32 for quality
+        const dtype = options?.dtype ?? 'fp32';
+        return new TextToSpeechConfig({
+            modelId,
+            dtype,
+            device,
+            useExternalData: options?.useExternalData ?? false,
+            pipelineType: 'text-to-speech',
+            vocoderId: options?.vocoderId,
+            speakerEmbeddingsUrl: options?.speakerEmbeddingsUrl
+        });
+    }
+    equals(other) {
+        if (other === null)
+            return false;
+        return this.modelId === other.modelId &&
+            JSON.stringify(this.dtype) === JSON.stringify(other.dtype) &&
+            JSON.stringify(this.device) === JSON.stringify(other.device) &&
+            this.useExternalData === other.useExternalData &&
+            this.pipelineType === other.pipelineType &&
+            this.vocoderId === other.vocoderId &&
+            this.speakerEmbeddingsUrl === other.speakerEmbeddingsUrl;
+    }
+    clone() {
+        return new TextToSpeechConfig({
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            vocoderId: this.vocoderId,
+            speakerEmbeddingsUrl: this.speakerEmbeddingsUrl
+        });
+    }
+    toObject() {
+        return {
+            modelId: this.modelId,
+            dtype: this.dtype,
+            device: this.device,
+            useExternalData: this.useExternalData,
+            pipelineType: this.pipelineType,
+            vocoderId: this.vocoderId,
+            speakerEmbeddingsUrl: this.speakerEmbeddingsUrl
+        };
+    }
+}
+/**
+ * TextToSpeechPipeline - For text-to-speech synthesis
+ * Uses low-level API with AutoTokenizer + SpeechT5ForTextToSpeech + SpeechT5HifiGan vocoder
+ */
+class TextToSpeechPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    constructor() {
+        super(...arguments);
+        this.vocoder = null;
+    }
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: JSON.stringify(config.dtype),
+            progress: 0,
+            loadId,
+            message: 'Starting text-to-speech model load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            const { AutoTokenizer } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 30])
+            });
+        }
+        // Lazy load TTS model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 30,
+                loadId,
+                message: 'Loading TTS model...'
+            });
+            const { SpeechT5ForTextToSpeech } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await SpeechT5ForTextToSpeech.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [30, 70])
+            });
+        }
+        // Lazy load vocoder (HiFi-GAN)
+        if (!this.vocoder) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'vocoder',
+                progress: 70,
+                loadId,
+                message: 'Loading vocoder...'
+            });
+            const vocoderId = config.vocoderId || 'Xenova/speecht5_hifigan';
+            const { SpeechT5HifiGan } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.vocoder = await SpeechT5HifiGan.from_pretrained(vocoderId, {
+                dtype: 'fp32', // Vocoder needs fp32 for quality
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'vocoder', [70, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Text-to-speech model ready!'
+        });
+    }
+    /**
+     * Get vocoder instance
+     */
+    getVocoder() {
+        return this.vocoder;
+    }
+    reset() {
+        super.reset();
+        this.vocoder = null;
+    }
+    isLoaded() {
+        return this.tokenizer !== null && this.model !== null && this.vocoder !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/TokenizerPipeline.ts":
+/*!********************************************!*\
+  !*** ./src/Pipelines/TokenizerPipeline.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   TokenizerPipeline: () => (/* binding */ TokenizerPipeline)
+/* harmony export */ });
+/* harmony import */ var _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+
+/**
+ * TokenizerPipeline.ts
+ *
+ * Pipeline for tokenization-only tasks (tokenizer playground).
+ * Uses AutoTokenizer for tokenization operations without loading a full model.
+ */
+const prefix = '[TokenizerPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * TokenizerPipeline - For tokenization-only tasks
+ * Uses AutoTokenizer for tokenization operations
+ */
+class TokenizerPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading tokenizer:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.INITIATE,
+            file: config.dtype,
+            progress: 0,
+            loadId,
+            message: 'Starting tokenizer load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            this.tokenizer = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.LoadingStatusTypes.DONE,
+            file: 'tokenizer',
+            progress: 100,
+            loadId,
+            message: 'Tokenizer ready!'
+        });
+    }
+    /**
+     * Tokenize text without loading a full model
+     */
+    async tokenize(text) {
+        if (!this.tokenizer) {
+            throw new Error('Tokenizer not loaded. Call load() first.');
+        }
+        return await this.tokenizer(text);
+    }
+    /**
+     * Decode token IDs back to text
+     */
+    async decode(tokenIds, options) {
+        if (!this.tokenizer) {
+            throw new Error('Tokenizer not loaded. Call load() first.');
+        }
+        return await this.tokenizer.decode(tokenIds, options);
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/TranslationPipeline.ts":
+/*!**********************************************!*\
+  !*** ./src/Pipelines/TranslationPipeline.ts ***!
+  \**********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   TranslationPipeline: () => (/* binding */ TranslationPipeline)
+/* harmony export */ });
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+
+/**
+ * TranslationPipeline.ts
+ *
+ * Pipeline for translation tasks.
+ * Uses high-level pipeline() API for simplicity.
+ */
+const prefix = '[TranslationPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * TranslationPipeline - For translation tasks
+ * Uses high-level pipeline API for simplicity
+ */
+class TranslationPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_0__.BasePipeline {
+    constructor() {
+        super(...arguments);
+        this.pipelineInstance = null;
+    }
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Lazy load using high-level pipeline API
+        if (!this.pipelineInstance) {
+            const { pipeline } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.pipelineInstance = await pipeline('translation', config.modelId, {
+                dtype: config.dtype,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'translation', [0, 100])
+            });
+            // Store for compatibility
+            this.model = this.pipelineInstance;
+            this.tokenizer = this.pipelineInstance.tokenizer;
+        }
+    }
+    /**
+     * Get the pipeline instance for calling
+     */
+    getPipeline() {
+        return this.pipelineInstance;
+    }
+    reset() {
+        super.reset();
+        this.pipelineInstance = null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/WhisperPipeline.ts":
+/*!******************************************!*\
+  !*** ./src/Pipelines/WhisperPipeline.ts ***!
+  \******************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   WhisperPipeline: () => (/* binding */ WhisperPipeline)
+/* harmony export */ });
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/// <reference lib="dom" />
+
+
+/**
+ * WhisperPipeline.ts
+ *
+ * Pipeline for automatic speech recognition (Whisper models).
+ * Uses low-level API with AutoTokenizer + AutoProcessor + WhisperForConditionalGeneration.
+ */
+const prefix = '[WhisperPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * WhisperPipeline - For automatic speech recognition
+ * Uses low-level API with AutoTokenizer + AutoProcessor + WhisperForConditionalGeneration
+ */
+class WhisperPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_1__.BasePipeline {
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Send initiate progress
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE,
+            file: JSON.stringify(config.dtype),
+            progress: 0,
+            loadId,
+            message: 'Starting Whisper model load...'
+        });
+        // Lazy load tokenizer
+        if (!this.tokenizer) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'tokenizer',
+                progress: 10,
+                loadId,
+                message: 'Loading tokenizer...'
+            });
+            const { AutoTokenizer } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.tokenizer = await AutoTokenizer.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'tokenizer', [10, 30])
+            });
+        }
+        // Lazy load processor
+        if (!this.processor) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'processor',
+                progress: 30,
+                loadId,
+                message: 'Loading processor...'
+            });
+            const { AutoProcessor } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.processor = await AutoProcessor.from_pretrained(config.modelId, {
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'processor', [30, 50])
+            });
+        }
+        // Lazy load model
+        if (!this.model) {
+            progressCallback?.({
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS,
+                file: 'model',
+                progress: 50,
+                loadId,
+                message: 'Loading Whisper model...'
+            });
+            const { WhisperForConditionalGeneration } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.model = await WhisperForConditionalGeneration.from_pretrained(config.modelId, {
+                dtype: config.dtype,
+                device: config.device,
+                use_external_data_format: config.useExternalData,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [50, 95])
+            });
+        }
+        // Send completion message
+        progressCallback?.({
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE,
+            file: 'model',
+            progress: 100,
+            loadId,
+            message: 'Whisper model ready!'
+        });
+    }
+    isLoaded() {
+        return this.tokenizer !== null && this.processor !== null && this.model !== null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/ZeroShotClassificationPipeline.ts":
+/*!*********************************************************!*\
+  !*** ./src/Pipelines/ZeroShotClassificationPipeline.ts ***!
+  \*********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   ZeroShotClassificationPipeline: () => (/* binding */ ZeroShotClassificationPipeline)
+/* harmony export */ });
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+
+/**
+ * ZeroShotClassificationPipeline.ts
+ *
+ * Pipeline for zero-shot classification tasks.
+ * Uses high-level pipeline() API for simplicity.
+ */
+const prefix = '[ZeroShotClassificationPipeline]';
+const LOG_CONFIG_CHANGE = false;
+const LOG_LOADING = false;
+/**
+ * ZeroShotClassificationPipeline - For zero-shot classification tasks
+ * Uses high-level pipeline API for simplicity
+ */
+class ZeroShotClassificationPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_0__.BasePipeline {
+    constructor() {
+        super(...arguments);
+        this.pipelineInstance = null;
+    }
+    async load(config, progressCallback, loadId) {
+        const needsReload = this.needsReload(config);
+        if (needsReload) {
+            if (this.currentConfig !== null) {
+                if (LOG_CONFIG_CHANGE) {
+                    console.log(prefix, 'Config changed, resetting pipeline');
+                }
+                this.reset();
+            }
+            this.currentConfig = config;
+            if (LOG_LOADING) {
+                console.log(prefix, 'Loading model:', config.toObject());
+            }
+        }
+        // Lazy load using high-level pipeline API
+        if (!this.pipelineInstance) {
+            const { pipeline } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! @huggingface/transformers */ "./node_modules/@huggingface/transformers/dist/transformers.web.min.js"));
+            this.pipelineInstance = await pipeline('zero-shot-classification', config.modelId, {
+                dtype: config.dtype,
+                progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'zero-shot-classification', [0, 100])
+            });
+            // Store for compatibility
+            this.model = this.pipelineInstance;
+            this.tokenizer = this.pipelineInstance.tokenizer;
+        }
+    }
+    /**
+     * Get the pipeline instance for calling
+     */
+    getPipeline() {
+        return this.pipelineInstance;
+    }
+    reset() {
+        super.reset();
+        this.pipelineInstance = null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Pipelines/index.ts":
+/*!********************************!*\
+  !*** ./src/Pipelines/index.ts ***!
+  \********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   BaseModelConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.BaseModelConfig),
+/* harmony export */   BasePipeline: () => (/* reexport safe */ _BasePipeline__WEBPACK_IMPORTED_MODULE_3__.BasePipeline),
+/* harmony export */   ClapConfig: () => (/* reexport safe */ _ClapPipeline__WEBPACK_IMPORTED_MODULE_14__.ClapConfig),
+/* harmony export */   ClapPipeline: () => (/* reexport safe */ _ClapPipeline__WEBPACK_IMPORTED_MODULE_14__.ClapPipeline),
+/* harmony export */   ClipConfig: () => (/* reexport safe */ _ClipPipeline__WEBPACK_IMPORTED_MODULE_15__.ClipConfig),
+/* harmony export */   ClipPipeline: () => (/* reexport safe */ _ClipPipeline__WEBPACK_IMPORTED_MODULE_15__.ClipPipeline),
+/* harmony export */   CodeCompletionConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.CodeCompletionConfig),
+/* harmony export */   CodeCompletionPipeline: () => (/* reexport safe */ _CodeCompletionPipeline__WEBPACK_IMPORTED_MODULE_17__.CodeCompletionPipeline),
+/* harmony export */   CrossEncoderConfig: () => (/* reexport safe */ _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_13__.CrossEncoderConfig),
+/* harmony export */   CrossEncoderPipeline: () => (/* reexport safe */ _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_13__.CrossEncoderPipeline),
+/* harmony export */   DeviceCapabilities: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.DeviceCapabilities),
+/* harmony export */   EmbeddingConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.EmbeddingConfig),
+/* harmony export */   EmbeddingPipeline: () => (/* reexport safe */ _EmbeddingPipeline__WEBPACK_IMPORTED_MODULE_5__.EmbeddingPipeline),
+/* harmony export */   Florence2Config: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.Florence2Config),
+/* harmony export */   Florence2Pipeline: () => (/* reexport safe */ _Florence2Pipeline__WEBPACK_IMPORTED_MODULE_9__.Florence2Pipeline),
+/* harmony export */   ImageClassificationConfig: () => (/* reexport safe */ _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_12__.ImageClassificationConfig),
+/* harmony export */   ImageClassificationPipeline: () => (/* reexport safe */ _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_12__.ImageClassificationPipeline),
+/* harmony export */   JanusConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.JanusConfig),
+/* harmony export */   JanusPipeline: () => (/* reexport safe */ _JanusPipeline__WEBPACK_IMPORTED_MODULE_10__.JanusPipeline),
+/* harmony export */   ModelPresets: () => (/* reexport safe */ _ModelPresets__WEBPACK_IMPORTED_MODULE_2__.ModelPresets),
+/* harmony export */   MultimodalConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.MultimodalConfig),
+/* harmony export */   MultimodalPipeline: () => (/* reexport safe */ _MultimodalPipeline__WEBPACK_IMPORTED_MODULE_11__.MultimodalPipeline),
+/* harmony export */   PipelineDBHandler: () => (/* reexport safe */ _PipelineDBHandler__WEBPACK_IMPORTED_MODULE_22__.PipelineDBHandler),
+/* harmony export */   PipelineFactory: () => (/* reexport safe */ _PipelineFactory__WEBPACK_IMPORTED_MODULE_19__.PipelineFactory),
+/* harmony export */   PipelineHelpers: () => (/* reexport safe */ _PipelineHelpers__WEBPACK_IMPORTED_MODULE_20__.PipelineHelpers),
+/* harmony export */   PipelineStateManager: () => (/* reexport safe */ _PipelineStateManager__WEBPACK_IMPORTED_MODULE_21__.PipelineStateManager),
+/* harmony export */   PipelineTypeEnum: () => (/* reexport safe */ _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__.PipelineTypeEnum),
+/* harmony export */   SpeechRecognitionConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.SpeechRecognitionConfig),
+/* harmony export */   TextGenerationConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.TextGenerationConfig),
+/* harmony export */   TextGenerationPipeline: () => (/* reexport safe */ _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_4__.TextGenerationPipeline),
+/* harmony export */   TextToSpeechConfig: () => (/* reexport safe */ _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_16__.TextToSpeechConfig),
+/* harmony export */   TextToSpeechPipeline: () => (/* reexport safe */ _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_16__.TextToSpeechPipeline),
+/* harmony export */   TokenizerConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.TokenizerConfig),
+/* harmony export */   TokenizerPipeline: () => (/* reexport safe */ _TokenizerPipeline__WEBPACK_IMPORTED_MODULE_18__.TokenizerPipeline),
+/* harmony export */   TranslationConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.TranslationConfig),
+/* harmony export */   TranslationPipeline: () => (/* reexport safe */ _TranslationPipeline__WEBPACK_IMPORTED_MODULE_6__.TranslationPipeline),
+/* harmony export */   WhisperPipeline: () => (/* reexport safe */ _WhisperPipeline__WEBPACK_IMPORTED_MODULE_8__.WhisperPipeline),
+/* harmony export */   ZeroShotClassificationConfig: () => (/* reexport safe */ _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__.ZeroShotClassificationConfig),
+/* harmony export */   ZeroShotClassificationPipeline: () => (/* reexport safe */ _ZeroShotClassificationPipeline__WEBPACK_IMPORTED_MODULE_7__.ZeroShotClassificationPipeline)
+/* harmony export */ });
+/* harmony import */ var _PipelineTypes__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./PipelineTypes */ "./src/Pipelines/PipelineTypes.ts");
+/* harmony import */ var _PipelineConfigs__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./PipelineConfigs */ "./src/Pipelines/PipelineConfigs.ts");
+/* harmony import */ var _ModelPresets__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./ModelPresets */ "./src/Pipelines/ModelPresets.ts");
+/* harmony import */ var _BasePipeline__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./BasePipeline */ "./src/Pipelines/BasePipeline.ts");
+/* harmony import */ var _TextGenerationPipeline__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./TextGenerationPipeline */ "./src/Pipelines/TextGenerationPipeline.ts");
+/* harmony import */ var _EmbeddingPipeline__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./EmbeddingPipeline */ "./src/Pipelines/EmbeddingPipeline.ts");
+/* harmony import */ var _TranslationPipeline__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./TranslationPipeline */ "./src/Pipelines/TranslationPipeline.ts");
+/* harmony import */ var _ZeroShotClassificationPipeline__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./ZeroShotClassificationPipeline */ "./src/Pipelines/ZeroShotClassificationPipeline.ts");
+/* harmony import */ var _WhisperPipeline__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./WhisperPipeline */ "./src/Pipelines/WhisperPipeline.ts");
+/* harmony import */ var _Florence2Pipeline__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./Florence2Pipeline */ "./src/Pipelines/Florence2Pipeline.ts");
+/* harmony import */ var _JanusPipeline__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./JanusPipeline */ "./src/Pipelines/JanusPipeline.ts");
+/* harmony import */ var _MultimodalPipeline__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./MultimodalPipeline */ "./src/Pipelines/MultimodalPipeline.ts");
+/* harmony import */ var _ImageClassificationPipeline__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./ImageClassificationPipeline */ "./src/Pipelines/ImageClassificationPipeline.ts");
+/* harmony import */ var _CrossEncoderPipeline__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./CrossEncoderPipeline */ "./src/Pipelines/CrossEncoderPipeline.ts");
+/* harmony import */ var _ClapPipeline__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./ClapPipeline */ "./src/Pipelines/ClapPipeline.ts");
+/* harmony import */ var _ClipPipeline__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./ClipPipeline */ "./src/Pipelines/ClipPipeline.ts");
+/* harmony import */ var _TextToSpeechPipeline__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./TextToSpeechPipeline */ "./src/Pipelines/TextToSpeechPipeline.ts");
+/* harmony import */ var _CodeCompletionPipeline__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./CodeCompletionPipeline */ "./src/Pipelines/CodeCompletionPipeline.ts");
+/* harmony import */ var _TokenizerPipeline__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./TokenizerPipeline */ "./src/Pipelines/TokenizerPipeline.ts");
+/* harmony import */ var _PipelineFactory__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./PipelineFactory */ "./src/Pipelines/PipelineFactory.ts");
+/* harmony import */ var _PipelineHelpers__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./PipelineHelpers */ "./src/Pipelines/PipelineHelpers.ts");
+/* harmony import */ var _PipelineStateManager__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./PipelineStateManager */ "./src/Pipelines/PipelineStateManager.ts");
+/* harmony import */ var _PipelineDBHandler__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./PipelineDBHandler */ "./src/Pipelines/PipelineDBHandler.ts");
+/**
+ * Pipelines - Main export file
+ *
+ * Re-exports all pipeline types, configs, and implementations
+ * for easy importing throughout the codebase.
+ */
+// Types and interfaces
+
+// Configs, device capabilities, and model presets
+
+
+// Base pipeline
+
+// Pipeline implementations
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Factory
+
+// Helpers and utilities
+
+
+
+
+
+/***/ }),
+
 /***/ "./src/Utilities/dbChannels.ts":
 /*!*************************************!*\
   !*** ./src/Utilities/dbChannels.ts ***!
@@ -10595,7 +13740,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Pipelines_PipelineHelpers__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Pipelines/PipelineHelpers */ "./src/Pipelines/PipelineHelpers.ts");
 /* harmony import */ var _Pipelines_PipelineStateManager__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Pipelines/PipelineStateManager */ "./src/Pipelines/PipelineStateManager.ts");
 /* harmony import */ var _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Pipelines/PipelineDBHandler */ "./src/Pipelines/PipelineDBHandler.ts");
+/* harmony import */ var _Pipelines__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./Pipelines */ "./src/Pipelines/index.ts");
 /// <reference lib="dom" />
+
 
 
 
@@ -10670,10 +13817,8 @@ let currentModelRepoId = null;
 let currentModelQuantPath = null;
 let currentTask = null;
 let inferenceSettings = _Controllers_InferenceSettings__WEBPACK_IMPORTED_MODULE_3__.DEFAULT_INFERENCE_SETTINGS;
-// WebGPU detection
-const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!navigator.gpu;
-let hasWebGPU = _isNavigatorGpuAvailable;
-let webgpuCheckPromise = Promise.resolve();
+// WebGPU detection (using DeviceCapabilities)
+let hasWebGPU = false; // Will be set after DeviceCapabilities.initialize()
 // Throttling for progress messages
 let lastProgressLogTime = 0;
 const PROGRESS_LOG_THROTTLE_MS = 500;
@@ -10709,20 +13854,14 @@ function safePostMessage(message) {
         });
     }
 }
-// Initialize WebGPU support
+// Initialize WebGPU support and environment
 (async () => {
-    if (_isNavigatorGpuAvailable) {
-        webgpuCheckPromise = (async () => {
-            try {
-                const adapter = await navigator.gpu.requestAdapter();
-                if (!adapter) {
-                    hasWebGPU = false;
-                }
-            }
-            catch (e) {
-                hasWebGPU = false;
-            }
-        })();
+    // Initialize DeviceCapabilities (detects WebGPU and FP16 support)
+    await _Pipelines__WEBPACK_IMPORTED_MODULE_8__.DeviceCapabilities.initialize();
+    hasWebGPU = await _Pipelines__WEBPACK_IMPORTED_MODULE_8__.DeviceCapabilities.hasWebGPU();
+    if (LOG_MODEL_LOADING) {
+        const hasFP16 = await _Pipelines__WEBPACK_IMPORTED_MODULE_8__.DeviceCapabilities.hasFP16();
+        console.log(prefix, `GPU capabilities detected: WebGPU=${hasWebGPU}, FP16=${hasFP16}`);
     }
     // Configure execution providers - prefer WebGPU if available
     if (!_huggingface_transformers__WEBPACK_IMPORTED_MODULE_1__.env.backends) {

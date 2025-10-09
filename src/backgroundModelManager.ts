@@ -14,7 +14,8 @@ import {
   EnhancedProgressCallback,
   PipelineFactory,
   BasePipeline,
-  TextGenerationConfig
+  TextGenerationConfig,
+  DeviceCapabilities
 } from './Pipelines';
 
 const prefix = '[BackgroundModelManager]';
@@ -104,10 +105,8 @@ let currentModelQuantPath: string | null = null;
 let currentTask: string | null = null;
 let inferenceSettings: InferenceSettings = DEFAULT_INFERENCE_SETTINGS;
 
-// WebGPU detection
-const _isNavigatorGpuAvailable = typeof navigator !== 'undefined' && !!(navigator as any).gpu;
-let hasWebGPU: boolean = _isNavigatorGpuAvailable;
-let webgpuCheckPromise: Promise<void> = Promise.resolve();
+// WebGPU detection (using DeviceCapabilities)
+let hasWebGPU: boolean = false; // Will be set after DeviceCapabilities.initialize()
 
 // Throttling for progress messages
 let lastProgressLogTime = 0;
@@ -148,19 +147,15 @@ function safePostMessage(message: any) {
   }
 }
 
-// Initialize WebGPU support
+// Initialize WebGPU support and environment
 (async () => {
-  if (_isNavigatorGpuAvailable) {
-    webgpuCheckPromise = (async () => {
-      try {
-        const adapter = await (navigator as any).gpu.requestAdapter();
-        if (!adapter) {
-          hasWebGPU = false;
-        }
-      } catch (e) {
-        hasWebGPU = false;
-      }
-    })();
+  // Initialize DeviceCapabilities (detects WebGPU and FP16 support)
+  await DeviceCapabilities.initialize();
+  hasWebGPU = await DeviceCapabilities.hasWebGPU();
+  
+  if (LOG_MODEL_LOADING) {
+    const hasFP16 = await DeviceCapabilities.hasFP16();
+    console.log(prefix, `GPU capabilities detected: WebGPU=${hasWebGPU}, FP16=${hasFP16}`);
   }
   
   // Configure execution providers - prefer WebGPU if available

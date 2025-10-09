@@ -12040,6 +12040,53 @@ class PipelineDBHandler {
         return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     /**
+     * Determine if a file should be intercepted for caching
+     * Checks for HuggingFace model files and local model files
+     *
+     * @param resourceUrl - URL to check
+     * @returns Object with interception flags
+     */
+    static shouldInterceptFile(resourceUrl) {
+        const isHuggingFaceFile = resourceUrl.includes('huggingface.co') || resourceUrl.includes('/resolve/');
+        const isLocalFile = resourceUrl.startsWith('chrome-extension://') &&
+            (resourceUrl.endsWith('.wasm') ||
+                resourceUrl.includes('.onnx') ||
+                resourceUrl.includes('.bin') ||
+                resourceUrl.includes('.pt') ||
+                resourceUrl.includes('.safetensors'));
+        return {
+            shouldIntercept: isHuggingFaceFile || isLocalFile,
+            isHuggingFaceFile,
+            isLocalFile
+        };
+    }
+    /**
+     * Map generic ONNX paths to specific quantized model paths
+     * Handles model.onnx -> model_q4f16.onnx type mappings
+     *
+     * @param resourceUrl - Original resource URL
+     * @param currentModelQuantPath - Current model quantization path (e.g., 'onnx/model_q4f16.onnx')
+     * @returns Mapped URL or original if no mapping needed
+     */
+    static mapOnnxModelPath(resourceUrl, currentModelQuantPath) {
+        if (!currentModelQuantPath || !currentModelQuantPath.includes('.onnx')) {
+            return resourceUrl;
+        }
+        const actualModelFile = currentModelQuantPath.split('/').pop();
+        if (!actualModelFile)
+            return resourceUrl;
+        let result = resourceUrl;
+        if (result.includes('/model.onnx') || result.includes('/model.onnx_data')) {
+            const originalUrl = result;
+            result = result.replace('/model.onnx', `/${actualModelFile}`);
+            result = result.replace('/model.onnx_data', `/${actualModelFile}`);
+            if (LOG_GENERAL && result !== originalUrl) {
+                console.log(prefix, `[mapOnnxModelPath] Mapped: ${originalUrl} -> ${result}`);
+            }
+        }
+        return result;
+    }
+    /**
      * Extract resource URL from fetch input
      * Handles string, URL, and Request objects
      *
@@ -13989,10 +14036,10 @@ if (LOG_FETCH_INIT) {
     fetchIsSame: ${self.fetch === globalThis.fetch}`;
     console.log(prefix, initInfo);
 }
-// Override global fetch for caching
+// Override global fetch for caching (refactored to use PipelineDBHandler helpers)
 const customFetchHandler = async function (input, options) {
     const { url: resourceUrl } = _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.extractResourceUrl(input);
-    // Log ALL fetch requests to see what's being requested
+    // Log detailed fetch info if enabled
     if (LOG_FETCH_DETAILED) {
         const fetchInfo = `🌐 [Custom Fetch] INTERCEPTED:
       url: ${resourceUrl}
@@ -14002,90 +14049,72 @@ const customFetchHandler = async function (input, options) {
       isURL: ${input instanceof URL}`;
         console.log(prefix, fetchInfo);
     }
+    // Early exit if no URL extracted
+    if (!resourceUrl) {
+        if (LOG_FETCH)
+            console.log(prefix, `[Custom Fetch] No resourceUrl, using original fetch.`);
+        return originalFetch.call(self, input, options);
+    }
     // Debug: Check if this is a model file request
-    if (LOG_FETCH && resourceUrl && (resourceUrl.includes('.onnx') || resourceUrl.includes('.bin'))) {
+    if (LOG_FETCH && (resourceUrl.includes('.onnx') || resourceUrl.includes('.bin'))) {
         console.log(prefix, '🔍 [Custom Fetch] DETECTED MODEL FILE REQUEST:', resourceUrl);
     }
-    if (resourceUrl) {
-        // Check if this is a model-related file that should be cached/chunked
-        const isHuggingFaceModelFile = resourceUrl.includes('huggingface.co') || resourceUrl.includes('/resolve/');
-        const isLocalWasmOrModelFile = resourceUrl.startsWith('chrome-extension://') &&
-            (resourceUrl.endsWith('.wasm') ||
-                resourceUrl.includes('.onnx') ||
-                resourceUrl.includes('.bin') ||
-                resourceUrl.includes('.pt') ||
-                resourceUrl.includes('.safetensors'));
-        if (LOG_FETCH) {
-            const fileTypeCheck = `[Custom Fetch] File type check:
-        resourceUrl: ${resourceUrl}
-        isHuggingFaceModelFile: ${isHuggingFaceModelFile}
-        isLocalWasmOrModelFile: ${isLocalWasmOrModelFile}
-        shouldIntercept: ${isHuggingFaceModelFile || isLocalWasmOrModelFile}`;
-            console.log(prefix, fileTypeCheck);
+    // Check if we should intercept this file
+    const { shouldIntercept, isHuggingFaceFile } = _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.shouldInterceptFile(resourceUrl);
+    if (LOG_FETCH) {
+        const fileTypeCheck = `[Custom Fetch] File type check:
+      resourceUrl: ${resourceUrl}
+      isHuggingFaceFile: ${isHuggingFaceFile}
+      shouldIntercept: ${shouldIntercept}`;
+        console.log(prefix, fileTypeCheck);
+    }
+    // If not a model file, use original fetch
+    if (!shouldIntercept) {
+        if (LOG_FETCH)
+            console.log(prefix, `[Custom Fetch] Using original fetch for non-model file: ${resourceUrl}`);
+        return originalFetch.call(self, input, options);
+    }
+    // Handle URL rewriting for HuggingFace files
+    let finalResourceUrl = resourceUrl;
+    if (isHuggingFaceFile) {
+        finalResourceUrl = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.handleModelFileRewriting(resourceUrl, currentModelRepoId, currentModelQuantPath);
+        if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
+            if (LOG_FETCH)
+                console.log(prefix, `[Custom Fetch] DEBUG - Original URL: ${resourceUrl}`);
+            if (LOG_FETCH)
+                console.log(prefix, `[Custom Fetch] DEBUG - Final URL: ${finalResourceUrl}`);
         }
-        if (isHuggingFaceModelFile || isLocalWasmOrModelFile) {
-            // Handle HuggingFace files with rewriting
-            let finalResourceUrl = resourceUrl;
-            if (isHuggingFaceModelFile) {
-                finalResourceUrl = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.handleModelFileRewriting(resourceUrl, currentModelRepoId, currentModelQuantPath);
-                if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
-                    if (LOG_FETCH)
-                        console.log(prefix, `[Custom Fetch] DEBUG - Original URL: ${resourceUrl}`);
-                    if (LOG_FETCH)
-                        console.log(prefix, `[Custom Fetch] DEBUG - Final URL: ${finalResourceUrl}`);
-                }
-                // Handle model.onnx -> model_q4f16.onnx mapping
-                if (currentModelQuantPath && currentModelQuantPath.includes('.onnx')) {
-                    const actualModelFile = currentModelQuantPath.split('/').pop(); // e.g., "model_q4f16.onnx"
-                    if (finalResourceUrl.includes('/model.onnx') || finalResourceUrl.includes('/model.onnx_data')) {
-                        const originalUrl = finalResourceUrl;
-                        finalResourceUrl = finalResourceUrl.replace('/model.onnx', `/${actualModelFile}`);
-                        finalResourceUrl = finalResourceUrl.replace('/model.onnx_data', `/${actualModelFile}`);
-                        if (LOG_FETCH)
-                            console.log(prefix, `[Custom Fetch] Mapped ONNX request: ${originalUrl} -> ${finalResourceUrl}`);
-                    }
-                }
-                if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
-                    console.log(prefix, `[Custom Fetch] URL rewritten: ${resourceUrl} -> ${finalResourceUrl}`);
-                }
-                // Handle generation_config.json fallback
-                if (finalResourceUrl.endsWith('generation_config.json') && finalResourceUrl !== resourceUrl) {
-                    const configFiles = ['generation_config.json', 'genai_config.json', 'config.json'];
-                    const fileName = finalResourceUrl.split('/').pop() || '';
-                    if (!configFiles.includes(fileName)) {
-                        if (LOG_FETCH)
-                            console.log(prefix, `[Custom Fetch] Creating empty generation config for: ${fileName}`);
-                        return _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.createEmptyGenerationConfig();
-                    }
-                }
-            }
-            if (LOG_FETCH)
-                console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
-            const cachedResponse = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.tryServeFromIndexedDB(finalResourceUrl, currentModelRepoId, LOG_CHUNKED);
-            if (cachedResponse) {
-                const fileSize = cachedResponse.headers.get('Content-Length');
-                const sizeMB = fileSize ? (parseInt(fileSize) / 1024 / 1024).toFixed(1) : 'unknown';
-                if (LOG_FETCH)
-                    console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl} (${sizeMB}MB)`);
-                return cachedResponse;
-            }
-            else {
-                if (LOG_FETCH)
-                    console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
-            }
-            if (LOG_FETCH)
-                console.log(prefix, `[Custom Fetch] Downloading and caching file: ${finalResourceUrl}`);
-            return await fetchFromNetworkAndCache(input, finalResourceUrl, options);
+        // Map generic ONNX paths to specific quantized paths
+        finalResourceUrl = _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.mapOnnxModelPath(finalResourceUrl, currentModelQuantPath);
+        if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
+            console.log(prefix, `[Custom Fetch] URL rewritten: ${resourceUrl} -> ${finalResourceUrl}`);
         }
-        else {
-            if (LOG_FETCH)
-                console.log(prefix, `[Custom Fetch] Using original fetch for non-model file: ${resourceUrl}`);
-            return originalFetch.call(self, input, options);
+        // Handle generation_config.json fallback
+        if (finalResourceUrl.endsWith('generation_config.json') && finalResourceUrl !== resourceUrl) {
+            const configFiles = ['generation_config.json', 'genai_config.json', 'config.json'];
+            const fileName = finalResourceUrl.split('/').pop() || '';
+            if (!configFiles.includes(fileName)) {
+                if (LOG_FETCH)
+                    console.log(prefix, `[Custom Fetch] Creating empty generation config for: ${fileName}`);
+                return _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.createEmptyGenerationConfig();
+            }
         }
     }
+    // Try to serve from IndexedDB cache
     if (LOG_FETCH)
-        console.log(prefix, `[Custom Fetch] No resourceUrl, using original fetch.`);
-    return originalFetch.call(self, input, options);
+        console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
+    const cachedResponse = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.tryServeFromIndexedDB(finalResourceUrl, currentModelRepoId, LOG_CHUNKED);
+    if (cachedResponse) {
+        const fileSize = cachedResponse.headers.get('Content-Length');
+        const sizeMB = fileSize ? (parseInt(fileSize) / 1024 / 1024).toFixed(1) : 'unknown';
+        if (LOG_FETCH)
+            console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl} (${sizeMB}MB)`);
+        return cachedResponse;
+    }
+    // Cache miss - download and cache
+    if (LOG_FETCH)
+        console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
+    return await fetchFromNetworkAndCache(input, finalResourceUrl, options);
 };
 // Apply fetch override to all global contexts
 self.fetch = customFetchHandler;

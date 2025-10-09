@@ -259,6 +259,63 @@ export class PipelineDBHandler {
   }
 
   /**
+   * Determine if a file should be intercepted for caching
+   * Checks for HuggingFace model files and local model files
+   * 
+   * @param resourceUrl - URL to check
+   * @returns Object with interception flags
+   */
+  static shouldInterceptFile(resourceUrl: string): {
+    shouldIntercept: boolean;
+    isHuggingFaceFile: boolean;
+    isLocalFile: boolean;
+  } {
+    const isHuggingFaceFile = resourceUrl.includes('huggingface.co') || resourceUrl.includes('/resolve/');
+    const isLocalFile = resourceUrl.startsWith('chrome-extension://') && 
+                        (resourceUrl.endsWith('.wasm') || 
+                         resourceUrl.includes('.onnx') || 
+                         resourceUrl.includes('.bin') || 
+                         resourceUrl.includes('.pt') ||
+                         resourceUrl.includes('.safetensors'));
+    
+    return {
+      shouldIntercept: isHuggingFaceFile || isLocalFile,
+      isHuggingFaceFile,
+      isLocalFile
+    };
+  }
+
+  /**
+   * Map generic ONNX paths to specific quantized model paths
+   * Handles model.onnx -> model_q4f16.onnx type mappings
+   * 
+   * @param resourceUrl - Original resource URL
+   * @param currentModelQuantPath - Current model quantization path (e.g., 'onnx/model_q4f16.onnx')
+   * @returns Mapped URL or original if no mapping needed
+   */
+  static mapOnnxModelPath(resourceUrl: string, currentModelQuantPath: string | null): string {
+    if (!currentModelQuantPath || !currentModelQuantPath.includes('.onnx')) {
+      return resourceUrl;
+    }
+    
+    const actualModelFile = currentModelQuantPath.split('/').pop();
+    if (!actualModelFile) return resourceUrl;
+    
+    let result = resourceUrl;
+    if (result.includes('/model.onnx') || result.includes('/model.onnx_data')) {
+      const originalUrl = result;
+      result = result.replace('/model.onnx', `/${actualModelFile}`);
+      result = result.replace('/model.onnx_data', `/${actualModelFile}`);
+      
+      if (LOG_GENERAL && result !== originalUrl) {
+        console.log(prefix, `[mapOnnxModelPath] Mapped: ${originalUrl} -> ${result}`);
+      }
+    }
+    
+    return result;
+  }
+
+  /**
    * Extract resource URL from fetch input
    * Handles string, URL, and Request objects
    * 

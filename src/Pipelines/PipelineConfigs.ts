@@ -27,6 +27,7 @@ import {
 
 const prefix = '[PipelineConfigs]';
 const LOG_GENERAL = false;
+const LOG_MODEL_LOADING = false;  // Track model loading and dtype selection - OFF
 
 // =============================================================================
 // DEVICE CAPABILITIES
@@ -128,13 +129,30 @@ export class DeviceCapabilities {
    * @returns Optimized dtype configuration
    */
   static async getOptimizedDtype(modelId: string, preferredDtype?: Dtype): Promise<Dtype> {
-    if (preferredDtype) return preferredDtype;
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[getOptimizedDtype] Input:
+        modelId: ${modelId}
+        preferredDtype: ${JSON.stringify(preferredDtype)}`);
+    }
+    
+    if (preferredDtype) {
+      if (LOG_MODEL_LOADING) {
+        console.log(prefix, `[getOptimizedDtype] Using preferredDtype: ${JSON.stringify(preferredDtype)}`);
+      }
+      return preferredDtype;
+    }
     
     const { ModelPresets } = await import('./ModelPresets');
     const hasGPU = await this.hasWebGPU();
     const hasFP16Support = await this.hasFP16();
     
-    return ModelPresets.getDtypePreset(modelId, hasGPU, hasFP16Support);
+    const dtype = ModelPresets.getDtypePreset(modelId, hasGPU, hasFP16Support);
+    
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[getOptimizedDtype] Auto-selected dtype: ${JSON.stringify(dtype)} (hasGPU=${hasGPU}, hasFP16=${hasFP16Support})`);
+    }
+    
+    return dtype;
   }
 
   /**
@@ -145,12 +163,29 @@ export class DeviceCapabilities {
    * @returns Optimized device configuration
    */
   static async getOptimizedDevice(modelId: string, preferredDevice?: Device): Promise<Device> {
-    if (preferredDevice) return preferredDevice;
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[getOptimizedDevice] Input:
+        modelId: ${modelId}
+        preferredDevice: ${JSON.stringify(preferredDevice)}`);
+    }
+    
+    if (preferredDevice) {
+      if (LOG_MODEL_LOADING) {
+        console.log(prefix, `[getOptimizedDevice] Using preferredDevice: ${JSON.stringify(preferredDevice)}`);
+      }
+      return preferredDevice;
+    }
     
     const { ModelPresets } = await import('./ModelPresets');
     const hasGPU = await this.hasWebGPU();
     
-    return ModelPresets.getDevicePreset(modelId, hasGPU);
+    const device = ModelPresets.getDevicePreset(modelId, hasGPU);
+    
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[getOptimizedDevice] Auto-selected device: ${JSON.stringify(device)} (hasGPU=${hasGPU})`);
+    }
+    
+    return device;
   }
 
   /**
@@ -217,8 +252,24 @@ export class TextGenerationConfig extends BaseModelConfig implements ITextGenera
       useExternalData?: boolean;
     }
   ): Promise<TextGenerationConfig> {
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[TextGenerationConfig.createWithAutoDetect] Input:
+        modelId: ${modelId}
+        options.dtype: ${JSON.stringify(options?.dtype)}
+        options.device: ${JSON.stringify(options?.device)}
+        options.useExternalData: ${options?.useExternalData}`);
+    }
+    
     const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
     const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+    
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[TextGenerationConfig.createWithAutoDetect] Final config:
+        modelId: ${modelId}
+        dtype: ${JSON.stringify(dtype)}
+        device: ${JSON.stringify(device)}
+        useExternalData: ${options?.useExternalData ?? false}`);
+    }
     
     return new TextGenerationConfig({
       modelId,

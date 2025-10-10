@@ -34,12 +34,13 @@ const LOG_GENERAL = false;  // Turn off general logs
 const LOG_DEBUG = false;  // Turn off debug logs
 const LOG_ERROR = true;  // Keep error logging
 const LOG_WARN = false;  // Turn off warning logs
-const LOG_INFO = false;  // Turn off info logs
+const LOG_INFO = true;  // Turn ON to trace dropdown/manifest flow
 const LOG_UI_UPDATES = false;  // Turn off UI updates logs
 const LOG_QUANT_DROPDOWN = false;  // Turn off quant dropdown logs
 const LOG_MODEL_LOADING = true;  // Keep model loading logs
 const LOG_EVENTS = false;  // Turn off events logs
 const LOG_PROGRESS_HANDLING = false;  // Turn off to avoid spam
+const LOG_BUTTON_VISIBILITY = true;  // Turn ON to trace button hide/show logic
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
@@ -70,7 +71,11 @@ window.addEventListener('userModelsUpdated', () => {
 
 browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
     const type = message?.type;
-    if (LOG_INFO) console.log(prefix, 'browser.runtime.onMessage Received progress update: ', message.type, message.payload);
+    // Only log non-progress messages to reduce spam
+    const isProgressMessage = message.type === UIEventNames.MODEL_WORKER_LOADING_PROGRESS;
+    if (LOG_INFO && !isProgressMessage) {
+        console.log(prefix, 'browser.runtime.onMessage Received:', message.type, message.payload);
+    }
     if (message.type === DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
@@ -104,7 +109,7 @@ function selectElements() {
     queryInput = document.getElementById('query-input') as HTMLTextAreaElement | null;
     sendButton = document.getElementById('send-button') as HTMLButtonElement | null;
     chatBody = document.getElementById('chat-body');
-    attachButton = document.getElementById('attach-button') as HTMLButtonElement | null;
+    attachButton = document.getElementById('unified-attach-button') as HTMLButtonElement | null;
     fileInput = document.getElementById('file-input') as HTMLInputElement | null;
     loadingIndicatorElement = document.getElementById('loading-indicator');
     modelLoadProgress = document.getElementById('model-load-progress') as HTMLElement | null;
@@ -125,9 +130,33 @@ function attachListeners() {
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
 
-    modelSelectorDropdown?.addEventListener('change', _handleModelChange);
-    quantSelectorDropdown?.addEventListener('change', _handleQuantizationChange);
+    modelSelectorDropdown?.addEventListener('change', async () => {
+        await _handleModelChange();
+        await updateLoadButtonVisibility();
+    });
+    quantSelectorDropdown?.addEventListener('change', async () => {
+        await _handleQuantizationChange();
+        await updateLoadButtonVisibility();
+    });
     loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
+    
+            // Expanded input listeners
+            const expandButton = document.getElementById('expand-input-button');
+            const minimizeButton = document.getElementById('minimize-expanded-input');
+            const sendExpandedButton = document.getElementById('send-expanded-button');
+            const expandedInput = document.getElementById('expanded-query-input') as HTMLTextAreaElement;
+            
+            expandButton?.addEventListener('click', expandInput);
+            minimizeButton?.addEventListener('click', minimizeInput);
+            sendExpandedButton?.addEventListener('click', sendFromExpandedView);
+            
+            // Auto-resize expanded textarea and sync with send button state
+            expandedInput?.addEventListener('input', () => {
+                const sendExpandedBtn = document.getElementById('send-expanded-button') as HTMLButtonElement;
+                if (sendExpandedBtn) {
+                    sendExpandedBtn.disabled = expandedInput.value.trim() === '';
+                }
+            });
 }
 
 function removeListeners() {
@@ -139,6 +168,19 @@ function removeListeners() {
     modelSelectorDropdown?.removeEventListener('change', _handleModelChange);
     quantSelectorDropdown?.removeEventListener('change', _handleQuantizationChange);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
+    
+    // Remove expanded input listeners
+    const expandButton = document.getElementById('expand-input-button');
+    const minimizeButton = document.getElementById('minimize-expanded-input');
+    const sendExpandedButton = document.getElementById('send-expanded-button');
+    const expandedInput = document.getElementById('expanded-query-input') as HTMLTextAreaElement;
+    
+    expandButton?.removeEventListener('click', expandInput);
+    minimizeButton?.removeEventListener('click', minimizeInput);
+    sendExpandedButton?.removeEventListener('click', sendFromExpandedView);
+    
+    // Remove the input listener for expanded textarea (we can't easily remove it since it's anonymous)
+    // This is fine since it's just a simple state update
 }
 
 function handleEnterKey(event: KeyboardEvent) {
@@ -178,13 +220,106 @@ export function getModelSelectorOptions(): string[] {
 }
 export function adjustTextareaHeight() {
     if (!queryInput) return;
+    
+    // Always calculate proper height based on content
+    const currentHeight = queryInput.style.height;
     queryInput.style.height = 'auto';
     const maxHeight = 150;
     const scrollHeight = queryInput.scrollHeight;
-    queryInput.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+    const newHeight = Math.max(40, Math.min(scrollHeight, maxHeight)); // Min 40px, max 150px
+    
+    // Always update height if different
+    if (`${newHeight}px` !== currentHeight) {
+        queryInput.style.height = `${newHeight}px`;
+    }
+    
+    // Show expand button if content exceeds max height
+    if (scrollHeight > maxHeight) {
+        showExpandButton();
+    } else {
+        hideExpandButton();
+    }
+    
     if (sendButton) {
         sendButton.disabled = queryInput.value.trim() === '' || queryInput.disabled;
     }
+}
+
+function showExpandButton() {
+    const expandButton = document.getElementById('expand-input-button');
+    if (expandButton) {
+        expandButton.classList.remove('hidden');
+    }
+}
+
+function hideExpandButton() {
+    const expandButton = document.getElementById('expand-input-button');
+    if (expandButton) {
+        expandButton.classList.add('hidden');
+    }
+}
+
+function expandInput() {
+    const overlay = document.getElementById('expanded-input-overlay');
+    const expandedInput = document.getElementById('expanded-query-input') as HTMLTextAreaElement;
+    const sendExpandedBtn = document.getElementById('send-expanded-button') as HTMLButtonElement;
+    
+    if (!overlay || !expandedInput || !queryInput) return;
+    
+    // Copy content to expanded textarea
+    expandedInput.value = queryInput.value;
+    
+    // Enable/disable send button based on content
+    if (sendExpandedBtn) {
+        sendExpandedBtn.disabled = expandedInput.value.trim() === '';
+    }
+    
+    // Show overlay
+    overlay.classList.remove('hidden');
+    
+    // Focus on expanded textarea
+    setTimeout(() => {
+        expandedInput.focus();
+    }, 100);
+}
+
+function minimizeInput() {
+    const overlay = document.getElementById('expanded-input-overlay');
+    const expandedInput = document.getElementById('expanded-query-input') as HTMLTextAreaElement;
+    
+    if (!overlay || !expandedInput || !queryInput) return;
+    
+    // Copy content back to normal textarea
+    queryInput.value = expandedInput.value;
+    
+    // Hide overlay
+    overlay.classList.add('hidden');
+    
+    // Adjust height and focus
+    adjustTextareaHeight();
+    queryInput.focus();
+}
+
+function sendFromExpandedView() {
+    const expandedInput = document.getElementById('expanded-query-input') as HTMLTextAreaElement;
+    const overlay = document.getElementById('expanded-input-overlay');
+    
+    if (!expandedInput || !overlay || !queryInput) return;
+    
+    const messageText = expandedInput.value.trim();
+    if (!messageText) return;
+    
+    // Copy content back to normal textarea
+    queryInput.value = messageText;
+    
+    // Send the message
+    handleSendButtonClick();
+    
+    // Clear the expanded textarea
+    expandedInput.value = '';
+    
+    // Hide overlay
+    overlay.classList.add('hidden');
 }
 
 function setInputStateInternal(status: string) {
@@ -228,7 +363,6 @@ document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async () => {
     // The dropdown rebuilding is handled by the model change handler
     // The status updating is handled by both handlers
     // This listener is kept for any other components that need to respond to selection changes
-    if (LOG_DEBUG) console.log(prefix, 'MODEL_SELECTION_CHANGED event received');
 });
 
 // The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
@@ -266,8 +400,7 @@ async function handleModelManagerLoadingProgress(payload: any) {
         progressInner.style.width = '100%';
         isLoadingModel = false;
         
-        // Update load button state after error
-        await updateLoadButtonAndQuantDropdown();
+
         
         enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1500);
@@ -293,26 +426,39 @@ async function handleModelManagerLoadingProgress(payload: any) {
 
     let text = '';
     let shortFile = payload.file ? truncateFileName(payload.file) : '';
-    switch (payload.status) {
-        case LoadingStatusTypes.INITIATE:
-            text = `Starting download: ${shortFile}`;
-            break;
-        case LoadingStatusTypes.PROGRESS:
-            text = `Downloading ${shortFile}`;
-            if (typeof payload.loaded === 'number' && typeof payload.total === 'number') {
-                text += `... ${Math.round(percent)}% (${formatBytes(payload.loaded)} / ${formatBytes(payload.total)})`;
-            } else {
-                text += `... ${Math.round(percent)}%`;
-            }
-            break;
-        case LoadingStatusTypes.DONE:
-            text = `${shortFile} downloaded. Preparing pipeline...`;
-            break;
-        case LoadingStatusTypes.READY:
-            text = `Model ready!`;
-            break;
-        default:
-            text = 'Loading...';
+    
+    // Use custom message if provided, otherwise format based on status
+    if (payload.message) {
+        text = payload.message;
+    } else {
+        switch (payload.status) {
+            case LoadingStatusTypes.INITIATE:
+                text = `Starting download: ${shortFile}`;
+                break;
+            case LoadingStatusTypes.PROGRESS:
+                text = `Downloading ${shortFile}`;
+                if (typeof payload.loaded === 'number' && typeof payload.total === 'number') {
+                    text += `... ${Math.round(percent)}% (${formatBytes(payload.loaded)} / ${formatBytes(payload.total)})`;
+                } else {
+                    text += `... ${Math.round(percent)}%`;
+                }
+                break;
+            case LoadingStatusTypes.DONE:
+                text = `${shortFile} downloaded. Preparing pipeline...`;
+                break;
+            case LoadingStatusTypes.CACHED:
+                // Special status for cache hits
+                text = `Loading from cache: ${shortFile}`;
+                if (typeof payload.loaded === 'number') {
+                    text += ` (${formatBytes(payload.loaded)})`;
+                }
+                break;
+            case LoadingStatusTypes.READY:
+                text = `Model ready!`;
+                break;
+            default:
+                text = 'Loading...';
+        }
     }
     statusText.textContent = text;
 
@@ -327,8 +473,7 @@ async function handleModelAlreadyLoaded(payload: any) {
     // Reset loading state since the model is already loaded
     isLoadingModel = false;
     
-    // Update load button state - should hide if same model+quant is selected
-    await updateLoadButtonAndQuantDropdown();
+
     
     enableInput();
     
@@ -582,62 +727,56 @@ async function updateModelDropdown() {
     const hasModels = modelSelector.children.length > 0;
     modelSelector.disabled = !hasModels;
     
-    // Update load button and quant dropdown based on selection
-    updateLoadButtonAndQuantDropdown();
+
 }
 
-// Update load button and quant dropdown based on current selection
-async function updateLoadButtonAndQuantDropdown() {
+// Update load button visibility based on current selection
+// SIMPLE RULE: Show button ONLY if user selected a different model+quant than what's loaded
+async function updateLoadButtonVisibility() {
+    console.log(prefix, '🔘 [updateLoadButtonVisibility] === CALLED ===');
+    console.log(prefix, '🔘 Stack:', new Error().stack?.split('\n').slice(1, 4).join('\n'));
+    
+    if (!loadModelButton) return;
+    
     const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
     const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
     
-    if (!modelSelector || !loadModelButton) return;
+    if (!modelSelector || !quantSelector) return;
     
     const selectedModel = modelSelector.value;
-    const selectedQuant = quantSelector?.value;
-    const isGoogleModel = selectedModel.toLowerCase().startsWith('google/');
-    const isAuthenticated = await isHuggingFaceAuthenticated();
-    
-    // Check if this model is already loaded
+    const selectedQuant = quantSelector.value;
     const currentLoadedModel = getCurrentLoadedModel();
+    
+    // Check if selection matches loaded model
     const isAlreadyLoaded = currentLoadedModel && 
         currentLoadedModel.modelId === selectedModel && 
         currentLoadedModel.quant === selectedQuant;
     
-    if (loadModelButton) {
-        const loadBtn = loadModelButton as HTMLButtonElement;
-        if (isAlreadyLoaded) {
-            // Hide button if model is already loaded
-            loadBtn.style.display = 'none';
-        } else if (selectedModel && (!isGoogleModel || isAuthenticated)) {
-            loadBtn.style.display = '';
-            loadBtn.disabled = false;
-            loadBtn.textContent = 'Load Model';
-        } else {
-            loadBtn.style.display = '';
-            loadBtn.disabled = true;
-            if (isGoogleModel && !isAuthenticated) {
-                loadBtn.textContent = 'Authentication Required';
-            } else {
-                loadBtn.textContent = 'Load Model';
-            }
-        }
-    }
+    console.log(prefix, `🔘 State: selected=${selectedModel}/${selectedQuant}, loaded=${currentLoadedModel?.modelId}/${currentLoadedModel?.quant}, isAlreadyLoaded=${isAlreadyLoaded}`);
     
-    // Show/hide quant dropdown based on model type and auth
-    if (quantSelector) {
-        if (isGoogleModel && !isAuthenticated) {
-            quantSelector.style.display = 'none';
-        } else {
-            quantSelector.style.display = '';
-        }
+    const loadBtn = loadModelButton as HTMLButtonElement;
+    
+    // SIMPLE LOGIC: Hide if loaded, show if different
+    if (isAlreadyLoaded) {
+        console.log(prefix, '🔘 [updateLoadButtonVisibility] ✅ HIDING button - model already loaded');
+        loadBtn.style.display = 'none';
+    } else if (selectedModel && selectedQuant) {
+        // Show button only if both model and quant are selected
+        console.log(prefix, '🔘 [updateLoadButtonVisibility] 👁️ SHOWING button - different model selected');
+        loadBtn.style.display = '';
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load Model';
+    } else {
+        // No valid selection - keep hidden
+        console.log(prefix, '🔘 [updateLoadButtonVisibility] Keeping button HIDDEN - no valid selection');
+        loadBtn.style.display = 'none';
     }
 }
 
 // Export function to refresh model dropdown (called after authentication)
 export async function refreshModelDropdown() {
     await updateModelDropdown();
-    await updateLoadButtonAndQuantDropdown();
+ 
 }
 
 export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
@@ -679,11 +818,7 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
         // Don't populate quant dropdown here - wait for MANIFEST_UPDATED event
         // The sidepanel is still processing manifests, so the cache will be empty
         
-        if (loadModelButton) {
-            modelSelector.addEventListener('change', async () => {
-                await updateLoadButtonAndQuantDropdown();
-            });
-        }
+
     } else {
         if (LOG_WARN) console.warn(prefix, "Model selector dropdown not found.");
         if (loadModelButton) (loadModelButton as HTMLButtonElement).style.display = 'none';
@@ -847,10 +982,8 @@ async function _handleModelChange() {
     populateQuantDropdownForSelectedRepo();
     
     // Update status colors
-    await updateQuantDropdownStatusFromDB();
-    
-    // Update UI elements based on selection
-    await updateLoadButtonAndQuantDropdown();
+    await updateQuantDropdownStatusFromDB();   
+
     
     // Check if this is a Google model that needs authentication
     if (modelId.toLowerCase().startsWith('google/')) {
@@ -878,10 +1011,8 @@ async function _handleQuantizationChange() {
     if (LOG_INFO) console.log(prefix, `Quantization changed by user. Updating status only.`, { modelId, dtype });
     
     // Only update status colors, don't rebuild dropdown (options are the same)
-    await updateQuantDropdownStatusFromDB();
-    
-    // Update UI elements based on selection
-    await updateLoadButtonAndQuantDropdown();
+    await updateQuantDropdownStatusFromDB();   
+
     
     document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED, {
         detail: { modelId, dtype } 
@@ -954,7 +1085,7 @@ export async function updateQuantDropdown() {
   
   if (!modelDropdown || !quantDropdown) return;
   
-  if (LOG_INFO) console.log(prefix, "updateQuantDropdown: Refreshing manifest cache...");
+  if (LOG_INFO) console.log(prefix, "📋 updateQuantDropdown: Refreshing manifest cache from IndexedDB...");
   
   const allManifests = await getAllManifestEntries();
   const modelRepos = getModelSelectorOptions();
@@ -962,13 +1093,23 @@ export async function updateQuantDropdown() {
   // Clear the cache completely
   repoQuantsCache = {};
   
-  if (LOG_INFO) console.log(prefix, "updateQuantDropdown: Found manifests:", allManifests.length);
+  if (LOG_INFO) console.log(prefix, `📋 updateQuantDropdown: Found ${allManifests.length} manifests in IndexedDB`);
   
   for (const repo of modelRepos) {
     const manifestEntry = allManifests.find(entry => entry.repo === repo);
     if (manifestEntry) {
       repoQuantsCache[repo] = manifestEntry;
-      if (LOG_INFO) console.log(prefix, `updateQuantDropdown: Cached manifest for ${repo}:`, Object.keys(manifestEntry.quants || {}));
+      
+      // Log each quant and its status for debugging
+      if (LOG_INFO) {
+        const quantDetails = Object.entries(manifestEntry.quants || {})
+          .map(([path, info]: [string, any]) => `${path} (${info.dtype}) → ${info.status}`)
+          .join(', ');
+        const manifestInfo = `📋 updateQuantDropdown: Cached manifest for ${repo}:
+        Quants: ${Object.keys(manifestEntry.quants || {}).length}
+        Details: ${quantDetails}`;
+        console.log(prefix, manifestInfo);
+      }
     }
   }  
   populateQuantDropdownForSelectedRepo();
@@ -1022,12 +1163,23 @@ function populateQuantDropdownForSelectedRepo() {
     }
   }
   
+  // Deduplicate by dtype to avoid showing multiple options for same quantization
+  const seenDtypes = new Set<string>();
+  
   for (const modelPath in manifestEntry.quants) {
     const quantInfo = manifestEntry.quants[modelPath];
-    const option = document.createElement('option');
     
     // Handle legacy manifests that don't have dtype field
     const dtype = quantInfo.dtype || extractCleanDtypeFromPath(modelPath);
+    
+    // Skip if we've already processed this dtype
+    if (seenDtypes.has(dtype)) {
+      if (LOG_INFO) console.log(prefix, `📋 populateQuantDropdown: Skipping duplicate dtype "${dtype}" for modelPath "${modelPath}"`);
+      continue;
+    }
+    seenDtypes.add(dtype);
+    
+    const option = document.createElement('option');
     if (LOG_QUANT_DROPDOWN) console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
     option.value = dtype; // Use clean dtype instead of modelPath
     let label = quantKeyToLabel(dtype);
@@ -1035,7 +1187,13 @@ function populateQuantDropdownForSelectedRepo() {
     let statusLabel = '';
     const status = quantInfo.status;
     
-    if (LOG_INFO) console.log(prefix, `populateQuantDropdown: ${dtype} status:`, status);
+    if (LOG_INFO) {
+      const quantStatusInfo = `📋 populateQuantDropdown: Processing quant for ${selectedRepo}:
+      modelPath: ${modelPath}
+      dtype: ${dtype}
+      status: ${status}`;
+      console.log(prefix, quantStatusInfo);
+    }
     
     switch (status) {
       case QuantStatus.Downloaded: 
@@ -1109,14 +1267,9 @@ window.addEventListener('message', (event: MessageEvent) => {
 });
 
 document.addEventListener(WorkerEventNames.MANIFEST_UPDATED, async () => {
-    if (LOG_INFO) console.log(prefix, "Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
+    if (LOG_INFO) console.log(prefix, "📢 Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
     await updateQuantDropdown();
-    
-    // After manifests are processed, trigger model change logic for initial state
-    const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
-    if (modelSelector && modelSelector.value) {
-        await _handleModelChange();
-    }
+    // Don't call _handleModelChange here - it triggers MODEL_SELECTION_CHANGED which can show button
   });
 
 function setLoadModelButtonText(text: string) {
@@ -1264,10 +1417,7 @@ export async function loadDefaultModel(): Promise<boolean> {
             quantSelectorDropdown.value = bestQuant;
             if (LOG_INFO) console.log(prefix, "Set quant selector to best quantization");
         }
-        
-        // Update UI state
-        await updateLoadButtonAndQuantDropdown();
-        
+                
         // Show loading message
         disableInput("Loading default model...");
         

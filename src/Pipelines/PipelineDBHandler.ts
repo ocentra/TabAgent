@@ -16,9 +16,10 @@ import {
 const prefix = '[PipelineDBHandler]';
 
 // Logging flags
-const LOG_GENERAL = false;
+const LOG_GENERAL = false;  // OFF - reduce noise
 const LOG_ERROR = true;
 const LOG_MESSAGES = false;
+const LOG_MANIFEST_UPDATES = true; // ON - track manifest updates
 
 // Throttling for high-frequency manifest logs
 let manifestLogCount = 0;
@@ -75,6 +76,8 @@ export class PipelineDBHandler {
     onUpdate?: () => void
   ): Promise<void> {
     try {
+      if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [setManifestQuantStatus] Starting: repo="${repo}", dtype="${dtype}", status="${status}"`);
+      
       let manifest = await getManifestEntry(repo);
       if (!manifest) {
         if (LOG_ERROR) console.warn(prefix, `[setManifestQuantStatus] No manifest found for repo: ${repo}`);
@@ -98,24 +101,26 @@ export class PipelineDBHandler {
         return;
       }
 
+      if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [setManifestQuantStatus] Found ${entriesToUpdate.length} entries to update:`, entriesToUpdate);
+
       // Update the status of ALL found entries
       for (const entryKey of entriesToUpdate) {
         if (manifest.quants[entryKey]) {
           manifest.quants[entryKey].status = status;
           manifestLogCount++;
-          if (LOG_MESSAGES && (manifestLogCount % MANIFEST_LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
-            console.log(
-              prefix,
-              `[setManifestQuantStatus] ✅ Updated quant entry: ${entryKey} (dtype: ${dtype}) to status: ${status} (operation #${manifestLogCount})`
-            );
+          if (LOG_MANIFEST_UPDATES) {
+            console.log(prefix, `📋 [setManifestQuantStatus] ✅ Updated: ${entryKey} → ${status}`);
           }
         }
       }
 
+      if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [setManifestQuantStatus] Saving manifest to IndexedDB...`);
       await addManifestEntry(repo, manifest);
+      if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [setManifestQuantStatus] ✅ Manifest saved to IndexedDB`);
       
       // Call optional update callback
       if (onUpdate) {
+        if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [setManifestQuantStatus] Calling onUpdate callback...`);
         onUpdate();
       }
     } catch (error) {
@@ -684,7 +689,10 @@ export class PipelineDBHandler {
     currentModelRepoId: string | null,
     logChunked: boolean = false
   ): Promise<Response | null> {
-    if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
+    // Only try to serve files that we actually intercept and cache
+    // This keeps the defensive logic - we don't mess with random files
+    const { shouldIntercept } = this.shouldInterceptFile(resourceUrl);
+    if (!shouldIntercept) {
       return null;
     }
 

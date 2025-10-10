@@ -24,30 +24,33 @@ const LOG_WARN = false;   // Disable warning logs
 
 // CORE GENERATION FUNCTIONALITY
 
-const LOG_GEN_PARAMS = true;          // Generation parameters being used
+const LOG_GEN_PARAMS = false;          // Generation parameters being used
 
 
 // Legacy Q&A flags (for backward compatibility)
-const LOG_QA_START = true;            // Generation lifecycle (start/stop/complete)
-const LOG_QA_OUTPUT = true;           // Generated text output
-const LOG_QA_STATS = true;            // Output statistics
+const LOG_QA_START = false;            // Generation lifecycle (start/stop/complete)
+const LOG_QA_OUTPUT = false;           // Generated text output
+const LOG_QA_STATS = false;            // Output statistics
 
 // Model loading and configuration
-const LOG_MODEL_LOADING = true;      // Model loading progress
-const LOG_MODEL_CONFIG = true;       // Detailed model configuration
-const LOG_TOKEN_IDS = true;          // Token ID extraction
+const LOG_MODEL_LOADING = false;      // Model loading progress - OFF for clarity
+const LOG_MODEL_CONFIG = false;       // Detailed model configuration - OFF
+const LOG_TOKEN_IDS = false;          // Token ID extraction - OFF
 
 // Transformers.js specific
-const LOG_TRANSFORMERS = true;        // Transformers.js debugging
-const LOG_TRANSFORMERS_SETTINGS = true; // Settings comparison
-const LOG_GENERATION = true;          // Detailed generation parameters
-const LOG_GENERATION_FLOW = true;     // Track full generation flow
+const LOG_TRANSFORMERS = false;        // Transformers.js debugging
+const LOG_TRANSFORMERS_SETTINGS = false; // Settings comparison
+const LOG_GENERATION = false;          // Detailed generation parameters
+const LOG_GENERATION_FLOW = false;     // Track full generation flow
 
-// Network and storage
-const LOG_FETCH = false;              // Fetch interception logs
+// Network and storage - ALL OFF to reduce noise
+const LOG_FETCH = false;               // Fetch interception logs - OFF
 const LOG_FETCH_INIT = false;         // Fetch override initialization
 const LOG_FETCH_DETAILED = false;     // Detailed fetch interception (all requests)
-const LOG_CHUNKED = false;            // Chunked download/serve logs
+const LOG_CHUNKED = false;             // Chunked download/serve logs - OFF
+
+// MANIFEST UPDATE FLOW - ON to trace button hide issue
+const LOG_MANIFEST_UPDATES = true;    // Track manifest status updates and events
 
 // Message processing
 const LOG_MESSAGES = false;
@@ -197,23 +200,23 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
   
   if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Fetching from: ${resourceUrl}, fetchInput: ${fetchInput}`);
   
-  // Send download start event
+  // Send download start event - don't include message, let UI format it
   safePostMessage({ 
     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
     payload: { 
-      status: LoadingStatusTypes.PROGRESS, 
+      status: LoadingStatusTypes.INITIATE, 
       file: fileName, 
       progress: 0, 
-      loadId: currentLoadId,
-      message: `Starting download of ${fileName}...`
+      loadId: currentLoadId
     } 
   });
   
   // Update manifest status to indicate download started
   if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
-    if (LOG_FETCH) console.log(prefix, `[fetchFromNetworkAndCache] Updating manifest status: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}", status=Available`);
+    if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] Download started - updating status to Available: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}"`);
     try {
       await PipelineDBHandler.setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Available, () => {
+        if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] Sending MANIFEST_UPDATED event (download started)`);
         safePostMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
       });
     } catch (manifestError) {
@@ -231,7 +234,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
         // Map progress to 0-25% range for downloads
         const downloadProgress = Math.round(progress * 0.25);
         
-        // Send progress update every 5% or every 10MB
+        // Send progress update every 5% or every 10MB - don't include message, let UI format it
         if (downloadProgress % 5 === 0 || loaded % (10 * 1024 * 1024) === 0) {
           safePostMessage({ 
             type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
@@ -241,8 +244,7 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
               progress: downloadProgress, 
               loadId: currentLoadId,
               loaded,
-              total,
-              message: `Downloading ${fileName}... ${progress}% (${(loaded / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB)`
+              total
             } 
           });
         }
@@ -250,25 +252,28 @@ async function fetchFromNetworkAndCache(input: string | Request | URL, resourceU
     }
   );
   
-  // Send download complete event
+  // Send download complete event - don't include message, let UI format it
   const contentLength = response.headers.get('Content-Length');
   const fileSize = contentLength ? parseInt(contentLength, 10) : 0;
   
   safePostMessage({ 
     type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
     payload: { 
-      status: LoadingStatusTypes.PROGRESS, 
+      status: LoadingStatusTypes.DONE, 
       file: fileName, 
       progress: 25, 
       loadId: currentLoadId,
-      message: `Downloaded ${fileName} (${(fileSize / 1024 / 1024).toFixed(1)}MB)`
+      loaded: fileSize,
+      total: fileSize
     } 
   });
   
   // Update manifest status to indicate download completed
   if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
+    if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] Download completed - updating status to Downloaded: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}"`);
     try {
       await PipelineDBHandler.setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, QuantStatus.Downloaded, () => {
+        if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] Sending MANIFEST_UPDATED event (download completed)`);
         safePostMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
       });
     } catch (manifestError) {
@@ -338,18 +343,29 @@ const customFetchHandler = async function(input: string | Request | URL, options
   // Handle URL rewriting for HuggingFace files
   let finalResourceUrl = resourceUrl;
   if (isHuggingFaceFile) {
+    if (LOG_FETCH) {
+      console.log(prefix, `[Custom Fetch] HuggingFace file detected:
+        originalUrl: ${resourceUrl}
+        currentModelRepoId: ${currentModelRepoId}
+        currentModelQuantPath: ${currentModelQuantPath}`);
+    }
+    
     finalResourceUrl = await PipelineDBHandler.handleModelFileRewriting(resourceUrl, currentModelRepoId, currentModelQuantPath);
     
-    if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
-      if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - Original URL: ${resourceUrl}`);
-      if (LOG_FETCH) console.log(prefix, `[Custom Fetch] DEBUG - Final URL: ${finalResourceUrl}`);
+    if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
+      console.log(prefix, `[Custom Fetch] After handleModelFileRewriting: ${resourceUrl} -> ${finalResourceUrl}`);
     }
     
     // Map generic ONNX paths to specific quantized paths
+    const beforeMapOnnx = finalResourceUrl;
     finalResourceUrl = PipelineDBHandler.mapOnnxModelPath(finalResourceUrl, currentModelQuantPath);
     
+    if (LOG_FETCH && finalResourceUrl !== beforeMapOnnx) {
+      console.log(prefix, `[Custom Fetch] After mapOnnxModelPath: ${beforeMapOnnx} -> ${finalResourceUrl}`);
+    }
+    
     if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
-      console.log(prefix, `[Custom Fetch] URL rewritten: ${resourceUrl} -> ${finalResourceUrl}`);
+      console.log(prefix, `[Custom Fetch] ✅ Final URL rewrite: ${resourceUrl} -> ${finalResourceUrl}`);
     }
     
     // Handle generation_config.json fallback
@@ -364,18 +380,44 @@ const customFetchHandler = async function(input: string | Request | URL, options
   }
   
   // Try to serve from IndexedDB cache
-  if (LOG_FETCH) console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
+  if (LOG_FETCH) {
+    const fileName = finalResourceUrl.split('/').pop() || 'unknown';
+    console.log(prefix, `[Custom Fetch] 🔍 Checking IndexedDB cache:
+      file: ${fileName}
+      url: ${finalResourceUrl}
+      modelId: ${currentModelRepoId}`);
+  }
+  
   const cachedResponse = await PipelineDBHandler.tryServeFromIndexedDB(finalResourceUrl, currentModelRepoId, LOG_CHUNKED);
   
   if (cachedResponse) {
     const fileSize = cachedResponse.headers.get('Content-Length');
-    const sizeMB = fileSize ? (parseInt(fileSize) / 1024 / 1024).toFixed(1) : 'unknown';
-    if (LOG_FETCH) console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl} (${sizeMB}MB)`);
+    const fileSizeBytes = fileSize ? parseInt(fileSize) : 0;
+    const fileName = finalResourceUrl.split('/').pop() || 'unknown';
+    if (LOG_FETCH) console.log(prefix, `[Custom Fetch] ✅ CACHE HIT - Serving from IndexedDB: ${fileName} (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB)`);
+    
+    // Send cache hit progress message to UI - use CACHED status to distinguish from downloads
+    safePostMessage({ 
+      type: UIEventNames.MODEL_WORKER_LOADING_PROGRESS, 
+      payload: { 
+        status: LoadingStatusTypes.CACHED,
+        file: fileName, 
+        progress: 25, // Same as download complete
+        loadId: currentLoadId,
+        loaded: fileSizeBytes,
+        total: fileSizeBytes
+      } 
+    });
+    
     return cachedResponse;
   }
   
   // Cache miss - download and cache
-  if (LOG_FETCH) console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
+  if (LOG_FETCH) {
+    const fileName = finalResourceUrl.split('/').pop() || 'unknown';
+    console.log(prefix, `[Custom Fetch] ❌ CACHE MISS - Will download: ${fileName}
+      url: ${finalResourceUrl}`);
+  }
   return await fetchFromNetworkAndCache(input, finalResourceUrl, options);
 };
 
@@ -567,6 +609,15 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     headDim = architecture.headDim;
     
     // Create pipeline and config using factory
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[loadModel] Creating pipeline with factory:
+        task: ${task}
+        modelId: ${modelId}
+        dtype input: ${dtype}
+        device: ${hasWebGPU ? 'webgpu' : 'cpu'}
+        hasExternalData: ${hasExternalData}`);
+    }
+    
     const { pipeline, config: pipelineConfig } = await PipelineFactory.createPipelineWithConfig(
       task,
       modelId,
@@ -580,8 +631,8 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     currentPipeline = pipeline;
     
     if (LOG_MODEL_LOADING) {
-      console.log(prefix, `Pipeline created: ${pipeline.constructor.name}`);
-      console.log(prefix, '[loadModel] Pipeline config created:', pipelineConfig.toObject());
+      console.log(prefix, `[loadModel] Pipeline created: ${pipeline.constructor.name}`);
+      console.log(prefix, '[loadModel] Final pipeline config:', pipelineConfig.toObject());
     }
     
     // Wrap the callback to handle both direct callback and safePostMessage
@@ -616,10 +667,12 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     
     isTransformersModelReady = true;
     
-    if (LOG_MODEL_LOADING) console.log(prefix, `Model loaded successfully via pipeline: ${modelId}`);
+    if (LOG_MANIFEST_UPDATES) console.log(prefix, `✅ Model loaded successfully via pipeline: ${modelId}`);
     
     // Update manifest status to indicate successful download/loading
+    if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] Model load complete - updating status to Downloaded: repo="${modelId}", dtype="${dtype}"`);
     await PipelineDBHandler.setManifestQuantStatus(modelId, dtype, QuantStatus.Downloaded, () => {
+      if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] ✉️ Sending MANIFEST_UPDATED event (model load complete)`);
       safePostMessage({ type: WorkerEventNames.MANIFEST_UPDATED });
     });
     
@@ -633,6 +686,7 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
         message: 'Model ready for inference!'
       });
     } else {
+      if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] ✉️ Sending WORKER_READY event: modelId="${modelId}", dtype="${dtype}"`);
       safePostMessage({
         type: WorkerEventNames.WORKER_READY,
         payload: { modelId, dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
@@ -685,9 +739,9 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
 };
 
 
-const LOG_GEN_PARAMS_CURRENT = true;  
-const LOG_GEN_PARAMS_CURRENT_State_check = true; 
-const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = true;
+const LOG_GEN_PARAMS_CURRENT = false;  
+const LOG_GEN_PARAMS_CURRENT_State_check = false; 
+const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = false;
 export const generate = async (messages: Array<{role: string, content: string}>, callback?: EnhancedProgressCallback) => {
   if (LOG_GEN_PARAMS_CURRENT_State_check) {
     const stateInfo = `🎯 GENERATE called - State check:

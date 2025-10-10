@@ -32,6 +32,7 @@ import { initializeSpacesController } from './Controllers/SpacesController';
 import { initializeIntegrationsController } from './Controllers/IntegrationsController';
 import { initializeConnectorsController } from './Controllers/ConnectorsController';
 import { initializeDriveController } from './Controllers/DriveController';
+import { initializeUnifiedAttachmentController } from './Controllers/UnifiedAttachmentController';
 import { HuggingFaceLoginDialog } from './Components/HuggingFaceLoginDialog';
 import {
   UIEventNames,
@@ -107,6 +108,7 @@ const LOG_DEBUG = false;  // Detailed internal state (for deep debugging)
 // Feature-specific logging - Enable individually to debug specific subsystems
 const LOG_MANIFEST_GENERATION = false;  // Manifest creation → Enable to debug model manifest issues
 const LOG_INFERENCE_SETTINGS = false;   // Settings loading → Enable to debug AI parameter issues
+const LOG_WORKER_READY = true;  // Track WORKER_READY event and currentLoadedModel updates
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 
 // --- Global State ---
@@ -184,25 +186,6 @@ function getModelSelectorOptions(): string[] {
   return Array.from(modelSelector.options).map(opt => opt.value).filter(Boolean);
 }
 
-
-
-function syncToggleLoadButton() {
-  const modelDropdown = document.getElementById('model-selector') as HTMLSelectElement | null;
-  const quantDropdown = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
-  const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement | null;
-  if (!modelDropdown || !quantDropdown || !loadBtn) return;
-  const selectedModelId = modelDropdown.value;
-  const selectedQuant = quantDropdown.value;
-  if (
-    selectedModelId === currentLoadedModel.modelId &&
-    selectedQuant === currentLoadedModel.quant &&
-    selectedModelId && selectedQuant
-  ) {
-    loadBtn.style.display = 'none';
-  } else {
-    loadBtn.style.display = '';
-  }
-}
 
 (function () {
   try {
@@ -396,7 +379,7 @@ function handleSendButtonClick() {
   }
 }
 
-function handleModelManagerMessage(event: MessageEvent) {
+async function handleModelManagerMessage(event: MessageEvent) {
   const { type, label, payload } = event.data || {};
   // console.log(`${prefix} Message from background: Type: ${type}`, payload);
 
@@ -419,18 +402,25 @@ function handleModelManagerMessage(event: MessageEvent) {
           break;
       case WorkerEventNames.WORKER_READY: {
           const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
-          modelManagerState = WorkerEventNames.MODEL_READY;
+          
+          if (LOG_WORKER_READY) {
+            const workerReadyInfo = `📋 [WORKER_READY] Model load complete:
+      modelId: ${modelId}
+      dtype: ${dtype}
+      executionProvider: ${executionProvider}`;
+            console.log(prefix, workerReadyInfo);
+          }
+          
+          // Update local state immediately
+          currentLoadedModel = { modelId, quant: dtype };
           currentModelIdInManager = modelId;
-          currentLoadedModel = {
-            modelId: modelId,
-            quant: dtype
-          };
-          syncToggleLoadButton();
-          if (loadBtn) loadBtn.style.display = 'none';
+          modelManagerState = WorkerEventNames.MODEL_READY;
+          
+          // Button visibility handled by syncUIWithLoadedModel
           showDeviceBadge(executionProvider, warning);
           
-          // Update dropdown to show current model status
-          document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED));
+          // Sync UI with loaded model (dropdowns + button)
+          await syncUIWithLoadedModel();
           // Always show what quantization was actually loaded
           let quantMsg = `Model loaded with quantization: '${dtype}'.`;
           if (fallback) {
@@ -537,7 +527,7 @@ function handleModelManagerMessage(event: MessageEvent) {
           break;
       case WorkerEventNames.MANIFEST_UPDATED:
           document.dispatchEvent(new CustomEvent(WorkerEventNames.MANIFEST_UPDATED));
-          syncToggleLoadButton();
+          // Button visibility handled by user dropdown changes only
           break;
       case WorkerEventNames.REQUEST_MEMORY_STATS:
         if (performance && (performance as any).memory) {
@@ -948,6 +938,79 @@ export function getCurrentLoadedModel() {
   return currentLoadedModel;
 }
 
+/**
+ * Sync UI state with background loaded model
+ * Queries background, updates dropdowns, and manages button visibility
+ * Call this on: init, model load complete, or whenever state needs refresh
+ */
+export async function syncUIWithLoadedModel(): Promise<void> {
+  if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] Starting UI sync...`);
+  
+  // Query background for actual model state
+  const bgModelState = await queryBackgroundModelState();
+  
+  if (LOG_WORKER_READY) {
+    const bgStateInfo = `📋 [syncUIWithLoadedModel] Background state:
+      modelId: ${bgModelState.modelId}
+      quant: ${bgModelState.quant}
+      isReady: ${bgModelState.isReady}
+      isLoading: ${bgModelState.isLoading}`;
+    console.log(prefix, bgStateInfo);
+  }
+  
+  // Update local state
+  if (bgModelState.isReady && bgModelState.modelId) {
+    currentLoadedModel = {
+      modelId: bgModelState.modelId,
+      quant: bgModelState.quant
+    };
+    currentModelIdInManager = bgModelState.modelId;
+    modelManagerState = WorkerEventNames.MODEL_READY;
+    
+    if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] Updated currentLoadedModel:`, currentLoadedModel);
+  } else {
+    currentLoadedModel = { modelId: null, quant: null };
+    currentModelIdInManager = null;
+    
+    if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] No model loaded - cleared state`);
+  }
+  
+  // Update dropdowns to match loaded model
+  const modelSelector = document.getElementById('model-selector') as HTMLSelectElement | null;
+  const quantSelector = document.getElementById('onnx-variant-selector') as HTMLSelectElement | null;
+  const loadBtn = document.getElementById('load-model-button') as HTMLButtonElement | null;
+  
+  if (bgModelState.isReady && bgModelState.modelId) {
+    // Set model dropdown
+    if (modelSelector && modelSelector.value !== bgModelState.modelId) {
+      if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] Setting model dropdown: ${bgModelState.modelId}`);
+      modelSelector.value = bgModelState.modelId;
+      
+      // Rebuild quant dropdown programmatically (don't trigger change event to avoid user listeners)
+      const { onModelDropdownChange } = await import('./Home/uiController');
+      await onModelDropdownChange();
+    }
+    
+    // Set quant dropdown
+    if (quantSelector && bgModelState.quant && quantSelector.value !== bgModelState.quant) {
+      if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] Setting quant dropdown: ${bgModelState.quant}`);
+      quantSelector.value = bgModelState.quant;
+    }
+    
+    // Hide load button
+    if (loadBtn) {
+      if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] Hiding load button`);
+      loadBtn.style.display = 'none';
+    }
+  }
+  // If no model loaded, keep button hidden (default) - only user dropdown changes will show it
+  
+  // Trigger final UI update
+  document.dispatchEvent(new CustomEvent(UIEventNames.MODEL_SELECTION_CHANGED));
+  
+  if (LOG_WORKER_READY) console.log(prefix, `📋 [syncUIWithLoadedModel] ✅ Sync complete`);
+}
+
 // Query background for actual loaded model state (for popup initialization)
 export async function queryBackgroundModelState(): Promise<{ modelId: string | null, quant: string | null, isReady: boolean, isLoading: boolean }> {
   try {
@@ -1265,6 +1328,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeConnectorsController();
     if (LOG_DEBUG) console.log(`${prefix} Connectors Controller Initialized.`);
 
+    await initializeUnifiedAttachmentController();
+    if (LOG_DEBUG) console.log(`${prefix} Unified Attachment Controller Initialized.`);
+
     initializeDriveController({
       requestDbAndWaitFunc: requestDbAndWait,
       getActiveChatSessionId,
@@ -1349,16 +1415,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (modelDropdownEl) {
       modelDropdownEl.addEventListener('change', async () => {
         hideDeviceBadge();
-        syncToggleLoadButton();
+        // Button visibility handled by uiController dropdown listeners
       });
     }
     if (quantDropdownEl) {
       quantDropdownEl.addEventListener('change', () => {
         hideDeviceBadge();
-        syncToggleLoadButton();
+        // Button visibility handled by uiController dropdown listeners
       });
     }
-    syncToggleLoadButton();
+    // Button starts hidden by default in HTML, only shown by user dropdown changes
 
     if (LOG_DEBUG) console.log(`${prefix} Phase 1 complete - UI elements ready`);
     
@@ -1397,18 +1463,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           await loadAndDisplaySession(null);
         }
 
-        // Query background for current model state (important for popup instances)
+        // Sync UI with background model state (handles both fresh start and model-in-VRAM scenarios)
+        if (LOG_WORKER_READY) console.log(prefix, `📋 [INIT] Syncing UI with background model state...`);
+        await syncUIWithLoadedModel();
+        
         const bgModelState = await queryBackgroundModelState();
         if (bgModelState.isReady && bgModelState.modelId) {
-          // Background already has a model loaded - sync local state
-          if (LOG_DEBUG) console.log(`${prefix} Background has model loaded: ${bgModelState.modelId} (${bgModelState.quant}), syncing local state`);
-          currentLoadedModel = {
-            modelId: bgModelState.modelId,
-            quant: bgModelState.quant
-          };
-          currentModelIdInManager = bgModelState.modelId;
-          modelManagerState = WorkerEventNames.MODEL_READY;
-          syncToggleLoadButton();
+          // Button visibility handled by syncUIWithLoadedModel
+          // Show device badge if model is loaded
+          // Note: executionProvider info is not available from query, will be set on next WORKER_READY
           
           // Model is already loaded, but we should still restore the last chat session
           try {
@@ -1476,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
                 currentModelIdInManager = restoreResponse.currentModel.id;
                 modelManagerState = WorkerEventNames.MODEL_READY;
-                syncToggleLoadButton();
+                // Button visibility handled by syncUIWithLoadedModel
                 
                 if (LOG_DEBUG) console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
                 

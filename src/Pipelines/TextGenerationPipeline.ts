@@ -15,6 +15,7 @@ import { BasePipeline } from './BasePipeline';
 const prefix = '[TextGenerationPipeline]';
 const LOG_CONFIG_CHANGE = false;
 const LOG_LOADING = false;
+const LOG_MODEL_LOADING = false;  // Track model loading and dtype passed to transformers.js - OFF
 
 /**
  * TextGenerationPipeline - For causal language models
@@ -87,12 +88,24 @@ export class TextGenerationPipeline extends BasePipeline<TextGenerationConfig> {
         message: 'Loading model from cache...'
       });
 
+      if (LOG_MODEL_LOADING) {
+        console.log(prefix, `[load] Calling AutoModelForCausalLM.from_pretrained with:
+          modelId: ${config.modelId}
+          dtype: ${JSON.stringify(config.dtype)}
+          device: ${JSON.stringify(config.device)}
+          use_external_data_format: ${config.useExternalData}`);
+      }
+
       this.model = await AutoModelForCausalLM.from_pretrained(config.modelId, {
       dtype: config.dtype as any,
         device: config.device as any,
       use_external_data_format: config.useExternalData,
         progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [40, 90])
       });
+      
+      if (LOG_MODEL_LOADING) {
+        console.log(prefix, `[load] AutoModelForCausalLM.from_pretrained completed successfully`);
+      }
     }
 
     // Send processing message

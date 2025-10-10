@@ -3,7 +3,8 @@ export const LoadingStatusTypes = Object.freeze({
   PROGRESS: 'progress',
   DONE: 'done',
   READY: 'ready',
-  ERROR: 'error'
+  ERROR: 'error',
+  CACHED: 'cached'
 });
 
 export const UIEventNames = Object.freeze({

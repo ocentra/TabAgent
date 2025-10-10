@@ -2877,6 +2877,231 @@ const handleDriveButtonClick = (event) => {
 
 /***/ }),
 
+/***/ "./src/Controllers/FileBrowserDisplay.ts":
+/*!***********************************************!*\
+  !*** ./src/Controllers/FileBrowserDisplay.ts ***!
+  \***********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   FileBrowserDisplay: () => (/* binding */ FileBrowserDisplay)
+/* harmony export */ });
+// src/Controllers/FileBrowserDisplay.ts
+// Common file browser display logic for all sources
+class FileBrowserDisplay {
+    constructor(container, callbacks) {
+        this.selectedFiles = new Set();
+        this.breadcrumbs = [];
+        this.searchQuery = '';
+        this.container = container;
+        this.callbacks = callbacks;
+        this.setupEventListeners();
+    }
+    setupEventListeners() {
+        // Search input
+        const searchInput = this.container.querySelector('#attachment-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value;
+                this.callbacks.onSearch(this.searchQuery);
+            });
+        }
+    }
+    renderFiles(files) {
+        const fileBrowser = this.container.querySelector('#attachment-file-browser');
+        if (!fileBrowser)
+            return;
+        // Filter files based on search query
+        const filteredFiles = this.searchQuery
+            ? files.filter(file => file.name.toLowerCase().includes(this.searchQuery.toLowerCase()))
+            : files;
+        if (filteredFiles.length === 0) {
+            fileBrowser.innerHTML = `
+                <div class="p-4 text-center text-gray-500 dark:text-gray-400">
+                    ${this.searchQuery ? 'No results found.' : 'No files found.'}
+                </div>
+            `;
+            return;
+        }
+        fileBrowser.innerHTML = filteredFiles.map(file => this.createFileItemHTML(file)).join('');
+        // Add event listeners to file items
+        this.attachFileItemListeners(fileBrowser, filteredFiles);
+    }
+    createFileItemHTML(file) {
+        const isSelected = this.selectedFiles.has(file.id);
+        const icon = this.getFileIcon(file);
+        const sizeInfo = file.type === 'file' && file.size ? `(${this.formatFileSize(file.size)})` : '';
+        return `
+            <div class="attachment-file-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}" data-file-id="${file.id}">
+                <div class="flex items-center space-x-2 flex-1 min-w-0">
+                    <span class="text-lg">${icon}</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm text-gray-800 dark:text-gray-200 truncate">${file.name}</div>
+                        ${sizeInfo ? `<div class="text-xs text-gray-500 dark:text-gray-400">${sizeInfo}</div>` : ''}
+                    </div>
+                </div>
+                <div class="flex items-center space-x-1">
+                    ${file.type === 'file' ? `
+                        <input type="checkbox" class="file-checkbox" data-file-id="${file.id}" ${isSelected ? 'checked' : ''}>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+    getFileIcon(file) {
+        if (file.icon) {
+            return `<img src="${file.icon}" alt="${file.type}" class="w-5 h-5">`;
+        }
+        if (file.type === 'folder') {
+            return '📁';
+        }
+        // File type icons based on mime type
+        if (file.mimeType) {
+            if (file.mimeType.includes('pdf'))
+                return '📄';
+            if (file.mimeType.includes('image'))
+                return '🖼️';
+            if (file.mimeType.includes('video'))
+                return '🎥';
+            if (file.mimeType.includes('audio'))
+                return '🎵';
+            if (file.mimeType.includes('text'))
+                return '📝';
+            if (file.mimeType.includes('spreadsheet'))
+                return '📊';
+            if (file.mimeType.includes('presentation'))
+                return '📽️';
+        }
+        return '📄';
+    }
+    attachFileItemListeners(container, files) {
+        // File/folder click handlers
+        container.querySelectorAll('.attachment-file-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.classList.contains('file-checkbox'))
+                    return;
+                const fileId = item.getAttribute('data-file-id');
+                const file = files.find(f => f.id === fileId);
+                if (file?.type === 'folder') {
+                    this.callbacks.onFolderNavigate(file.id);
+                }
+            });
+        });
+        // Checkbox handlers
+        container.querySelectorAll('.file-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const target = e.target;
+                const fileId = target.getAttribute('data-file-id');
+                if (fileId) {
+                    this.callbacks.onFileSelect(fileId, target.checked);
+                }
+            });
+        });
+    }
+    setBreadcrumbs(breadcrumbs) {
+        this.breadcrumbs = breadcrumbs;
+        this.renderBreadcrumbs();
+    }
+    renderBreadcrumbs() {
+        const breadcrumbContainer = this.container.querySelector('#breadcrumb-container');
+        const breadcrumbsDiv = this.container.querySelector('#attachment-breadcrumbs');
+        if (!breadcrumbContainer || !breadcrumbsDiv)
+            return;
+        if (this.breadcrumbs.length <= 1) {
+            breadcrumbsDiv.classList.add('hidden');
+            return;
+        }
+        breadcrumbsDiv.classList.remove('hidden');
+        breadcrumbContainer.innerHTML = '';
+        this.breadcrumbs.forEach((crumb, index) => {
+            const isLast = index === this.breadcrumbs.length - 1;
+            const crumbElement = document.createElement(isLast ? 'span' : 'button');
+            crumbElement.textContent = crumb.name;
+            crumbElement.dataset.id = crumb.id;
+            crumbElement.dataset.index = String(index);
+            if (!isLast) {
+                crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer';
+                crumbElement.addEventListener('click', () => {
+                    this.callbacks.onBreadcrumbClick(crumb.id, index);
+                });
+                const separator = document.createElement('span');
+                separator.textContent = ' / ';
+                separator.className = 'mx-1 text-gray-400';
+                breadcrumbContainer.appendChild(crumbElement);
+                breadcrumbContainer.appendChild(separator);
+            }
+            else {
+                crumbElement.className = 'font-semibold';
+                breadcrumbContainer.appendChild(crumbElement);
+            }
+        });
+    }
+    selectFile(fileId, selected) {
+        if (selected) {
+            this.selectedFiles.add(fileId);
+        }
+        else {
+            this.selectedFiles.delete(fileId);
+        }
+        this.updateFileSelection(fileId, selected);
+    }
+    updateFileSelection(fileId, selected) {
+        const fileItem = this.container.querySelector(`[data-file-id="${fileId}"]`);
+        const checkbox = fileItem?.querySelector('.file-checkbox');
+        if (fileItem) {
+            if (selected) {
+                fileItem.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+            }
+            else {
+                fileItem.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+            }
+        }
+        if (checkbox) {
+            checkbox.checked = selected;
+        }
+    }
+    getSelectedFiles() {
+        return Array.from(this.selectedFiles);
+    }
+    clearSelection() {
+        this.selectedFiles.clear();
+        this.container.querySelectorAll('.attachment-file-item').forEach(item => {
+            item.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+        });
+        this.container.querySelectorAll('.file-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+    setLoading(loading) {
+        const fileBrowser = this.container.querySelector('#attachment-file-browser');
+        if (!fileBrowser)
+            return;
+        if (loading) {
+            fileBrowser.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Loading files...</div>';
+        }
+    }
+    setError(message) {
+        const fileBrowser = this.container.querySelector('#attachment-file-browser');
+        if (!fileBrowser)
+            return;
+        fileBrowser.innerHTML = `<div class="p-4 text-center text-red-500">${message}</div>`;
+    }
+    formatFileSize(bytes) {
+        if (bytes === 0)
+            return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+}
+
+
+/***/ }),
+
 /***/ "./src/Controllers/HistoryPopupController.ts":
 /*!***************************************************!*\
   !*** ./src/Controllers/HistoryPopupController.ts ***!
@@ -5541,6 +5766,626 @@ function initializeSpacesController( /* Pass necessary elements or functions if 
 
 /***/ }),
 
+/***/ "./src/Controllers/UnifiedAttachmentController.ts":
+/*!********************************************************!*\
+  !*** ./src/Controllers/UnifiedAttachmentController.ts ***!
+  \********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   initializeUnifiedAttachmentController: () => (/* binding */ initializeUnifiedAttachmentController)
+/* harmony export */ });
+/* harmony import */ var _FileBrowserDisplay__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./FileBrowserDisplay */ "./src/Controllers/FileBrowserDisplay.ts");
+/* harmony import */ var _adapters_AdapterRegistry__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./adapters/AdapterRegistry */ "./src/Controllers/adapters/AdapterRegistry.ts");
+/* harmony import */ var _DB_idbConnectors__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../DB/idbConnectors */ "./src/DB/idbConnectors.ts");
+
+
+
+// Logging constants
+const LOG_GENERAL = true;
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const LOG_WARN = false;
+const prefix = '[UnifiedAttachmentController]';
+let isInitialized = false;
+let currentSource = 'google-drive';
+let currentPath = 'root';
+let currentConnector = null;
+// Dynamic connectors loaded from DB
+let availableConnectors = [];
+let fileBrowserDisplay = null;
+let currentBreadcrumbs = [{ id: 'root', name: 'Root' }];
+async function initializeUnifiedAttachmentController() {
+    if (isInitialized) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Already initialized.`);
+        return {};
+    }
+    if (LOG_DEBUG)
+        console.log(`${prefix} Initializing...`);
+    try {
+        // Initialize connectors DB
+        await (0,_DB_idbConnectors__WEBPACK_IMPORTED_MODULE_2__.initializeConnectors)();
+        // Load available connectors
+        await loadAvailableConnectors();
+        // Setup unified attach button
+        setupUnifiedAttachButton();
+        // Setup attachment popup
+        setupAttachmentPopup();
+        // Listen for connector updates
+        setupConnectorEventListeners();
+        isInitialized = true;
+        if (LOG_DEBUG)
+            console.log(`${prefix} Initialized successfully.`);
+        return {};
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Initialization failed:`, error);
+        // Don't throw - allow sidepanel to continue loading
+        return {};
+    }
+}
+async function loadAvailableConnectors() {
+    try {
+        // Get only storage connectors that are enabled
+        const allConnectors = await (0,_DB_idbConnectors__WEBPACK_IMPORTED_MODULE_2__.getEnabledConnectors)();
+        availableConnectors = allConnectors.filter(c => c.category === 'storage');
+        if (LOG_DEBUG)
+            console.log(`${prefix} Loaded ${availableConnectors.length} storage connectors`);
+        // Set default source to first available connector
+        if (availableConnectors.length > 0) {
+            currentSource = availableConnectors[0].id;
+            currentConnector = availableConnectors[0];
+        }
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to load connectors:`, error);
+    }
+}
+function setupConnectorEventListeners() {
+    // Listen for connector updates from Connectors tab
+    window.addEventListener('connectorUpdated', async (event) => {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Connector updated:`, event.detail);
+        // Reload available connectors
+        await loadAvailableConnectors();
+        // Refresh the dropdown if popup is open
+        const popup = document.getElementById('unified-attachment-popup');
+        if (popup && !popup.classList.contains('hidden')) {
+            refreshSourceDropdown();
+        }
+    });
+}
+function setupUnifiedAttachButton() {
+    // Button is now in HTML, just verify it exists
+    const attachButton = document.getElementById('unified-attach-button');
+    if (!attachButton) {
+        if (LOG_WARN)
+            console.warn(`${prefix} Unified attach button not found in HTML`);
+        return;
+    }
+    if (LOG_GENERAL)
+        console.log(`${prefix} Unified attach button found and ready`);
+}
+function setupAttachmentPopup() {
+    // Popup is now in HTML, just get reference and populate
+    const popup = document.getElementById('unified-attachment-popup');
+    if (!popup) {
+        if (LOG_WARN)
+            console.warn(`${prefix} Unified attachment popup not found in HTML`);
+        return;
+    }
+    // Populate source dropdown with available connectors
+    refreshSourceDropdown();
+    // Initialize file browser display
+    fileBrowserDisplay = new _FileBrowserDisplay__WEBPACK_IMPORTED_MODULE_0__.FileBrowserDisplay(popup, {
+        onFileSelect: handleFileSelect,
+        onFolderNavigate: handleFolderNavigate,
+        onBreadcrumbClick: handleBreadcrumbClick,
+        onSearch: handleSearch
+    });
+    // Setup event listeners
+    setupAttachmentPopupEvents();
+    if (LOG_GENERAL)
+        console.log(`${prefix} Attachment popup initialized`);
+}
+function setupAttachmentPopupEvents() {
+    const popup = document.getElementById('unified-attachment-popup');
+    const closeButton = document.getElementById('close-attachment-popup');
+    const cancelButton = document.getElementById('cancel-attachment-button');
+    const insertButton = document.getElementById('insert-attachment-button');
+    const sourceSelect = document.getElementById('attachment-source-dropdown');
+    const attachButton = document.getElementById('unified-attach-button');
+    // Show/hide popup
+    attachButton?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup?.classList.toggle('hidden');
+        if (!popup?.classList.contains('hidden')) {
+            loadFiles();
+        }
+    });
+    closeButton?.addEventListener('click', hideAttachmentPopup);
+    cancelButton?.addEventListener('click', hideAttachmentPopup);
+    // Insert button
+    insertButton?.addEventListener('click', handleInsertFiles);
+    // Source change
+    sourceSelect?.addEventListener('change', (e) => {
+        const target = e.target;
+        currentSource = target.value;
+        // Find the connector
+        currentConnector = availableConnectors.find(c => c.id === currentSource) || null;
+        // Reset state
+        currentPath = 'root';
+        currentBreadcrumbs = [{ id: 'root', name: 'Root' }];
+        if (fileBrowserDisplay) {
+            fileBrowserDisplay.clearSelection();
+        }
+        loadFiles();
+    });
+    // Close popup when clicking outside
+    document.addEventListener('click', (event) => {
+        if (popup && !popup.classList.contains('hidden') &&
+            !attachButton?.contains(event.target) &&
+            !popup.contains(event.target)) {
+            hideAttachmentPopup();
+        }
+    });
+}
+function hideAttachmentPopup() {
+    const popup = document.getElementById('unified-attachment-popup');
+    if (popup) {
+        popup.classList.add('hidden');
+    }
+}
+async function loadFiles() {
+    if (!fileBrowserDisplay || !currentConnector)
+        return;
+    fileBrowserDisplay.setLoading(true);
+    try {
+        // Get adapter for current connector type
+        const adapter = _adapters_AdapterRegistry__WEBPACK_IMPORTED_MODULE_1__.AdapterRegistry.getAdapter(currentConnector.type);
+        if (!adapter) {
+            throw new Error(`No adapter available for connector type: ${currentConnector.type}`);
+        }
+        const files = await adapter.fetchFiles(currentPath);
+        fileBrowserDisplay.renderFiles(files);
+        fileBrowserDisplay.setBreadcrumbs(currentBreadcrumbs);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Error loading files:`, error);
+        fileBrowserDisplay.setError(`Failed to load files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+// Callback functions for FileBrowserDisplay
+function handleFileSelect(fileId, selected) {
+    if (fileBrowserDisplay) {
+        fileBrowserDisplay.selectFile(fileId, selected);
+    }
+    updateSelectedCount();
+}
+function handleFolderNavigate(folderId) {
+    if (!currentConnector)
+        return;
+    const adapter = _adapters_AdapterRegistry__WEBPACK_IMPORTED_MODULE_1__.AdapterRegistry.getAdapter(currentConnector.type);
+    if (adapter) {
+        currentPath = adapter.getFolderId({ id: folderId, name: '', type: 'folder', path: folderId });
+        // Update breadcrumbs
+        currentBreadcrumbs.push({ id: folderId, name: 'Folder' }); // TODO: Get actual folder name
+        loadFiles();
+    }
+}
+function handleBreadcrumbClick(folderId, index) {
+    currentBreadcrumbs = currentBreadcrumbs.slice(0, index + 1);
+    currentPath = folderId;
+    loadFiles();
+}
+function handleSearch(query) {
+    // Search is handled by FileBrowserDisplay
+    if (LOG_DEBUG)
+        console.log(`${prefix} Searching for:`, query);
+}
+function updateSelectedCount() {
+    const count = fileBrowserDisplay ? fileBrowserDisplay.getSelectedFiles().length : 0;
+    const countElement = document.getElementById('selected-count');
+    const insertButton = document.getElementById('insert-attachment-button');
+    if (countElement) {
+        countElement.textContent = count.toString();
+    }
+    if (insertButton) {
+        insertButton.textContent = `Insert (${count})`;
+        insertButton.disabled = count === 0;
+    }
+}
+function handleInsertFiles() {
+    if (!fileBrowserDisplay)
+        return;
+    const selectedFiles = fileBrowserDisplay.getSelectedFiles();
+    if (selectedFiles.length === 0)
+        return;
+    // TODO: Implement file insertion logic
+    if (LOG_GENERAL)
+        console.log(`${prefix} Inserting files:`, selectedFiles);
+    hideAttachmentPopup();
+}
+function refreshSourceDropdown() {
+    const sourceSelect = document.getElementById('attachment-source-dropdown');
+    if (!sourceSelect)
+        return;
+    const currentValue = sourceSelect.value;
+    // Rebuild options
+    sourceSelect.innerHTML = availableConnectors.map(connector => `
+        <option value="${connector.id}">
+            ${connector.icon} ${connector.name}
+        </option>
+    `).join('');
+    // Restore selection if still available
+    if (availableConnectors.find(c => c.id === currentValue)) {
+        sourceSelect.value = currentValue;
+    }
+    else if (availableConnectors.length > 0) {
+        // Select first available
+        sourceSelect.value = availableConnectors[0].id;
+        currentSource = availableConnectors[0].id;
+        currentConnector = availableConnectors[0];
+    }
+    if (LOG_DEBUG)
+        console.log(`${prefix} Source dropdown refreshed`);
+}
+
+
+/***/ }),
+
+/***/ "./src/Controllers/adapters/AdapterRegistry.ts":
+/*!*****************************************************!*\
+  !*** ./src/Controllers/adapters/AdapterRegistry.ts ***!
+  \*****************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AdapterRegistry: () => (/* binding */ AdapterRegistry),
+/* harmony export */   getAdapter: () => (/* binding */ getAdapter),
+/* harmony export */   hasAdapter: () => (/* binding */ hasAdapter),
+/* harmony export */   registerAdapter: () => (/* binding */ registerAdapter)
+/* harmony export */ });
+/* harmony import */ var _GoogleDriveAdapter__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./GoogleDriveAdapter */ "./src/Controllers/adapters/GoogleDriveAdapter.ts");
+/* harmony import */ var _LocalFileAdapter__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./LocalFileAdapter */ "./src/Controllers/adapters/LocalFileAdapter.ts");
+// src/Controllers/adapters/AdapterRegistry.ts
+// Factory for dynamically creating adapters based on connector type
+
+
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const prefix = '[AdapterRegistry]';
+const ADAPTER_MAP = {
+    'google-drive': _GoogleDriveAdapter__WEBPACK_IMPORTED_MODULE_0__.GoogleDriveAdapter,
+    'local': _LocalFileAdapter__WEBPACK_IMPORTED_MODULE_1__.LocalFileAdapter,
+    // Future adapters will be registered here
+    // 'dropbox': DropboxAdapter,
+    // 'onedrive': OneDriveAdapter,
+    // 'github': GitHubAdapter,
+    // etc.
+};
+class AdapterRegistry {
+    /**
+     * Register a new adapter class for a connector type
+     */
+    static registerAdapter(type, adapterClass) {
+        ADAPTER_MAP[type] = adapterClass;
+        if (LOG_DEBUG)
+            console.log(`${prefix} Registered adapter for type: ${type}`);
+    }
+    /**
+     * Get or create an adapter instance for a connector type
+     */
+    static getAdapter(type) {
+        // Check if we already have an instance
+        if (this.adapters.has(type)) {
+            return this.adapters.get(type);
+        }
+        // Check if we have an adapter class for this type
+        const AdapterClass = ADAPTER_MAP[type];
+        if (!AdapterClass) {
+            if (LOG_ERROR)
+                console.error(`${prefix} No adapter found for type: ${type}`);
+            return null;
+        }
+        // Create new instance
+        try {
+            const adapter = new AdapterClass();
+            this.adapters.set(type, adapter);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Created adapter instance for type: ${type}`);
+            return adapter;
+        }
+        catch (error) {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to create adapter for type ${type}:`, error);
+            return null;
+        }
+    }
+    /**
+     * Check if an adapter is available for a connector type
+     */
+    static hasAdapter(type) {
+        return type in ADAPTER_MAP;
+    }
+    /**
+     * Get all available adapter types
+     */
+    static getAvailableAdapterTypes() {
+        return Object.keys(ADAPTER_MAP);
+    }
+    /**
+     * Clear all adapter instances (for testing or reset)
+     */
+    static clearAdapters() {
+        this.adapters.forEach(adapter => {
+            if (adapter.clearCache) {
+                adapter.clearCache();
+            }
+        });
+        this.adapters.clear();
+        if (LOG_DEBUG)
+            console.log(`${prefix} Cleared all adapter instances`);
+    }
+    /**
+     * Clear a specific adapter instance
+     */
+    static clearAdapter(type) {
+        const adapter = this.adapters.get(type);
+        if (adapter) {
+            if (adapter.clearCache) {
+                adapter.clearCache();
+            }
+            this.adapters.delete(type);
+            if (LOG_DEBUG)
+                console.log(`${prefix} Cleared adapter instance for type: ${type}`);
+        }
+    }
+}
+AdapterRegistry.adapters = new Map();
+// Export for convenience
+function getAdapter(type) {
+    return AdapterRegistry.getAdapter(type);
+}
+function registerAdapter(type, adapterClass) {
+    AdapterRegistry.registerAdapter(type, adapterClass);
+}
+function hasAdapter(type) {
+    return AdapterRegistry.hasAdapter(type);
+}
+
+
+/***/ }),
+
+/***/ "./src/Controllers/adapters/GoogleDriveAdapter.ts":
+/*!********************************************************!*\
+  !*** ./src/Controllers/adapters/GoogleDriveAdapter.ts ***!
+  \********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   GoogleDriveAdapter: () => (/* binding */ GoogleDriveAdapter)
+/* harmony export */ });
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
+/* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(webextension_polyfill__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../events/eventNames */ "./src/events/eventNames.ts");
+// src/Controllers/adapters/GoogleDriveAdapter.ts
+
+
+const GOOGLE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+class GoogleDriveAdapter {
+    constructor() {
+        this.filesCache = {};
+        this.isFetching = false;
+    }
+    async fetchFiles(folderId) {
+        if (this.isFetching) {
+            return [];
+        }
+        this.isFetching = true;
+        try {
+            // Check cache first
+            if (this.filesCache[folderId]) {
+                this.isFetching = false;
+                return this.convertDriveItemsToFileItems(this.filesCache[folderId]);
+            }
+            // Fetch from Google Drive API
+            const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.sendMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.RuntimeMessageTypes.GET_DRIVE_FILE_LIST,
+                folderId: folderId
+            });
+            this.isFetching = false;
+            if (response && response.success && response.files) {
+                this.filesCache[folderId] = response.files;
+                return this.convertDriveItemsToFileItems(response.files);
+            }
+            else {
+                const errorMsg = response?.error || 'Unknown error fetching Google Drive files';
+                throw new Error(errorMsg);
+            }
+        }
+        catch (error) {
+            this.isFetching = false;
+            throw error;
+        }
+    }
+    convertDriveItemsToFileItems(driveItems) {
+        return driveItems.map(item => ({
+            id: item.id,
+            name: item.name,
+            type: item.mimeType === GOOGLE_FOLDER_MIME_TYPE ? 'folder' : 'file',
+            mimeType: item.mimeType,
+            size: item.size ? parseInt(item.size) : undefined,
+            modifiedTime: item.modifiedTime,
+            icon: item.iconLink,
+            path: item.id // Use Google Drive ID as path
+        }));
+    }
+    clearCache() {
+        this.filesCache = {};
+    }
+    isFolder(item) {
+        return item.type === 'folder';
+    }
+    getFolderId(item) {
+        return item.id;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Controllers/adapters/LocalFileAdapter.ts":
+/*!******************************************************!*\
+  !*** ./src/Controllers/adapters/LocalFileAdapter.ts ***!
+  \******************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   LocalFileAdapter: () => (/* binding */ LocalFileAdapter)
+/* harmony export */ });
+class LocalFileAdapter {
+    constructor() {
+        this.filesCache = {};
+        this.currentDirectoryHandle = null;
+    }
+    async fetchFiles(path) {
+        try {
+            // Check cache first
+            if (this.filesCache[path]) {
+                return this.filesCache[path];
+            }
+            let files = [];
+            if (path === 'root' || path === '') {
+                // Request directory access
+                if (!this.currentDirectoryHandle) {
+                    this.currentDirectoryHandle = await this.requestDirectoryAccess();
+                }
+                files = await this.readDirectory(this.currentDirectoryHandle);
+            }
+            else {
+                // Navigate to specific folder
+                const folderHandle = await this.getFolderHandle(path);
+                files = await this.readDirectory(folderHandle);
+            }
+            this.filesCache[path] = files;
+            return files;
+        }
+        catch (error) {
+            console.error('LocalFileAdapter: Error fetching files:', error);
+            throw error;
+        }
+    }
+    async requestDirectoryAccess() {
+        if (!('showDirectoryPicker' in window)) {
+            throw new Error('File System Access API not supported in this browser');
+        }
+        try {
+            return await window.showDirectoryPicker({
+                mode: 'read'
+            });
+        }
+        catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('Directory access cancelled by user');
+            }
+            throw error;
+        }
+    }
+    async getFolderHandle(folderId) {
+        // This would need to be implemented based on how we store folder references
+        // For now, we'll need to maintain a mapping of folder IDs to handles
+        throw new Error('Folder navigation not yet implemented');
+    }
+    async readDirectory(directoryHandle) {
+        const files = [];
+        for await (const [name, handle] of directoryHandle.entries()) {
+            const isDirectory = handle.kind === 'directory';
+            files.push({
+                id: `${handle.name}_${Date.now()}`, // Generate unique ID
+                name: name,
+                type: isDirectory ? 'folder' : 'file',
+                mimeType: isDirectory ? 'folder' : this.getMimeType(name),
+                size: isDirectory ? undefined : await this.getFileSize(handle),
+                modifiedTime: new Date().toISOString(), // File System API doesn't provide this easily
+                path: name
+            });
+        }
+        return files.sort((a, b) => {
+            // Folders first, then files, both alphabetically
+            if (a.type !== b.type) {
+                return a.type === 'folder' ? -1 : 1;
+            }
+            return a.name.localeCompare(b.name);
+        });
+    }
+    getMimeType(filename) {
+        const extension = filename.split('.').pop()?.toLowerCase();
+        const mimeTypes = {
+            'pdf': 'application/pdf',
+            'txt': 'text/plain',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'mp4': 'video/mp4',
+            'mp3': 'audio/mpeg',
+            'zip': 'application/zip',
+            'json': 'application/json',
+            'html': 'text/html',
+            'css': 'text/css',
+            'js': 'application/javascript'
+        };
+        return mimeTypes[extension || ''] || 'application/octet-stream';
+    }
+    async getFileSize(handle) {
+        try {
+            const file = await handle.getFile();
+            return file.size;
+        }
+        catch (error) {
+            return 0;
+        }
+    }
+    isFolder(item) {
+        return item.type === 'folder';
+    }
+    getFolderId(item) {
+        return item.id;
+    }
+    clearCache() {
+        this.filesCache = {};
+    }
+    // Get file content for insertion
+    async getFileContent(fileId, files) {
+        // TODO: Implement file content retrieval
+        // This would require storing file handles or re-requesting access
+        console.warn('File content retrieval not yet implemented for local files');
+        return null;
+    }
+}
+
+
+/***/ }),
+
 /***/ "./src/DB/db.ts":
 /*!**********************!*\
   !*** ./src/DB/db.ts ***!
@@ -7600,6 +8445,450 @@ class Chat extends _idbKnowledgeGraph__WEBPACK_IMPORTED_MODULE_0__.KnowledgeGrap
             kgn_properties: chatData.kgn_properties_json ? JSON.parse(chatData.kgn_properties_json) : undefined,
             kgn_embedding_id: chatData.kgn_embedding_id
         }, dbWorker));
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/DB/idbConnectors.ts":
+/*!*********************************!*\
+  !*** ./src/DB/idbConnectors.ts ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   deleteConnector: () => (/* binding */ deleteConnector),
+/* harmony export */   getAllConnectors: () => (/* binding */ getAllConnectors),
+/* harmony export */   getConnector: () => (/* binding */ getConnector),
+/* harmony export */   getConnectorsByCategory: () => (/* binding */ getConnectorsByCategory),
+/* harmony export */   getEnabledConnectors: () => (/* binding */ getEnabledConnectors),
+/* harmony export */   initializeConnectors: () => (/* binding */ initializeConnectors),
+/* harmony export */   saveConnector: () => (/* binding */ saveConnector),
+/* harmony export */   testConnectorConnection: () => (/* binding */ testConnectorConnection),
+/* harmony export */   updateConnectorAuth: () => (/* binding */ updateConnectorAuth),
+/* harmony export */   updateConnectorAuthStatus: () => (/* binding */ updateConnectorAuthStatus),
+/* harmony export */   updateConnectorStatus: () => (/* binding */ updateConnectorStatus)
+/* harmony export */ });
+// src/DB/idbConnectors.ts
+// Manages connector configurations in IndexedDB
+const LOG_DEBUG = false;
+const LOG_ERROR = true;
+const prefix = '[idbConnectors]';
+const DB_NAME = 'TabAgentConnectors';
+const DB_VERSION = 1;
+const CONNECTORS_STORE = 'connectors';
+// Default built-in connectors
+const DEFAULT_CONNECTORS = [
+    // Storage Connectors
+    {
+        id: 'google-drive',
+        name: 'Google Drive',
+        type: 'google-drive',
+        category: 'storage',
+        icon: '☁️',
+        enabled: true,
+        isDefault: true,
+        requiresAuth: true,
+        authConfig: {
+            type: 'oauth',
+            oauthClientId: 'google-drive',
+            oauthScopes: ['https://www.googleapis.com/auth/drive.readonly']
+        },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    {
+        id: 'local',
+        name: 'Local Files',
+        type: 'local',
+        category: 'storage',
+        icon: '💾',
+        enabled: true,
+        isDefault: true,
+        requiresAuth: false,
+        authStatus: 'authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    {
+        id: 'dropbox',
+        name: 'Dropbox',
+        type: 'dropbox',
+        category: 'storage',
+        icon: '📦',
+        enabled: false,
+        isDefault: true,
+        requiresAuth: true,
+        authConfig: {
+            type: 'oauth',
+            oauthClientId: 'dropbox',
+            oauthScopes: ['files.content.read']
+        },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    {
+        id: 'onedrive',
+        name: 'OneDrive',
+        type: 'onedrive',
+        category: 'storage',
+        icon: '☁️',
+        enabled: false,
+        isDefault: true,
+        requiresAuth: true,
+        authConfig: {
+            type: 'oauth',
+            oauthClientId: 'onedrive',
+            oauthScopes: ['Files.Read']
+        },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    // Developer Connectors
+    {
+        id: 'github',
+        name: 'GitHub',
+        type: 'github',
+        category: 'developer',
+        icon: '🐙',
+        enabled: false,
+        isDefault: true,
+        requiresAuth: true,
+        authConfig: {
+            type: 'token',
+            tokenName: 'Personal Access Token',
+            customFields: [
+                {
+                    key: 'token',
+                    label: 'GitHub Token',
+                    type: 'password',
+                    placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxx'
+                }
+            ]
+        },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    {
+        id: 'huggingface',
+        name: 'HuggingFace',
+        type: 'huggingface',
+        category: 'developer',
+        icon: '🤗',
+        enabled: false,
+        isDefault: true,
+        requiresAuth: true,
+        authConfig: {
+            type: 'token',
+            tokenName: 'API Token',
+            customFields: [
+                {
+                    key: 'token',
+                    label: 'HuggingFace Token',
+                    type: 'password',
+                    placeholder: 'hf_xxxxxxxxxxxxxxxxxxxx'
+                }
+            ]
+        },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    }
+];
+async function openConnectorsDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onerror = () => {
+            if (LOG_ERROR)
+                console.error(`${prefix} Failed to open database:`, request.error);
+            reject(request.error);
+        };
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            // Create connectors object store
+            if (!db.objectStoreNames.contains(CONNECTORS_STORE)) {
+                const store = db.createObjectStore(CONNECTORS_STORE, { keyPath: 'id' });
+                store.createIndex('type', 'type', { unique: false });
+                store.createIndex('category', 'category', { unique: false });
+                store.createIndex('enabled', 'enabled', { unique: false });
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Created connectors object store`);
+            }
+        };
+    });
+}
+async function initializeConnectors() {
+    try {
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readwrite');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        // Check if we have any connectors
+        const countRequest = store.count();
+        await new Promise((resolve, reject) => {
+            countRequest.onsuccess = async () => {
+                if (countRequest.result === 0) {
+                    // Add default connectors
+                    if (LOG_DEBUG)
+                        console.log(`${prefix} Initializing default connectors`);
+                    for (const connector of DEFAULT_CONNECTORS) {
+                        store.put(connector);
+                    }
+                }
+                resolve();
+            };
+            countRequest.onerror = () => reject(countRequest.error);
+            tx.oncomplete = () => {
+                db.close();
+            };
+        });
+        if (LOG_DEBUG)
+            console.log(`${prefix} Connectors initialized`);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to initialize connectors:`, error);
+        throw error;
+    }
+}
+async function getAllConnectors() {
+    try {
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readonly');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        const request = store.getAll();
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                resolve(request.result || []);
+            };
+            request.onerror = () => reject(request.error);
+            tx.oncomplete = () => {
+                db.close();
+            };
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to get all connectors:`, error);
+        return [];
+    }
+}
+async function getEnabledConnectors() {
+    try {
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readonly');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        const request = store.getAll();
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                // Filter enabled connectors in JavaScript instead of using index
+                const allConnectors = request.result || [];
+                const enabledConnectors = allConnectors.filter(c => c.enabled === true);
+                resolve(enabledConnectors);
+            };
+            request.onerror = () => reject(request.error);
+            tx.oncomplete = () => {
+                db.close();
+            };
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to get enabled connectors:`, error);
+        return [];
+    }
+}
+async function getConnectorsByCategory(category) {
+    try {
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readonly');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        const index = store.index('category');
+        const request = index.getAll(category);
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                resolve(request.result || []);
+            };
+            request.onerror = () => reject(request.error);
+            tx.oncomplete = () => {
+                db.close();
+            };
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to get connectors by category:`, error);
+        return [];
+    }
+}
+async function getConnector(id) {
+    try {
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readonly');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        const request = store.get(id);
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                resolve(request.result || null);
+            };
+            request.onerror = () => reject(request.error);
+            tx.oncomplete = () => {
+                db.close();
+            };
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to get connector:`, error);
+        return null;
+    }
+}
+async function saveConnector(connector) {
+    try {
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readwrite');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        connector.updatedAt = Date.now();
+        store.put(connector);
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => {
+                db.close();
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Connector saved:`, connector.id);
+                // Broadcast connector update event
+                window.dispatchEvent(new CustomEvent('connectorUpdated', {
+                    detail: { connector, action: 'save' }
+                }));
+                resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to save connector:`, error);
+        throw error;
+    }
+}
+async function deleteConnector(id) {
+    try {
+        // Don't allow deletion of default connectors
+        const connector = await getConnector(id);
+        if (connector?.isDefault) {
+            throw new Error('Cannot delete default connector');
+        }
+        const db = await openConnectorsDB();
+        const tx = db.transaction(CONNECTORS_STORE, 'readwrite');
+        const store = tx.objectStore(CONNECTORS_STORE);
+        store.delete(id);
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => {
+                db.close();
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Connector deleted:`, id);
+                // Broadcast connector update event
+                window.dispatchEvent(new CustomEvent('connectorUpdated', {
+                    detail: { connectorId: id, action: 'delete' }
+                }));
+                resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to delete connector:`, error);
+        throw error;
+    }
+}
+async function updateConnectorStatus(id, enabled) {
+    try {
+        const connector = await getConnector(id);
+        if (!connector) {
+            throw new Error(`Connector not found: ${id}`);
+        }
+        connector.enabled = enabled;
+        await saveConnector(connector);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to update connector status:`, error);
+        throw error;
+    }
+}
+async function updateConnectorAuthStatus(id, authStatus) {
+    try {
+        const connector = await getConnector(id);
+        if (!connector) {
+            throw new Error(`Connector not found: ${id}`);
+        }
+        connector.authStatus = authStatus;
+        await saveConnector(connector);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to update connector auth status:`, error);
+        throw error;
+    }
+}
+async function updateConnectorAuth(id, authConfig) {
+    try {
+        const connector = await getConnector(id);
+        if (!connector) {
+            throw new Error(`Connector not found: ${id}`);
+        }
+        connector.authConfig = { ...connector.authConfig, ...authConfig };
+        connector.authStatus = 'authenticated';
+        await saveConnector(connector);
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to update connector auth:`, error);
+        throw error;
+    }
+}
+async function testConnectorConnection(id) {
+    try {
+        const connector = await getConnector(id);
+        if (!connector) {
+            throw new Error(`Connector not found: ${id}`);
+        }
+        // TODO: Implement actual connection testing per connector type
+        // For now, just check if auth is configured
+        const success = connector.requiresAuth ?
+            connector.authStatus === 'authenticated' && !!connector.authConfig?.token :
+            true;
+        connector.lastConnectionTest = {
+            success,
+            timestamp: Date.now(),
+            error: success ? undefined : 'Not authenticated'
+        };
+        await saveConnector(connector);
+        return success;
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to test connector connection:`, error);
+        // Update connector with error
+        const connector = await getConnector(id);
+        if (connector) {
+            connector.lastConnectionTest = {
+                success: false,
+                timestamp: Date.now(),
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+            await saveConnector(connector);
+        }
+        return false;
     }
 }
 
@@ -11947,12 +13236,13 @@ const LOG_GENERAL = false; // Turn off general logs
 const LOG_DEBUG = false; // Turn off debug logs
 const LOG_ERROR = true; // Keep error logging
 const LOG_WARN = false; // Turn off warning logs
-const LOG_INFO = false; // Turn off info logs
+const LOG_INFO = true; // Turn ON to trace dropdown/manifest flow
 const LOG_UI_UPDATES = false; // Turn off UI updates logs
 const LOG_QUANT_DROPDOWN = false; // Turn off quant dropdown logs
 const LOG_MODEL_LOADING = true; // Keep model loading logs
 const LOG_EVENTS = false; // Turn off events logs
 const LOG_PROGRESS_HANDLING = false; // Turn off to avoid spam
+const LOG_BUTTON_VISIBILITY = true; // Turn ON to trace button hide/show logic
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 const AVAILABLE_MODELS = {
@@ -11980,8 +13270,11 @@ window.addEventListener('userModelsUpdated', () => {
 });
 webextension_polyfill__WEBPACK_IMPORTED_MODULE_3___default().runtime.onMessage.addListener((message, sender, sendResponse) => {
     const type = message?.type;
-    if (LOG_INFO)
-        console.log(prefix, 'browser.runtime.onMessage Received progress update: ', message.type, message.payload);
+    // Only log non-progress messages to reduce spam
+    const isProgressMessage = message.type === _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS;
+    if (LOG_INFO && !isProgressMessage) {
+        console.log(prefix, 'browser.runtime.onMessage Received:', message.type, message.payload);
+    }
     if (message.type === _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbStatusUpdatedNotification.type) {
         handleStatusUpdate(message.payload);
     }
@@ -12012,7 +13305,7 @@ function selectElements() {
     queryInput = document.getElementById('query-input');
     sendButton = document.getElementById('send-button');
     chatBody = document.getElementById('chat-body');
-    attachButton = document.getElementById('attach-button');
+    attachButton = document.getElementById('unified-attach-button');
     fileInput = document.getElementById('file-input');
     loadingIndicatorElement = document.getElementById('loading-indicator');
     modelLoadProgress = document.getElementById('model-load-progress');
@@ -12030,9 +13323,30 @@ function attachListeners() {
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
     attachButton?.addEventListener('click', handleAttachClick);
-    modelSelectorDropdown?.addEventListener('change', _handleModelChange);
-    quantSelectorDropdown?.addEventListener('change', _handleQuantizationChange);
+    modelSelectorDropdown?.addEventListener('change', async () => {
+        await _handleModelChange();
+        await updateLoadButtonVisibility();
+    });
+    quantSelectorDropdown?.addEventListener('change', async () => {
+        await _handleQuantizationChange();
+        await updateLoadButtonVisibility();
+    });
     loadModelButton?.addEventListener('click', _handleLoadModelButtonClick);
+    // Expanded input listeners
+    const expandButton = document.getElementById('expand-input-button');
+    const minimizeButton = document.getElementById('minimize-expanded-input');
+    const sendExpandedButton = document.getElementById('send-expanded-button');
+    const expandedInput = document.getElementById('expanded-query-input');
+    expandButton?.addEventListener('click', expandInput);
+    minimizeButton?.addEventListener('click', minimizeInput);
+    sendExpandedButton?.addEventListener('click', sendFromExpandedView);
+    // Auto-resize expanded textarea and sync with send button state
+    expandedInput?.addEventListener('input', () => {
+        const sendExpandedBtn = document.getElementById('send-expanded-button');
+        if (sendExpandedBtn) {
+            sendExpandedBtn.disabled = expandedInput.value.trim() === '';
+        }
+    });
 }
 function removeListeners() {
     queryInput?.removeEventListener('input', adjustTextareaHeight);
@@ -12042,6 +13356,16 @@ function removeListeners() {
     modelSelectorDropdown?.removeEventListener('change', _handleModelChange);
     quantSelectorDropdown?.removeEventListener('change', _handleQuantizationChange);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
+    // Remove expanded input listeners
+    const expandButton = document.getElementById('expand-input-button');
+    const minimizeButton = document.getElementById('minimize-expanded-input');
+    const sendExpandedButton = document.getElementById('send-expanded-button');
+    const expandedInput = document.getElementById('expanded-query-input');
+    expandButton?.removeEventListener('click', expandInput);
+    minimizeButton?.removeEventListener('click', minimizeInput);
+    sendExpandedButton?.removeEventListener('click', sendFromExpandedView);
+    // Remove the input listener for expanded textarea (we can't easily remove it since it's anonymous)
+    // This is fine since it's just a simple state update
 }
 function handleEnterKey(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -12085,13 +13409,87 @@ function getModelSelectorOptions() {
 function adjustTextareaHeight() {
     if (!queryInput)
         return;
+    // Always calculate proper height based on content
+    const currentHeight = queryInput.style.height;
     queryInput.style.height = 'auto';
     const maxHeight = 150;
     const scrollHeight = queryInput.scrollHeight;
-    queryInput.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+    const newHeight = Math.max(40, Math.min(scrollHeight, maxHeight)); // Min 40px, max 150px
+    // Always update height if different
+    if (`${newHeight}px` !== currentHeight) {
+        queryInput.style.height = `${newHeight}px`;
+    }
+    // Show expand button if content exceeds max height
+    if (scrollHeight > maxHeight) {
+        showExpandButton();
+    }
+    else {
+        hideExpandButton();
+    }
     if (sendButton) {
         sendButton.disabled = queryInput.value.trim() === '' || queryInput.disabled;
     }
+}
+function showExpandButton() {
+    const expandButton = document.getElementById('expand-input-button');
+    if (expandButton) {
+        expandButton.classList.remove('hidden');
+    }
+}
+function hideExpandButton() {
+    const expandButton = document.getElementById('expand-input-button');
+    if (expandButton) {
+        expandButton.classList.add('hidden');
+    }
+}
+function expandInput() {
+    const overlay = document.getElementById('expanded-input-overlay');
+    const expandedInput = document.getElementById('expanded-query-input');
+    const sendExpandedBtn = document.getElementById('send-expanded-button');
+    if (!overlay || !expandedInput || !queryInput)
+        return;
+    // Copy content to expanded textarea
+    expandedInput.value = queryInput.value;
+    // Enable/disable send button based on content
+    if (sendExpandedBtn) {
+        sendExpandedBtn.disabled = expandedInput.value.trim() === '';
+    }
+    // Show overlay
+    overlay.classList.remove('hidden');
+    // Focus on expanded textarea
+    setTimeout(() => {
+        expandedInput.focus();
+    }, 100);
+}
+function minimizeInput() {
+    const overlay = document.getElementById('expanded-input-overlay');
+    const expandedInput = document.getElementById('expanded-query-input');
+    if (!overlay || !expandedInput || !queryInput)
+        return;
+    // Copy content back to normal textarea
+    queryInput.value = expandedInput.value;
+    // Hide overlay
+    overlay.classList.add('hidden');
+    // Adjust height and focus
+    adjustTextareaHeight();
+    queryInput.focus();
+}
+function sendFromExpandedView() {
+    const expandedInput = document.getElementById('expanded-query-input');
+    const overlay = document.getElementById('expanded-input-overlay');
+    if (!expandedInput || !overlay || !queryInput)
+        return;
+    const messageText = expandedInput.value.trim();
+    if (!messageText)
+        return;
+    // Copy content back to normal textarea
+    queryInput.value = messageText;
+    // Send the message
+    handleSendButtonClick();
+    // Clear the expanded textarea
+    expandedInput.value = '';
+    // Hide overlay
+    overlay.classList.add('hidden');
 }
 function setInputStateInternal(status) {
     if (LOG_INFO)
@@ -12132,8 +13530,6 @@ document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEven
     // The dropdown rebuilding is handled by the model change handler
     // The status updating is handled by both handlers
     // This listener is kept for any other components that need to respond to selection changes
-    if (LOG_DEBUG)
-        console.log(prefix, 'MODEL_SELECTION_CHANGED event received');
 });
 // The MODEL_SELECTION_CHANGED event already handles both model and quant dropdown changes
 // No need for additional event listeners here
@@ -12171,8 +13567,6 @@ async function handleModelManagerLoadingProgress(payload) {
         progressInner.style.background = '#f44336';
         progressInner.style.width = '100%';
         isLoadingModel = false;
-        // Update load button state after error
-        await updateLoadButtonAndQuantDropdown();
         enableInput();
         setTimeout(() => { statusDiv.style.display = 'none'; }, 1500);
         lastSeenLoadId = null;
@@ -12198,27 +13592,40 @@ async function handleModelManagerLoadingProgress(payload) {
     }
     let text = '';
     let shortFile = payload.file ? truncateFileName(payload.file) : '';
-    switch (payload.status) {
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE:
-            text = `Starting download: ${shortFile}`;
-            break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS:
-            text = `Downloading ${shortFile}`;
-            if (typeof payload.loaded === 'number' && typeof payload.total === 'number') {
-                text += `... ${Math.round(percent)}% (${formatBytes(payload.loaded)} / ${formatBytes(payload.total)})`;
-            }
-            else {
-                text += `... ${Math.round(percent)}%`;
-            }
-            break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE:
-            text = `${shortFile} downloaded. Preparing pipeline...`;
-            break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.READY:
-            text = `Model ready!`;
-            break;
-        default:
-            text = 'Loading...';
+    // Use custom message if provided, otherwise format based on status
+    if (payload.message) {
+        text = payload.message;
+    }
+    else {
+        switch (payload.status) {
+            case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.INITIATE:
+                text = `Starting download: ${shortFile}`;
+                break;
+            case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.PROGRESS:
+                text = `Downloading ${shortFile}`;
+                if (typeof payload.loaded === 'number' && typeof payload.total === 'number') {
+                    text += `... ${Math.round(percent)}% (${formatBytes(payload.loaded)} / ${formatBytes(payload.total)})`;
+                }
+                else {
+                    text += `... ${Math.round(percent)}%`;
+                }
+                break;
+            case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.DONE:
+                text = `${shortFile} downloaded. Preparing pipeline...`;
+                break;
+            case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.CACHED:
+                // Special status for cache hits
+                text = `Loading from cache: ${shortFile}`;
+                if (typeof payload.loaded === 'number') {
+                    text += ` (${formatBytes(payload.loaded)})`;
+                }
+                break;
+            case _events_eventNames__WEBPACK_IMPORTED_MODULE_0__.LoadingStatusTypes.READY:
+                text = `Model ready!`;
+                break;
+            default:
+                text = 'Loading...';
+        }
     }
     statusText.textContent = text;
     // DON'T hide progress bar here - it will be hidden when WORKER_READY event shows the success notification
@@ -12230,8 +13637,6 @@ async function handleModelAlreadyLoaded(payload) {
         return;
     // Reset loading state since the model is already loaded
     isLoadingModel = false;
-    // Update load button state - should hide if same model+quant is selected
-    await updateLoadButtonAndQuantDropdown();
     enableInput();
     // Hide the loading status (model already loaded, no need to show progress)
     const statusDiv = document.getElementById('model-load-status');
@@ -12462,60 +13867,48 @@ async function updateModelDropdown() {
     // Enable/disable based on available models
     const hasModels = modelSelector.children.length > 0;
     modelSelector.disabled = !hasModels;
-    // Update load button and quant dropdown based on selection
-    updateLoadButtonAndQuantDropdown();
 }
-// Update load button and quant dropdown based on current selection
-async function updateLoadButtonAndQuantDropdown() {
+// Update load button visibility based on current selection
+// SIMPLE RULE: Show button ONLY if user selected a different model+quant than what's loaded
+async function updateLoadButtonVisibility() {
+    console.log(prefix, '🔘 [updateLoadButtonVisibility] === CALLED ===');
+    console.log(prefix, '🔘 Stack:', new Error().stack?.split('\n').slice(1, 4).join('\n'));
+    if (!loadModelButton)
+        return;
     const modelSelector = document.getElementById('model-selector');
     const quantSelector = document.getElementById('onnx-variant-selector');
-    if (!modelSelector || !loadModelButton)
+    if (!modelSelector || !quantSelector)
         return;
     const selectedModel = modelSelector.value;
-    const selectedQuant = quantSelector?.value;
-    const isGoogleModel = selectedModel.toLowerCase().startsWith('google/');
-    const isAuthenticated = await isHuggingFaceAuthenticated();
-    // Check if this model is already loaded
+    const selectedQuant = quantSelector.value;
     const currentLoadedModel = (0,_sidepanel__WEBPACK_IMPORTED_MODULE_6__.getCurrentLoadedModel)();
+    // Check if selection matches loaded model
     const isAlreadyLoaded = currentLoadedModel &&
         currentLoadedModel.modelId === selectedModel &&
         currentLoadedModel.quant === selectedQuant;
-    if (loadModelButton) {
-        const loadBtn = loadModelButton;
-        if (isAlreadyLoaded) {
-            // Hide button if model is already loaded
-            loadBtn.style.display = 'none';
-        }
-        else if (selectedModel && (!isGoogleModel || isAuthenticated)) {
-            loadBtn.style.display = '';
-            loadBtn.disabled = false;
-            loadBtn.textContent = 'Load Model';
-        }
-        else {
-            loadBtn.style.display = '';
-            loadBtn.disabled = true;
-            if (isGoogleModel && !isAuthenticated) {
-                loadBtn.textContent = 'Authentication Required';
-            }
-            else {
-                loadBtn.textContent = 'Load Model';
-            }
-        }
+    console.log(prefix, `🔘 State: selected=${selectedModel}/${selectedQuant}, loaded=${currentLoadedModel?.modelId}/${currentLoadedModel?.quant}, isAlreadyLoaded=${isAlreadyLoaded}`);
+    const loadBtn = loadModelButton;
+    // SIMPLE LOGIC: Hide if loaded, show if different
+    if (isAlreadyLoaded) {
+        console.log(prefix, '🔘 [updateLoadButtonVisibility] ✅ HIDING button - model already loaded');
+        loadBtn.style.display = 'none';
     }
-    // Show/hide quant dropdown based on model type and auth
-    if (quantSelector) {
-        if (isGoogleModel && !isAuthenticated) {
-            quantSelector.style.display = 'none';
-        }
-        else {
-            quantSelector.style.display = '';
-        }
+    else if (selectedModel && selectedQuant) {
+        // Show button only if both model and quant are selected
+        console.log(prefix, '🔘 [updateLoadButtonVisibility] 👁️ SHOWING button - different model selected');
+        loadBtn.style.display = '';
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load Model';
+    }
+    else {
+        // No valid selection - keep hidden
+        console.log(prefix, '🔘 [updateLoadButtonVisibility] Keeping button HIDDEN - no valid selection');
+        loadBtn.style.display = 'none';
     }
 }
 // Export function to refresh model dropdown (called after authentication)
 async function refreshModelDropdown() {
     await updateModelDropdown();
-    await updateLoadButtonAndQuantDropdown();
 }
 async function initializeUI(callbacks) {
     if (LOG_INFO)
@@ -12553,11 +13946,6 @@ async function initializeUI(callbacks) {
         await updateModelDropdown();
         // Don't populate quant dropdown here - wait for MANIFEST_UPDATED event
         // The sidepanel is still processing manifests, so the cache will be empty
-        if (loadModelButton) {
-            modelSelector.addEventListener('change', async () => {
-                await updateLoadButtonAndQuantDropdown();
-            });
-        }
     }
     else {
         if (LOG_WARN)
@@ -12722,8 +14110,6 @@ async function _handleModelChange() {
     populateQuantDropdownForSelectedRepo();
     // Update status colors
     await updateQuantDropdownStatusFromDB();
-    // Update UI elements based on selection
-    await updateLoadButtonAndQuantDropdown();
     // Check if this is a Google model that needs authentication
     if (modelId.toLowerCase().startsWith('google/')) {
         const isAuthenticated = await isHuggingFaceAuthenticated();
@@ -12749,8 +14135,6 @@ async function _handleQuantizationChange() {
         console.log(prefix, `Quantization changed by user. Updating status only.`, { modelId, dtype });
     // Only update status colors, don't rebuild dropdown (options are the same)
     await updateQuantDropdownStatusFromDB();
-    // Update UI elements based on selection
-    await updateLoadButtonAndQuantDropdown();
     document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.MODEL_SELECTION_CHANGED, {
         detail: { modelId, dtype }
     }));
@@ -12823,19 +14207,27 @@ async function updateQuantDropdown() {
     if (!modelDropdown || !quantDropdown)
         return;
     if (LOG_INFO)
-        console.log(prefix, "updateQuantDropdown: Refreshing manifest cache...");
+        console.log(prefix, "📋 updateQuantDropdown: Refreshing manifest cache from IndexedDB...");
     const allManifests = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.getAllManifestEntries)();
     const modelRepos = getModelSelectorOptions();
     // Clear the cache completely
     repoQuantsCache = {};
     if (LOG_INFO)
-        console.log(prefix, "updateQuantDropdown: Found manifests:", allManifests.length);
+        console.log(prefix, `📋 updateQuantDropdown: Found ${allManifests.length} manifests in IndexedDB`);
     for (const repo of modelRepos) {
         const manifestEntry = allManifests.find(entry => entry.repo === repo);
         if (manifestEntry) {
             repoQuantsCache[repo] = manifestEntry;
-            if (LOG_INFO)
-                console.log(prefix, `updateQuantDropdown: Cached manifest for ${repo}:`, Object.keys(manifestEntry.quants || {}));
+            // Log each quant and its status for debugging
+            if (LOG_INFO) {
+                const quantDetails = Object.entries(manifestEntry.quants || {})
+                    .map(([path, info]) => `${path} (${info.dtype}) → ${info.status}`)
+                    .join(', ');
+                const manifestInfo = `📋 updateQuantDropdown: Cached manifest for ${repo}:
+        Quants: ${Object.keys(manifestEntry.quants || {}).length}
+        Details: ${quantDetails}`;
+                console.log(prefix, manifestInfo);
+            }
         }
     }
     populateQuantDropdownForSelectedRepo();
@@ -12890,11 +14282,20 @@ function populateQuantDropdownForSelectedRepo() {
             loadModelButton.style.cursor = '';
         }
     }
+    // Deduplicate by dtype to avoid showing multiple options for same quantization
+    const seenDtypes = new Set();
     for (const modelPath in manifestEntry.quants) {
         const quantInfo = manifestEntry.quants[modelPath];
-        const option = document.createElement('option');
         // Handle legacy manifests that don't have dtype field
         const dtype = quantInfo.dtype || extractCleanDtypeFromPath(modelPath);
+        // Skip if we've already processed this dtype
+        if (seenDtypes.has(dtype)) {
+            if (LOG_INFO)
+                console.log(prefix, `📋 populateQuantDropdown: Skipping duplicate dtype "${dtype}" for modelPath "${modelPath}"`);
+            continue;
+        }
+        seenDtypes.add(dtype);
+        const option = document.createElement('option');
         if (LOG_QUANT_DROPDOWN)
             console.log('[populateQuantDropdown] modelPath:', modelPath, 'quantInfo.dtype:', quantInfo.dtype, 'extracted dtype:', dtype);
         option.value = dtype; // Use clean dtype instead of modelPath
@@ -12902,8 +14303,13 @@ function populateQuantDropdownForSelectedRepo() {
         let dot = '⚪'; // default gray
         let statusLabel = '';
         const status = quantInfo.status;
-        if (LOG_INFO)
-            console.log(prefix, `populateQuantDropdown: ${dtype} status:`, status);
+        if (LOG_INFO) {
+            const quantStatusInfo = `📋 populateQuantDropdown: Processing quant for ${selectedRepo}:
+      modelPath: ${modelPath}
+      dtype: ${dtype}
+      status: ${status}`;
+            console.log(prefix, quantStatusInfo);
+        }
         switch (status) {
             case _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__.QuantStatus.Downloaded:
                 dot = '💾'; // Downloaded to IndexedDB
@@ -12970,13 +14376,9 @@ window.addEventListener('message', (event) => {
 });
 document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.WorkerEventNames.MANIFEST_UPDATED, async () => {
     if (LOG_INFO)
-        console.log(prefix, "Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
+        console.log(prefix, "📢 Received DOM MANIFEST_UPDATED event. Updating quant dropdown.");
     await updateQuantDropdown();
-    // After manifests are processed, trigger model change logic for initial state
-    const modelSelector = document.getElementById('model-selector');
-    if (modelSelector && modelSelector.value) {
-        await _handleModelChange();
-    }
+    // Don't call _handleModelChange here - it triggers MODEL_SELECTION_CHANGED which can show button
 });
 function setLoadModelButtonText(text) {
     if (loadModelButton)
@@ -13123,8 +14525,6 @@ async function loadDefaultModel() {
             if (LOG_INFO)
                 console.log(prefix, "Set quant selector to best quantization");
         }
-        // Update UI state
-        await updateLoadButtonAndQuantDropdown();
         // Show loading message
         disableInput("Loading default model...");
         // Trigger model loading
@@ -13825,7 +15225,8 @@ const LoadingStatusTypes = Object.freeze({
     PROGRESS: 'progress',
     DONE: 'done',
     READY: 'ready',
-    ERROR: 'error'
+    ERROR: 'error',
+    CACHED: 'cached'
 });
 const UIEventNames = Object.freeze({
     QUERY_SUBMITTED: 'querySubmitted',
@@ -14139,7 +15540,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   isModelLoaded: () => (/* binding */ isModelLoaded),
 /* harmony export */   queryBackgroundModelState: () => (/* binding */ queryBackgroundModelState),
 /* harmony export */   sendDbRequestSmart: () => (/* binding */ sendDbRequestSmart),
-/* harmony export */   sendToModelManager: () => (/* binding */ sendToModelManager)
+/* harmony export */   sendToModelManager: () => (/* binding */ sendToModelManager),
+/* harmony export */   syncUIWithLoadedModel: () => (/* binding */ syncUIWithLoadedModel)
 /* harmony export */ });
 /* harmony import */ var _DB_db__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./DB/db */ "./src/DB/db.ts");
 /* harmony import */ var webextension_polyfill__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! webextension-polyfill */ "./node_modules/webextension-polyfill/dist/browser-polyfill.js");
@@ -14160,28 +15562,30 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/IntegrationsController */ "./src/Controllers/IntegrationsController.ts");
 /* harmony import */ var _Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/ConnectorsController */ "./src/Controllers/ConnectorsController.ts");
 /* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
-/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
-/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
-/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
-/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
-/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
-/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
-/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
-/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
-/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
-/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./assets/icons/Integration.png */ "./src/assets/icons/Integration.png");
-/* harmony import */ var _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_34__ = __webpack_require__(/*! ./assets/icons/Connectors.png */ "./src/assets/icons/Connectors.png");
-/* harmony import */ var _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_35__ = __webpack_require__(/*! ./assets/icons/Browser.png */ "./src/assets/icons/Browser.png");
-/* harmony import */ var _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_36__ = __webpack_require__(/*! ./assets/icons/LocalServer.png */ "./src/assets/icons/LocalServer.png");
-/* harmony import */ var _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_37__ = __webpack_require__(/*! ./assets/icons/CloudServer.png */ "./src/assets/icons/CloudServer.png");
-/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_38__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
+/* harmony import */ var _Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Controllers/UnifiedAttachmentController */ "./src/Controllers/UnifiedAttachmentController.ts");
+/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
+/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
+/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
+/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_34__ = __webpack_require__(/*! ./assets/icons/Integration.png */ "./src/assets/icons/Integration.png");
+/* harmony import */ var _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_35__ = __webpack_require__(/*! ./assets/icons/Connectors.png */ "./src/assets/icons/Connectors.png");
+/* harmony import */ var _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_36__ = __webpack_require__(/*! ./assets/icons/Browser.png */ "./src/assets/icons/Browser.png");
+/* harmony import */ var _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_37__ = __webpack_require__(/*! ./assets/icons/LocalServer.png */ "./src/assets/icons/LocalServer.png");
+/* harmony import */ var _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_38__ = __webpack_require__(/*! ./assets/icons/CloudServer.png */ "./src/assets/icons/CloudServer.png");
+/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_39__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
 // --- Imports ---
+
 
 
 
@@ -14268,6 +15672,7 @@ const LOG_DEBUG = false; // Detailed internal state (for deep debugging)
 // Feature-specific logging - Enable individually to debug specific subsystems
 const LOG_MANIFEST_GENERATION = false; // Manifest creation → Enable to debug model manifest issues
 const LOG_INFERENCE_SETTINGS = false; // Settings loading → Enable to debug AI parameter issues
+const LOG_WORKER_READY = true; // Track WORKER_READY event and currentLoadedModel updates
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 // --- Global State ---
 let activeSessionId = null;
@@ -14325,7 +15730,7 @@ function hideDetachedOverlay() {
 let sidepanelLogCount = 0;
 const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
 let currentModelIdInManager = null;
-let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
 let isModelManagerEnvReady = false;
 let isGenerating = false;
 // Track the currently loaded model and quant (onnx variant)
@@ -14337,23 +15742,6 @@ function getModelSelectorOptions() {
         return [];
     return Array.from(modelSelector.options).map(opt => opt.value).filter(Boolean);
 }
-function syncToggleLoadButton() {
-    const modelDropdown = document.getElementById('model-selector');
-    const quantDropdown = document.getElementById('onnx-variant-selector');
-    const loadBtn = document.getElementById('load-model-button');
-    if (!modelDropdown || !quantDropdown || !loadBtn)
-        return;
-    const selectedModelId = modelDropdown.value;
-    const selectedQuant = quantDropdown.value;
-    if (selectedModelId === currentLoadedModel.modelId &&
-        selectedQuant === currentLoadedModel.quant &&
-        selectedModelId && selectedQuant) {
-        loadBtn.style.display = 'none';
-    }
-    else {
-        loadBtn.style.display = '';
-    }
-}
 (function () {
     try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -14361,13 +15749,13 @@ function syncToggleLoadButton() {
         const viewParam = urlParams.get('view');
         window.EXTENSION_CONTEXT =
             contextParam === 'popup'
-                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI_POPUP
+                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.MAIN_UI_POPUP
                 : viewParam === 'logs'
-                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.OTHERS
-                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI;
+                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.OTHERS
+                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.MAIN_UI;
     }
     catch (e) {
-        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.UNKNOWN;
+        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.UNKNOWN;
         if (LOG_ERROR)
             console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
     }
@@ -14436,7 +15824,7 @@ async function sendDbRequestSmart(request) {
     return response;
 }
 function sendDbRequestViaChannel(request) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage(request);
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.postMessage(request);
 }
 function requestDbAndWait(requestEvent) {
     return new Promise((resolve, reject) => {
@@ -14471,7 +15859,7 @@ function bufferOrWriteLog(logPayload) {
         sendDbRequestViaChannel(req);
     }
 }
-_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.logChannel.onmessage = (event) => {
+_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.logChannel.onmessage = (event) => {
     const { type, payload } = event.data;
     if (type === 'LOG_TO_DB' && payload) {
         bufferOrWriteLog(payload);
@@ -14533,7 +15921,7 @@ function handleStopGeneration() {
     if (isGenerating) {
         if (LOG_DEBUG)
             console.log(`${prefix} Sending stop generation request to background.`);
-        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.STOP_GENERATION });
+        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.STOP_GENERATION });
     }
     else {
         if (LOG_DEBUG)
@@ -14544,7 +15932,7 @@ function handleSendButtonClick() {
     // This will be handled by the UI controller
     const queryInput = document.getElementById('query-input');
     if (queryInput && queryInput.value.trim() && !queryInput.disabled) {
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.QUERY_SUBMITTED, {
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.QUERY_SUBMITTED, {
             detail: { text: queryInput.value.trim() }
         }));
         // Clear input after sending
@@ -14553,41 +15941,44 @@ function handleSendButtonClick() {
         queryInput.style.height = 'auto';
     }
 }
-function handleModelManagerMessage(event) {
+async function handleModelManagerMessage(event) {
     const { type, label, payload } = event.data || {};
     // console.log(`${prefix} Message from background: Type: ${type}`, payload);
     // For use in WORKER_READY case
     const loadBtn = document.getElementById('load-model-button');
     switch (type) {
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_SCRIPT_READY:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_SCRIPT_READY;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background script is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_ENV_READY:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_ENV_READY:
             isModelManagerEnvReady = true;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background environment is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_STATUS:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_MODEL;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background loading status:`, payload);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_READY: {
             const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
+            if (LOG_WORKER_READY) {
+                const workerReadyInfo = `📋 [WORKER_READY] Model load complete:
+      modelId: ${modelId}
+      dtype: ${dtype}
+      executionProvider: ${executionProvider}`;
+                console.log(prefix, workerReadyInfo);
+            }
+            // Update local state immediately
+            currentLoadedModel = { modelId, quant: dtype };
             currentModelIdInManager = modelId;
-            currentLoadedModel = {
-                modelId: modelId,
-                quant: dtype
-            };
-            syncToggleLoadButton();
-            if (loadBtn)
-                loadBtn.style.display = 'none';
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+            // Button visibility handled by syncUIWithLoadedModel
             showDeviceBadge(executionProvider, warning);
-            // Update dropdown to show current model status
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_SELECTION_CHANGED));
+            // Sync UI with loaded model (dropdowns + button)
+            await syncUIWithLoadedModel();
             // Always show what quantization was actually loaded
             let quantMsg = `Model loaded with quantization: '${dtype}'.`;
             if (fallback) {
@@ -14610,8 +16001,8 @@ function handleModelManagerMessage(event) {
             (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR: {
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR: {
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR;
             isModelManagerEnvReady = false;
             hideDeviceBadge();
             if (LOG_ERROR)
@@ -14624,18 +16015,18 @@ function handleModelManagerMessage(event) {
                 statusDiv.style.display = 'none';
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESET_COMPLETE:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
             isModelManagerEnvReady = false;
             currentModelIdInManager = null;
             hideDeviceBadge();
             if (LOG_DEBUG)
                 console.log(`${prefix} Background model reset complete.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_UPDATE:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_UPDATE:
             if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
                 if (!isGenerating) {
                     isGenerating = true;
@@ -14649,7 +16040,7 @@ function handleModelManagerMessage(event) {
                 }));
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_COMPLETE: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_COMPLETE: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
             isGenerating = false;
@@ -14664,7 +16055,7 @@ function handleModelManagerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_STOPPED: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_STOPPED: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
             isGenerating = false;
@@ -14679,17 +16070,17 @@ function handleModelManagerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESTORE_FROM_POPUP: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESTORE_FROM_POPUP: {
             // Popup closed, remove overlay and restore full UI
             if (LOG_DEBUG)
                 console.log(`${prefix} RESTORE_FROM_POPUP received`);
             hideDetachedOverlay();
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_ERROR:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_ERROR:
             isGenerating = false;
             updateSendButtonForGeneration(false);
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
                 detail: {
                     chatId: payload.chatId,
                     messageId: payload.messageId,
@@ -14697,15 +16088,15 @@ function handleModelManagerMessage(event) {
                 }
             }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
-            syncToggleLoadButton();
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED));
+            // Button visibility handled by user dropdown changes only
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.REQUEST_MEMORY_STATS:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.REQUEST_MEMORY_STATS:
             if (performance && performance.memory) {
                 const mem = performance.memory;
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MEMORY_STATS,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MEMORY_STATS,
                     payload: {
                         usedJSHeapSize: mem.usedJSHeapSize,
                         totalJSHeapSize: mem.totalJSHeapSize,
@@ -14717,22 +16108,22 @@ function handleModelManagerMessage(event) {
                 });
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CACHE_CLEARED:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.CACHE_CLEARED:
             // Cache cleared successfully - no action needed
             if (LOG_DEBUG)
                 console.log(prefix, 'Model cache cleared successfully');
@@ -14752,7 +16143,7 @@ async function initializeModelManager() {
         console.log(`${prefix} Checking if background is ready...`);
     try {
         const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
         });
         if (response?.ready) {
             isModelManagerEnvReady = true;
@@ -14775,11 +16166,11 @@ async function terminateModelManager() {
         console.log(`${prefix} Sending reset request to background...`);
     try {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESET
         });
         // Reset local state
         currentModelIdInManager = null;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
         hideDeviceBadge();
         if (LOG_DEBUG)
             console.log(`${prefix} Model reset complete. Chat input would be disabled.`);
@@ -14789,7 +16180,7 @@ async function terminateModelManager() {
             console.error(`${prefix} Failed to reset model in background:`, error);
         // Reset local state anyway
         currentModelIdInManager = null;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
         hideDeviceBadge();
     }
 }
@@ -14843,8 +16234,8 @@ async function setActiveChatSessionId(newSessionId) {
     (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.setActiveSession)(newSessionId);
 }
 // --- Channel Handlers ---
-if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.onmessage = async (event) => {
+if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.MAIN_UI) {
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
         if (!isDbRequest(type))
             return;
@@ -14856,11 +16247,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
                 senderId: reqSenderId,
             });
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
         }
         catch (err) {
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.postMessage({
                 type: respType,
                 payload: { success: false, error: err.message },
                 requestId,
@@ -14868,7 +16259,7 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
             });
         }
     };
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.onmessage = async (event) => {
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: msgSenderId } = event.data;
         if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
             if (LOG_DEBUG)
@@ -14876,11 +16267,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
             return;
         }
         // Handle ping from background - respond with pong
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_PING) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_PING) {
             if (LOG_DEBUG)
                 console.log(`${prefix} 🏓 Received ping from background - sending pong`);
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_PONG,
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_PONG,
                 payload: { senderId, timestamp: Date.now() },
                 senderId,
                 timestamp: Date.now()
@@ -14888,40 +16279,40 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
             return;
         }
         if ([
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESET_COMPLETE
         ].includes(type)) {
             return;
         }
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to background.`);
             sendToModelManager({ type: 'generate', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to background.`);
             sendToModelManager({ type: 'interrupt', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESET_WORKER) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received RESET_WORKER. Resetting model in background.`);
             terminateModelManager();
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
                 payload: { success: true, message: "Worker reset." },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
             });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.LOAD_MODEL) {
             if (LOG_WARN)
                 console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
             const modelToLoad = payload.modelId || payload.model;
             const onnxToLoad = payload.quant;
             if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.REQUEST_MODEL_EXECUTION, {
                     detail: { modelId: modelToLoad, quant: onnxToLoad }
                 }));
             }
@@ -14929,16 +16320,16 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19_
                 const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
                 if (LOG_ERROR)
                     console.error(`${prefix} ${errorMsg}`);
-                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
                     payload: { success: false, error: errorMsg },
                     requestId, senderId: 'sidepanel', timestamp: Date.now(),
                 });
             }
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
                 payload: { state: modelManagerState, modelId: currentModelIdInManager },
                 requestId,
                 senderId: 'sidepanel',
@@ -14960,37 +16351,37 @@ function handleMessage(message, sender, sendResponse) {
         return false;
     }
     // Messages from background - redirect to handleModelManagerMessage
-    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames).includes(type) ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
+    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames).includes(type) ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
         // Convert message to event format and redirect
         handleModelManagerMessage({ data: message });
         return;
     }
-    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             text: message.text,
         });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             error: message.error,
         });
         sendResponse({});
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({ status: 'received', type });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
         // No action needed
     }
     else {
@@ -15007,7 +16398,7 @@ async function handleSessionCreated(newSessionId) {
     // Clear model cache for new chat session to prevent cross-chat contamination
     if (LOG_DEBUG)
         console.log(prefix, 'Sending CLEAR_CACHE message to background');
-    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CLEAR_CACHE });
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.CLEAR_CACHE });
     try {
         const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
@@ -15032,7 +16423,7 @@ async function handleNewChat() {
     // Clear model cache for new chat to prevent cross-chat contamination
     if (LOG_DEBUG)
         console.log(prefix, 'Sending CLEAR_CACHE message to background (New Chat button)');
-    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CLEAR_CACHE });
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.CLEAR_CACHE });
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
@@ -15134,13 +16525,81 @@ async function isModelLoaded() {
 function getCurrentLoadedModel() {
     return currentLoadedModel;
 }
+/**
+ * Sync UI state with background loaded model
+ * Queries background, updates dropdowns, and manages button visibility
+ * Call this on: init, model load complete, or whenever state needs refresh
+ */
+async function syncUIWithLoadedModel() {
+    if (LOG_WORKER_READY)
+        console.log(prefix, `📋 [syncUIWithLoadedModel] Starting UI sync...`);
+    // Query background for actual model state
+    const bgModelState = await queryBackgroundModelState();
+    if (LOG_WORKER_READY) {
+        const bgStateInfo = `📋 [syncUIWithLoadedModel] Background state:
+      modelId: ${bgModelState.modelId}
+      quant: ${bgModelState.quant}
+      isReady: ${bgModelState.isReady}
+      isLoading: ${bgModelState.isLoading}`;
+        console.log(prefix, bgStateInfo);
+    }
+    // Update local state
+    if (bgModelState.isReady && bgModelState.modelId) {
+        currentLoadedModel = {
+            modelId: bgModelState.modelId,
+            quant: bgModelState.quant
+        };
+        currentModelIdInManager = bgModelState.modelId;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+        if (LOG_WORKER_READY)
+            console.log(prefix, `📋 [syncUIWithLoadedModel] Updated currentLoadedModel:`, currentLoadedModel);
+    }
+    else {
+        currentLoadedModel = { modelId: null, quant: null };
+        currentModelIdInManager = null;
+        if (LOG_WORKER_READY)
+            console.log(prefix, `📋 [syncUIWithLoadedModel] No model loaded - cleared state`);
+    }
+    // Update dropdowns to match loaded model
+    const modelSelector = document.getElementById('model-selector');
+    const quantSelector = document.getElementById('onnx-variant-selector');
+    const loadBtn = document.getElementById('load-model-button');
+    if (bgModelState.isReady && bgModelState.modelId) {
+        // Set model dropdown
+        if (modelSelector && modelSelector.value !== bgModelState.modelId) {
+            if (LOG_WORKER_READY)
+                console.log(prefix, `📋 [syncUIWithLoadedModel] Setting model dropdown: ${bgModelState.modelId}`);
+            modelSelector.value = bgModelState.modelId;
+            // Rebuild quant dropdown programmatically (don't trigger change event to avoid user listeners)
+            const { onModelDropdownChange } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./Home/uiController */ "./src/Home/uiController.ts"));
+            await onModelDropdownChange();
+        }
+        // Set quant dropdown
+        if (quantSelector && bgModelState.quant && quantSelector.value !== bgModelState.quant) {
+            if (LOG_WORKER_READY)
+                console.log(prefix, `📋 [syncUIWithLoadedModel] Setting quant dropdown: ${bgModelState.quant}`);
+            quantSelector.value = bgModelState.quant;
+        }
+        // Hide load button
+        if (loadBtn) {
+            if (LOG_WORKER_READY)
+                console.log(prefix, `📋 [syncUIWithLoadedModel] Hiding load button`);
+            loadBtn.style.display = 'none';
+        }
+    }
+    // If no model loaded, keep button hidden (default) - only user dropdown changes will show it
+    // Trigger final UI update
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_SELECTION_CHANGED));
+    if (LOG_WORKER_READY)
+        console.log(prefix, `📋 [syncUIWithLoadedModel] ✅ Sync complete`);
+}
 // Query background for actual loaded model state (for popup initialization)
 async function queryBackgroundModelState() {
     try {
         const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
         });
-        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY && response?.modelId) {
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY && response?.modelId) {
             return {
                 modelId: response.modelId,
                 quant: response.dtype || null,
@@ -15148,7 +16607,7 @@ async function queryBackgroundModelState() {
                 isLoading: false
             };
         }
-        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL) {
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_MODEL) {
             return {
                 modelId: response.modelId || null,
                 quant: response.dtype || null,
@@ -15249,9 +16708,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_navigation__WEBPACK_IMPORTED_MODULE_2__.initializeNavigation)();
         if (LOG_DEBUG)
             console.log(`${prefix} Navigation Initialized.`);
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
         // Initialize dialog instances
-        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__.HuggingFaceLoginDialog();
+        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_19__.HuggingFaceLoginDialog();
         (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.initializeFileHandling)({
             getActiveSessionIdFunc: getActiveChatSessionId,
         });
@@ -15330,7 +16789,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (LOG_WARN)
                 console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
             const { modelId, dtype, loadId } = e.detail;
             if (!modelId) {
                 (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No model selected.');
@@ -15347,16 +16806,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentLoadedModel.modelId = bgState.modelId;
                 currentLoadedModel.quant = bgState.quant;
                 currentModelIdInManager = bgState.modelId;
-                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
+                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
                 // Reset UI loading state since we're not actually loading
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_ALREADY_LOADED, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_ALREADY_LOADED, {
                     detail: { modelId, dtype, loadId }
                 }));
                 return;
             }
             // Reset model if switching to different model or if in error state
             // Check background state to determine if reset is needed
-            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
+            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR;
             if (needsReset) {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Resetting model before loading new one. Current (BG): ${bgState.modelId}, New: ${modelId}, State: ${modelManagerState}`);
@@ -15395,19 +16854,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             // Get the task from the manifest
-            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(modelId);
+            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getManifestEntry)(modelId);
             const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
             if (LOG_DEBUG)
                 console.log(`${prefix} Sending model load request to background for ${modelId} with dtype: ${dtype}, task: ${task}...`);
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_MODEL;
             currentModelIdInManager = modelId;
             sendToModelManager({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.INIT,
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.INIT,
                 payload: { modelId, dtype, task, loadId }
             });
         });
         // Handle model selection changes (when user changes dropdown)
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
             const { modelId, dtype } = e.detail || {};
             sidepanelLogCount++;
             if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
@@ -15423,13 +16882,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         // Dialog event handlers
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
             const { modelId, modelPath: dtype, task, loadId } = e.detail;
             const token = await huggingFaceLoginDialog.show(modelId);
             if (token) {
                 // Send login event to background
                 sendToModelManager({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.HUGGINGFACE_LOGIN,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.HUGGINGFACE_LOGIN,
                     payload: { modelId, modelPath: dtype, task, loadId, token }
                 });
             }
@@ -15452,6 +16911,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_16__.initializeConnectorsController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Connectors Controller Initialized.`);
+        await (0,_Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_18__.initializeUnifiedAttachmentController)();
+        if (LOG_DEBUG)
+            console.log(`${prefix} Unified Attachment Controller Initialized.`);
         (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_17__.initializeDriveController)({
             requestDbAndWaitFunc: requestDbAndWait,
             getActiveChatSessionId,
@@ -15473,20 +16935,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`${prefix} Phase 1: Setting up critical UI elements...`);
         // Set icon srcs IMMEDIATELY - this prevents broken icon display
         const iconMap = [
-            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__],
-            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__],
-            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__],
-            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__],
-            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
-            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
-            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
-            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
-            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
-            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
-            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__],
-            ['icon-integrations', _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_33__],
-            ['icon-connectors', _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_34__],
-            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_38__],
+            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_24__],
+            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_25__],
+            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_26__],
+            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_27__],
+            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
+            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
+            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
+            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
+            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__],
+            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_33__],
+            ['icon-integrations', _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_34__],
+            ['icon-connectors', _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_35__],
+            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_39__],
         ];
         for (const [id, src] of iconMap) {
             const el = document.getElementById(id);
@@ -15499,23 +16961,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const nativeBtn = document.querySelector('#source-native .model-source-icon');
             const apiBtn = document.querySelector('#source-api .model-source-icon');
             if (browserBtn) {
-                browserBtn.src = _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_35__;
+                browserBtn.src = _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_36__;
                 browserBtn.style.display = '';
             }
             if (nativeBtn) {
-                nativeBtn.src = _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_36__;
+                nativeBtn.src = _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_37__;
                 nativeBtn.style.display = '';
             }
             if (apiBtn) {
-                apiBtn.src = _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_37__;
+                apiBtn.src = _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_38__;
                 apiBtn.style.display = '';
             }
         }
         setModelSourceToggleIcons();
         // Broadcast UI_CONNECTED early to notify background script
         const contextName = window.EXTENSION_CONTEXT || 'unknown';
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_CONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_CONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -15528,16 +16990,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (modelDropdownEl) {
             modelDropdownEl.addEventListener('change', async () => {
                 hideDeviceBadge();
-                syncToggleLoadButton();
+                // Button visibility handled by uiController dropdown listeners
             });
         }
         if (quantDropdownEl) {
             quantDropdownEl.addEventListener('change', () => {
                 hideDeviceBadge();
-                syncToggleLoadButton();
+                // Button visibility handled by uiController dropdown listeners
             });
         }
-        syncToggleLoadButton();
+        // Button starts hidden by default in HTML, only shown by user dropdown changes
         if (LOG_DEBUG)
             console.log(`${prefix} Phase 1 complete - UI elements ready`);
         // ========================================
@@ -15550,7 +17012,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Phase 2: Starting heavy operations (manifests, DB, model loading)...`);
                 // Check if we have bypass settings that might affect manifest status
-                const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)().size > 0;
+                const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getBypassSizeLimitModels)().size > 0;
                 await ensureManifestForDropdownRepos(hasBypassSettings);
                 // CRITICAL: Initialize database BEFORE trying to load any sessions
                 const dbInitSuccess = await initializeDatabase();
@@ -15577,23 +17039,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log(`${prefix} Starting fresh. Loading empty/welcome state.`);
                     await loadAndDisplaySession(null);
                 }
-                // Query background for current model state (important for popup instances)
+                // Sync UI with background model state (handles both fresh start and model-in-VRAM scenarios)
+                if (LOG_WORKER_READY)
+                    console.log(prefix, `📋 [INIT] Syncing UI with background model state...`);
+                await syncUIWithLoadedModel();
                 const bgModelState = await queryBackgroundModelState();
                 if (bgModelState.isReady && bgModelState.modelId) {
-                    // Background already has a model loaded - sync local state
-                    if (LOG_DEBUG)
-                        console.log(`${prefix} Background has model loaded: ${bgModelState.modelId} (${bgModelState.quant}), syncing local state`);
-                    currentLoadedModel = {
-                        modelId: bgModelState.modelId,
-                        quant: bgModelState.quant
-                    };
-                    currentModelIdInManager = bgModelState.modelId;
-                    modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
-                    syncToggleLoadButton();
+                    // Button visibility handled by syncUIWithLoadedModel
+                    // Show device badge if model is loaded
+                    // Note: executionProvider info is not available from query, will be set on next WORKER_READY
                     // Model is already loaded, but we should still restore the last chat session
                     try {
                         const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESTORE_LAST_STATE
                         });
                         if (restoreResponse?.success && restoreResponse.lastChatSession) {
                             if (LOG_DEBUG)
@@ -15635,7 +17093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (LOG_DEBUG)
                             console.log(`${prefix} No model loaded, attempting to restore last state...`);
                         const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESTORE_LAST_STATE
                         });
                         if (restoreResponse?.success) {
                             if (LOG_DEBUG) {
@@ -15659,8 +17117,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     quant: restoreResponse.currentModel.dtype
                                 };
                                 currentModelIdInManager = restoreResponse.currentModel.id;
-                                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
-                                syncToggleLoadButton();
+                                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+                                // Button visibility handled by syncUIWithLoadedModel
                                 if (LOG_DEBUG)
                                     console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
                                 // If there's a last chat session, verify it exists before loading
@@ -15840,7 +17298,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
     const errorRepos = [];
     for (const repo of dropdownRepos) {
         if (!forceRebuild) {
-            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
+            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getManifestEntry)(repo);
             if (existingManifest) {
                 if (LOG_MANIFEST_GENERATION)
                     console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
@@ -15854,10 +17312,10 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         }
         let oldManifest = null;
         try {
-            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
-            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION) {
+            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getManifestEntry)(repo);
+            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.CURRENT_MANIFEST_VERSION) {
                 if (LOG_WARN)
-                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
+                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
                 oldManifest = null; // Force re-creation
             }
         }
@@ -15866,7 +17324,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 console.warn(`${prefix} [ensureManifestForDropdownRepos] Error fetching existing manifest for ${repo}, will create anew if possible.`, e);
         }
         try {
-            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.fetchRepoFiles)(repo);
+            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.fetchRepoFiles)(repo);
             if (!siblings || siblings.length === 0) {
                 if (LOG_WARN)
                     console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
@@ -15917,8 +17375,8 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                     }
                     // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
-                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getServerOnlySizeLimit)();
-                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)();
+                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getServerOnlySizeLimit)();
+                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getBypassSizeLimitModels)();
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Processing ${quantKey} for ${repo}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Size limit: ${serverOnlySizeLimit / (1024 * 1024 * 1024)} GB`);
@@ -15963,7 +17421,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                         }
                     }
                     const oldStatus = oldManifest?.quants[quantKey]?.status;
-                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.Available;
+                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.QuantStatus.Available;
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Status calculation for ${quantKey}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] - isServerOnly: ${isServerOnly}`);
@@ -16007,9 +17465,9 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 repo,
                 quants: quantMap,
                 task,
-                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION
+                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.CURRENT_MANIFEST_VERSION
             };
-            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.addManifestEntry)(repo, newManifestEntry);
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.addManifestEntry)(repo, newManifestEntry);
             processedRepos.push(repo);
             if (LOG_MANIFEST_GENERATION)
                 console.log(`${prefix} [ensureManifestForDropdownRepos] Successfully created/updated manifest for repo: ${repo}`, newManifestEntry);
@@ -16028,7 +17486,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         if (errorRepos.length > 0)
             console.error(`${prefix} [ensureManifestForDropdownRepos] Repos with errors:`, errorRepos);
     }
-    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED));
 }
 // Listen for manifest refresh requests from settings
 document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
@@ -16040,7 +17498,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
         if (LOG_GENERAL)
             console.log('[Sidepanel] Manifest refreshed successfully');
         // Dispatch MANIFEST_UPDATED event AFTER the manifest update is complete
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED));
     }
     catch (e) {
         console.error('[Sidepanel] Error refreshing manifest:', e);
@@ -16050,8 +17508,8 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 // Broadcast disconnect when window unloads or becomes hidden
 window.addEventListener('beforeunload', () => {
     const contextName = window.EXTENSION_CONTEXT || 'unknown';
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_DISCONNECTED,
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_DISCONNECTED,
         payload: { senderId, context: contextName },
         senderId,
         timestamp: Date.now()
@@ -16070,8 +17528,8 @@ document.addEventListener('visibilitychange', () => {
         return;
     }
     if (document.hidden) {
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_DISCONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_DISCONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -16081,8 +17539,8 @@ document.addEventListener('visibilitychange', () => {
     }
     else {
         // Page became visible again - re-register
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_CONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_CONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -16167,7 +17625,7 @@ document.addEventListener('visibilitychange', () => {
 /******/ 		// This function allow to reference async chunks
 /******/ 		__webpack_require__.u = (chunkId) => {
 /******/ 			// return url for filenames based on template
-/******/ 			return "assets/" + chunkId + "-" + "abe3686c73b8e43fbc2c" + ".js";
+/******/ 			return "assets/" + chunkId + "-" + "d27d5a41520bf2106756" + ".js";
 /******/ 		};
 /******/ 	})();
 /******/ 	

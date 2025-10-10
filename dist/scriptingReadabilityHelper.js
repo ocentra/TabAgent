@@ -29,7 +29,8 @@ const LoadingStatusTypes = Object.freeze({
     PROGRESS: 'progress',
     DONE: 'done',
     READY: 'ready',
-    ERROR: 'error'
+    ERROR: 'error',
+    CACHED: 'cached'
 });
 const UIEventNames = Object.freeze({
     QUERY_SUBMITTED: 'querySubmitted',

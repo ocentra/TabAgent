@@ -11315,6 +11315,7 @@ __webpack_require__.r(__webpack_exports__);
  */
 const prefix = '[PipelineConfigs]';
 const LOG_GENERAL = false;
+const LOG_MODEL_LOADING = false; // Track model loading and dtype selection - OFF
 // =============================================================================
 // DEVICE CAPABILITIES
 // =============================================================================
@@ -11400,12 +11401,25 @@ class DeviceCapabilities {
      * @returns Optimized dtype configuration
      */
     static async getOptimizedDtype(modelId, preferredDtype) {
-        if (preferredDtype)
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[getOptimizedDtype] Input:
+        modelId: ${modelId}
+        preferredDtype: ${JSON.stringify(preferredDtype)}`);
+        }
+        if (preferredDtype) {
+            if (LOG_MODEL_LOADING) {
+                console.log(prefix, `[getOptimizedDtype] Using preferredDtype: ${JSON.stringify(preferredDtype)}`);
+            }
             return preferredDtype;
+        }
         const { ModelPresets } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./ModelPresets */ "./src/Pipelines/ModelPresets.ts"));
         const hasGPU = await this.hasWebGPU();
         const hasFP16Support = await this.hasFP16();
-        return ModelPresets.getDtypePreset(modelId, hasGPU, hasFP16Support);
+        const dtype = ModelPresets.getDtypePreset(modelId, hasGPU, hasFP16Support);
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[getOptimizedDtype] Auto-selected dtype: ${JSON.stringify(dtype)} (hasGPU=${hasGPU}, hasFP16=${hasFP16Support})`);
+        }
+        return dtype;
     }
     /**
      * Get optimized device for a specific model
@@ -11415,11 +11429,24 @@ class DeviceCapabilities {
      * @returns Optimized device configuration
      */
     static async getOptimizedDevice(modelId, preferredDevice) {
-        if (preferredDevice)
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[getOptimizedDevice] Input:
+        modelId: ${modelId}
+        preferredDevice: ${JSON.stringify(preferredDevice)}`);
+        }
+        if (preferredDevice) {
+            if (LOG_MODEL_LOADING) {
+                console.log(prefix, `[getOptimizedDevice] Using preferredDevice: ${JSON.stringify(preferredDevice)}`);
+            }
             return preferredDevice;
+        }
         const { ModelPresets } = await Promise.resolve(/*! import() */).then(__webpack_require__.bind(__webpack_require__, /*! ./ModelPresets */ "./src/Pipelines/ModelPresets.ts"));
         const hasGPU = await this.hasWebGPU();
-        return ModelPresets.getDevicePreset(modelId, hasGPU);
+        const device = ModelPresets.getDevicePreset(modelId, hasGPU);
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[getOptimizedDevice] Auto-selected device: ${JSON.stringify(device)} (hasGPU=${hasGPU})`);
+        }
+        return device;
     }
     /**
      * Reset cached values (for testing)
@@ -11464,8 +11491,22 @@ class TextGenerationConfig extends BaseModelConfig {
      * Uses model-specific optimized presets
      */
     static async createWithAutoDetect(modelId, options) {
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[TextGenerationConfig.createWithAutoDetect] Input:
+        modelId: ${modelId}
+        options.dtype: ${JSON.stringify(options?.dtype)}
+        options.device: ${JSON.stringify(options?.device)}
+        options.useExternalData: ${options?.useExternalData}`);
+        }
         const device = await DeviceCapabilities.getOptimizedDevice(modelId, options?.device);
         const dtype = await DeviceCapabilities.getOptimizedDtype(modelId, options?.dtype);
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[TextGenerationConfig.createWithAutoDetect] Final config:
+        modelId: ${modelId}
+        dtype: ${JSON.stringify(dtype)}
+        device: ${JSON.stringify(device)}
+        useExternalData: ${options?.useExternalData ?? false}`);
+        }
         return new TextGenerationConfig({
             modelId,
             dtype,
@@ -11953,9 +11994,10 @@ __webpack_require__.r(__webpack_exports__);
 
 const prefix = '[PipelineDBHandler]';
 // Logging flags
-const LOG_GENERAL = false;
+const LOG_GENERAL = false; // OFF - reduce noise
 const LOG_ERROR = true;
 const LOG_MESSAGES = false;
+const LOG_MANIFEST_UPDATES = true; // ON - track manifest updates
 // Throttling for high-frequency manifest logs
 let manifestLogCount = 0;
 const MANIFEST_LOG_THROTTLE_INTERVAL = 5;
@@ -12010,6 +12052,8 @@ class PipelineDBHandler {
      */
     static async setManifestQuantStatus(repo, dtype, status, onUpdate) {
         try {
+            if (LOG_MANIFEST_UPDATES)
+                console.log(prefix, `📋 [setManifestQuantStatus] Starting: repo="${repo}", dtype="${dtype}", status="${status}"`);
             let manifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.getManifestEntry)(repo);
             if (!manifest) {
                 if (LOG_ERROR)
@@ -12028,19 +12072,27 @@ class PipelineDBHandler {
                     console.warn(prefix, `[setManifestQuantStatus] No manifest entries found for dtype: ${dtype} in repo: ${repo}`);
                 return;
             }
+            if (LOG_MANIFEST_UPDATES)
+                console.log(prefix, `📋 [setManifestQuantStatus] Found ${entriesToUpdate.length} entries to update:`, entriesToUpdate);
             // Update the status of ALL found entries
             for (const entryKey of entriesToUpdate) {
                 if (manifest.quants[entryKey]) {
                     manifest.quants[entryKey].status = status;
                     manifestLogCount++;
-                    if (LOG_MESSAGES && (manifestLogCount % MANIFEST_LOG_THROTTLE_INTERVAL === 0 || manifestLogCount === 1)) {
-                        console.log(prefix, `[setManifestQuantStatus] ✅ Updated quant entry: ${entryKey} (dtype: ${dtype}) to status: ${status} (operation #${manifestLogCount})`);
+                    if (LOG_MANIFEST_UPDATES) {
+                        console.log(prefix, `📋 [setManifestQuantStatus] ✅ Updated: ${entryKey} → ${status}`);
                     }
                 }
             }
+            if (LOG_MANIFEST_UPDATES)
+                console.log(prefix, `📋 [setManifestQuantStatus] Saving manifest to IndexedDB...`);
             await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_0__.addManifestEntry)(repo, manifest);
+            if (LOG_MANIFEST_UPDATES)
+                console.log(prefix, `📋 [setManifestQuantStatus] ✅ Manifest saved to IndexedDB`);
             // Call optional update callback
             if (onUpdate) {
+                if (LOG_MANIFEST_UPDATES)
+                    console.log(prefix, `📋 [setManifestQuantStatus] Calling onUpdate callback...`);
                 onUpdate();
             }
         }
@@ -12510,7 +12562,10 @@ class PipelineDBHandler {
      * @returns Response from cache or null if not found
      */
     static async tryServeFromIndexedDB(resourceUrl, currentModelRepoId, logChunked = false) {
-        if (!resourceUrl.includes('/resolve/main/') && !resourceUrl.includes('/resolve/')) {
+        // Only try to serve files that we actually intercept and cache
+        // This keeps the defensive logic - we don't mess with random files
+        const { shouldIntercept } = this.shouldInterceptFile(resourceUrl);
+        if (!shouldIntercept) {
             return null;
         }
         try {
@@ -12638,6 +12693,7 @@ __webpack_require__.r(__webpack_exports__);
  */
 const prefix = '[PipelineFactory]';
 const LOG_GENERAL = false;
+const LOG_MODEL_LOADING = false; // Track model loading flow - OFF
 /**
  * PipelineFactory - Factory pattern for creating appropriate pipeline instances
  * Pure factory with no dependencies on DB or external services
@@ -12774,9 +12830,17 @@ class PipelineFactory {
      * @returns Object with pipeline instance and its config
      */
     static async createPipelineWithConfig(task, modelId, options) {
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[createPipelineWithConfig] Inputs:
+        task: ${task}
+        modelId: ${modelId}
+        options.dtype: ${JSON.stringify(options?.dtype)}
+        options.device: ${JSON.stringify(options?.device)}
+        options.useExternalData: ${options?.useExternalData}`);
+        }
         // Create pipeline instance
         const pipeline = this.createPipeline(task, modelId);
-        if (LOG_GENERAL) {
+        if (LOG_MODEL_LOADING) {
             console.log(prefix, `Creating config for pipeline: ${pipeline.constructor.name}`);
         }
         // Create appropriate config based on pipeline type
@@ -13266,6 +13330,7 @@ __webpack_require__.r(__webpack_exports__);
 const prefix = '[TextGenerationPipeline]';
 const LOG_CONFIG_CHANGE = false;
 const LOG_LOADING = false;
+const LOG_MODEL_LOADING = false; // Track model loading and dtype passed to transformers.js - OFF
 /**
  * TextGenerationPipeline - For causal language models
  * Follows transformers.js example pattern with proper OOP structure
@@ -13325,12 +13390,22 @@ class TextGenerationPipeline extends _BasePipeline__WEBPACK_IMPORTED_MODULE_2__.
                 loadId,
                 message: 'Loading model from cache...'
             });
+            if (LOG_MODEL_LOADING) {
+                console.log(prefix, `[load] Calling AutoModelForCausalLM.from_pretrained with:
+          modelId: ${config.modelId}
+          dtype: ${JSON.stringify(config.dtype)}
+          device: ${JSON.stringify(config.device)}
+          use_external_data_format: ${config.useExternalData}`);
+            }
             this.model = await _huggingface_transformers__WEBPACK_IMPORTED_MODULE_0__.AutoModelForCausalLM.from_pretrained(config.modelId, {
                 dtype: config.dtype,
                 device: config.device,
                 use_external_data_format: config.useExternalData,
                 progress_callback: this.wrapProgressCallback(progressCallback, loadId, 'model', [40, 90])
             });
+            if (LOG_MODEL_LOADING) {
+                console.log(prefix, `[load] AutoModelForCausalLM.from_pretrained completed successfully`);
+            }
         }
         // Send processing message
         progressCallback?.({
@@ -14118,25 +14193,27 @@ const prefix = '[BackgroundModelManager]';
 const LOG_ERROR = true; // Keep error logs enabled
 const LOG_WARN = false; // Disable warning logs
 // CORE GENERATION FUNCTIONALITY
-const LOG_GEN_PARAMS = true; // Generation parameters being used
+const LOG_GEN_PARAMS = false; // Generation parameters being used
 // Legacy Q&A flags (for backward compatibility)
-const LOG_QA_START = true; // Generation lifecycle (start/stop/complete)
-const LOG_QA_OUTPUT = true; // Generated text output
-const LOG_QA_STATS = true; // Output statistics
+const LOG_QA_START = false; // Generation lifecycle (start/stop/complete)
+const LOG_QA_OUTPUT = false; // Generated text output
+const LOG_QA_STATS = false; // Output statistics
 // Model loading and configuration
-const LOG_MODEL_LOADING = true; // Model loading progress
-const LOG_MODEL_CONFIG = true; // Detailed model configuration
-const LOG_TOKEN_IDS = true; // Token ID extraction
+const LOG_MODEL_LOADING = false; // Model loading progress - OFF for clarity
+const LOG_MODEL_CONFIG = false; // Detailed model configuration - OFF
+const LOG_TOKEN_IDS = false; // Token ID extraction - OFF
 // Transformers.js specific
-const LOG_TRANSFORMERS = true; // Transformers.js debugging
-const LOG_TRANSFORMERS_SETTINGS = true; // Settings comparison
-const LOG_GENERATION = true; // Detailed generation parameters
-const LOG_GENERATION_FLOW = true; // Track full generation flow
-// Network and storage
-const LOG_FETCH = false; // Fetch interception logs
+const LOG_TRANSFORMERS = false; // Transformers.js debugging
+const LOG_TRANSFORMERS_SETTINGS = false; // Settings comparison
+const LOG_GENERATION = false; // Detailed generation parameters
+const LOG_GENERATION_FLOW = false; // Track full generation flow
+// Network and storage - ALL OFF to reduce noise
+const LOG_FETCH = false; // Fetch interception logs - OFF
 const LOG_FETCH_INIT = false; // Fetch override initialization
 const LOG_FETCH_DETAILED = false; // Detailed fetch interception (all requests)
-const LOG_CHUNKED = false; // Chunked download/serve logs
+const LOG_CHUNKED = false; // Chunked download/serve logs - OFF
+// MANIFEST UPDATE FLOW - ON to trace button hide issue
+const LOG_MANIFEST_UPDATES = true; // Track manifest status updates and events
 // Message processing
 const LOG_MESSAGES = false;
 const LOG_PROGRESS_CALLBACK = false; // Progress callback spam
@@ -14265,23 +14342,24 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
     const fileName = resourceUrl.split('/').pop() || 'file';
     if (LOG_FETCH)
         console.log(prefix, `[fetchFromNetworkAndCache] Fetching from: ${resourceUrl}, fetchInput: ${fetchInput}`);
-    // Send download start event
+    // Send download start event - don't include message, let UI format it
     safePostMessage({
         type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
         payload: {
-            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.INITIATE,
             file: fileName,
             progress: 0,
-            loadId: currentLoadId,
-            message: `Starting download of ${fileName}...`
+            loadId: currentLoadId
         }
     });
     // Update manifest status to indicate download started
     if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
-        if (LOG_FETCH)
-            console.log(prefix, `[fetchFromNetworkAndCache] Updating manifest status: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}", status=Available`);
+        if (LOG_MANIFEST_UPDATES)
+            console.log(prefix, `📋 [MANIFEST] Download started - updating status to Available: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}"`);
         try {
             await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Available, () => {
+                if (LOG_MANIFEST_UPDATES)
+                    console.log(prefix, `📋 [MANIFEST] Sending MANIFEST_UPDATED event (download started)`);
                 safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
             });
         }
@@ -14296,7 +14374,7 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
         progressCallback: ({ loaded, total, progress }) => {
             // Map progress to 0-25% range for downloads
             const downloadProgress = Math.round(progress * 0.25);
-            // Send progress update every 5% or every 10MB
+            // Send progress update every 5% or every 10MB - don't include message, let UI format it
             if (downloadProgress % 5 === 0 || loaded % (10 * 1024 * 1024) === 0) {
                 safePostMessage({
                     type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
@@ -14306,30 +14384,34 @@ async function fetchFromNetworkAndCache(input, resourceUrl, options) {
                         progress: downloadProgress,
                         loadId: currentLoadId,
                         loaded,
-                        total,
-                        message: `Downloading ${fileName}... ${progress}% (${(loaded / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB)`
+                        total
                     }
                 });
             }
         }
     });
-    // Send download complete event
+    // Send download complete event - don't include message, let UI format it
     const contentLength = response.headers.get('Content-Length');
     const fileSize = contentLength ? parseInt(contentLength, 10) : 0;
     safePostMessage({
         type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
         payload: {
-            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.PROGRESS,
+            status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.DONE,
             file: fileName,
             progress: 25,
             loadId: currentLoadId,
-            message: `Downloaded ${fileName} (${(fileSize / 1024 / 1024).toFixed(1)}MB)`
+            loaded: fileSize,
+            total: fileSize
         }
     });
     // Update manifest status to indicate download completed
     if (currentModelRepoId && currentModelQuantPath && resourceUrl.includes('/resolve/main/')) {
+        if (LOG_MANIFEST_UPDATES)
+            console.log(prefix, `📋 [MANIFEST] Download completed - updating status to Downloaded: repo="${currentModelRepoId}", dtype="${currentModelQuantPath}"`);
         try {
             await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(currentModelRepoId, currentModelQuantPath, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded, () => {
+                if (LOG_MANIFEST_UPDATES)
+                    console.log(prefix, `📋 [MANIFEST] Sending MANIFEST_UPDATED event (download completed)`);
                 safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
             });
         }
@@ -14393,17 +14475,24 @@ const customFetchHandler = async function (input, options) {
     // Handle URL rewriting for HuggingFace files
     let finalResourceUrl = resourceUrl;
     if (isHuggingFaceFile) {
+        if (LOG_FETCH) {
+            console.log(prefix, `[Custom Fetch] HuggingFace file detected:
+        originalUrl: ${resourceUrl}
+        currentModelRepoId: ${currentModelRepoId}
+        currentModelQuantPath: ${currentModelQuantPath}`);
+        }
         finalResourceUrl = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.handleModelFileRewriting(resourceUrl, currentModelRepoId, currentModelQuantPath);
-        if (LOG_DEBUG && resourceUrl.includes('model_q4f16.onnx')) {
-            if (LOG_FETCH)
-                console.log(prefix, `[Custom Fetch] DEBUG - Original URL: ${resourceUrl}`);
-            if (LOG_FETCH)
-                console.log(prefix, `[Custom Fetch] DEBUG - Final URL: ${finalResourceUrl}`);
+        if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
+            console.log(prefix, `[Custom Fetch] After handleModelFileRewriting: ${resourceUrl} -> ${finalResourceUrl}`);
         }
         // Map generic ONNX paths to specific quantized paths
+        const beforeMapOnnx = finalResourceUrl;
         finalResourceUrl = _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.mapOnnxModelPath(finalResourceUrl, currentModelQuantPath);
+        if (LOG_FETCH && finalResourceUrl !== beforeMapOnnx) {
+            console.log(prefix, `[Custom Fetch] After mapOnnxModelPath: ${beforeMapOnnx} -> ${finalResourceUrl}`);
+        }
         if (LOG_FETCH && finalResourceUrl !== resourceUrl) {
-            console.log(prefix, `[Custom Fetch] URL rewritten: ${resourceUrl} -> ${finalResourceUrl}`);
+            console.log(prefix, `[Custom Fetch] ✅ Final URL rewrite: ${resourceUrl} -> ${finalResourceUrl}`);
         }
         // Handle generation_config.json fallback
         if (finalResourceUrl.endsWith('generation_config.json') && finalResourceUrl !== resourceUrl) {
@@ -14417,19 +14506,40 @@ const customFetchHandler = async function (input, options) {
         }
     }
     // Try to serve from IndexedDB cache
-    if (LOG_FETCH)
-        console.log(prefix, `[Custom Fetch] Checking IndexedDB cache for: ${finalResourceUrl}`);
+    if (LOG_FETCH) {
+        const fileName = finalResourceUrl.split('/').pop() || 'unknown';
+        console.log(prefix, `[Custom Fetch] 🔍 Checking IndexedDB cache:
+      file: ${fileName}
+      url: ${finalResourceUrl}
+      modelId: ${currentModelRepoId}`);
+    }
     const cachedResponse = await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.tryServeFromIndexedDB(finalResourceUrl, currentModelRepoId, LOG_CHUNKED);
     if (cachedResponse) {
         const fileSize = cachedResponse.headers.get('Content-Length');
-        const sizeMB = fileSize ? (parseInt(fileSize) / 1024 / 1024).toFixed(1) : 'unknown';
+        const fileSizeBytes = fileSize ? parseInt(fileSize) : 0;
+        const fileName = finalResourceUrl.split('/').pop() || 'unknown';
         if (LOG_FETCH)
-            console.log(prefix, `[Custom Fetch] ✅ SERVING FROM INDEXEDDB: ${finalResourceUrl} (${sizeMB}MB)`);
+            console.log(prefix, `[Custom Fetch] ✅ CACHE HIT - Serving from IndexedDB: ${fileName} (${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB)`);
+        // Send cache hit progress message to UI - use CACHED status to distinguish from downloads
+        safePostMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS,
+            payload: {
+                status: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.LoadingStatusTypes.CACHED,
+                file: fileName,
+                progress: 25, // Same as download complete
+                loadId: currentLoadId,
+                loaded: fileSizeBytes,
+                total: fileSizeBytes
+            }
+        });
         return cachedResponse;
     }
     // Cache miss - download and cache
-    if (LOG_FETCH)
-        console.log(prefix, `[Custom Fetch] ❌ CACHE MISS, will download: ${finalResourceUrl}`);
+    if (LOG_FETCH) {
+        const fileName = finalResourceUrl.split('/').pop() || 'unknown';
+        console.log(prefix, `[Custom Fetch] ❌ CACHE MISS - Will download: ${fileName}
+      url: ${finalResourceUrl}`);
+    }
     return await fetchFromNetworkAndCache(input, finalResourceUrl, options);
 };
 // Apply fetch override to all global contexts
@@ -14594,6 +14704,14 @@ const loadModel = async (payload, callback) => {
         numKeyValueHeads = architecture.numKeyValueHeads;
         headDim = architecture.headDim;
         // Create pipeline and config using factory
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `[loadModel] Creating pipeline with factory:
+        task: ${task}
+        modelId: ${modelId}
+        dtype input: ${dtype}
+        device: ${hasWebGPU ? 'webgpu' : 'cpu'}
+        hasExternalData: ${hasExternalData}`);
+        }
         const { pipeline, config: pipelineConfig } = await _Pipelines__WEBPACK_IMPORTED_MODULE_8__.PipelineFactory.createPipelineWithConfig(task, modelId, {
             dtype: dtype, // Pass raw dtype - pipeline uses presets if needed
             device: hasWebGPU ? 'webgpu' : 'cpu',
@@ -14601,8 +14719,8 @@ const loadModel = async (payload, callback) => {
         });
         currentPipeline = pipeline;
         if (LOG_MODEL_LOADING) {
-            console.log(prefix, `Pipeline created: ${pipeline.constructor.name}`);
-            console.log(prefix, '[loadModel] Pipeline config created:', pipelineConfig.toObject());
+            console.log(prefix, `[loadModel] Pipeline created: ${pipeline.constructor.name}`);
+            console.log(prefix, '[loadModel] Final pipeline config:', pipelineConfig.toObject());
         }
         // Wrap the callback to handle both direct callback and safePostMessage
         const callbackWrapper = (info) => {
@@ -14630,10 +14748,14 @@ const loadModel = async (payload, callback) => {
         extractAndPatchTokenIds(transformersTokenizer, modelConfig);
         transformersModel = pipeline.getModel();
         isTransformersModelReady = true;
-        if (LOG_MODEL_LOADING)
-            console.log(prefix, `Model loaded successfully via pipeline: ${modelId}`);
+        if (LOG_MANIFEST_UPDATES)
+            console.log(prefix, `✅ Model loaded successfully via pipeline: ${modelId}`);
         // Update manifest status to indicate successful download/loading
+        if (LOG_MANIFEST_UPDATES)
+            console.log(prefix, `📋 [MANIFEST] Model load complete - updating status to Downloaded: repo="${modelId}", dtype="${dtype}"`);
         await _Pipelines_PipelineDBHandler__WEBPACK_IMPORTED_MODULE_7__.PipelineDBHandler.setManifestQuantStatus(modelId, dtype, _DB_idbModel__WEBPACK_IMPORTED_MODULE_4__.QuantStatus.Downloaded, () => {
+            if (LOG_MANIFEST_UPDATES)
+                console.log(prefix, `📋 [MANIFEST] ✉️ Sending MANIFEST_UPDATED event (model load complete)`);
             safePostMessage({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.MANIFEST_UPDATED });
         });
         // Send completion messages
@@ -14647,6 +14769,8 @@ const loadModel = async (payload, callback) => {
             });
         }
         else {
+            if (LOG_MANIFEST_UPDATES)
+                console.log(prefix, `📋 [MANIFEST] ✉️ Sending WORKER_READY event: modelId="${modelId}", dtype="${dtype}"`);
             safePostMessage({
                 type: _events_eventNames__WEBPACK_IMPORTED_MODULE_2__.WorkerEventNames.WORKER_READY,
                 payload: { modelId, dtype, task, executionProvider: hasWebGPU ? 'webgpu' : 'cpu' }
@@ -14696,9 +14820,9 @@ const loadModel = async (payload, callback) => {
         }
     }
 };
-const LOG_GEN_PARAMS_CURRENT = true;
-const LOG_GEN_PARAMS_CURRENT_State_check = true;
-const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = true;
+const LOG_GEN_PARAMS_CURRENT = false;
+const LOG_GEN_PARAMS_CURRENT_State_check = false;
+const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = false;
 const generate = async (messages, callback) => {
     if (LOG_GEN_PARAMS_CURRENT_State_check) {
         const stateInfo = `🎯 GENERATE called - State check:
@@ -15311,7 +15435,8 @@ const LoadingStatusTypes = Object.freeze({
     PROGRESS: 'progress',
     DONE: 'done',
     READY: 'ready',
-    ERROR: 'error'
+    ERROR: 'error',
+    CACHED: 'cached'
 });
 const UIEventNames = Object.freeze({
     QUERY_SUBMITTED: 'querySubmitted',

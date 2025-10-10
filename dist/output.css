@@ -264,8 +264,17 @@
   .right-2\.5 {
     right: calc(var(--spacing) * 2.5);
   }
+  .right-10 {
+    right: calc(var(--spacing) * 10);
+  }
   .bottom-2\.5 {
     bottom: calc(var(--spacing) * 2.5);
+  }
+  .bottom-full {
+    bottom: 100%;
+  }
+  .left-0 {
+    left: calc(var(--spacing) * 0);
   }
   .isolate {
     isolation: isolate;
@@ -336,6 +345,9 @@
   .mb-2 {
     margin-bottom: calc(var(--spacing) * 2);
   }
+  .mb-3 {
+    margin-bottom: calc(var(--spacing) * 3);
+  }
   .mb-4 {
     margin-bottom: calc(var(--spacing) * 4);
   }
@@ -390,6 +402,9 @@
   .h-6 {
     height: calc(var(--spacing) * 6);
   }
+  .h-full {
+    height: 100%;
+  }
   .h-screen {
     height: 100vh;
   }
@@ -413,6 +428,9 @@
   }
   .min-h-\[100px\] {
     min-height: 100px;
+  }
+  .min-h-\[200px\] {
+    min-height: 200px;
   }
   .w-3 {
     width: calc(var(--spacing) * 3);
@@ -527,6 +545,9 @@
   }
   .gap-1 {
     gap: calc(var(--spacing) * 1);
+  }
+  .gap-1\.5 {
+    gap: calc(var(--spacing) * 1.5);
   }
   .gap-2 {
     gap: calc(var(--spacing) * 2);
@@ -666,6 +687,9 @@
   }
   .border-blue-400 {
     border-color: var(--color-blue-400);
+  }
+  .border-gray-100 {
+    border-color: var(--color-gray-100);
   }
   .border-gray-200 {
     border-color: var(--color-gray-200);
@@ -832,6 +856,9 @@
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
   }
+  .py-8 {
+    padding-block: calc(var(--spacing) * 8);
+  }
   .pt-1 {
     padding-top: calc(var(--spacing) * 1);
   }
@@ -841,8 +868,8 @@
   .pt-3 {
     padding-top: calc(var(--spacing) * 3);
   }
-  .pr-10 {
-    padding-right: calc(var(--spacing) * 10);
+  .pr-20 {
+    padding-right: calc(var(--spacing) * 20);
   }
   .text-center {
     text-align: center;
@@ -909,6 +936,12 @@
   }
   .text-blue-900 {
     color: var(--color-blue-900);
+  }
+  .text-gray-100 {
+    color: var(--color-gray-100);
+  }
+  .text-gray-200 {
+    color: var(--color-gray-200);
   }
   .text-gray-300 {
     color: var(--color-gray-300);
@@ -1063,6 +1096,12 @@
   .last\:mb-0 {
     &:last-child {
       margin-bottom: calc(var(--spacing) * 0);
+    }
+  }
+  .last\:border-b-0 {
+    &:last-child {
+      border-bottom-style: var(--tw-border-style);
+      border-bottom-width: 0px;
     }
   }
   .hover\:border-gray-400 {
@@ -1252,6 +1291,12 @@
       @media (hover: hover) {
         text-decoration-line: underline;
       }
+    }
+  }
+  .focus\:ring-0 {
+    &:focus {
+      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
     }
   }
   .focus\:ring-1 {

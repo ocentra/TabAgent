@@ -44,6 +44,7 @@ import { TextToSpeechConfig } from './TextToSpeechPipeline';
 
 const prefix = '[PipelineFactory]';
 const LOG_GENERAL = false;
+const LOG_MODEL_LOADING = false;  // Track model loading flow - OFF
 
 /**
  * PipelineFactory - Factory pattern for creating appropriate pipeline instances
@@ -222,10 +223,19 @@ export class PipelineFactory {
     pipeline: BasePipeline;
     config: BaseModelConfig;
   }> {
+    if (LOG_MODEL_LOADING) {
+      console.log(prefix, `[createPipelineWithConfig] Inputs:
+        task: ${task}
+        modelId: ${modelId}
+        options.dtype: ${JSON.stringify(options?.dtype)}
+        options.device: ${JSON.stringify(options?.device)}
+        options.useExternalData: ${options?.useExternalData}`);
+    }
+    
     // Create pipeline instance
     const pipeline = this.createPipeline(task, modelId);
     
-    if (LOG_GENERAL) {
+    if (LOG_MODEL_LOADING) {
       console.log(prefix, `Creating config for pipeline: ${pipeline.constructor.name}`);
     }
     

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
+import TerserPlugin from 'terser-webpack-plugin';
 
 // ESM-compatible __dirname (fix for Windows)
 const __dirname = path.dirname(
@@ -19,7 +20,7 @@ function copyFolder(srcDir, destDir) {
 }
 
 export default {
-  mode: 'development', // Change to 'production' for minified output
+  mode: 'production', // Production mode for minified output
   target: 'webworker',
   entry: {
     sidepanel: path.resolve(__dirname, 'src/sidepanel.ts'),
@@ -45,7 +46,32 @@ export default {
   },
   devtool: 'source-map',
   optimization: {
-    minimize: false,
+    minimize: true,
+    usedExports: true,
+    sideEffects: false,
+    splitChunks: {
+      chunks: 'all',
+      cacheGroups: {
+        vendor: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          chunks: 'all',
+          priority: 10,
+        },
+        highlight: {
+          test: /[\\/]node_modules[\\/]highlight\.js[\\/]/,
+          name: 'highlight',
+          chunks: 'all',
+          priority: 20,
+        },
+        transformers: {
+          test: /[\\/]node_modules[\\/]@huggingface[\\/]transformers[\\/]/,
+          name: 'transformers',
+          chunks: 'all',
+          priority: 20,
+        },
+      },
+    },
   },
   plugins: [
     new CopyWebpackPlugin({
@@ -57,7 +83,18 @@ export default {
         { from: 'src/events', to: 'events' },
         { from: 'src/theme-loader.js', to: '.' },
         ...copyFolder('src/model', 'model'),
-        ...copyFolder('src/assets', 'assets'),
+        // Only copy essential assets, exclude highlight.js themes
+        { 
+          from: 'src/assets/icons', 
+          to: 'assets/icons',
+          globOptions: {
+            ignore: ['**/highlight/**']
+          }
+        },
+        { 
+          from: 'src/assets/marked.min.js', 
+          to: 'assets/marked.min.js'
+        },
         // Removed ONNX runtime assets copying as transformers.js will fetch from CDN
         ...copyFolder('src/wasm', 'wasm'),
       ],

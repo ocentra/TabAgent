@@ -510,8 +510,12 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         let state: string = WorkerEventNames.UNINITIALIZED;
         if (isModelLoading) {
             state = WorkerEventNames.LOADING_MODEL;
-        } else if (currentModelId) {
-            state = WorkerEventNames.MODEL_READY;
+        } else {
+            // Check actual model state (not just if we went through loading)
+            const modelState = getModelState();
+            if (modelState.isReady && modelState.repoId) {
+                state = WorkerEventNames.MODEL_READY;
+            }
         }
         
         sendResponse({ 

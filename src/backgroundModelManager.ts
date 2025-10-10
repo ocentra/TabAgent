@@ -1274,8 +1274,14 @@ export const saveLastChatSession = (sessionId: string): void => {
 };
 
 export const getModelState = () => {
+  // Direct check: does the actual transformers model exist and have required properties?
+  const hasActualModel = transformersModel && 
+    typeof transformersModel.generate === 'function' &&
+    currentModelRepoId && 
+    currentModelQuantPath;
+    
   return {
-    isReady: isTransformersModelReady,
+    isReady: hasActualModel, // Use direct model check instead of internal flag
     repoId: currentModelRepoId,
     quantPath: currentModelQuantPath
   };

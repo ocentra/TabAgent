@@ -15322,8 +15322,13 @@ const saveLastChatSession = (sessionId) => {
     }
 };
 const getModelState = () => {
+    // Direct check: does the actual transformers model exist and have required properties?
+    const hasActualModel = transformersModel &&
+        typeof transformersModel.generate === 'function' &&
+        currentModelRepoId &&
+        currentModelQuantPath;
     return {
-        isReady: isTransformersModelReady,
+        isReady: hasActualModel, // Use direct model check instead of internal flag
         repoId: currentModelRepoId,
         quantPath: currentModelQuantPath
     };
@@ -16259,8 +16264,12 @@ webextension_polyfill__WEBPACK_IMPORTED_MODULE_0___default().runtime.onMessage.a
         if (isModelLoading) {
             state = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.LOADING_MODEL;
         }
-        else if (currentModelId) {
-            state = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MODEL_READY;
+        else {
+            // Check actual model state (not just if we went through loading)
+            const modelState = (0,_backgroundModelManager__WEBPACK_IMPORTED_MODULE_3__.getModelState)();
+            if (modelState.isReady && modelState.repoId) {
+                state = _events_eventNames__WEBPACK_IMPORTED_MODULE_1__.WorkerEventNames.MODEL_READY;
+            }
         }
         sendResponse({
             state: state,

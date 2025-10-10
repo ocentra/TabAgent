@@ -41,6 +41,12 @@ jobs:
         pip install pyinstaller
         venv\Scripts\activate.bat && pyinstaller --onefile --name tabagent-host --hidden-import=json --hidden-import=struct native_host.py
 
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tabagent-host-windows
+        path: main-repo/Server/dist/tabagent-host.exe
+
     - name: Build native app for macOS
       run: |
         cd main-repo/Server
@@ -49,6 +55,12 @@ jobs:
         pip install pyinstaller
         pyinstaller --onefile --name tabagent-host-macos --hidden-import=json --hidden-import=struct native_host.py
 
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tabagent-host-macos
+        path: main-repo/Server/dist/tabagent-host-macos
+
     - name: Build native app for Linux
       run: |
         cd main-repo/Server
@@ -56,12 +68,6 @@ jobs:
         source venv/bin/activate
         pip install pyinstaller
         pyinstaller --onefile --name tabagent-host-linux --hidden-import=json --hidden-import=struct native_host.py
-
-    - name: Upload macOS artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: tabagent-host-macos
-        path: main-repo/Server/dist/tabagent-host-macos
 
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
@@ -76,6 +82,11 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+      with:
+        path: main-repo
+
     - name: Checkout TabAgentDist repository
       uses: actions/checkout@v4
       with:
@@ -94,6 +105,12 @@ jobs:
         # Create version file with commit hash
         echo "${{ github.sha }}" > dist-repo/Extension/version.txt
         echo "Built from commit: ${{ github.sha }}" >> dist-repo/Extension/version.txt
+
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tabagent-host-windows
+        path: ./artifacts
 
     - name: Download macOS artifact
       uses: actions/download-artifact@v4
@@ -114,6 +131,7 @@ jobs:
 
     - name: Copy executables to TabAgentDist
       run: |
+        cp ./artifacts/tabagent-host-windows.exe ./dist-repo/NativeApp/tabagent-host.exe
         cp ./artifacts/tabagent-host-macos ./dist-repo/NativeApp/
         cp ./artifacts/tabagent-host-linux ./dist-repo/NativeApp/
 

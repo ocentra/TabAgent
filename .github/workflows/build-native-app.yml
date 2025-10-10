@@ -2,11 +2,9 @@ name: Build and Deploy Native App
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
     paths:
-      - 'Server/native_host.py'
-      - 'Server/config.py'
-      - 'Server/requirements.txt'
+      - 'Server/**'
       - '.github/workflows/build-native-app.yml'
   workflow_dispatch:
 
@@ -56,7 +54,7 @@ jobs:
     name: Deploy to TabAgentDist
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
     - name: Checkout main repository

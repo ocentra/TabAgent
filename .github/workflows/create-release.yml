@@ -2,10 +2,11 @@ name: Create Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
     paths:
       - 'package.json'
       - 'manifest.json'
+      - 'src/**'
       - '.github/workflows/create-release.yml'
   workflow_dispatch:
 

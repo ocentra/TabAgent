@@ -2,7 +2,7 @@ name: Create Release
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
     paths:
       - 'package.json'
       - 'manifest.json'
@@ -55,7 +55,7 @@ jobs:
           ## Tab Agent Extension v${{ steps.version.outputs.version }}
           
           ### Changes in this release:
-          - Automatic release from main branch
+          - Automatic release from master branch
           
           ### Installation
           To install this release:

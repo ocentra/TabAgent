@@ -2,7 +2,7 @@ name: Sync Distribution Files
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
     paths:
       - 'package.json'
       - 'manifest.json'
@@ -79,7 +79,7 @@ jobs:
     name: Deploy to TabAgentDist
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     
     steps:
     - name: Checkout main repository

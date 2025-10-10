@@ -47,10 +47,27 @@ export default {
   devtool: 'source-map',
   optimization: {
     minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          compress: {
+            drop_console: true, // Remove console.log statements in production
+            drop_debugger: true,
+            pure_funcs: ['console.log', 'console.info', 'console.debug'],
+          },
+          mangle: {
+            safari10: true,
+          },
+        },
+        extractComments: false,
+      }),
+    ],
     usedExports: true,
     sideEffects: false,
     splitChunks: {
       chunks: 'all',
+      minSize: 20000,
+      maxSize: 244000,
       cacheGroups: {
         vendor: {
           test: /[\\/]node_modules[\\/]/,

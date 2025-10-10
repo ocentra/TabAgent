@@ -415,20 +415,87 @@ function showCustomConnectorDialog(connectorType: string, placeholder: string) {
 }
 
 async function handleNativeAppConnector() {
+    const HOST_NAME = 'com.tabagent.host';
+    
     try {
         // Test if native messaging is available
         if (typeof (window as any).chrome === 'undefined' || !(window as any).chrome.runtime || !(window as any).chrome.runtime.sendNativeMessage) {
-            alert('Native messaging is not available in this context.');
+            alert('❌ Native messaging is not available.\n\nThis feature requires the extension to be loaded in Chrome/Edge.');
             return;
         }
 
-        // Show a simple dialog to inform the user
-        alert('Native Application connector is available.\n\nTo use this feature, you need to have the Tab Agent native host installed and registered with your browser.\n\nPlease refer to the documentation for installation instructions.');
+        // Show loading message
+        if (LOG_DEBUG) console.log(`${prefix} Testing native app connection...`);
         
-        if (LOG_DEBUG) console.log(`${prefix} Native app connector selected`);
-    } catch (error) {
-        console.error(`${prefix} Error handling native app connector:`, error);
-        alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Test connection with ping
+        const pingPromise = new Promise((resolve, reject) => {
+            (window as any).chrome.runtime.sendNativeMessage(
+                HOST_NAME,
+                { action: 'ping' },
+                (response: any) => {
+                    if ((window as any).chrome.runtime.lastError) {
+                        reject((window as any).chrome.runtime.lastError);
+                    } else {
+                        resolve(response);
+                    }
+                }
+            );
+        });
+
+        const pingResponse = await pingPromise as any;
+        
+        if (LOG_DEBUG) console.log(`${prefix} Native app ping response:`, pingResponse);
+
+        // If ping successful, get system info
+        const sysInfoPromise = new Promise((resolve, reject) => {
+            (window as any).chrome.runtime.sendNativeMessage(
+                HOST_NAME,
+                { action: 'get_system_info' },
+                (response: any) => {
+                    if ((window as any).chrome.runtime.lastError) {
+                        reject((window as any).chrome.runtime.lastError);
+                    } else {
+                        resolve(response);
+                    }
+                }
+            );
+        });
+
+        const sysInfo = await sysInfoPromise as any;
+        
+        if (LOG_DEBUG) console.log(`${prefix} System info:`, sysInfo);
+
+        // Show success dialog with details
+        const message = `✅ Native App Connected Successfully!\n\n` +
+            `Version: ${pingResponse.version || 'N/A'}\n` +
+            `PID: ${pingResponse.pid || 'N/A'}\n` +
+            `Platform: ${sysInfo.platform || 'N/A'} ${sysInfo.architecture || ''}\n` +
+            `Python: ${sysInfo.python_version || 'N/A'}\n\n` +
+            `The native messaging host is working correctly.`;
+        
+        alert(message);
+        
+    } catch (error: any) {
+        console.error(`${prefix} Native app connection error:`, error);
+        
+        const errorMsg = error.message || String(error);
+        
+        // Provide helpful error messages
+        if (errorMsg.includes('Specified native messaging host not found')) {
+            alert('❌ Native Host Not Installed\n\n' +
+                'The Tab Agent native host is not installed or registered.\n\n' +
+                'To install:\n' +
+                '1. Go to Server/ folder\n' +
+                '2. Run register_host.bat (Windows) or register_host.sh (Mac/Linux)\n' +
+                '3. Restart your browser');
+        } else if (errorMsg.includes('Access')) {
+            alert('❌ Permission Error\n\n' +
+                'The native host is installed but cannot be accessed.\n\n' +
+                'Make sure the executable has proper permissions.');
+        } else {
+            alert(`❌ Connection Failed\n\n${errorMsg}\n\n` +
+                'Check the console for more details.');
+        }
     }
 }
 

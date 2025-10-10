@@ -121,27 +121,23 @@ function createNativeAppFoldout(): HTMLElement {
     const contentHTML = `
         <div class="space-y-3 text-sm">
             <div class="text-gray-600 dark:text-gray-400">
-                <p>Connect to local AI applications running on your machine.</p>
-                <p class="mt-2 text-xs">Requires LMStudio, Ollama, or similar local AI server.</p>
+                <p>Connect to local AI applications and system resources through the Tab Agent native messaging host.</p>
+                <p class="mt-2 text-xs">The native host enables secure communication between the extension and your local system.</p>
             </div>
             <div class="space-y-2">
-                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
-                    <div>
-                        <h4 class="font-medium text-gray-800 dark:text-gray-200">LMStudio</h4>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Local model server</p>
-                    </div>
-                    <button class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
-                        Connect
-                    </button>
-                </div>
-                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
-                    <div>
-                        <h4 class="font-medium text-gray-800 dark:text-gray-200">Ollama</h4>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Local model runner</p>
-                    </div>
-                    <button class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs">
-                        Connect
-                    </button>
+                <div class="p-3 border border-blue-200 dark:border-blue-700 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">🔧 Native Host Status</h4>
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                        The native messaging host allows the extension to:
+                    </p>
+                    <ul class="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1 mb-3">
+                        <li>Access local AI applications (LMStudio, Ollama, etc.)</li>
+                        <li>Execute system commands securely</li>
+                        <li>Interact with local files and services</li>
+                    </ul>
+                    <p class="text-xs text-gray-500 dark:text-gray-500 italic">
+                        💡 To test the native host connection, go to <strong>Connectors → Native Application</strong>
+                    </p>
                 </div>
             </div>
         </div>

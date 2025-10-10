@@ -7,6 +7,7 @@ import { WorkerEventNames,
 
 import { DBEventNames} from './DB/dbEvents';
 import { loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings, setUIConnectionActive, handleUIConnected, handleUIDisconnected, handleUIPong, getActiveUICount, initializePersistentState, restoreLastLoadedModel, getPersistentState, saveLastChatSession, saveLastLoadedModel, getModelState } from './backgroundModelManager';
+import { scheduleVersionChecks } from './utils/versionChecker';
 
 const CONTEXT_PREFIX = '[Background]';
 
@@ -937,6 +938,15 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
 (async () => {
     await initializeSessionIds();
     await updateDeclarativeNetRequestRules();
+    
+    // Initialize version checking
+    try {
+        scheduleVersionChecks();
+        if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Version checker initialized');
+    } catch (error) {
+        if (LOG_ERROR) console.error(CONTEXT_PREFIX + ' Failed to initialize version checker:', error);
+    }
+    
     if (LOG_DEBUG) console.log(CONTEXT_PREFIX + ' Initialized.');
     
     // Set the background script readiness state

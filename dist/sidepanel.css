@@ -1126,3 +1126,69 @@ html.dark #drive-viewer-modal #drive-viewer-breadcrumbs button {
 /* Buttons in footer - Keep Tailwind for now, they seem okay */
 /* #drive-viewer-modal #drive-viewer-cancel {...} */
 /* #drive-viewer-modal #drive-viewer-insert {...} */
+
+/* --- Unified Attachment Popup Styles (Based on Drive Viewer) --- */
+#unified-attachment-popup {
+    top: 0; left: 10px; right: 10px; bottom: 10px;
+    z-index: 1000;   
+    background-color: var(--popup-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--popup-border);
+    border-radius: 8px;
+    box-shadow: var(--popup-shadow);
+    max-height: 70vh; 
+    display: flex;
+    flex-direction: column;
+}
+
+#unified-attachment-popup.hidden {
+    display: none;
+}
+
+/* Expanded state - full screen */
+#unified-attachment-popup.expanded {
+    max-height: none;
+    height: calc(100vh - 20px);
+}
+
+#unified-attachment-popup.expanded #unified-attachment-content {
+    max-height: 100%;
+    height: 100%;
+}
+
+#unified-attachment-popup.expanded #attachment-file-browser {
+    max-height: calc(100vh - 300px); /* Account for header, source dropdown, search, footer */
+}
+
+/* Style the main content box */
+#unified-attachment-popup #unified-attachment-content {
+    background-color: var(--popup-bg);
+}
+
+/* Search Input */
+#unified-attachment-popup #attachment-search {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+}
+
+#unified-attachment-popup #attachment-search::placeholder {
+    color: var(--text-secondary);
+}
+
+#unified-attachment-popup #attachment-search:focus {
+    outline: none;
+    border-color: var(--nav-icon-active);
+    box-shadow: 0 0 0 1px var(--nav-icon-active);
+}
+
+/* File Browser */
+#unified-attachment-popup #attachment-file-browser {
+    overflow-y: auto;
+    flex-grow: 1;
+    padding: 8px 0px;
+}

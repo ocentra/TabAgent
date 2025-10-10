@@ -1,0 +1,76 @@
+name: Create Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'package.json'
+      - 'manifest.json'
+      - '.github/workflows/create-release.yml'
+  workflow_dispatch:
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get version from package.json
+      id: version
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Check if release exists
+      id: check_release
+      run: |
+        RELEASE_EXISTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ steps.version.outputs.version }}" \
+          | jq -r 'if .id then "true" else "false" end')
+        echo "release_exists=$RELEASE_EXISTS" >> $GITHUB_OUTPUT
+
+    - name: Build extension
+      if: steps.check_release.outputs.release_exists == 'false'
+      run: |
+        npm ci
+        npm run build
+
+    - name: Create Release
+      if: steps.check_release.outputs.release_exists == 'false'
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Release v${{ steps.version.outputs.version }}
+        body: |
+          ## Tab Agent Extension v${{ steps.version.outputs.version }}
+          
+          ### Changes in this release:
+          - Automatic release from main branch
+          
+          ### Installation
+          To install this release:
+          1. Download the extension.zip file
+          2. Unzip the file
+          3. Load the extension in Chrome Developer Mode
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      if: steps.check_release.outputs.release_exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/extension.zip
+        asset_name: extension-v${{ steps.version.outputs.version }}.zip
+        asset_content_type: application/zip

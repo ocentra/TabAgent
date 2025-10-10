@@ -4,6 +4,7 @@
 import { BaseAdapter } from './BaseAdapter';
 import { GoogleDriveAdapter } from './GoogleDriveAdapter';
 import { LocalFileAdapter } from './LocalFileAdapter';
+import { NativeAppAdapter } from './NativeAppAdapter';
 import { ConnectorType } from '../../DB/idbConnectors';
 
 const LOG_DEBUG = false;
@@ -16,6 +17,7 @@ type AdapterClass = new () => BaseAdapter;
 const ADAPTER_MAP: Record<string, AdapterClass> = {
     'google-drive': GoogleDriveAdapter,
     'local': LocalFileAdapter,
+    'native-app': NativeAppAdapter,
     // Future adapters will be registered here
     // 'dropbox': DropboxAdapter,
     // 'onedrive': OneDriveAdapter,

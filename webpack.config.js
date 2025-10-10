@@ -32,7 +32,7 @@ export default {
     indexedDBBackendWorker: path.resolve(__dirname, 'src/DB/indexedDBBackendWorker.ts'),
   },
   output: {
-    path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname, 'TabAgentDist/Extension'),
     filename: (pathData) => {
       if (pathData.chunk && pathData.chunk.name === 'indexedDBBackendWorker') {
         return 'DB/[name].js'; // Output worker to dist/DB/indexedDBBackendWorker.js

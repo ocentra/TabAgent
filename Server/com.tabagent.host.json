@@ -1,0 +1,9 @@
+{
+  "name": "com.tabagent.host",
+  "description": "Tab Agent Native Host",
+  "path": "E:\\Desktop\\TabAgent\\Server\\dist\\tabagent-host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://fkkeoobeahalebjpbockfedlncckobjb/"
+  ]
+}

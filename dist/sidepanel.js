@@ -2934,17 +2934,17 @@ class FileBrowserDisplay {
         const icon = this.getFileIcon(file);
         const sizeInfo = file.type === 'file' && file.size ? `(${this.formatFileSize(file.size)})` : '';
         return `
-            <div class="attachment-file-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}" data-file-id="${file.id}">
+            <div class="attachment-file-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${isSelected ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700' : ''}" data-file-id="${file.id}">
                 <div class="flex items-center space-x-2 flex-1 min-w-0">
                     <span class="text-lg">${icon}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm text-gray-800 dark:text-gray-200 truncate">${file.name}</div>
+                        <div class="text-sm text-gray-800 dark:text-gray-200 truncate ${isSelected ? 'font-medium text-blue-900 dark:text-blue-100' : ''}">${file.name}</div>
                         ${sizeInfo ? `<div class="text-xs text-gray-500 dark:text-gray-400">${sizeInfo}</div>` : ''}
                     </div>
                 </div>
                 <div class="flex items-center space-x-1">
                     ${file.type === 'file' ? `
-                        <input type="checkbox" class="file-checkbox" data-file-id="${file.id}" ${isSelected ? 'checked' : ''}>
+                        <input type="checkbox" class="file-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" data-file-id="${file.id}" ${isSelected ? 'checked' : ''}>
                     ` : ''}
                 </div>
             </div>
@@ -2980,19 +2980,29 @@ class FileBrowserDisplay {
         // File/folder click handlers
         container.querySelectorAll('.attachment-file-item').forEach(item => {
             item.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent click from bubbling up
                 const target = e.target;
                 if (target.classList.contains('file-checkbox'))
                     return;
                 const fileId = item.getAttribute('data-file-id');
                 const file = files.find(f => f.id === fileId);
-                if (file?.type === 'folder') {
-                    this.callbacks.onFolderNavigate(file.id);
+                if (file) {
+                    if (file.type === 'folder') {
+                        // Navigate to folder
+                        this.callbacks.onFolderNavigate(file.id);
+                    }
+                    else {
+                        // Toggle file selection
+                        const isCurrentlySelected = this.selectedFiles.has(file.id);
+                        this.callbacks.onFileSelect(file.id, !isCurrentlySelected);
+                    }
                 }
             });
         });
         // Checkbox handlers
         container.querySelectorAll('.file-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
+                e.stopPropagation(); // Prevent change event from bubbling up
                 const target = e.target;
                 const fileId = target.getAttribute('data-file-id');
                 if (fileId) {
@@ -3004,6 +3014,23 @@ class FileBrowserDisplay {
     setBreadcrumbs(breadcrumbs) {
         this.breadcrumbs = breadcrumbs;
         this.renderBreadcrumbs();
+    }
+    clearSelection() {
+        this.selectedFiles.clear();
+        // Update checkboxes to unchecked state
+        const checkboxes = this.container.querySelectorAll('.file-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        // Update visual selection state
+        const fileItems = this.container.querySelectorAll('.attachment-file-item');
+        fileItems.forEach(item => {
+            item.classList.remove('bg-blue-100', 'dark:bg-blue-900/30', 'border-blue-200', 'dark:border-blue-700');
+            const nameElement = item.querySelector('.text-sm');
+            if (nameElement) {
+                nameElement.classList.remove('font-medium', 'text-blue-900', 'dark:text-blue-100');
+            }
+        });
     }
     renderBreadcrumbs() {
         const breadcrumbContainer = this.container.querySelector('#breadcrumb-container');
@@ -3024,7 +3051,8 @@ class FileBrowserDisplay {
             crumbElement.dataset.index = String(index);
             if (!isLast) {
                 crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer';
-                crumbElement.addEventListener('click', () => {
+                crumbElement.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent click from bubbling up
                     this.callbacks.onBreadcrumbClick(crumb.id, index);
                 });
                 const separator = document.createElement('span');
@@ -3065,15 +3093,6 @@ class FileBrowserDisplay {
     }
     getSelectedFiles() {
         return Array.from(this.selectedFiles);
-    }
-    clearSelection() {
-        this.selectedFiles.clear();
-        this.container.querySelectorAll('.attachment-file-item').forEach(item => {
-            item.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
-        });
-        this.container.querySelectorAll('.file-checkbox').forEach(checkbox => {
-            checkbox.checked = false;
-        });
     }
     setLoading(loading) {
         const fileBrowser = this.container.querySelector('#attachment-file-browser');
@@ -5775,6 +5794,8 @@ function initializeSpacesController( /* Pass necessary elements or functions if 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   clearAttachments: () => (/* binding */ clearAttachments),
+/* harmony export */   getCurrentAttachments: () => (/* binding */ getCurrentAttachments),
 /* harmony export */   initializeUnifiedAttachmentController: () => (/* binding */ initializeUnifiedAttachmentController)
 /* harmony export */ });
 /* harmony import */ var _FileBrowserDisplay__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./FileBrowserDisplay */ "./src/Controllers/FileBrowserDisplay.ts");
@@ -5785,9 +5806,9 @@ __webpack_require__.r(__webpack_exports__);
 
 // Logging constants
 const LOG_GENERAL = true;
-const LOG_DEBUG = false;
+const LOG_DEBUG = true; // ENABLED FOR DEBUGGING INSERT FLOW
 const LOG_ERROR = true;
-const LOG_WARN = false;
+const LOG_WARN = true;
 const prefix = '[UnifiedAttachmentController]';
 let isInitialized = false;
 let currentSource = 'google-drive';
@@ -5797,6 +5818,32 @@ let currentConnector = null;
 let availableConnectors = [];
 let fileBrowserDisplay = null;
 let currentBreadcrumbs = [{ id: 'root', name: 'Root' }];
+let currentFiles = []; // Track currently displayed files
+let allSelectedFiles = []; // Global list of all selected files across folders
+// Export function to clear attachments (called when message is sent)
+function clearAttachments() {
+    if (LOG_DEBUG)
+        console.log(`${prefix} Clearing attachments from Ask input`);
+    const attachmentsContainer = document.getElementById('attachments-container');
+    if (attachmentsContainer) {
+        attachmentsContainer.remove();
+        if (LOG_DEBUG)
+            console.log(`${prefix} Attachments container removed`);
+    }
+}
+// Export function to get current attachments (for sending with message)
+function getCurrentAttachments() {
+    const attachmentsContainer = document.getElementById('attachments-container');
+    if (!attachmentsContainer)
+        return [];
+    const pills = attachmentsContainer.querySelectorAll('[data-file-id]');
+    const fileIds = Array.from(pills).map(pill => pill.dataset.fileId).filter(Boolean);
+    // Get FileItems from currentFiles
+    const attachedFiles = currentFiles.filter(f => fileIds.includes(f.id));
+    if (LOG_DEBUG)
+        console.log(`${prefix} getCurrentAttachments returning ${attachedFiles.length} files`);
+    return attachedFiles;
+}
 async function initializeUnifiedAttachmentController() {
     if (isInitialized) {
         if (LOG_DEBUG)
@@ -5896,20 +5943,46 @@ function setupAttachmentPopup() {
 function setupAttachmentPopupEvents() {
     const popup = document.getElementById('unified-attachment-popup');
     const closeButton = document.getElementById('close-attachment-popup');
+    const expandButton = document.getElementById('expand-attachment-popup');
     const cancelButton = document.getElementById('cancel-attachment-button');
     const insertButton = document.getElementById('insert-attachment-button');
+    const clearButton = document.getElementById('clear-selection-button');
     const sourceSelect = document.getElementById('attachment-source-dropdown');
     const attachButton = document.getElementById('unified-attach-button');
-    // Show/hide popup
+    // Show popup
     attachButton?.addEventListener('click', (e) => {
         e.stopPropagation();
-        popup?.classList.toggle('hidden');
-        if (!popup?.classList.contains('hidden')) {
+        // Only show the popup, don't toggle
+        if (popup?.classList.contains('hidden')) {
+            popup.classList.remove('hidden');
+            // Reset to root folder and initialize breadcrumbs
+            currentPath = 'root';
+            currentBreadcrumbs = [{ id: 'root', name: 'Root' }];
+            // Clear any previous selections
+            if (fileBrowserDisplay) {
+                fileBrowserDisplay.clearSelection();
+            }
+            // Clear global selected files list
+            allSelectedFiles = [];
+            // Update selected count
+            updateSelectedCount();
             loadFiles();
         }
     });
     closeButton?.addEventListener('click', hideAttachmentPopup);
     cancelButton?.addEventListener('click', hideAttachmentPopup);
+    clearButton?.addEventListener('click', clearSelection);
+    // Expand/collapse popup
+    expandButton?.addEventListener('click', () => {
+        popup?.classList.toggle('expanded');
+        // Update button title based on state
+        if (popup?.classList.contains('expanded')) {
+            expandButton.setAttribute('title', 'Collapse to Normal Size');
+        }
+        else {
+            expandButton.setAttribute('title', 'Expand to Full Screen');
+        }
+    });
     // Insert button
     insertButton?.addEventListener('click', handleInsertFiles);
     // Source change
@@ -5934,6 +6007,79 @@ function setupAttachmentPopupEvents() {
             hideAttachmentPopup();
         }
     });
+    // Setup drag & drop
+    setupDragAndDrop();
+}
+function setupDragAndDrop() {
+    const fileBrowser = document.getElementById('attachment-file-browser');
+    const dragOverlay = document.getElementById('drag-drop-overlay');
+    const popup = document.getElementById('unified-attachment-popup');
+    if (!fileBrowser || !dragOverlay || !popup)
+        return;
+    let dragCounter = 0;
+    // Prevent default drag behaviors on the entire popup
+    popup.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    popup.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    // Show overlay when dragging over the file browser
+    fileBrowser.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter++;
+        if (dragCounter === 1) {
+            dragOverlay.classList.remove('hidden');
+        }
+    });
+    fileBrowser.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter--;
+        if (dragCounter === 0) {
+            dragOverlay.classList.add('hidden');
+        }
+    });
+    fileBrowser.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    fileBrowser.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        dragOverlay.classList.add('hidden');
+        const items = e.dataTransfer?.items;
+        if (!items)
+            return;
+        const droppedFiles = [];
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    droppedFiles.push({
+                        id: `dropped-${Date.now()}-${i}`,
+                        name: file.name,
+                        type: 'file',
+                        mimeType: file.type || 'application/octet-stream',
+                        size: file.size,
+                        modifiedTime: new Date(file.lastModified).toISOString(),
+                        path: file.name
+                    });
+                }
+            }
+        }
+        if (droppedFiles.length > 0 && fileBrowserDisplay) {
+            // Display dropped files
+            fileBrowserDisplay.renderFiles(droppedFiles);
+            if (LOG_GENERAL)
+                console.log(`${prefix} Dropped ${droppedFiles.length} files`);
+        }
+    });
 }
 function hideAttachmentPopup() {
     const popup = document.getElementById('unified-attachment-popup');
@@ -5952,6 +6098,7 @@ async function loadFiles() {
             throw new Error(`No adapter available for connector type: ${currentConnector.type}`);
         }
         const files = await adapter.fetchFiles(currentPath);
+        currentFiles = files; // Store files for later reference
         fileBrowserDisplay.renderFiles(files);
         fileBrowserDisplay.setBreadcrumbs(currentBreadcrumbs);
     }
@@ -5966,22 +6113,78 @@ function handleFileSelect(fileId, selected) {
     if (fileBrowserDisplay) {
         fileBrowserDisplay.selectFile(fileId, selected);
     }
+    // Update global selected files list
+    if (selected) {
+        // Add to global list if not already there
+        const fileItem = currentFiles.find(f => f.id === fileId);
+        if (fileItem && !allSelectedFiles.find(f => f.id === fileId)) {
+            allSelectedFiles.push(fileItem);
+        }
+    }
+    else {
+        // Remove from global list
+        allSelectedFiles = allSelectedFiles.filter(f => f.id !== fileId);
+    }
     updateSelectedCount();
 }
-function handleFolderNavigate(folderId) {
+async function handleFolderNavigate(folderId) {
     if (!currentConnector)
         return;
-    const adapter = _adapters_AdapterRegistry__WEBPACK_IMPORTED_MODULE_1__.AdapterRegistry.getAdapter(currentConnector.type);
-    if (adapter) {
-        currentPath = adapter.getFolderId({ id: folderId, name: '', type: 'folder', path: folderId });
-        // Update breadcrumbs
-        currentBreadcrumbs.push({ id: folderId, name: 'Folder' }); // TODO: Get actual folder name
-        loadFiles();
+    // Check if this is the file picker trigger for local files
+    if (folderId === 'select-files' && currentConnector.type === 'local') {
+        await openLocalFilePicker();
+        return;
+    }
+    // Find the folder name from current files
+    const folderName = currentFiles.find(f => f.id === folderId)?.name || 'Folder';
+    // Update current path and breadcrumbs
+    currentPath = folderId;
+    currentBreadcrumbs.push({ id: folderId, name: folderName });
+    // Update breadcrumbs in UI
+    if (fileBrowserDisplay) {
+        fileBrowserDisplay.setBreadcrumbs(currentBreadcrumbs);
+    }
+    // Load files in the new folder
+    await loadFiles();
+}
+async function openLocalFilePicker() {
+    try {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Opening local file picker...`);
+        const adapter = _adapters_AdapterRegistry__WEBPACK_IMPORTED_MODULE_1__.AdapterRegistry.getAdapter('local');
+        if (adapter && adapter.openFilePicker) {
+            const files = await adapter.openFilePicker();
+            if (LOG_DEBUG)
+                console.log(`${prefix} File picker returned ${files?.length || 0} files`);
+            if (files && files.length > 0) {
+                // Get FileItems from selected files
+                const fileItems = await adapter.getSelectedFiles();
+                currentFiles = fileItems; // Store for insert
+                if (LOG_DEBUG)
+                    console.log(`${prefix} Got ${fileItems.length} FileItems:`, fileItems);
+                if (fileBrowserDisplay) {
+                    fileBrowserDisplay.renderFiles(fileItems);
+                    if (LOG_GENERAL)
+                        console.log(`${prefix} Rendered ${fileItems.length} local files`);
+                }
+            }
+        }
+    }
+    catch (error) {
+        if (LOG_ERROR)
+            console.error(`${prefix} Failed to open file picker:`, error);
+        alert('Failed to open file picker. Please try again.');
     }
 }
 function handleBreadcrumbClick(folderId, index) {
+    // Trim breadcrumbs to the clicked level
     currentBreadcrumbs = currentBreadcrumbs.slice(0, index + 1);
     currentPath = folderId;
+    // Update breadcrumbs in UI
+    if (fileBrowserDisplay) {
+        fileBrowserDisplay.setBreadcrumbs(currentBreadcrumbs);
+    }
+    // Load files in the selected folder
     loadFiles();
 }
 function handleSearch(query) {
@@ -5990,9 +6193,10 @@ function handleSearch(query) {
         console.log(`${prefix} Searching for:`, query);
 }
 function updateSelectedCount() {
-    const count = fileBrowserDisplay ? fileBrowserDisplay.getSelectedFiles().length : 0;
+    const count = allSelectedFiles.length; // Use global list instead of current folder selection
     const countElement = document.getElementById('selected-count');
     const insertButton = document.getElementById('insert-attachment-button');
+    const clearButton = document.getElementById('clear-selection-button');
     if (countElement) {
         countElement.textContent = count.toString();
     }
@@ -6000,17 +6204,188 @@ function updateSelectedCount() {
         insertButton.textContent = `Insert (${count})`;
         insertButton.disabled = count === 0;
     }
+    if (clearButton) {
+        clearButton.disabled = count === 0;
+    }
+    // Update selected files display
+    updateSelectedFilesDisplay();
 }
-function handleInsertFiles() {
+function clearSelection() {
     if (!fileBrowserDisplay)
         return;
-    const selectedFiles = fileBrowserDisplay.getSelectedFiles();
-    if (selectedFiles.length === 0)
+    // Clear both the current folder selection and global list
+    fileBrowserDisplay.clearSelection();
+    allSelectedFiles = [];
+    updateSelectedCount();
+}
+function updateSelectedFilesDisplay() {
+    const displayContainer = document.getElementById('selected-files-display');
+    const filesList = document.getElementById('selected-files-list');
+    if (!displayContainer || !filesList)
         return;
-    // TODO: Implement file insertion logic
-    if (LOG_GENERAL)
-        console.log(`${prefix} Inserting files:`, selectedFiles);
+    if (allSelectedFiles.length === 0) {
+        displayContainer.classList.add('hidden');
+        return;
+    }
+    displayContainer.classList.remove('hidden');
+    filesList.innerHTML = '';
+    // Use the global selected files list
+    const selectedFileItems = allSelectedFiles;
+    selectedFileItems.forEach(file => {
+        const pill = document.createElement('div');
+        pill.className = 'flex items-center gap-1 px-2 py-0.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded text-xs';
+        // Truncate long filenames
+        const truncateName = (name, maxLength = 12) => {
+            if (name.length <= maxLength)
+                return name;
+            const ext = name.split('.').pop() || '';
+            const nameWithoutExt = name.substring(0, name.lastIndexOf('.'));
+            const truncated = nameWithoutExt.substring(0, maxLength - ext.length - 4) + '...';
+            return ext ? `${truncated}.${ext}` : truncated;
+        };
+        const icon = file.mimeType?.startsWith('image/') ? '🖼️' :
+            file.mimeType?.includes('pdf') ? '📄' :
+                file.mimeType?.includes('text') ? '📝' : '📎';
+        pill.innerHTML = `
+            <span class="flex items-center gap-1">
+                <span class="text-xs">${icon}</span>
+                <span class="text-xs" title="${file.name}">${truncateName(file.name)}</span>
+            </span>
+            <button class="remove-selected-file text-gray-400 hover:text-red-600 ml-1" data-file-id="${file.id}" title="Remove ${file.name}">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        `;
+        // Add remove handler
+        const removeBtn = pill.querySelector('.remove-selected-file');
+        removeBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Remove from global list
+            allSelectedFiles = allSelectedFiles.filter(f => f.id !== file.id);
+            // Also remove from current folder selection if file is currently displayed
+            if (fileBrowserDisplay && currentFiles.find(f => f.id === file.id)) {
+                fileBrowserDisplay.selectFile(file.id, false);
+            }
+            updateSelectedCount();
+        });
+        filesList.appendChild(pill);
+    });
+}
+function handleInsertFiles() {
+    if (LOG_DEBUG)
+        console.log(`${prefix} handleInsertFiles called`);
+    if (!fileBrowserDisplay) {
+        if (LOG_ERROR)
+            console.error(`${prefix} fileBrowserDisplay is null!`);
+        return;
+    }
+    if (allSelectedFiles.length === 0) {
+        if (LOG_WARN)
+            console.warn(`${prefix} No files selected`);
+        return;
+    }
+    // Use the global selected files list
+    const selectedFileItems = allSelectedFiles;
+    if (LOG_DEBUG)
+        console.log(`${prefix} Selected FileItems:`, selectedFileItems);
+    // Dispatch custom event with selected files
+    const event = new CustomEvent('attachmentFilesSelected', {
+        detail: {
+            files: selectedFileItems,
+            source: currentConnector?.name || 'Unknown'
+        }
+    });
+    if (LOG_DEBUG)
+        console.log(`${prefix} Dispatching attachmentFilesSelected event with ${selectedFileItems.length} files`);
+    document.dispatchEvent(event);
+    // Also try to add to the Ask input area visually
+    addFilesToAskInput(selectedFileItems);
     hideAttachmentPopup();
+}
+function addFilesToAskInput(files) {
+    if (LOG_DEBUG)
+        console.log(`${prefix} Adding ${files.length} files to Ask input`);
+    // Find the Ask input area
+    const inputArea = document.getElementById('input-area');
+    if (!inputArea) {
+        if (LOG_ERROR)
+            console.error(`${prefix} input-area not found!`);
+        return;
+    }
+    // Check if we already have an attachments container
+    let attachmentsContainer = document.getElementById('attachments-container');
+    if (!attachmentsContainer) {
+        if (LOG_DEBUG)
+            console.log(`${prefix} Creating attachments container`);
+        attachmentsContainer = document.createElement('div');
+        attachmentsContainer.id = 'attachments-container';
+        attachmentsContainer.className = 'flex flex-wrap gap-1.5 mb-2 p-1.5 border-t border-gray-200 dark:border-gray-600 overflow-y-auto';
+        attachmentsContainer.style.maxHeight = '100px'; // Scroll if too many files
+        // Insert before the textarea
+        const queryInput = document.getElementById('query-input');
+        if (queryInput && queryInput.parentElement) {
+            queryInput.parentElement.insertBefore(attachmentsContainer, queryInput.parentElement.firstChild);
+        }
+        else {
+            if (LOG_ERROR)
+                console.error(`${prefix} Could not find query-input or its parent`);
+            return;
+        }
+    }
+    // Add file pills (check for duplicates first)
+    files.forEach(file => {
+        // Check if file is already attached
+        const existingPill = attachmentsContainer.querySelector(`[data-file-id="${file.id}"]`);
+        if (existingPill) {
+            // Silently skip duplicates
+            return;
+        }
+        if (LOG_DEBUG)
+            console.log(`${prefix} Adding file pill for: ${file.name}`);
+        // Truncate long filenames
+        const truncateName = (name, maxLength = 15) => {
+            if (name.length <= maxLength)
+                return name;
+            const ext = name.split('.').pop() || '';
+            const nameWithoutExt = name.substring(0, name.lastIndexOf('.'));
+            const truncated = nameWithoutExt.substring(0, maxLength - ext.length - 4) + '...';
+            return ext ? `${truncated}.${ext}` : truncated;
+        };
+        const pill = document.createElement('div');
+        pill.className = 'flex items-center gap-1 px-2 py-0.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded text-xs';
+        pill.dataset.fileId = file.id;
+        // File icon based on type
+        const icon = file.mimeType?.startsWith('image/') ? '🖼️' :
+            file.mimeType?.includes('pdf') ? '📄' :
+                file.mimeType?.includes('text') ? '📝' : '📎';
+        const displayName = truncateName(file.name);
+        pill.innerHTML = `
+            <span class="flex items-center gap-1">
+                <span class="text-xs">${icon}</span>
+                <span class="text-xs" title="${file.name}">${displayName}</span>
+            </span>
+            <button class="remove-attachment text-gray-400 hover:text-red-600 ml-1" data-file-id="${file.id}" title="Remove ${file.name}">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        `;
+        // Add remove handler
+        const removeBtn = pill.querySelector('.remove-attachment');
+        removeBtn?.addEventListener('click', () => {
+            if (LOG_DEBUG)
+                console.log(`${prefix} Removing attachment: ${file.name}`);
+            pill.remove();
+            // If no more attachments, remove container
+            if (attachmentsContainer && attachmentsContainer.children.length === 0) {
+                attachmentsContainer.remove();
+            }
+        });
+        attachmentsContainer.appendChild(pill);
+    });
+    if (LOG_GENERAL)
+        console.log(`${prefix} Successfully added ${files.length} files to Ask input`);
 }
 function refreshSourceDropdown() {
     const sourceSelect = document.getElementById('attachment-source-dropdown');
@@ -6056,8 +6431,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _GoogleDriveAdapter__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./GoogleDriveAdapter */ "./src/Controllers/adapters/GoogleDriveAdapter.ts");
 /* harmony import */ var _LocalFileAdapter__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./LocalFileAdapter */ "./src/Controllers/adapters/LocalFileAdapter.ts");
+/* harmony import */ var _NativeAppAdapter__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./NativeAppAdapter */ "./src/Controllers/adapters/NativeAppAdapter.ts");
 // src/Controllers/adapters/AdapterRegistry.ts
 // Factory for dynamically creating adapters based on connector type
+
 
 
 const LOG_DEBUG = false;
@@ -6066,6 +6443,7 @@ const prefix = '[AdapterRegistry]';
 const ADAPTER_MAP = {
     'google-drive': _GoogleDriveAdapter__WEBPACK_IMPORTED_MODULE_0__.GoogleDriveAdapter,
     'local': _LocalFileAdapter__WEBPACK_IMPORTED_MODULE_1__.LocalFileAdapter,
+    'native-app': _NativeAppAdapter__WEBPACK_IMPORTED_MODULE_2__.NativeAppAdapter,
     // Future adapters will be registered here
     // 'dropbox': DropboxAdapter,
     // 'onedrive': OneDriveAdapter,
@@ -6256,130 +6634,258 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   LocalFileAdapter: () => (/* binding */ LocalFileAdapter)
 /* harmony export */ });
+// Simple local file adapter - just opens native file picker
 class LocalFileAdapter {
     constructor() {
-        this.filesCache = {};
-        this.currentDirectoryHandle = null;
+        this.selectedFiles = [];
+        // Supported file types for RAG/document processing
+        this.ACCEPTED_TYPES = [
+            '.pdf',
+            '.txt', '.md', '.markdown',
+            '.doc', '.docx',
+            '.jpg', '.jpeg', '.png', '.gif', '.webp',
+            '.json', '.csv',
+            '.html', '.htm'
+        ].join(',');
     }
     async fetchFiles(path) {
-        try {
-            // Check cache first
-            if (this.filesCache[path]) {
-                return this.filesCache[path];
-            }
-            let files = [];
-            if (path === 'root' || path === '') {
-                // Request directory access
-                if (!this.currentDirectoryHandle) {
-                    this.currentDirectoryHandle = await this.requestDirectoryAccess();
+        // For local files, we always show a prompt to select files
+        return [{
+                id: 'select-files',
+                name: '📁 Click here to select files from your computer',
+                type: 'folder',
+                mimeType: 'folder',
+                size: 0,
+                modifiedTime: new Date().toISOString(),
+                path: 'select-files'
+            }];
+    }
+    async openFilePicker() {
+        return new Promise((resolve, reject) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = this.ACCEPTED_TYPES;
+            input.onchange = (e) => {
+                const target = e.target;
+                const files = Array.from(target.files || []);
+                if (files.length > 0) {
+                    console.log(`LocalFileAdapter: Selected ${files.length} files`);
+                    this.selectedFiles.push(...files);
+                    resolve(files);
                 }
-                files = await this.readDirectory(this.currentDirectoryHandle);
-            }
-            else {
-                // Navigate to specific folder
-                const folderHandle = await this.getFolderHandle(path);
-                files = await this.readDirectory(folderHandle);
-            }
-            this.filesCache[path] = files;
-            return files;
-        }
-        catch (error) {
-            console.error('LocalFileAdapter: Error fetching files:', error);
-            throw error;
-        }
-    }
-    async requestDirectoryAccess() {
-        if (!('showDirectoryPicker' in window)) {
-            throw new Error('File System Access API not supported in this browser');
-        }
-        try {
-            return await window.showDirectoryPicker({
-                mode: 'read'
-            });
-        }
-        catch (error) {
-            if (error.name === 'AbortError') {
-                throw new Error('Directory access cancelled by user');
-            }
-            throw error;
-        }
-    }
-    async getFolderHandle(folderId) {
-        // This would need to be implemented based on how we store folder references
-        // For now, we'll need to maintain a mapping of folder IDs to handles
-        throw new Error('Folder navigation not yet implemented');
-    }
-    async readDirectory(directoryHandle) {
-        const files = [];
-        for await (const [name, handle] of directoryHandle.entries()) {
-            const isDirectory = handle.kind === 'directory';
-            files.push({
-                id: `${handle.name}_${Date.now()}`, // Generate unique ID
-                name: name,
-                type: isDirectory ? 'folder' : 'file',
-                mimeType: isDirectory ? 'folder' : this.getMimeType(name),
-                size: isDirectory ? undefined : await this.getFileSize(handle),
-                modifiedTime: new Date().toISOString(), // File System API doesn't provide this easily
-                path: name
-            });
-        }
-        return files.sort((a, b) => {
-            // Folders first, then files, both alphabetically
-            if (a.type !== b.type) {
-                return a.type === 'folder' ? -1 : 1;
-            }
-            return a.name.localeCompare(b.name);
+                else {
+                    resolve([]);
+                }
+                // Clean up
+                input.remove();
+            };
+            input.oncancel = () => {
+                console.log('LocalFileAdapter: File selection cancelled');
+                resolve([]);
+                input.remove();
+            };
+            // Trigger the file picker
+            input.click();
         });
+    }
+    async getSelectedFiles() {
+        return this.selectedFiles.map((file, index) => ({
+            id: `local-${Date.now()}-${index}`,
+            name: file.name,
+            type: 'file',
+            mimeType: file.type || this.getMimeType(file.name),
+            size: file.size,
+            modifiedTime: new Date(file.lastModified).toISOString(),
+            path: file.name,
+            _file: file // Store the actual File object for attachment conversion
+        }));
     }
     getMimeType(filename) {
         const extension = filename.split('.').pop()?.toLowerCase();
         const mimeTypes = {
             'pdf': 'application/pdf',
             'txt': 'text/plain',
+            'md': 'text/markdown',
+            'markdown': 'text/markdown',
             'doc': 'application/msword',
             'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'xls': 'application/vnd.ms-excel',
-            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'ppt': 'application/vnd.ms-powerpoint',
-            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'jpg': 'image/jpeg',
             'jpeg': 'image/jpeg',
             'png': 'image/png',
             'gif': 'image/gif',
-            'mp4': 'video/mp4',
-            'mp3': 'audio/mpeg',
-            'zip': 'application/zip',
+            'webp': 'image/webp',
             'json': 'application/json',
+            'csv': 'text/csv',
             'html': 'text/html',
-            'css': 'text/css',
-            'js': 'application/javascript'
+            'htm': 'text/html'
         };
         return mimeTypes[extension || ''] || 'application/octet-stream';
     }
-    async getFileSize(handle) {
-        try {
-            const file = await handle.getFile();
-            return file.size;
-        }
-        catch (error) {
-            return 0;
-        }
-    }
     isFolder(item) {
-        return item.type === 'folder';
+        return item.type === 'folder' || item.id === 'select-files';
     }
     getFolderId(item) {
         return item.id;
     }
     clearCache() {
-        this.filesCache = {};
+        this.selectedFiles = [];
     }
     // Get file content for insertion
     async getFileContent(fileId, files) {
-        // TODO: Implement file content retrieval
-        // This would require storing file handles or re-requesting access
-        console.warn('File content retrieval not yet implemented for local files');
-        return null;
+        // Find the file in our selected files
+        const fileItem = files.find(f => f.id === fileId);
+        if (!fileItem)
+            return null;
+        const file = this.selectedFiles.find(f => f.name === fileItem.name);
+        return file || null;
+    }
+}
+
+
+/***/ }),
+
+/***/ "./src/Controllers/adapters/NativeAppAdapter.ts":
+/*!******************************************************!*\
+  !*** ./src/Controllers/adapters/NativeAppAdapter.ts ***!
+  \******************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   NativeAppAdapter: () => (/* binding */ NativeAppAdapter)
+/* harmony export */ });
+// Native messaging utilities
+/// <reference path="../../../Server/chrome.d.ts" />
+const NATIVE_HOST_NAME = 'com.tabagent.host';
+class NativeAppAdapter {
+    constructor() {
+        this.isConnected = false;
+        this.connectionTested = false;
+        // Constructor doesn't require any special setup for native messaging
+    }
+    // BaseAdapter methods that need to be implemented
+    async fetchFiles(path) {
+        // Native app adapter doesn't implement file browsing
+        return Promise.resolve([]);
+    }
+    isFolder(item) {
+        // Native app adapter doesn't implement file browsing
+        return false;
+    }
+    getFolderId(item) {
+        // Native app adapter doesn't implement file browsing
+        return '';
+    }
+    clearCache() {
+        // Native app adapter doesn't need to clear cache
+        this.isConnected = false;
+        this.connectionTested = false;
+    }
+    async testConnection() {
+        try {
+            const response = await this.sendNativeMessage({ action: 'ping' });
+            if (response && response.status === 'success') {
+                this.isConnected = true;
+                this.connectionTested = true;
+                return { success: true };
+            }
+            else {
+                this.isConnected = false;
+                this.connectionTested = true;
+                return {
+                    success: false,
+                    error: response?.message || 'Unknown error during ping test'
+                };
+            }
+        }
+        catch (error) {
+            this.isConnected = false;
+            this.connectionTested = true;
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to connect to native app'
+            };
+        }
+    }
+    async executeCommand(command) {
+        if (!this.connectionTested) {
+            const testResult = await this.testConnection();
+            if (!testResult.success) {
+                throw new Error(`Connection test failed: ${testResult.error}`);
+            }
+        }
+        if (!this.isConnected) {
+            throw new Error('Not connected to native app');
+        }
+        try {
+            const response = await this.sendNativeMessage({
+                action: 'execute_command',
+                command
+            });
+            if (response && response.status === 'success') {
+                return response;
+            }
+            else {
+                throw new Error(response?.message || 'Command execution failed');
+            }
+        }
+        catch (error) {
+            throw new Error(error instanceof Error ? error.message : 'Command execution failed');
+        }
+    }
+    async getSystemInfo() {
+        if (!this.connectionTested) {
+            const testResult = await this.testConnection();
+            if (!testResult.success) {
+                throw new Error(`Connection test failed: ${testResult.error}`);
+            }
+        }
+        if (!this.isConnected) {
+            throw new Error('Not connected to native app');
+        }
+        try {
+            const response = await this.sendNativeMessage({ action: 'get_system_info' });
+            if (response && response.status === 'success') {
+                return response;
+            }
+            else {
+                throw new Error(response?.message || 'Failed to get system info');
+            }
+        }
+        catch (error) {
+            throw new Error(error instanceof Error ? error.message : 'Failed to get system info');
+        }
+    }
+    sendNativeMessage(message) {
+        return new Promise((resolve, reject) => {
+            try {
+                window.chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, message, (response) => {
+                    // Check for runtime errors
+                    if (window.chrome.runtime.lastError) {
+                        reject(new Error(window.chrome.runtime.lastError.message || 'Unknown native messaging error'));
+                        return;
+                    }
+                    // Check if response exists
+                    if (!response) {
+                        reject(new Error('Empty response from native host'));
+                        return;
+                    }
+                    // Resolve with the response
+                    resolve(response);
+                });
+            }
+            catch (error) {
+                reject(new Error(error instanceof Error ? error.message : 'Failed to send native message'));
+            }
+        });
+    }
+    async cleanup() {
+        // Cleanup any resources if needed
+        this.isConnected = false;
+        this.connectionTested = false;
+        return Promise.resolve();
     }
 }
 
@@ -8520,7 +9026,7 @@ const DEFAULT_CONNECTORS = [
         type: 'dropbox',
         category: 'storage',
         icon: '📦',
-        enabled: false,
+        enabled: true,
         isDefault: true,
         requiresAuth: true,
         authConfig: {
@@ -8538,7 +9044,7 @@ const DEFAULT_CONNECTORS = [
         type: 'onedrive',
         category: 'storage',
         icon: '☁️',
-        enabled: false,
+        enabled: true,
         isDefault: true,
         requiresAuth: true,
         authConfig: {
@@ -8597,6 +9103,19 @@ const DEFAULT_CONNECTORS = [
                 }
             ]
         },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    {
+        id: 'native-app',
+        name: 'Native Application',
+        type: 'native-app',
+        category: 'productivity',
+        icon: '🖥️',
+        enabled: true,
+        isDefault: true,
+        requiresAuth: false,
         authStatus: 'not_authenticated',
         addedAt: Date.now(),
         updatedAt: Date.now()
@@ -12569,89 +13088,6 @@ function downloadFile(filename, content, mimeType) {
 
 /***/ }),
 
-/***/ "./src/Home/fileHandler.ts":
-/*!*********************************!*\
-  !*** ./src/Home/fileHandler.ts ***!
-  \*********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   handleAttachClick: () => (/* binding */ handleAttachClick),
-/* harmony export */   handleFileSelected: () => (/* binding */ handleFileSelected),
-/* harmony export */   initializeFileHandling: () => (/* binding */ initializeFileHandling)
-/* harmony export */ });
-/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
-/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../DB/dbEvents */ "./src/DB/dbEvents.ts");
-/* harmony import */ var _uiController__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./uiController */ "./src/Home/uiController.ts");
-
-
-
-// Logging constants
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
-const LOG_ERROR = true;
-const LOG_WARN = false;
-const prefix = '[FileHandler]';
-let getActiveSessionIdFunc = null;
-function initializeFileHandling(dependencies) {
-    getActiveSessionIdFunc = dependencies.getActiveSessionIdFunc;
-    if (!getActiveSessionIdFunc) {
-        console.error("FileHandler: Missing getActiveSessionIdFunc dependency!");
-    }
-    else {
-        if (LOG_DEBUG)
-            console.log(`${prefix} Initialized (Note: DB/Renderer interaction via events assumed).`);
-    }
-}
-async function handleFileSelected(event) {
-    if (!getActiveSessionIdFunc) {
-        console.error("FileHandler: Not initialized properly (missing getActiveSessionIdFunc).");
-        return;
-    }
-    const input = event.target;
-    const files = input.files;
-    if (!files || files.length === 0) {
-        console.log("FileHandler: No file selected.");
-        return;
-    }
-    const file = files[0];
-    console.log(`FileHandler: File selected - ${file.name}, Type: ${file.type}, Size: ${file.size}`);
-    const sessionId = getActiveSessionIdFunc();
-    if (!sessionId) {
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)("Please start or select a chat before attaching a file.");
-        input.value = '';
-        return;
-    }
-    const fileMessage = {
-        sender: 'system',
-        text: `📎 Attached file: ${file.name}`,
-        timestamp: Date.now(),
-        isLoading: false,
-    };
-    try {
-        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest(sessionId, fileMessage);
-        eventBus.publish(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_1__.DbAddMessageRequest.type, request);
-        if (LOG_DEBUG)
-            console.log(`${prefix} Published DbAddMessageRequest for file attachment.`);
-    }
-    catch (error) {
-        console.error("FileHandler: Error publishing file attachment message event:", error);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_0__.showError)("Failed to process file attachment.");
-    }
-    finally {
-        input.value = '';
-    }
-}
-function handleAttachClick() {
-    console.log("FileHandler: Triggering file input click.");
-    (0,_uiController__WEBPACK_IMPORTED_MODULE_2__.triggerFileInputClick)();
-}
-
-
-/***/ }),
-
 /***/ "./src/Home/messageOrchestrator.ts":
 /*!*****************************************!*\
   !*** ./src/Home/messageOrchestrator.ts ***!
@@ -12851,9 +13287,29 @@ class ChatOrchestrator {
         this.isSendingMessage = true;
         if (this.LOG_GENERAL)
             console.log(this.prefix, `[isSendingMessage] SET to true in handleQuerySubmit`);
-        const { text } = data;
+        const { text, attachments } = data;
         if (this.LOG_GENERAL)
-            console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
+            console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}" and ${attachments?.length || 0} attachments`);
+        // Convert FileItem objects to attachment format
+        let attachmentsData = null;
+        if (attachments && attachments.length > 0) {
+            attachmentsData = [];
+            for (const fileItem of attachments) {
+                if (fileItem._file) {
+                    // Local file - use the actual File object
+                    attachmentsData.push({
+                        file_name: fileItem.name,
+                        mime_type: fileItem.mimeType || fileItem._file.type || 'application/octet-stream',
+                        data: fileItem._file
+                    });
+                }
+                else {
+                    // Remote file (Google Drive, etc.) - would need to fetch content
+                    // For now, just log and skip
+                    console.warn('Remote file attachment not yet implemented:', fileItem.name);
+                }
+            }
+        }
         let sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
         const currentTabId = this.getCurrentTabId ? this.getCurrentTabId() : null;
         let placeholderMessageId = null;
@@ -12868,7 +13324,13 @@ class ChatOrchestrator {
         }
         try {
             (0,_chatRenderer__WEBPACK_IMPORTED_MODULE_4__.clearTemporaryMessages)();
-            const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
+            const userMessage = {
+                sender: 'user',
+                text: text,
+                timestamp: Date.now(),
+                isLoading: false,
+                ...(attachmentsData && attachmentsData.length > 0 && { attachmentsData: attachmentsData })
+            };
             if (!sessionId) {
                 if (this.LOG_GENERAL)
                     console.log(this.prefix, 'handleQuerySubmit: No active session, creating new one via event.');
@@ -13213,6 +13675,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DB/idbSchema */ "./src/DB/idbSchema.ts");
 /* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../DB/idbModel */ "./src/DB/idbModel.ts");
 /* harmony import */ var _sidepanel__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../sidepanel */ "./src/sidepanel.ts");
+/* harmony import */ var _Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../Controllers/UnifiedAttachmentController */ "./src/Controllers/UnifiedAttachmentController.ts");
+
 
 
 
@@ -13322,7 +13786,7 @@ function attachListeners() {
     queryInput?.addEventListener('input', adjustTextareaHeight);
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
-    attachButton?.addEventListener('click', handleAttachClick);
+    // Attach button is now handled by UnifiedAttachmentController
     modelSelectorDropdown?.addEventListener('change', async () => {
         await _handleModelChange();
         await updateLoadButtonVisibility();
@@ -13352,7 +13816,7 @@ function removeListeners() {
     queryInput?.removeEventListener('input', adjustTextareaHeight);
     queryInput?.removeEventListener('keydown', handleEnterKey);
     sendButton?.removeEventListener('click', handleSendButtonClick);
-    attachButton?.removeEventListener('click', handleAttachClick);
+    // Attach button is now handled by UnifiedAttachmentController
     modelSelectorDropdown?.removeEventListener('change', _handleModelChange);
     quantSelectorDropdown?.removeEventListener('change', _handleQuantizationChange);
     loadModelButton?.removeEventListener('click', _handleLoadModelButtonClick);
@@ -13374,7 +13838,14 @@ function handleEnterKey(event) {
         if (messageText && !queryInput.disabled) {
             if (LOG_INFO)
                 console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
+            // Get current attachments before clearing
+            const attachments = (0,_Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_7__.getCurrentAttachments)();
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, {
+                detail: {
+                    text: messageText,
+                    attachments: attachments
+                }
+            }));
             clearInput();
         }
         else {
@@ -13388,7 +13859,14 @@ function handleSendButtonClick() {
     if (messageText && !queryInput.disabled) {
         if (LOG_INFO)
             console.log(prefix, "Send button clicked. Publishing ui:querySubmitted");
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
+        // Get current attachments before clearing
+        const attachments = (0,_Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_7__.getCurrentAttachments)();
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_0__.UIEventNames.QUERY_SUBMITTED, {
+            detail: {
+                text: messageText,
+                attachments: attachments
+            }
+        }));
         clearInput();
     }
     else {
@@ -13396,11 +13874,7 @@ function handleSendButtonClick() {
             console.log(prefix, "Send button clicked, but input is empty or disabled.");
     }
 }
-function handleAttachClick() {
-    if (attachFileCallback) {
-        attachFileCallback();
-    }
-}
+// handleAttachClick removed - now handled by UnifiedAttachmentController
 function getModelSelectorOptions() {
     if (!modelSelectorDropdown)
         return [];
@@ -13920,7 +14394,7 @@ async function initializeUI(callbacks) {
         isInitialized = false;
         return null;
     }
-    attachFileCallback = callbacks?.onAttachFile;
+    // attachFileCallback removed - now handled by UnifiedAttachmentController
     attachListeners();
     newChatButton = document.getElementById('new-chat-button');
     if (newChatButton && callbacks?.onNewChat) {
@@ -13983,6 +14457,13 @@ function clearInput() {
     if (queryInput) {
         queryInput.value = '';
         adjustTextareaHeight();
+    }
+    // Clear attachments
+    const attachmentsContainer = document.getElementById('attachments-container');
+    if (attachmentsContainer) {
+        attachmentsContainer.remove();
+        if (LOG_INFO)
+            console.log(prefix, "Cleared attachments container");
     }
 }
 function focusInput() {
@@ -15549,48 +16030,47 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _navigation__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./navigation */ "./src/navigation.ts");
 /* harmony import */ var _Home_chatRenderer__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Home/chatRenderer */ "./src/Home/chatRenderer.ts");
 /* harmony import */ var _Home_messageOrchestrator__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Home/messageOrchestrator */ "./src/Home/messageOrchestrator.ts");
-/* harmony import */ var _Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/fileHandler */ "./src/Home/fileHandler.ts");
-/* harmony import */ var _Home_uiController__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Home/uiController */ "./src/Home/uiController.ts");
-/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
-/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./notifications */ "./src/notifications.ts");
-/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./DB/dbEvents */ "./src/DB/dbEvents.ts");
-/* harmony import */ var _Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./Controllers/HistoryPopupController */ "./src/Controllers/HistoryPopupController.ts");
-/* harmony import */ var _Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./Controllers/LibraryController */ "./src/Controllers/LibraryController.ts");
-/* harmony import */ var _Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/DiscoverController */ "./src/Controllers/DiscoverController.ts");
-/* harmony import */ var _Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/SettingsController */ "./src/Controllers/SettingsController.ts");
-/* harmony import */ var _Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/SpacesController */ "./src/Controllers/SpacesController.ts");
-/* harmony import */ var _Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/IntegrationsController */ "./src/Controllers/IntegrationsController.ts");
-/* harmony import */ var _Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/ConnectorsController */ "./src/Controllers/ConnectorsController.ts");
-/* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
-/* harmony import */ var _Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Controllers/UnifiedAttachmentController */ "./src/Controllers/UnifiedAttachmentController.ts");
-/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
-/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
-/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
-/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
-/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
-/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
-/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
-/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
-/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
-/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
-/* harmony import */ var _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_34__ = __webpack_require__(/*! ./assets/icons/Integration.png */ "./src/assets/icons/Integration.png");
-/* harmony import */ var _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_35__ = __webpack_require__(/*! ./assets/icons/Connectors.png */ "./src/assets/icons/Connectors.png");
-/* harmony import */ var _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_36__ = __webpack_require__(/*! ./assets/icons/Browser.png */ "./src/assets/icons/Browser.png");
-/* harmony import */ var _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_37__ = __webpack_require__(/*! ./assets/icons/LocalServer.png */ "./src/assets/icons/LocalServer.png");
-/* harmony import */ var _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_38__ = __webpack_require__(/*! ./assets/icons/CloudServer.png */ "./src/assets/icons/CloudServer.png");
-/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_39__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
+/* harmony import */ var _Home_uiController__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Home/uiController */ "./src/Home/uiController.ts");
+/* harmony import */ var _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./Utilities/generalUtils */ "./src/Utilities/generalUtils.ts");
+/* harmony import */ var _notifications__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./notifications */ "./src/notifications.ts");
+/* harmony import */ var _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./DB/dbEvents */ "./src/DB/dbEvents.ts");
+/* harmony import */ var _Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./Controllers/HistoryPopupController */ "./src/Controllers/HistoryPopupController.ts");
+/* harmony import */ var _Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./Controllers/LibraryController */ "./src/Controllers/LibraryController.ts");
+/* harmony import */ var _Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./Controllers/DiscoverController */ "./src/Controllers/DiscoverController.ts");
+/* harmony import */ var _Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./Controllers/SettingsController */ "./src/Controllers/SettingsController.ts");
+/* harmony import */ var _Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./Controllers/SpacesController */ "./src/Controllers/SpacesController.ts");
+/* harmony import */ var _Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./Controllers/IntegrationsController */ "./src/Controllers/IntegrationsController.ts");
+/* harmony import */ var _Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./Controllers/ConnectorsController */ "./src/Controllers/ConnectorsController.ts");
+/* harmony import */ var _Controllers_DriveController__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./Controllers/DriveController */ "./src/Controllers/DriveController.ts");
+/* harmony import */ var _Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./Controllers/UnifiedAttachmentController */ "./src/Controllers/UnifiedAttachmentController.ts");
+/* harmony import */ var _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./Components/HuggingFaceLoginDialog */ "./src/Components/HuggingFaceLoginDialog.ts");
+/* harmony import */ var _events_eventNames__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./events/eventNames */ "./src/events/eventNames.ts");
+/* harmony import */ var _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./Utilities/dbChannels */ "./src/Utilities/dbChannels.ts");
+/* harmony import */ var _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./DB/idbSchema */ "./src/DB/idbSchema.ts");
+/* harmony import */ var _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./DB/idbModel */ "./src/DB/idbModel.ts");
+/* harmony import */ var _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./assets/icons/NewChat.png */ "./src/assets/icons/NewChat.png");
+/* harmony import */ var _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./assets/icons/history.png */ "./src/assets/icons/history.png");
+/* harmony import */ var _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./assets/icons/popup.png */ "./src/assets/icons/popup.png");
+/* harmony import */ var _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./assets/icons/googledrive.png */ "./src/assets/icons/googledrive.png");
+/* harmony import */ var _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./assets/icons/attach-svgrepo-com.svg */ "./src/assets/icons/attach-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./assets/icons/close-circle-svgrepo-com.svg */ "./src/assets/icons/close-circle-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./assets/icons/home-svgrepo-com.svg */ "./src/assets/icons/home-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./assets/icons/rocket-2-svgrepo-com.svg */ "./src/assets/icons/rocket-2-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./assets/icons/myspace-microsoft-svgrepo-com.svg */ "./src/assets/icons/myspace-microsoft-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./assets/icons/library-svgrepo-com.svg */ "./src/assets/icons/library-svgrepo-com.svg");
+/* harmony import */ var _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! ./assets/icons/Integration.png */ "./src/assets/icons/Integration.png");
+/* harmony import */ var _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_34__ = __webpack_require__(/*! ./assets/icons/Connectors.png */ "./src/assets/icons/Connectors.png");
+/* harmony import */ var _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_35__ = __webpack_require__(/*! ./assets/icons/Browser.png */ "./src/assets/icons/Browser.png");
+/* harmony import */ var _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_36__ = __webpack_require__(/*! ./assets/icons/LocalServer.png */ "./src/assets/icons/LocalServer.png");
+/* harmony import */ var _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_37__ = __webpack_require__(/*! ./assets/icons/CloudServer.png */ "./src/assets/icons/CloudServer.png");
+/* harmony import */ var _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_38__ = __webpack_require__(/*! ./assets/icons/settings-svgrepo-com.svg */ "./src/assets/icons/settings-svgrepo-com.svg");
 // --- Imports ---
 
 
 
 
 
-
+// Old file handler imports removed - now using UnifiedAttachmentController
 
 
 
@@ -15730,7 +16210,7 @@ function hideDetachedOverlay() {
 let sidepanelLogCount = 0;
 const SIDEPANEL_LOG_THROTTLE_INTERVAL = 5; // Log every 5 operations
 let currentModelIdInManager = null;
-let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
+let modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
 let isModelManagerEnvReady = false;
 let isGenerating = false;
 // Track the currently loaded model and quant (onnx variant)
@@ -15749,13 +16229,13 @@ function getModelSelectorOptions() {
         const viewParam = urlParams.get('view');
         window.EXTENSION_CONTEXT =
             contextParam === 'popup'
-                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.MAIN_UI_POPUP
+                ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI_POPUP
                 : viewParam === 'logs'
-                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.OTHERS
-                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.MAIN_UI;
+                    ? _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.OTHERS
+                    : _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI;
     }
     catch (e) {
-        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.UNKNOWN;
+        window.EXTENSION_CONTEXT = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.UNKNOWN;
         if (LOG_ERROR)
             console.error(`${prefix} Error setting EXTENSION_CONTEXT:`, e);
     }
@@ -15824,7 +16304,7 @@ async function sendDbRequestSmart(request) {
     return response;
 }
 function sendDbRequestViaChannel(request) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.postMessage(request);
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage(request);
 }
 function requestDbAndWait(requestEvent) {
     return new Promise((resolve, reject) => {
@@ -15855,11 +16335,11 @@ function bufferOrWriteLog(logPayload) {
         logQueue.push(logPayload);
     }
     else {
-        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbAddLogRequest(logPayload);
+        const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbAddLogRequest(logPayload);
         sendDbRequestViaChannel(req);
     }
 }
-_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.logChannel.onmessage = (event) => {
+_Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.logChannel.onmessage = (event) => {
     const { type, payload } = event.data;
     if (type === 'LOG_TO_DB' && payload) {
         bufferOrWriteLog(payload);
@@ -15913,7 +16393,7 @@ function hideDeviceBadge() {
 function updateSendButtonForGeneration(isGenerating) {
     if (LOG_DEBUG)
         console.log(`${prefix} updateSendButtonForGeneration called with isGenerating:`, isGenerating);
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.updateGenerationState)(isGenerating);
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_5__.updateGenerationState)(isGenerating);
 }
 function handleStopGeneration() {
     if (LOG_DEBUG)
@@ -15921,7 +16401,7 @@ function handleStopGeneration() {
     if (isGenerating) {
         if (LOG_DEBUG)
             console.log(`${prefix} Sending stop generation request to background.`);
-        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.STOP_GENERATION });
+        sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.STOP_GENERATION });
     }
     else {
         if (LOG_DEBUG)
@@ -15932,7 +16412,7 @@ function handleSendButtonClick() {
     // This will be handled by the UI controller
     const queryInput = document.getElementById('query-input');
     if (queryInput && queryInput.value.trim() && !queryInput.disabled) {
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.QUERY_SUBMITTED, {
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.QUERY_SUBMITTED, {
             detail: { text: queryInput.value.trim() }
         }));
         // Clear input after sending
@@ -15947,22 +16427,22 @@ async function handleModelManagerMessage(event) {
     // For use in WORKER_READY case
     const loadBtn = document.getElementById('load-model-button');
     switch (type) {
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_SCRIPT_READY:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_SCRIPT_READY;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background script is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_ENV_READY:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_ENV_READY:
             isModelManagerEnvReady = true;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background environment is ready.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_STATUS:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_MODEL;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
             if (LOG_DEBUG)
                 console.log(`${prefix} Background loading status:`, payload);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_READY: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY: {
             const { modelId, dtype, task, fallback, executionProvider, warning } = payload;
             if (LOG_WORKER_READY) {
                 const workerReadyInfo = `📋 [WORKER_READY] Model load complete:
@@ -15974,7 +16454,7 @@ async function handleModelManagerMessage(event) {
             // Update local state immediately
             currentLoadedModel = { modelId, quant: dtype };
             currentModelIdInManager = modelId;
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
             // Button visibility handled by syncUIWithLoadedModel
             showDeviceBadge(executionProvider, warning);
             // Sync UI with loaded model (dropdowns + button)
@@ -15984,9 +16464,9 @@ async function handleModelManagerMessage(event) {
             if (fallback) {
                 quantMsg += ` Requested quantization '${payload.requestedQuant}' was not available, so fallback to '${dtype}' was used.`;
             }
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showWarning)(quantMsg);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showWarning)(quantMsg);
             if (warning) {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showWarning)(warning);
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showWarning)(warning);
             }
             if (LOG_DEBUG)
                 console.log(`${prefix} Model ${modelId} loaded successfully!`);
@@ -15998,16 +16478,16 @@ async function handleModelManagerMessage(event) {
                 statusDiv.style.display = 'none';
             // Show success notification
             const modelDisplayName = modelId.split('/').pop() || modelId;
-            (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
+            (0,_notifications__WEBPACK_IMPORTED_MODULE_7__.showNotification)(`✅ Model ready! ${modelDisplayName} (${dtype}) loaded successfully on ${executionProvider}`, 'success', 4000);
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR: {
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR: {
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
             isModelManagerEnvReady = false;
             hideDeviceBadge();
             if (LOG_ERROR)
                 console.error(`${prefix} Background reported an error:`, payload);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Background Error: ${payload}`);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Background Error: ${payload}`);
             currentModelIdInManager = null;
             // Hide progress bar on error
             const statusDiv = document.getElementById('model-load-status');
@@ -16015,24 +16495,24 @@ async function handleModelManagerMessage(event) {
                 statusDiv.style.display = 'none';
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESET_COMPLETE:
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE:
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
             isModelManagerEnvReady = false;
             currentModelIdInManager = null;
             hideDeviceBadge();
             if (LOG_DEBUG)
                 console.log(`${prefix} Background model reset complete.`);
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_UPDATE:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_UPDATE:
             if (payload && payload.chatId && payload.messageId && typeof payload.token === 'string') {
                 if (!isGenerating) {
                     isGenerating = true;
                     updateSendButtonForGeneration(true);
                 }
-                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(payload.chatId, payload.messageId, {
+                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbUpdateMessageRequest(payload.chatId, payload.messageId, {
                     isLoading: true,
                     sender: 'ai',
                     appendText: payload.token,
@@ -16040,13 +16520,13 @@ async function handleModelManagerMessage(event) {
                 }));
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_COMPLETE: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_COMPLETE: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_COMPLETE payload:`, payload);
             isGenerating = false;
             updateSendButtonForGeneration(false);
             if (payload.messageId && activeSessionId) {
-                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
+                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
                     isLoading: false,
                     sender: 'ai',
                     text: payload.generatedText,
@@ -16055,13 +16535,13 @@ async function handleModelManagerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_STOPPED: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_STOPPED: {
             if (LOG_DEBUG)
                 console.log(`${prefix} GENERATION_STOPPED payload:`, payload);
             isGenerating = false;
             updateSendButtonForGeneration(false);
             if (payload.messageId && activeSessionId) {
-                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
+                sendDbRequestSmart(new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbUpdateMessageRequest(activeSessionId, payload.messageId, {
                     isLoading: false,
                     sender: 'ai',
                     text: payload.generatedText,
@@ -16070,17 +16550,17 @@ async function handleModelManagerMessage(event) {
             }
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESTORE_FROM_POPUP: {
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESTORE_FROM_POPUP: {
             // Popup closed, remove overlay and restore full UI
             if (LOG_DEBUG)
                 console.log(`${prefix} RESTORE_FROM_POPUP received`);
             hideDetachedOverlay();
             break;
         }
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.GENERATION_ERROR:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.GENERATION_ERROR:
             isGenerating = false;
             updateSendButtonForGeneration(false);
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
                 detail: {
                     chatId: payload.chatId,
                     messageId: payload.messageId,
@@ -16088,15 +16568,15 @@ async function handleModelManagerMessage(event) {
                 }
             }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
             // Button visibility handled by user dropdown changes only
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.REQUEST_MEMORY_STATS:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.REQUEST_MEMORY_STATS:
             if (performance && performance.memory) {
                 const mem = performance.memory;
                 webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MEMORY_STATS,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MEMORY_STATS,
                     payload: {
                         usedJSHeapSize: mem.usedJSHeapSize,
                         totalJSHeapSize: mem.totalJSHeapSize,
@@ -16108,22 +16588,22 @@ async function handleModelManagerMessage(event) {
                 });
             }
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
-            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG:
+            document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG, { detail: payload }));
             break;
-        case _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.CACHE_CLEARED:
+        case _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CACHE_CLEARED:
             // Cache cleared successfully - no action needed
             if (LOG_DEBUG)
                 console.log(prefix, 'Model cache cleared successfully');
@@ -16143,7 +16623,7 @@ async function initializeModelManager() {
         console.log(`${prefix} Checking if background is ready...`);
     try {
         const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.CHECK_BACKGROUND_READY
         });
         if (response?.ready) {
             isModelManagerEnvReady = true;
@@ -16166,11 +16646,11 @@ async function terminateModelManager() {
         console.log(`${prefix} Sending reset request to background...`);
     try {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESET
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET
         });
         // Reset local state
         currentModelIdInManager = null;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
         hideDeviceBadge();
         if (LOG_DEBUG)
             console.log(`${prefix} Model reset complete. Chat input would be disabled.`);
@@ -16180,7 +16660,7 @@ async function terminateModelManager() {
             console.error(`${prefix} Failed to reset model in background:`, error);
         // Reset local state anyway
         currentModelIdInManager = null;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UNINITIALIZED;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UNINITIALIZED;
         hideDeviceBadge();
     }
 }
@@ -16191,13 +16671,13 @@ function sendToModelManager(message) {
         webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage(message).catch((error) => {
             if (LOG_ERROR)
                 console.error(`${prefix} Error sending message to background:`, error, message);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error communicating with background: ${error.message}`);
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Error communicating with background: ${error.message}`);
         });
     }
     catch (error) {
         if (LOG_ERROR)
             console.error(`${prefix} Error sending message to background:`, error, message);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error communicating with background: ${error.message}`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Error communicating with background: ${error.message}`);
     }
 }
 function sendUiEvent(type, payload) {
@@ -16231,11 +16711,11 @@ async function setActiveChatSessionId(newSessionId) {
         await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().storage.local.remove('lastSessionId');
     }
     (0,_Home_chatRenderer__WEBPACK_IMPORTED_MODULE_3__.setActiveSessionId)(newSessionId);
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.setActiveSession)(newSessionId);
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_5__.setActiveSession)(newSessionId);
 }
 // --- Channel Handlers ---
-if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.Contexts.MAIN_UI) {
-    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.onmessage = async (event) => {
+if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.Contexts.MAIN_UI) {
+    _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: reqSenderId, responseType } = event.data;
         if (!isDbRequest(type))
             return;
@@ -16247,11 +16727,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20_
                 senderId: reqSenderId,
             });
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({ type: respType, payload: response, requestId, senderId });
         }
         catch (err) {
             const respType = responseType || type + '_RESPONSE';
-            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_22__.dbChannel.postMessage({
+            _DB_idbSchema__WEBPACK_IMPORTED_MODULE_21__.dbChannel.postMessage({
                 type: respType,
                 payload: { success: false, error: err.message },
                 requestId,
@@ -16259,7 +16739,7 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20_
             });
         }
     };
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.onmessage = async (event) => {
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.onmessage = async (event) => {
         const { type, payload, requestId, senderId: msgSenderId } = event.data;
         if (msgSenderId && msgSenderId.startsWith('sidepanel-') && msgSenderId !== senderId) {
             if (LOG_DEBUG)
@@ -16267,11 +16747,11 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20_
             return;
         }
         // Handle ping from background - respond with pong
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_PING) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_PING) {
             if (LOG_DEBUG)
                 console.log(`${prefix} 🏓 Received ping from background - sending pong`);
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_PONG,
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_PONG,
                 payload: { senderId, timestamp: Date.now() },
                 senderId,
                 timestamp: Date.now()
@@ -16279,40 +16759,40 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20_
             return;
         }
         if ([
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.WORKER_READY,
-            _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.RESET_COMPLETE
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_SCRIPT_READY, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.WORKER_READY,
+            _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_STATUS, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR, _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.RESET_COMPLETE
         ].includes(type)) {
             return;
         }
-        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
+        if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.SEND_CHAT_MESSAGE) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received SEND_CHAT_MESSAGE, forwarding to background.`);
             sendToModelManager({ type: 'generate', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.INTERRUPT_GENERATION) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received INTERRUPT_GENERATION, forwarding to background.`);
             sendToModelManager({ type: 'interrupt', payload });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESET_WORKER) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER) {
             if (LOG_DEBUG)
                 console.log(`${prefix} llmChannel: Received RESET_WORKER. Resetting model in background.`);
             terminateModelManager();
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESET_WORKER + '_RESPONSE',
                 payload: { success: true, message: "Worker reset." },
                 requestId,
                 senderId: 'sidepanel',
                 timestamp: Date.now(),
             });
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.LOAD_MODEL) {
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL) {
             if (LOG_WARN)
                 console.warn(`${prefix} llmChannel: Received legacy LOAD_MODEL. Use UIEventNames.REQUEST_MODEL_EXECUTION. Triggering load for:`, payload);
             const modelToLoad = payload.modelId || payload.model;
             const onnxToLoad = payload.quant;
             if (modelToLoad && onnxToLoad && onnxToLoad !== 'all') {
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.REQUEST_MODEL_EXECUTION, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, {
                     detail: { modelId: modelToLoad, quant: onnxToLoad }
                 }));
             }
@@ -16320,16 +16800,16 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20_
                 const errorMsg = `LOAD_MODEL received with invalid/missing modelId or quant. Model: ${modelToLoad}, Quant: ${onnxToLoad}`;
                 if (LOG_ERROR)
                     console.error(`${prefix} ${errorMsg}`);
-                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
+                _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.LOAD_MODEL + '_RESPONSE',
                     payload: { success: false, error: errorMsg },
                     requestId, senderId: 'sidepanel', timestamp: Date.now(),
                 });
             }
         }
-        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
-            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
+        else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE) {
+            _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE + '_RESPONSE',
                 payload: { state: modelManagerState, modelId: currentModelIdInManager },
                 requestId,
                 senderId: 'sidepanel',
@@ -16347,41 +16827,41 @@ if (window.EXTENSION_CONTEXT === _events_eventNames__WEBPACK_IMPORTED_MODULE_20_
 // --- Event Handlers ---
 function handleMessage(message, sender, sendResponse) {
     const { type } = message;
-    if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DBEventNames).includes(type)) {
+    if (Object.values(_DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DBEventNames).includes(type)) {
         return false;
     }
     // Messages from background - redirect to handleModelManagerMessage
-    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames).includes(type) ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
-        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
+    if (Object.values(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames).includes(type) ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_WORKER_LOADING_PROGRESS ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_TERMS_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_MODEL_SOURCE_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_KAGGLE_LOGIN_DIALOG ||
+        type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_GOOGLE_LOGIN_DIALOG) {
         // Convert message to event format and redirect
         handleModelManagerMessage({ data: message });
         return;
     }
-    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
+    if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_RESPONSE) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_RESPONSE_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             text: message.text,
         });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_GENERIC_ERROR) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_ERROR_RECEIVED, {
             chatId: message.chatId,
             messageId: message.messageId,
             error: message.error,
         });
         sendResponse({});
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
-        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RawDirectMessageTypes.WORKER_SCRAPE_STAGE_RESULT) {
+        sendUiEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.BACKGROUND_SCRAPE_STAGE_RESULT, message.payload);
         sendResponse({ status: 'received', type });
     }
-    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
+    else if (type === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.InternalEventBusMessageTypes.BACKGROUND_EVENT_BROADCAST) {
         // No action needed
     }
     else {
@@ -16398,9 +16878,9 @@ async function handleSessionCreated(newSessionId) {
     // Clear model cache for new chat session to prevent cross-chat contamination
     if (LOG_DEBUG)
         console.log(prefix, 'Sending CLEAR_CACHE message to background');
-    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.CLEAR_CACHE });
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CLEAR_CACHE });
     try {
-        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(newSessionId);
+        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbGetSessionRequest(newSessionId);
         const sessionData = await requestDbAndWait(request);
         if (!sessionData?.messages) {
             if (LOG_WARN)
@@ -16411,19 +16891,19 @@ async function handleSessionCreated(newSessionId) {
         const err = error;
         if (LOG_ERROR)
             console.error(`${prefix} Failed to fetch messages for new session ${newSessionId}:`, err);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to load initial messages for new chat: ${err.message}`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Failed to load initial messages for new chat: ${err.message}`);
     }
 }
 async function handleNewChat() {
     if (LOG_DEBUG)
         console.log(`${prefix} New Chat button clicked.`);
     await setActiveChatSessionId(null);
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.clearInput)();
-    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.focusInput)();
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_5__.clearInput)();
+    (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_5__.focusInput)();
     // Clear model cache for new chat to prevent cross-chat contamination
     if (LOG_DEBUG)
         console.log(prefix, 'Sending CLEAR_CACHE message to background (New Chat button)');
-    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.CLEAR_CACHE });
+    sendToModelManager({ type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.CLEAR_CACHE });
 }
 async function loadAndDisplaySession(sessionId) {
     if (!sessionId) {
@@ -16435,7 +16915,7 @@ async function loadAndDisplaySession(sessionId) {
     if (LOG_DEBUG)
         console.log(`${prefix} Loading session data for: ${sessionId}`);
     try {
-        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(sessionId);
+        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbGetSessionRequest(sessionId);
         const sessionData = await requestDbAndWait(request);
         if (LOG_DEBUG)
             console.log(`${prefix} Session data successfully loaded for ${sessionId}.`);
@@ -16449,7 +16929,7 @@ async function loadAndDisplaySession(sessionId) {
         const err = error;
         if (LOG_ERROR)
             console.error(`${prefix} Failed to load session ${sessionId}:`, err);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Failed to load chat: ${err.message}`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Failed to load chat: ${err.message}`);
         await setActiveChatSessionId(null);
     }
 }
@@ -16463,7 +16943,7 @@ async function handleDetach() {
         catch (error) {
             if (LOG_ERROR)
                 console.error(`${prefix} Error closing popup:`, error);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Error closing popup window');
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)('Error closing popup window');
         }
         return;
     }
@@ -16471,7 +16951,7 @@ async function handleDetach() {
     if (!currentTabId) {
         if (LOG_ERROR)
             console.error('Cannot detach: Missing tab ID');
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Cannot detach: Missing tab ID');
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)('Cannot detach: Missing tab ID');
         return;
     }
     const currentSessionId = getActiveChatSessionId();
@@ -16514,7 +16994,7 @@ async function handleDetach() {
         const err = error;
         if (LOG_ERROR)
             console.error(`${prefix} Error during detach:`, err);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Error detaching chat: ${err.message}`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Error detaching chat: ${err.message}`);
     }
 }
 // Query background for accurate model loaded state
@@ -16550,7 +17030,7 @@ async function syncUIWithLoadedModel() {
             quant: bgModelState.quant
         };
         currentModelIdInManager = bgModelState.modelId;
-        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+        modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
         if (LOG_WORKER_READY)
             console.log(prefix, `📋 [syncUIWithLoadedModel] Updated currentLoadedModel:`, currentLoadedModel);
     }
@@ -16589,7 +17069,7 @@ async function syncUIWithLoadedModel() {
     }
     // If no model loaded, keep button hidden (default) - only user dropdown changes will show it
     // Trigger final UI update
-    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_SELECTION_CHANGED));
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_SELECTION_CHANGED));
     if (LOG_WORKER_READY)
         console.log(prefix, `📋 [syncUIWithLoadedModel] ✅ Sync complete`);
 }
@@ -16597,9 +17077,9 @@ async function syncUIWithLoadedModel() {
 async function queryBackgroundModelState() {
     try {
         const response = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.GET_MODEL_WORKER_STATE
         });
-        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY && response?.modelId) {
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY && response?.modelId) {
             return {
                 modelId: response.modelId,
                 quant: response.dtype || null,
@@ -16607,7 +17087,7 @@ async function queryBackgroundModelState() {
                 isLoading: false
             };
         }
-        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_MODEL) {
+        if (response?.state === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL) {
             return {
                 modelId: response.modelId || null,
                 quant: response.dtype || null,
@@ -16688,9 +17168,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('page-log-viewer')?.classList.add('hidden');
     // Initialize UI and Core Components
     try {
-        const uiInitResult = await (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_6__.initializeUI)({
+        const uiInitResult = await (0,_Home_uiController__WEBPACK_IMPORTED_MODULE_5__.initializeUI)({
             onNewChat: handleNewChat,
-            onAttachFile: _Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.handleAttachClick,
         });
         if (!uiInitResult)
             throw new Error('UI initialization failed');
@@ -16708,22 +17187,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         (0,_navigation__WEBPACK_IMPORTED_MODULE_2__.initializeNavigation)();
         if (LOG_DEBUG)
             console.log(`${prefix} Navigation Initialized.`);
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.NAVIGATION_PAGE_CHANGED, (e) => handlePageChange(e.detail));
         // Initialize dialog instances
-        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_19__.HuggingFaceLoginDialog();
-        (0,_Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.initializeFileHandling)({
-            getActiveSessionIdFunc: getActiveChatSessionId,
-        });
+        const huggingFaceLoginDialog = new _Components_HuggingFaceLoginDialog__WEBPACK_IMPORTED_MODULE_18__.HuggingFaceLoginDialog();
+        // initializeFileHandling removed - now using UnifiedAttachmentController
         if (LOG_DEBUG)
-            console.log(`${prefix} File Handler Initialized.`);
-        if (fileInput) {
-            fileInput.addEventListener('change', _Home_fileHandler__WEBPACK_IMPORTED_MODULE_5__.handleFileSelected);
-        }
-        else {
-            if (LOG_WARN)
-                console.warn(`${prefix} File input element not found before adding listener.`);
-        }
-        const activeTab = await (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.getActiveTab)();
+            console.log(`${prefix} File handling now managed by UnifiedAttachmentController.`);
+        // Old file input handling removed - now using UnifiedAttachmentController
+        const activeTab = await (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.getActiveTab)();
         currentTabId = activeTab?.id;
         if (LOG_DEBUG)
             console.log(`${prefix} Current Tab ID: ${currentTabId}`);
@@ -16746,7 +17217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const detachButton = document.getElementById('detach-button');
         const newChatButton = document.getElementById('new-chat-button');
         if (historyPopupElement && historyListElement && historySearchElement && closeHistoryButtonElement) {
-            historyPopupController = (0,_Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_10__.initializeHistoryPopup)({
+            historyPopupController = (0,_Controllers_HistoryPopupController__WEBPACK_IMPORTED_MODULE_9__.initializeHistoryPopup)({
                 popupContainer: historyPopupElement,
                 listContainer: historyListElement,
                 searchInput: historySearchElement,
@@ -16781,7 +17252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const libraryListElement = document.getElementById('starred-list');
         if (libraryListElement) {
-            (0,_Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_11__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
+            (0,_Controllers_LibraryController__WEBPACK_IMPORTED_MODULE_10__.initializeLibraryController)({ listContainer: libraryListElement }, requestDbAndWait);
             if (LOG_DEBUG)
                 console.log(`${prefix} Library Controller Initialized.`);
         }
@@ -16789,10 +17260,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (LOG_WARN)
                 console.warn(`${prefix} Could not find #starred-list element for Library Controller.`);
         }
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.REQUEST_MODEL_EXECUTION, async (e) => {
             const { modelId, dtype, loadId } = e.detail;
             if (!modelId) {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('No model selected.');
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)('No model selected.');
                 return;
             }
             // Check if the same model is already loaded (query background for accurate state)
@@ -16801,21 +17272,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isAlreadyLoaded) {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Model ${modelId} (${dtype}) is already loaded in background. Skipping reload.`);
-                (0,_notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification)(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
+                (0,_notifications__WEBPACK_IMPORTED_MODULE_7__.showNotification)(`Model ${modelId} (${dtype}) is already loaded and ready to use!`, 'success', 3000);
                 // Sync local state with background
                 currentLoadedModel.modelId = bgState.modelId;
                 currentLoadedModel.quant = bgState.quant;
                 currentModelIdInManager = bgState.modelId;
-                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
                 // Reset UI loading state since we're not actually loading
-                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_ALREADY_LOADED, {
+                document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_ALREADY_LOADED, {
                     detail: { modelId, dtype, loadId }
                 }));
                 return;
             }
             // Reset model if switching to different model or if in error state
             // Check background state to determine if reset is needed
-            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.ERROR;
+            const needsReset = (bgState.modelId && bgState.modelId !== modelId) || modelManagerState === _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.ERROR;
             if (needsReset) {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Resetting model before loading new one. Current (BG): ${bgState.modelId}, New: ${modelId}, State: ${modelManagerState}`);
@@ -16827,7 +17298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             catch (e) {
                 const err = e;
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(err.message || "Background model manager failed to initialize.");
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(err.message || "Background model manager failed to initialize.");
                 return;
             }
             const waitForEnvReady = async (timeoutMs = 5000) => {
@@ -16850,23 +17321,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             catch (e) {
                 const err = e;
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(err.message || "Background model manager failed to initialize.");
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(err.message || "Background model manager failed to initialize.");
                 return;
             }
             // Get the task from the manifest
-            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getManifestEntry)(modelId);
+            const manifestEntry = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(modelId);
             const task = manifestEntry && manifestEntry.task ? manifestEntry.task : 'text-generation';
             if (LOG_DEBUG)
                 console.log(`${prefix} Sending model load request to background for ${modelId} with dtype: ${dtype}, task: ${task}...`);
-            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.LOADING_MODEL;
+            modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.LOADING_MODEL;
             currentModelIdInManager = modelId;
             sendToModelManager({
-                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.INIT,
+                type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.INIT,
                 payload: { modelId, dtype, task, loadId }
             });
         });
         // Handle model selection changes (when user changes dropdown)
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.MODEL_SELECTION_CHANGED, async (e) => {
             const { modelId, dtype } = e.detail || {};
             sidepanelLogCount++;
             if (LOG_DEBUG && (sidepanelLogCount % SIDEPANEL_LOG_THROTTLE_INTERVAL === 0 || sidepanelLogCount === 1)) {
@@ -16882,44 +17353,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         // Dialog event handlers
-        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
+        document.addEventListener(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.UIEventNames.SHOW_HUGGINGFACE_LOGIN_DIALOG, async (e) => {
             const { modelId, modelPath: dtype, task, loadId } = e.detail;
             const token = await huggingFaceLoginDialog.show(modelId);
             if (token) {
                 // Send login event to background
                 sendToModelManager({
-                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.HUGGINGFACE_LOGIN,
+                    type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.HUGGINGFACE_LOGIN,
                     payload: { modelId, modelPath: dtype, task, loadId, token }
                 });
             }
             else {
-                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('HuggingFace authentication cancelled. Cannot load model.');
+                (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)('HuggingFace authentication cancelled. Cannot load model.');
             }
         });
-        (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_12__.initializeDiscoverController)();
+        (0,_Controllers_DiscoverController__WEBPACK_IMPORTED_MODULE_11__.initializeDiscoverController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Discover Controller Initialized.`);
-        (0,_Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_13__.initializeSettingsController)();
+        (0,_Controllers_SettingsController__WEBPACK_IMPORTED_MODULE_12__.initializeSettingsController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Settings Controller Initialized.`);
-        (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_14__.initializeSpacesController)();
+        (0,_Controllers_SpacesController__WEBPACK_IMPORTED_MODULE_13__.initializeSpacesController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Spaces Controller Initialized.`);
-        (0,_Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_15__.initializeIntegrationsController)();
+        (0,_Controllers_IntegrationsController__WEBPACK_IMPORTED_MODULE_14__.initializeIntegrationsController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Integrations Controller Initialized.`);
-        (0,_Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_16__.initializeConnectorsController)();
+        (0,_Controllers_ConnectorsController__WEBPACK_IMPORTED_MODULE_15__.initializeConnectorsController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Connectors Controller Initialized.`);
-        await (0,_Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_18__.initializeUnifiedAttachmentController)();
+        await (0,_Controllers_UnifiedAttachmentController__WEBPACK_IMPORTED_MODULE_17__.initializeUnifiedAttachmentController)();
         if (LOG_DEBUG)
             console.log(`${prefix} Unified Attachment Controller Initialized.`);
-        (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_17__.initializeDriveController)({
+        (0,_Controllers_DriveController__WEBPACK_IMPORTED_MODULE_16__.initializeDriveController)({
             requestDbAndWaitFunc: requestDbAndWait,
             getActiveChatSessionId,
             setActiveChatSessionId,
-            showNotification: _notifications__WEBPACK_IMPORTED_MODULE_8__.showNotification,
-            debounce: _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.debounce,
+            showNotification: _notifications__WEBPACK_IMPORTED_MODULE_7__.showNotification,
+            debounce: _Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.debounce,
         });
         if (LOG_DEBUG)
             console.log(`${prefix} Drive Controller Initialized.`);
@@ -16935,20 +17406,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`${prefix} Phase 1: Setting up critical UI elements...`);
         // Set icon srcs IMMEDIATELY - this prevents broken icon display
         const iconMap = [
-            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_24__],
-            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_25__],
-            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_26__],
-            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_27__],
-            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
-            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
-            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
-            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
-            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
-            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__],
-            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_33__],
-            ['icon-integrations', _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_34__],
-            ['icon-connectors', _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_35__],
-            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_39__],
+            ['icon-new-chat', _assets_icons_NewChat_png__WEBPACK_IMPORTED_MODULE_23__],
+            ['icon-history', _assets_icons_history_png__WEBPACK_IMPORTED_MODULE_24__],
+            ['icon-popup', _assets_icons_popup_png__WEBPACK_IMPORTED_MODULE_25__],
+            ['icon-googledrive', _assets_icons_googledrive_png__WEBPACK_IMPORTED_MODULE_26__],
+            ['icon-attach', _assets_icons_attach_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_27__],
+            ['icon-close-history', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-close-drive-viewer', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-close-attachment-popup', _assets_icons_close_circle_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_28__],
+            ['icon-home', _assets_icons_home_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_29__],
+            ['icon-rocket', _assets_icons_rocket_2_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_30__],
+            ['icon-myspace', _assets_icons_myspace_microsoft_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_31__],
+            ['icon-library', _assets_icons_library_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_32__],
+            ['icon-integrations', _assets_icons_Integration_png__WEBPACK_IMPORTED_MODULE_33__],
+            ['icon-connectors', _assets_icons_Connectors_png__WEBPACK_IMPORTED_MODULE_34__],
+            ['icon-settings', _assets_icons_settings_svgrepo_com_svg__WEBPACK_IMPORTED_MODULE_38__],
         ];
         for (const [id, src] of iconMap) {
             const el = document.getElementById(id);
@@ -16961,23 +17433,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const nativeBtn = document.querySelector('#source-native .model-source-icon');
             const apiBtn = document.querySelector('#source-api .model-source-icon');
             if (browserBtn) {
-                browserBtn.src = _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_36__;
+                browserBtn.src = _assets_icons_Browser_png__WEBPACK_IMPORTED_MODULE_35__;
                 browserBtn.style.display = '';
             }
             if (nativeBtn) {
-                nativeBtn.src = _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_37__;
+                nativeBtn.src = _assets_icons_LocalServer_png__WEBPACK_IMPORTED_MODULE_36__;
                 nativeBtn.style.display = '';
             }
             if (apiBtn) {
-                apiBtn.src = _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_38__;
+                apiBtn.src = _assets_icons_CloudServer_png__WEBPACK_IMPORTED_MODULE_37__;
                 apiBtn.style.display = '';
             }
         }
         setModelSourceToggleIcons();
         // Broadcast UI_CONNECTED early to notify background script
         const contextName = window.EXTENSION_CONTEXT || 'unknown';
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_CONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_CONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -17012,7 +17484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (LOG_DEBUG)
                     console.log(`${prefix} Phase 2: Starting heavy operations (manifests, DB, model loading)...`);
                 // Check if we have bypass settings that might affect manifest status
-                const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getBypassSizeLimitModels)().size > 0;
+                const hasBypassSettings = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)().size > 0;
                 await ensureManifestForDropdownRepos(hasBypassSettings);
                 // CRITICAL: Initialize database BEFORE trying to load any sessions
                 const dbInitSuccess = await initializeDatabase();
@@ -17051,14 +17523,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Model is already loaded, but we should still restore the last chat session
                     try {
                         const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESTORE_LAST_STATE
                         });
                         if (restoreResponse?.success && restoreResponse.lastChatSession) {
                             if (LOG_DEBUG)
                                 console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
                             // Verify the session exists before trying to load it
                             try {
-                                const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(restoreResponse.lastChatSession);
+                                const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbGetSessionRequest(restoreResponse.lastChatSession);
                                 const sessionData = await requestDbAndWait(request);
                                 if (sessionData && sessionData.id) {
                                     await loadAndDisplaySession(restoreResponse.lastChatSession);
@@ -17093,7 +17565,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (LOG_DEBUG)
                             console.log(`${prefix} No model loaded, attempting to restore last state...`);
                         const restoreResponse = await webextension_polyfill__WEBPACK_IMPORTED_MODULE_1___default().runtime.sendMessage({
-                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.RuntimeMessageTypes.RESTORE_LAST_STATE
+                            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.RuntimeMessageTypes.RESTORE_LAST_STATE
                         });
                         if (restoreResponse?.success) {
                             if (LOG_DEBUG) {
@@ -17117,7 +17589,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     quant: restoreResponse.currentModel.dtype
                                 };
                                 currentModelIdInManager = restoreResponse.currentModel.id;
-                                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MODEL_READY;
+                                modelManagerState = _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MODEL_READY;
                                 // Button visibility handled by syncUIWithLoadedModel
                                 if (LOG_DEBUG)
                                     console.log(`${prefix} ✅ Successfully restored model: ${restoreResponse.currentModel.id}`);
@@ -17126,7 +17598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     if (LOG_DEBUG)
                                         console.log(`${prefix} Restoring last chat session: ${restoreResponse.lastChatSession}`);
                                     try {
-                                        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbGetSessionRequest(restoreResponse.lastChatSession);
+                                        const request = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbGetSessionRequest(restoreResponse.lastChatSession);
                                         const sessionData = await requestDbAndWait(request);
                                         if (sessionData && sessionData.id) {
                                             await loadAndDisplaySession(restoreResponse.lastChatSession);
@@ -17213,7 +17685,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const err = error;
         if (LOG_ERROR)
             console.error(`${prefix} Initialization failed:`, err);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
         const chatBody = document.getElementById('chat-body');
         if (chatBody) {
             chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
@@ -17251,7 +17723,7 @@ async function handlePageChange(event) {
             const err = error;
             if (LOG_ERROR)
                 console.error(`${prefix} Error checking/loading session based on signal:`, err);
-            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)('Failed to load session state.');
+            (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)('Failed to load session state.');
             await loadAndDisplaySession(null);
         }
     }
@@ -17264,7 +17736,7 @@ async function initializeDatabase() {
                 console.log(`${prefix} DB initialized directly.`);
             isDbReady = true;
             for (const logPayload of logQueue) {
-                const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_9__.DbAddLogRequest(logPayload);
+                const req = new _DB_dbEvents__WEBPACK_IMPORTED_MODULE_8__.DbAddLogRequest(logPayload);
                 sendDbRequestViaChannel(req);
             }
             logQueue = [];
@@ -17278,7 +17750,7 @@ async function initializeDatabase() {
         const err = error;
         if (LOG_ERROR)
             console.error(`${prefix} DB Initialization failed:`, err);
-        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_7__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
+        (0,_Utilities_generalUtils__WEBPACK_IMPORTED_MODULE_6__.showError)(`Initialization failed: ${err.message}. Please try reloading.`);
         const chatBody = document.getElementById('chat-body');
         if (chatBody) {
             chatBody.innerHTML = `<div class="p-4 text-red-500">Critical Error: ${err.message}. Please reload the extension.</div>`;
@@ -17298,7 +17770,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
     const errorRepos = [];
     for (const repo of dropdownRepos) {
         if (!forceRebuild) {
-            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getManifestEntry)(repo);
+            const existingManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
             if (existingManifest) {
                 if (LOG_MANIFEST_GENERATION)
                     console.log(`${prefix} [ensureManifestForDropdownRepos] Manifest for ${repo} already exists. Skipping fetch/build.`);
@@ -17312,10 +17784,10 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         }
         let oldManifest = null;
         try {
-            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getManifestEntry)(repo);
-            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.CURRENT_MANIFEST_VERSION) {
+            oldManifest = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getManifestEntry)(repo);
+            if (oldManifest && oldManifest.manifestVersion !== _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION) {
                 if (LOG_WARN)
-                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
+                    console.warn(`${prefix} [ensureManifestForDropdownRepos] Manifest version mismatch for ${repo}: found ${oldManifest.manifestVersion}, expected ${_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION}. Will re-create.`);
                 oldManifest = null; // Force re-creation
             }
         }
@@ -17324,7 +17796,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 console.warn(`${prefix} [ensureManifestForDropdownRepos] Error fetching existing manifest for ${repo}, will create anew if possible.`, e);
         }
         try {
-            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.fetchRepoFiles)(repo);
+            const { siblings, task } = await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.fetchRepoFiles)(repo);
             if (!siblings || siblings.length === 0) {
                 if (LOG_WARN)
                     console.warn(`${prefix} [ensureManifestForDropdownRepos] No files (siblings) found for repo: ${repo}. Skipping manifest update for this repo.`);
@@ -17375,8 +17847,8 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                     }
                     // Determine serverOnly status based on quant type and associated data file
                     let isServerOnly = false;
-                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getServerOnlySizeLimit)();
-                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.getBypassSizeLimitModels)();
+                    const serverOnlySizeLimit = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getServerOnlySizeLimit)();
+                    const bypassModels = (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.getBypassSizeLimitModels)();
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Processing ${quantKey} for ${repo}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Size limit: ${serverOnlySizeLimit / (1024 * 1024 * 1024)} GB`);
@@ -17421,7 +17893,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                         }
                     }
                     const oldStatus = oldManifest?.quants[quantKey]?.status;
-                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.QuantStatus.Available;
+                    const status = isServerOnly ? _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.ServerOnly : _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.QuantStatus.Available;
                     if (LOG_MANIFEST_GENERATION) {
                         console.log(`${prefix} [ensureManifestForDropdownRepos] Status calculation for ${quantKey}:`);
                         console.log(`${prefix} [ensureManifestForDropdownRepos] - isServerOnly: ${isServerOnly}`);
@@ -17465,9 +17937,9 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
                 repo,
                 quants: quantMap,
                 task,
-                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.CURRENT_MANIFEST_VERSION
+                manifestVersion: _DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.CURRENT_MANIFEST_VERSION
             };
-            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_23__.addManifestEntry)(repo, newManifestEntry);
+            await (0,_DB_idbModel__WEBPACK_IMPORTED_MODULE_22__.addManifestEntry)(repo, newManifestEntry);
             processedRepos.push(repo);
             if (LOG_MANIFEST_GENERATION)
                 console.log(`${prefix} [ensureManifestForDropdownRepos] Successfully created/updated manifest for repo: ${repo}`, newManifestEntry);
@@ -17486,7 +17958,7 @@ async function ensureManifestForDropdownRepos(forceRebuild = false) {
         if (errorRepos.length > 0)
             console.error(`${prefix} [ensureManifestForDropdownRepos] Repos with errors:`, errorRepos);
     }
-    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED));
+    document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
 }
 // Listen for manifest refresh requests from settings
 document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
@@ -17498,7 +17970,7 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
         if (LOG_GENERAL)
             console.log('[Sidepanel] Manifest refreshed successfully');
         // Dispatch MANIFEST_UPDATED event AFTER the manifest update is complete
-        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.MANIFEST_UPDATED));
+        document.dispatchEvent(new CustomEvent(_events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.MANIFEST_UPDATED));
     }
     catch (e) {
         console.error('[Sidepanel] Error refreshing manifest:', e);
@@ -17508,8 +17980,8 @@ document.addEventListener('MANIFEST_REFRESH_REQUESTED', async () => {
 // Broadcast disconnect when window unloads or becomes hidden
 window.addEventListener('beforeunload', () => {
     const contextName = window.EXTENSION_CONTEXT || 'unknown';
-    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_DISCONNECTED,
+    _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+        type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_DISCONNECTED,
         payload: { senderId, context: contextName },
         senderId,
         timestamp: Date.now()
@@ -17528,8 +18000,8 @@ document.addEventListener('visibilitychange', () => {
         return;
     }
     if (document.hidden) {
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_DISCONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_DISCONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()
@@ -17539,8 +18011,8 @@ document.addEventListener('visibilitychange', () => {
     }
     else {
         // Page became visible again - re-register
-        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_21__.llmChannel.postMessage({
-            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_20__.WorkerEventNames.UI_CONNECTED,
+        _Utilities_dbChannels__WEBPACK_IMPORTED_MODULE_20__.llmChannel.postMessage({
+            type: _events_eventNames__WEBPACK_IMPORTED_MODULE_19__.WorkerEventNames.UI_CONNECTED,
             payload: { senderId, context: contextName },
             senderId,
             timestamp: Date.now()

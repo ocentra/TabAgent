@@ -1,0 +1,208 @@
+name: Sync Distribution Files
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'package.json'
+      - 'manifest.json'
+      - 'src/**'
+      - 'Server/native_host.py'
+      - 'Server/config.py'
+      - 'Server/requirements.txt'
+  workflow_dispatch:
+
+jobs:
+  sync-extension:
+    name: Sync Extension Distribution
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+      with:
+        path: main-repo
+
+    - name: Build extension
+      run: |
+        cd main-repo
+        npm ci
+        npm run build
+
+    - name: Checkout TabAgentDist repository
+      uses: actions/checkout@v4
+      with:
+        repository: ocentra/TabAgentDist
+        token: ${{ secrets.TABAGENT_DIST_TOKEN }}
+        path: dist-repo
+
+    - name: Copy extension files to TabAgentDist
+      run: |
+        # Remove old extension files
+        rm -rf dist-repo/Extension/*
+        
+        # Copy new extension files
+        cp -r main-repo/TabAgentDist/Extension/* dist-repo/Extension/
+        
+        # Create version file with commit hash
+        echo "${{ github.sha }}" > dist-repo/Extension/version.txt
+        echo "Built from commit: ${{ github.sha }}" >> dist-repo/Extension/version.txt
+
+    - name: Commit and push to TabAgentDist
+      run: |
+        cd dist-repo
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Update extension distribution [skip ci]" -m "Built from ${{ github.repository }}@${{ github.sha }}" || echo "No changes to commit"
+        git push
+
+  sync-native-windows:
+    name: Sync Native App Windows Distribution
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+      with:
+        path: main-repo
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Build native app for Windows
+      run: |
+        cd main-repo/Server
+        python -m venv venv
+        venv\Scripts\activate.bat
+        pip install pyinstaller
+        venv\Scripts\activate.bat && pyinstaller --onefile --name tabagent-host --hidden-import=json --hidden-import=struct native_host.py
+
+    - name: Checkout TabAgentDist repository
+      uses: actions/checkout@v4
+      with:
+        repository: ocentra/TabAgentDist
+        token: ${{ secrets.TABAGENT_DIST_TOKEN }}
+        path: dist-repo
+
+    - name: Copy native app files to TabAgentDist
+      run: |
+        # Copy Windows executable
+        Copy-Item "main-repo\Server\dist\tabagent-host.exe" -Destination "dist-repo\NativeApp\tabagent-host.exe"
+        
+        # Create version file with commit hash
+        echo "${{ github.sha }}" > dist-repo\NativeApp\version.txt
+        echo "Built from commit: ${{ github.sha }}" >> dist-repo\NativeApp\version.txt
+
+    - name: Commit and push to TabAgentDist
+      run: |
+        cd dist-repo
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Update native app Windows distribution [skip ci]" -m "Built from ${{ github.repository }}@${{ github.sha }}" || echo "No changes to commit"
+        git push
+
+  build-native-macos:
+    name: Build Native App for macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+      with:
+        path: main-repo
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Build native app for macOS
+      run: |
+        cd main-repo/Server
+        python -m venv venv
+        source venv/bin/activate
+        pip install pyinstaller
+        pyinstaller --onefile --name tabagent-host-macos --hidden-import=json --hidden-import=struct native_host.py
+
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tabagent-host-macos
+        path: main-repo/Server/dist/tabagent-host-macos
+
+  build-native-linux:
+    name: Build Native App for Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+      with:
+        path: main-repo
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Build native app for Linux
+      run: |
+        cd main-repo/Server
+        python -m venv venv
+        source venv/bin/activate
+        pip install pyinstaller
+        pyinstaller --onefile --name tabagent-host-linux --hidden-import=json --hidden-import=struct native_host.py
+
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tabagent-host-linux
+        path: main-repo/Server/dist/tabagent-host-linux
+
+  deploy-native-macos-linux:
+    name: Deploy Native App macOS and Linux
+    needs: [build-native-macos, build-native-linux]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout TabAgentDist repository
+      uses: actions/checkout@v4
+      with:
+        repository: ocentra/TabAgentDist
+        token: ${{ secrets.TABAGENT_DIST_TOKEN }}
+        path: dist-repo
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tabagent-host-macos
+        path: ./artifacts
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tabagent-host-linux
+        path: ./artifacts
+
+    - name: Make executables executable
+      run: |
+        chmod +x ./artifacts/tabagent-host-macos
+        chmod +x ./artifacts/tabagent-host-linux
+
+    - name: Copy executables to TabAgentDist
+      run: |
+        cp ./artifacts/tabagent-host-macos ./dist-repo/NativeApp/
+        cp ./artifacts/tabagent-host-linux ./dist-repo/NativeApp/
+
+    - name: Commit and push to TabAgentDist
+      run: |
+        cd ./dist-repo
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Update native app executables for macOS and Linux [skip ci]" -m "Built from ${{ github.repository }}@${{ github.sha }}" || echo "No changes to commit"
+        git push

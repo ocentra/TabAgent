@@ -264,6 +264,20 @@ function createProductivityFoldout(): HTMLElement {
                         Connect
                     </button>
                 </div>
+                <div class="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-600 rounded">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
+                            <span class="text-white text-xs font-bold">🖥️</span>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800 dark:text-gray-200">Native Application</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Access local system resources and applications</p>
+                        </div>
+                    </div>
+                    <button class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs" data-connector-type="native-app">
+                        Connect
+                    </button>
+                </div>
             </div>
             <div class="flex items-center justify-between p-2 border border-dashed border-gray-300 dark:border-gray-500 rounded hover:border-gray-400 dark:hover:border-gray-400 transition-colors cursor-pointer" id="add-productivity-tool">
                 <div class="flex items-center space-x-2">
@@ -365,6 +379,20 @@ function setupCustomConnectorButtons() {
             showCustomConnectorDialog('Productivity Tool', 'Enter the name of your custom productivity tool');
         });
     }
+
+    // Native App Connector Button
+    const connectorsPageContainer = document.getElementById('page-connectors');
+    if (connectorsPageContainer) {
+        connectorsPageContainer.addEventListener('click', (event) => {
+            const target = event.target as HTMLElement;
+            if (target.tagName === 'BUTTON' && target.hasAttribute('data-connector-type')) {
+                const connectorType = target.getAttribute('data-connector-type');
+                if (connectorType === 'native-app') {
+                    handleNativeAppConnector();
+                }
+            }
+        });
+    }
 }
 
 function showCustomConnectorDialog(connectorType: string, placeholder: string) {
@@ -383,6 +411,24 @@ function showCustomConnectorDialog(connectorType: string, placeholder: string) {
             
             if (LOG_DEBUG) console.log(`${prefix} User added custom ${connectorType}: ${trimmedName}`);
         }
+    }
+}
+
+async function handleNativeAppConnector() {
+    try {
+        // Test if native messaging is available
+        if (typeof (window as any).chrome === 'undefined' || !(window as any).chrome.runtime || !(window as any).chrome.runtime.sendNativeMessage) {
+            alert('Native messaging is not available in this context.');
+            return;
+        }
+
+        // Show a simple dialog to inform the user
+        alert('Native Application connector is available.\n\nTo use this feature, you need to have the Tab Agent native host installed and registered with your browser.\n\nPlease refer to the documentation for installation instructions.');
+        
+        if (LOG_DEBUG) console.log(`${prefix} Native app connector selected`);
+    } catch (error) {
+        console.error(`${prefix} Error handling native app connector:`, error);
+        alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 

@@ -1,86 +1,78 @@
 // src/Controllers/adapters/LocalFileAdapter.ts
 import { FileItem } from '../FileBrowserDisplay';
 
+// Simple local file adapter - just opens native file picker
 export class LocalFileAdapter {
-    private filesCache: Record<string, FileItem[]> = {};
-    private currentDirectoryHandle: FileSystemDirectoryHandle | null = null;
+    private selectedFiles: File[] = [];
+    
+    // Supported file types for RAG/document processing
+    private readonly ACCEPTED_TYPES = [
+        '.pdf',
+        '.txt', '.md', '.markdown',
+        '.doc', '.docx',
+        '.jpg', '.jpeg', '.png', '.gif', '.webp',
+        '.json', '.csv',
+        '.html', '.htm'
+    ].join(',');
 
     async fetchFiles(path: string): Promise<FileItem[]> {
-        try {
-            // Check cache first
-            if (this.filesCache[path]) {
-                return this.filesCache[path];
-            }
-
-            let files: FileItem[] = [];
-
-            if (path === 'root' || path === '') {
-                // Request directory access
-                if (!this.currentDirectoryHandle) {
-                    this.currentDirectoryHandle = await this.requestDirectoryAccess();
-                }
-                files = await this.readDirectory(this.currentDirectoryHandle);
-            } else {
-                // Navigate to specific folder
-                const folderHandle = await this.getFolderHandle(path);
-                files = await this.readDirectory(folderHandle);
-            }
-
-            this.filesCache[path] = files;
-            return files;
-        } catch (error) {
-            console.error('LocalFileAdapter: Error fetching files:', error);
-            throw error;
-        }
+        // For local files, we always show a prompt to select files
+        return [{
+            id: 'select-files',
+            name: '📁 Click here to select files from your computer',
+            type: 'folder',
+            mimeType: 'folder',
+            size: 0,
+            modifiedTime: new Date().toISOString(),
+            path: 'select-files'
+        }];
     }
 
-    private async requestDirectoryAccess(): Promise<FileSystemDirectoryHandle> {
-        if (!('showDirectoryPicker' in window)) {
-            throw new Error('File System Access API not supported in this browser');
-        }
-
-        try {
-            return await (window as any).showDirectoryPicker({
-                mode: 'read'
-            });
-        } catch (error: any) {
-            if (error.name === 'AbortError') {
-                throw new Error('Directory access cancelled by user');
-            }
-            throw error;
-        }
-    }
-
-    private async getFolderHandle(folderId: string): Promise<FileSystemDirectoryHandle> {
-        // This would need to be implemented based on how we store folder references
-        // For now, we'll need to maintain a mapping of folder IDs to handles
-        throw new Error('Folder navigation not yet implemented');
-    }
-
-    private async readDirectory(directoryHandle: FileSystemDirectoryHandle): Promise<FileItem[]> {
-        const files: FileItem[] = [];
-        
-        for await (const [name, handle] of (directoryHandle as any).entries()) {
-            const isDirectory = handle.kind === 'directory';
+    async openFilePicker(): Promise<File[]> {
+        return new Promise((resolve, reject) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = this.ACCEPTED_TYPES;
             
-            files.push({
-                id: `${handle.name}_${Date.now()}`, // Generate unique ID
-                name: name,
-                type: isDirectory ? 'folder' : 'file',
-                mimeType: isDirectory ? 'folder' : this.getMimeType(name),
-                size: isDirectory ? undefined : await this.getFileSize(handle),
-                modifiedTime: new Date().toISOString(), // File System API doesn't provide this easily
-                path: name
-            });
-        }
-
-        return files.sort((a, b) => {
-            // Folders first, then files, both alphabetically
-            if (a.type !== b.type) {
-                return a.type === 'folder' ? -1 : 1;
-            }
-            return a.name.localeCompare(b.name);
+            input.onchange = (e: Event) => {
+                const target = e.target as HTMLInputElement;
+                const files = Array.from(target.files || []);
+                
+                if (files.length > 0) {
+                    console.log(`LocalFileAdapter: Selected ${files.length} files`);
+                    this.selectedFiles.push(...files);
+                    resolve(files);
+                } else {
+                    resolve([]);
+                }
+                
+                // Clean up
+                input.remove();
+            };
+            
+            input.oncancel = () => {
+                console.log('LocalFileAdapter: File selection cancelled');
+                resolve([]);
+                input.remove();
+            };
+            
+            // Trigger the file picker
+            input.click();
         });
+    }
+
+    async getSelectedFiles(): Promise<FileItem[]> {
+        return this.selectedFiles.map((file, index) => ({
+            id: `local-${Date.now()}-${index}`,
+            name: file.name,
+            type: 'file',
+            mimeType: file.type || this.getMimeType(file.name),
+            size: file.size,
+            modifiedTime: new Date(file.lastModified).toISOString(),
+            path: file.name,
+            _file: file // Store the actual File object for attachment conversion
+        }));
     }
 
     private getMimeType(filename: string): string {
@@ -89,39 +81,26 @@ export class LocalFileAdapter {
         const mimeTypes: Record<string, string> = {
             'pdf': 'application/pdf',
             'txt': 'text/plain',
+            'md': 'text/markdown',
+            'markdown': 'text/markdown',
             'doc': 'application/msword',
             'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'xls': 'application/vnd.ms-excel',
-            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'ppt': 'application/vnd.ms-powerpoint',
-            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'jpg': 'image/jpeg',
             'jpeg': 'image/jpeg',
             'png': 'image/png',
             'gif': 'image/gif',
-            'mp4': 'video/mp4',
-            'mp3': 'audio/mpeg',
-            'zip': 'application/zip',
+            'webp': 'image/webp',
             'json': 'application/json',
+            'csv': 'text/csv',
             'html': 'text/html',
-            'css': 'text/css',
-            'js': 'application/javascript'
+            'htm': 'text/html'
         };
 
         return mimeTypes[extension || ''] || 'application/octet-stream';
     }
 
-    private async getFileSize(handle: FileSystemFileHandle): Promise<number> {
-        try {
-            const file = await handle.getFile();
-            return file.size;
-        } catch (error) {
-            return 0;
-        }
-    }
-
     isFolder(item: FileItem): boolean {
-        return item.type === 'folder';
+        return item.type === 'folder' || item.id === 'select-files';
     }
 
     getFolderId(item: FileItem): string {
@@ -129,14 +108,16 @@ export class LocalFileAdapter {
     }
 
     clearCache(): void {
-        this.filesCache = {};
+        this.selectedFiles = [];
     }
 
     // Get file content for insertion
     async getFileContent(fileId: string, files: FileItem[]): Promise<File | null> {
-        // TODO: Implement file content retrieval
-        // This would require storing file handles or re-requesting access
-        console.warn('File content retrieval not yet implemented for local files');
-        return null;
+        // Find the file in our selected files
+        const fileItem = files.find(f => f.id === fileId);
+        if (!fileItem) return null;
+        
+        const file = this.selectedFiles.find(f => f.name === fileItem.name);
+        return file || null;
     }
 }

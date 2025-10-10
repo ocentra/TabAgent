@@ -94,59 +94,10 @@
                         <button id="load-model-button" style="display:none;" class="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded">Load Model</button>
                         <div id="device-badge" style="display:none;"></div>
                     </div>
-                    <div class="flex items-center space-x-1" style="position: relative;">
+                    <div class="flex items-center space-x-1">
                         <button id="unified-attach-button" title="Attach Files" class="p-1 rounded text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
                             <img id="icon-attach" alt="Attach File" class="w-4 h-4 action-icon-img">
                         </button>
-                        
-                        <!-- Unified Attachment Popup (inline, positioned relative to button) -->
-                        <div id="unified-attachment-popup" class="popup absolute bottom-full left-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 hidden" style="width: 400px; max-height: 500px;">
-                            <div class="flex flex-col h-full">
-                                <!-- Header -->
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Select Files</h3>
-                                    <button id="close-attachment-popup" title="Close" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-                                
-                                <!-- Source Selection -->
-                                <div class="mb-4">
-                                    <label for="attachment-source-dropdown" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source:</label>
-                                    <select id="attachment-source-dropdown" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                                        <!-- Options populated by UnifiedAttachmentController -->
-                                    </select>
-                                </div>
-                                
-                                <!-- Breadcrumbs -->
-                                <div id="attachment-breadcrumbs" class="mb-2 text-xs text-gray-600 dark:text-gray-400 hidden">
-                                    <span id="breadcrumb-container"></span>
-                                </div>
-                                
-                                <!-- Search Bar -->
-                                <div class="mb-3">
-                                    <input type="text" id="attachment-search" placeholder="Search files..." class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"/>
-                                </div>
-                                
-                                <!-- Selected Files Counter -->
-                                <div class="mb-3 text-xs text-gray-600 dark:text-gray-400">
-                                    Selected: <span id="selected-count">0</span> files
-                                </div>
-                                
-                                <!-- File Browser -->
-                                <div id="attachment-file-browser" class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 min-h-[200px]">
-                                    <div class="text-center text-gray-500 dark:text-gray-400 py-4">Select a source to browse files.</div>
-                                </div>
-                                
-                                <!-- Action Buttons -->
-                                <div class="flex justify-end space-x-2 mt-4">
-                                    <button id="cancel-attachment-button" class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 text-sm">Cancel</button>
-                                    <button id="insert-attachment-button" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm" disabled>Insert (0)</button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                  </div>
                  <!-- Dedicated row for model loading progress bar, full width below controls -->
@@ -337,6 +288,88 @@
        </div>
    </div>
    <!-- End Drive Viewer Modal -->
+
+    <!-- Unified Attachment Popup Modal -->
+    <div id="unified-attachment-popup" class="popup hidden">
+        <div id="unified-attachment-content" class="rounded-lg shadow-xl p-0 w-full max-h-[70vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-2 px-3 flex-shrink-0 bg-gray-200 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
+                <h2>Select Files</h2>
+                <div class="flex items-center space-x-1">
+                    <button id="expand-attachment-popup" class="icon-button" title="Expand to Full Screen">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                    </button>
+                    <button id="close-attachment-popup" class="icon-button" title="Close">
+                        <img id="icon-close-attachment-popup" alt="Close" class="w-5 h-5 action-icon-img">
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-grow flex flex-col overflow-hidden p-2">
+                <!-- Source Selection -->
+                <div class="mb-3">
+                    <div class="flex items-center gap-2">
+                        <label for="attachment-source-dropdown" class="text-sm font-medium whitespace-nowrap">Source:</label>
+                        <select id="attachment-source-dropdown" class="flex-1 p-2 text-sm border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+                            <!-- Options populated by UnifiedAttachmentController -->
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="mb-3">
+                    <input type="text" id="attachment-search" placeholder="Search files..." class="w-full px-2 py-1 text-xs border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"/>
+                </div>
+                
+                <!-- Selected Files Section -->
+                <div class="mb-3 border-t border-gray-200 dark:border-gray-600 pt-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-xs">
+                            Selected: <span id="selected-count">0</span> files
+                        </div>
+                        <button id="clear-selection-button" class="px-2 py-1 text-xs bg-red-200 text-red-800 rounded hover:bg-red-300 dark:bg-red-600 dark:text-red-200 dark:hover:bg-red-500 disabled:opacity-50" disabled>Clear All</button>
+                    </div>
+                    
+                    <!-- Selected Files Display -->
+                    <div id="selected-files-display" class="hidden">
+                        <div id="selected-files-list" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-2 bg-gray-50 dark:bg-gray-800">
+                            <!-- Selected file pills will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Breadcrumbs -->
+                <div id="attachment-breadcrumbs" class="mb-2 text-xs hidden">
+                    <span id="breadcrumb-container"></span>
+                </div>
+                
+                <!-- File Browser -->
+                <div id="attachment-file-browser" class="flex-1 overflow-y-auto relative">
+                    <div class="text-center p-4">Select a source to browse files.</div>
+                    <!-- Drag & Drop Overlay -->
+                    <div id="drag-drop-overlay" class="hidden absolute inset-0 bg-blue-100 dark:bg-blue-900 bg-opacity-90 dark:bg-opacity-90 border-2 border-dashed border-blue-500 rounded-lg flex items-center justify-center z-10">
+                        <div class="text-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-blue-600 dark:text-blue-400">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                            </svg>
+                            <p class="text-lg font-semibold text-blue-600 dark:text-blue-400">Drop files here</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">or drag & drop from your computer</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex justify-end items-center p-2 px-3 mt-auto space-x-2 flex-shrink-0">
+                <button id="cancel-attachment-button" class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 text-sm">Cancel</button>
+                <button id="insert-attachment-button" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm" disabled>Insert (0)</button>
+            </div>
+        </div>
+    </div>
+    <!-- End Unified Attachment Popup Modal -->
 
     <!-- Bottom Navigation -->
     <div id="bottom-nav" class="flex justify-around items-center p-1 border-t border-gray-300 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-700">

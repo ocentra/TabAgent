@@ -6,6 +6,7 @@ import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification, DbMessagesUpdatedNotification } from '../DB/dbEvents';
 import { QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry } from '../DB/idbModel';
 import { getCurrentLoadedModel } from '../sidepanel';
+import { getCurrentAttachments } from '../Controllers/UnifiedAttachmentController';
 
 
 let queryInput: HTMLTextAreaElement | null,
@@ -128,7 +129,7 @@ function attachListeners() {
     queryInput?.addEventListener('input', adjustTextareaHeight);
     queryInput?.addEventListener('keydown', handleEnterKey);
     sendButton?.addEventListener('click', handleSendButtonClick);
-    attachButton?.addEventListener('click', handleAttachClick);
+    // Attach button is now handled by UnifiedAttachmentController
 
     modelSelectorDropdown?.addEventListener('change', async () => {
         await _handleModelChange();
@@ -163,7 +164,7 @@ function removeListeners() {
     queryInput?.removeEventListener('input', adjustTextareaHeight);
     queryInput?.removeEventListener('keydown', handleEnterKey);
     sendButton?.removeEventListener('click', handleSendButtonClick);
-    attachButton?.removeEventListener('click', handleAttachClick);
+    // Attach button is now handled by UnifiedAttachmentController
 
     modelSelectorDropdown?.removeEventListener('change', _handleModelChange);
     quantSelectorDropdown?.removeEventListener('change', _handleQuantizationChange);
@@ -189,7 +190,16 @@ function handleEnterKey(event: KeyboardEvent) {
         const messageText = getInputValue();
         if (messageText && !queryInput!.disabled) {
             if (LOG_INFO) console.log("[UIController] Enter key pressed. Publishing ui:querySubmitted");
-            document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
+            
+            // Get current attachments before clearing
+            const attachments = getCurrentAttachments();
+            
+            document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { 
+                detail: { 
+                    text: messageText,
+                    attachments: attachments 
+                } 
+            }));
             clearInput();
         } else {
              if (LOG_INFO) console.log("[UIController] Enter key pressed, but input is empty or disabled.");
@@ -201,18 +211,23 @@ function handleSendButtonClick() {
     const messageText = getInputValue();
     if (messageText && !queryInput!.disabled) {
         if (LOG_INFO) console.log(prefix, "Send button clicked. Publishing ui:querySubmitted");
-        document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { detail: { text: messageText } }));
+        
+        // Get current attachments before clearing
+        const attachments = getCurrentAttachments();
+        
+        document.dispatchEvent(new CustomEvent(UIEventNames.QUERY_SUBMITTED, { 
+            detail: { 
+                text: messageText,
+                attachments: attachments 
+            } 
+        }));
         clearInput();
     } else {
         if (LOG_INFO) console.log(prefix, "Send button clicked, but input is empty or disabled.");
     }
 }
 
-function handleAttachClick() {
-    if (attachFileCallback) {
-        attachFileCallback();
-    }
-}
+// handleAttachClick removed - now handled by UnifiedAttachmentController
 
 export function getModelSelectorOptions(): string[] {
     if (!modelSelectorDropdown) return [];
@@ -779,7 +794,7 @@ export async function refreshModelDropdown() {
  
 }
 
-export async function initializeUI(callbacks: { onAttachFile?: () => void; onNewChat?: () => void }) {
+export async function initializeUI(callbacks: { onNewChat?: () => void }) {
     if (LOG_INFO) console.log(prefix, "Initializing...");
     if (isInitialized) {
         removeListeners();
@@ -788,7 +803,7 @@ export async function initializeUI(callbacks: { onAttachFile?: () => void; onNew
         isInitialized = false;
         return null;
     }
-    attachFileCallback = callbacks?.onAttachFile;
+    // attachFileCallback removed - now handled by UnifiedAttachmentController
     
     attachListeners();
     
@@ -857,6 +872,13 @@ export function clearInput() {
     if (queryInput) {
         queryInput.value = '';
         adjustTextareaHeight();
+    }
+    
+    // Clear attachments
+    const attachmentsContainer = document.getElementById('attachments-container');
+    if (attachmentsContainer) {
+        attachmentsContainer.remove();
+        if (LOG_INFO) console.log(prefix, "Cleared attachments container");
     }
 }
 

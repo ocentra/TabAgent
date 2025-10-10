@@ -8,11 +8,7 @@ import {
  
 } from './Home/chatRenderer';
 import { initializeOrchestrator } from './Home/messageOrchestrator';
-import {
-  initializeFileHandling,
-  handleAttachClick,
-  handleFileSelected,
-} from './Home/fileHandler';
+// Old file handler imports removed - now using UnifiedAttachmentController
 import {
   initializeUI,
   clearInput,
@@ -1104,7 +1100,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const uiInitResult = await initializeUI({
       onNewChat: handleNewChat,
-      onAttachFile: handleAttachClick,
     });
     if (!uiInitResult) throw new Error('UI initialization failed');
     const { chatBody, fileInput } = uiInitResult;
@@ -1125,16 +1120,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize dialog instances
     const huggingFaceLoginDialog = new HuggingFaceLoginDialog();
 
-    initializeFileHandling({
-      getActiveSessionIdFunc: getActiveChatSessionId,
-    });
-    if (LOG_DEBUG) console.log(`${prefix} File Handler Initialized.`);
+    // initializeFileHandling removed - now using UnifiedAttachmentController
+    if (LOG_DEBUG) console.log(`${prefix} File handling now managed by UnifiedAttachmentController.`);
 
-    if (fileInput) {
-      fileInput.addEventListener('change', handleFileSelected);
-    } else {
-      if (LOG_WARN) console.warn(`${prefix} File input element not found before adding listener.`);
-    }
+    // Old file input handling removed - now using UnifiedAttachmentController
 
     const activeTab = await getActiveTab();
     currentTabId = activeTab?.id;
@@ -1364,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ['icon-attach', attachIcon],
       ['icon-close-history', closeCircleIcon],
       ['icon-close-drive-viewer', closeCircleIcon],
+      ['icon-close-attachment-popup', closeCircleIcon],
       ['icon-home', homeIcon],
       ['icon-rocket', rocketIcon],
       ['icon-myspace', myspaceIcon],

@@ -10,6 +10,7 @@ export interface FileItem {
     modifiedTime?: string;
     icon?: string;
     path: string;
+    _file?: File; // Optional reference to actual File object for local files
 }
 
 export interface BreadcrumbItem {
@@ -78,17 +79,17 @@ export class FileBrowserDisplay {
         const sizeInfo = file.type === 'file' && file.size ? `(${this.formatFileSize(file.size)})` : '';
 
         return `
-            <div class="attachment-file-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}" data-file-id="${file.id}">
+            <div class="attachment-file-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${isSelected ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700' : ''}" data-file-id="${file.id}">
                 <div class="flex items-center space-x-2 flex-1 min-w-0">
                     <span class="text-lg">${icon}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm text-gray-800 dark:text-gray-200 truncate">${file.name}</div>
+                        <div class="text-sm text-gray-800 dark:text-gray-200 truncate ${isSelected ? 'font-medium text-blue-900 dark:text-blue-100' : ''}">${file.name}</div>
                         ${sizeInfo ? `<div class="text-xs text-gray-500 dark:text-gray-400">${sizeInfo}</div>` : ''}
                     </div>
                 </div>
                 <div class="flex items-center space-x-1">
                     ${file.type === 'file' ? `
-                        <input type="checkbox" class="file-checkbox" data-file-id="${file.id}" ${isSelected ? 'checked' : ''}>
+                        <input type="checkbox" class="file-checkbox w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" data-file-id="${file.id}" ${isSelected ? 'checked' : ''}>
                     ` : ''}
                 </div>
             </div>
@@ -122,14 +123,22 @@ export class FileBrowserDisplay {
         // File/folder click handlers
         container.querySelectorAll('.attachment-file-item').forEach(item => {
             item.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent click from bubbling up
                 const target = e.target as Element;
                 if (target.classList.contains('file-checkbox')) return;
 
                 const fileId = item.getAttribute('data-file-id');
                 const file = files.find(f => f.id === fileId);
 
-                if (file?.type === 'folder') {
-                    this.callbacks.onFolderNavigate(file.id);
+                if (file) {
+                    if (file.type === 'folder') {
+                        // Navigate to folder
+                        this.callbacks.onFolderNavigate(file.id);
+                    } else {
+                        // Toggle file selection
+                        const isCurrentlySelected = this.selectedFiles.has(file.id);
+                        this.callbacks.onFileSelect(file.id, !isCurrentlySelected);
+                    }
                 }
             });
         });
@@ -137,6 +146,7 @@ export class FileBrowserDisplay {
         // Checkbox handlers
         container.querySelectorAll('.file-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
+                e.stopPropagation(); // Prevent change event from bubbling up
                 const target = e.target as HTMLInputElement;
                 const fileId = target.getAttribute('data-file-id');
                 
@@ -150,6 +160,24 @@ export class FileBrowserDisplay {
     setBreadcrumbs(breadcrumbs: BreadcrumbItem[]): void {
         this.breadcrumbs = breadcrumbs;
         this.renderBreadcrumbs();
+    }
+
+    clearSelection(): void {
+        this.selectedFiles.clear();
+        // Update checkboxes to unchecked state
+        const checkboxes = this.container.querySelectorAll('.file-checkbox');
+        checkboxes.forEach(checkbox => {
+            (checkbox as HTMLInputElement).checked = false;
+        });
+        // Update visual selection state
+        const fileItems = this.container.querySelectorAll('.attachment-file-item');
+        fileItems.forEach(item => {
+            item.classList.remove('bg-blue-100', 'dark:bg-blue-900/30', 'border-blue-200', 'dark:border-blue-700');
+            const nameElement = item.querySelector('.text-sm');
+            if (nameElement) {
+                nameElement.classList.remove('font-medium', 'text-blue-900', 'dark:text-blue-100');
+            }
+        });
     }
 
     private renderBreadcrumbs(): void {
@@ -175,7 +203,8 @@ export class FileBrowserDisplay {
 
             if (!isLast) {
                 crumbElement.className = 'text-blue-600 hover:underline dark:text-blue-400 cursor-pointer';
-                crumbElement.addEventListener('click', () => {
+                crumbElement.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent click from bubbling up
                     this.callbacks.onBreadcrumbClick(crumb.id, index);
                 });
 
@@ -221,15 +250,6 @@ export class FileBrowserDisplay {
         return Array.from(this.selectedFiles);
     }
 
-    clearSelection(): void {
-        this.selectedFiles.clear();
-        this.container.querySelectorAll('.attachment-file-item').forEach(item => {
-            item.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
-        });
-        this.container.querySelectorAll('.file-checkbox').forEach(checkbox => {
-            (checkbox as HTMLInputElement).checked = false;
-        });
-    }
 
     setLoading(loading: boolean): void {
         const fileBrowser = this.container.querySelector('#attachment-file-browser');

@@ -1,0 +1,101 @@
+name: Build and Deploy Native App
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Server/native_host.py'
+      - 'Server/config.py'
+      - 'Server/requirements.txt'
+      - '.github/workflows/build-native-app.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Native App
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            platform: macos
+            executable_name: tabagent-host-macos
+          - os: ubuntu-latest
+            platform: linux
+            executable_name: tabagent-host-linux
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install pyinstaller
+
+    - name: Build executable
+      run: |
+        source venv/bin/activate
+        cd Server
+        pyinstaller --onefile --name ${{ matrix.executable_name }} --hidden-import=json --hidden-import=struct native_host.py
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tabagent-host-${{ matrix.platform }}
+        path: Server/dist/${{ matrix.executable_name }}
+
+  deploy:
+    name: Deploy to TabAgentDist
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tabagent-host-macos
+        path: ./artifacts
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tabagent-host-linux
+        path: ./artifacts
+
+    - name: Make executables executable
+      run: |
+        chmod +x ./artifacts/tabagent-host-macos
+        chmod +x ./artifacts/tabagent-host-linux
+
+    - name: Checkout TabAgentDist repository
+      uses: actions/checkout@v4
+      with:
+        repository: ocentra/TabAgentDist
+        token: ${{ secrets.TABAGENT_DIST_TOKEN }}
+        path: ./dist-repo
+
+    - name: Copy executables to TabAgentDist
+      run: |
+        cp ./artifacts/tabagent-host-macos ./dist-repo/NativeApp/
+        cp ./artifacts/tabagent-host-linux ./dist-repo/NativeApp/
+
+    - name: Commit and push to TabAgentDist
+      run: |
+        cd ./dist-repo
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Update native app executables for macOS and Linux [skip ci]" -m "Built from ${{ github.repository }}@${{ github.sha }}" || echo "No changes to commit"
+        git push

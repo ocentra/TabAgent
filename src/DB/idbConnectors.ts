@@ -5,7 +5,7 @@ const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const prefix = '[idbConnectors]';
 
-export type ConnectorType = 'google-drive' | 'local' | 'dropbox' | 'onedrive' | 'github' | 'huggingface' | 'custom';
+export type ConnectorType = 'google-drive' | 'local' | 'dropbox' | 'onedrive' | 'github' | 'huggingface' | 'native-app' | 'custom';
 
 export type AuthType = 'none' | 'token' | 'oauth' | 'mcp' | 'custom';
 
@@ -90,7 +90,7 @@ const DEFAULT_CONNECTORS: ConnectorConfig[] = [
         type: 'dropbox',
         category: 'storage',
         icon: '📦',
-        enabled: false,
+        enabled: true,
         isDefault: true,
         requiresAuth: true,
         authConfig: {
@@ -108,7 +108,7 @@ const DEFAULT_CONNECTORS: ConnectorConfig[] = [
         type: 'onedrive',
         category: 'storage',
         icon: '☁️',
-        enabled: false,
+        enabled: true,
         isDefault: true,
         requiresAuth: true,
         authConfig: {
@@ -168,6 +168,19 @@ const DEFAULT_CONNECTORS: ConnectorConfig[] = [
                 }
             ]
         },
+        authStatus: 'not_authenticated',
+        addedAt: Date.now(),
+        updatedAt: Date.now()
+    },
+    {
+        id: 'native-app',
+        name: 'Native Application',
+        type: 'native-app',
+        category: 'productivity',
+        icon: '🖥️',
+        enabled: true,
+        isDefault: true,
+        requiresAuth: false,
         authStatus: 'not_authenticated',
         addedAt: Date.now(),
         updatedAt: Date.now()

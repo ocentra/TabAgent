@@ -5,8 +5,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "tailwindcss-windows-x64.exe -i ./src/input.css -o ./src/output.css --config tailwind.config.js",
-    "build": "npm run build:css && rimraf dist && npm run build:webpack",
+    "build": "npm run build:css && rimraf TabAgentDist/Extension && npm run build:webpack",
     "build:webpack": "webpack --config webpack.config.js",
+    "build:verify": "scripts\\verify-extension-dist.bat",
     "lint": "eslint \"src/**/*.{ts,tsx}\""
   },
   "keywords": [],
@@ -36,6 +37,7 @@
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.17.1",
     "highlight.js": "^11.11.1",
+    "idb": "^8.0.3",
     "spark-md5": "^3.0.2"
   }
 }

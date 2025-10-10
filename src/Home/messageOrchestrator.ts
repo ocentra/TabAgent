@@ -196,8 +196,28 @@ class ChatOrchestrator {
         }
         this.isSendingMessage = true;
         if (this.LOG_GENERAL) console.log(this.prefix, `[isSendingMessage] SET to true in handleQuerySubmit`);
-        const { text } = data;
-        if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}"`);
+        const { text, attachments } = data;
+        if (this.LOG_GENERAL) console.log(this.prefix, `handleQuerySubmit: received event with text: "${text}" and ${attachments?.length || 0} attachments`);
+        
+        // Convert FileItem objects to attachment format
+        let attachmentsData = null;
+        if (attachments && attachments.length > 0) {
+            attachmentsData = [];
+            for (const fileItem of attachments) {
+                if (fileItem._file) {
+                    // Local file - use the actual File object
+                    attachmentsData.push({
+                        file_name: fileItem.name,
+                        mime_type: fileItem.mimeType || fileItem._file.type || 'application/octet-stream',
+                        data: fileItem._file
+                    });
+                } else {
+                    // Remote file (Google Drive, etc.) - would need to fetch content
+                    // For now, just log and skip
+                    console.warn('Remote file attachment not yet implemented:', fileItem.name);
+                }
+            }
+        }
         let sessionId = this.getActiveSessionId ? this.getActiveSessionId() : null;
         const currentTabId = this.getCurrentTabId ? this.getCurrentTabId() : null;
         let placeholderMessageId = null;
@@ -214,7 +234,13 @@ class ChatOrchestrator {
 
         try {
             clearTemporaryMessages();
-            const userMessage = { sender: 'user', text: text, timestamp: Date.now(), isLoading: false };
+            const userMessage = { 
+                sender: 'user', 
+                text: text, 
+                timestamp: Date.now(), 
+                isLoading: false,
+                ...(attachmentsData && attachmentsData.length > 0 && { attachmentsData: attachmentsData })
+            };
             if (!sessionId) {
                 if (this.LOG_GENERAL) console.log(this.prefix, 'handleQuerySubmit: No active session, creating new one via event.');
                 const createRequest = new DbCreateSessionRequest(userMessage);

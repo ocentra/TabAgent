@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
-import TerserPlugin from 'terser-webpack-plugin';
 
 // ESM-compatible __dirname (fix for Windows)
 const __dirname = path.dirname(
@@ -20,7 +19,7 @@ function copyFolder(srcDir, destDir) {
 }
 
 export default {
-  mode: 'production', // Production mode for minified output
+  mode: 'development', // Change to 'production' for minified output
   target: 'webworker',
   entry: {
     sidepanel: path.resolve(__dirname, 'src/sidepanel.ts'),
@@ -46,49 +45,7 @@ export default {
   },
   devtool: 'source-map',
   optimization: {
-    minimize: true,
-    minimizer: [
-      new TerserPlugin({
-        terserOptions: {
-          compress: {
-            drop_console: true, // Remove console.log statements in production
-            drop_debugger: true,
-            pure_funcs: ['console.log', 'console.info', 'console.debug'],
-          },
-          mangle: {
-            safari10: true,
-          },
-        },
-        extractComments: false,
-      }),
-    ],
-    usedExports: true,
-    sideEffects: false,
-    splitChunks: {
-      chunks: 'all',
-      minSize: 20000,
-      maxSize: 244000,
-      cacheGroups: {
-        vendor: {
-          test: /[\\/]node_modules[\\/]/,
-          name: 'vendors',
-          chunks: 'all',
-          priority: 10,
-        },
-        highlight: {
-          test: /[\\/]node_modules[\\/]highlight\.js[\\/]/,
-          name: 'highlight',
-          chunks: 'all',
-          priority: 20,
-        },
-        transformers: {
-          test: /[\\/]node_modules[\\/]@huggingface[\\/]transformers[\\/]/,
-          name: 'transformers',
-          chunks: 'all',
-          priority: 20,
-        },
-      },
-    },
+    minimize: false,
   },
   plugins: [
     new CopyWebpackPlugin({
@@ -100,18 +57,7 @@ export default {
         { from: 'src/events', to: 'events' },
         { from: 'src/theme-loader.js', to: '.' },
         ...copyFolder('src/model', 'model'),
-        // Only copy essential assets, exclude highlight.js themes
-        { 
-          from: 'src/assets/icons', 
-          to: 'assets/icons',
-          globOptions: {
-            ignore: ['**/highlight/**']
-          }
-        },
-        { 
-          from: 'src/assets/marked.min.js', 
-          to: 'assets/marked.min.js'
-        },
+        ...copyFolder('src/assets', 'assets'),
         // Removed ONNX runtime assets copying as transformers.js will fetch from CDN
         ...copyFolder('src/wasm', 'wasm'),
       ],

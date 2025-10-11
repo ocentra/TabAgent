@@ -50,14 +50,10 @@
         "modelAssetDownloader.js",
         "pageExtractor.js",
         "assets/*",
-        "assets/mediapipe/genai_bundle.mjs",
-        "assets/mediapipe/genai_bundle.cjs",
-        "assets/mediapipe/wasm/*",
         "sidepanel.css",
         "icons/*",
         "xenova/*",
-        "model/*",
-        "wasm/*"
+        "model/*"
       ],
       "matches": ["<all_urls>"]
     }

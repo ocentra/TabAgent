@@ -36,16 +36,16 @@ echo
 echo "Executable location: dist/tabagent-host-macos"
 echo
 
-# Copy the executable to TabAgentDist/NativeApp
-echo "Copying executable to TabAgentDist/NativeApp..."
-cp dist/tabagent-host-macos ../TabAgentDist/NativeApp/tabagent-host-macos
+# Copy the executable to TabAgentDist/NativeApp/binaries/macos
+echo "Copying executable to TabAgentDist/NativeApp/binaries/macos..."
+cp dist/tabagent-host-macos ../TabAgentDist/NativeApp/binaries/macos/tabagent-host
 
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to copy executable to TabAgentDist/NativeApp"
+    echo "Error: Failed to copy executable to TabAgentDist/NativeApp/binaries/macos"
     exit 1
 fi
 
-echo "Successfully copied executable to TabAgentDist/NativeApp"
+echo "Successfully copied executable to TabAgentDist/NativeApp/binaries/macos"
 echo
 
 # Clean up build artifacts

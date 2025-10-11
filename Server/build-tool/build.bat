@@ -43,16 +43,16 @@ echo.
 echo Executable location: dist\tabagent-host.exe
 echo.
 
-REM Copy the executable to TabAgentDist\NativeApp
-echo Copying executable to TabAgentDist\NativeApp...
-copy /Y "dist\tabagent-host.exe" "..\TabAgentDist\NativeApp\tabagent-host.exe"
+REM Copy the executable to TabAgentDist\NativeApp\binaries\windows
+echo Copying executable to TabAgentDist\NativeApp\binaries\windows...
+copy /Y "dist\tabagent-host.exe" "..\TabAgentDist\NativeApp\binaries\windows\tabagent-host.exe"
 if %errorlevel% neq 0 (
-    echo Error: Failed to copy executable to TabAgentDist\NativeApp
+    echo Error: Failed to copy executable to TabAgentDist\NativeApp\binaries\windows
     pause
     exit /b 1
 )
 
-echo Successfully copied executable to TabAgentDist\NativeApp
+echo Successfully copied executable to TabAgentDist\NativeApp\binaries\windows
 echo.
 
 REM Clean up build artifacts

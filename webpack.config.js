@@ -58,8 +58,7 @@ export default {
         { from: 'src/theme-loader.js', to: '.' },
         ...copyFolder('src/model', 'model'),
         ...copyFolder('src/assets', 'assets'),
-        // Removed ONNX runtime assets copying as transformers.js will fetch from CDN
-        ...copyFolder('src/wasm', 'wasm'),
+
       ],
     }),
   ],
@@ -85,20 +84,6 @@ export default {
         test: /\.ts$/,
         use: 'ts-loader',
         exclude: /node_modules/,
-      },
-      {
-        test: /\.wasm$/,
-        type: 'asset/resource',
-      },
-      {
-        test: /\.(mjs|js)$/,
-        include: [path.resolve(__dirname, 'src/assets/mediapipe')],
-        type: 'asset/resource',
-      },
-      {
-        test: /\.d\.ts$/,
-        include: [path.resolve(__dirname, 'src/assets/mediapipe')],
-        type: 'asset/resource',
       },
       {
         test: /\.(png|jpe?g|gif|svg)$/i,

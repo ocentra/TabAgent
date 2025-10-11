@@ -336,7 +336,7 @@ async function loadSystemInformation(): Promise<void> {
 }
 
 function setupInstallCommand(): void {
-    // Detect OS using navigator.userAgent (more reliable than browser.runtime.getPlatformInfo)
+    // Detect OS using navigator.userAgent
     const userAgent = navigator.userAgent.toLowerCase();
     let os: string;
     
@@ -357,18 +357,23 @@ function setupInstallCommand(): void {
     let osDisplayName = 'Your OS';
     let terminalName = 'Terminal';
     let installCommand = '';
-    let scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.sh';
+    let scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/installers/linux/install.sh';
     
     if (os === 'win') {
         osDisplayName = 'Windows';
-        terminalName = 'PowerShell (as Administrator)';
-        installCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/install.ps1'))"`;
-        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.ps1';
-    } else if (os === 'mac' || os === 'linux') {
-        osDisplayName = os === 'mac' ? 'macOS' : 'Linux';
+        terminalName = 'PowerShell';
+        installCommand = `irm https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/installers/windows/install-gui.ps1 | iex`;
+        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/installers/windows/install-gui.ps1';
+    } else if (os === 'mac') {
+        osDisplayName = 'macOS';
         terminalName = 'Terminal';
-        installCommand = `curl -fsSL https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/install.sh | bash`;
-        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.sh';
+        installCommand = `curl -fsSL https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/installers/macos/install-gui.sh | bash`;
+        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/installers/macos/install-gui.sh';
+    } else if (os === 'linux') {
+        osDisplayName = 'Linux';
+        terminalName = 'Terminal';
+        installCommand = `curl -fsSL https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/installers/linux/install.sh | bash`;
+        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/installers/linux/install.sh';
     }
     
     if (osNameEl) osNameEl.textContent = osDisplayName;
@@ -540,22 +545,68 @@ function setupNativeEventListeners(container: HTMLElement): void {
                 
                 // Detect OS for download
                 const userAgent = navigator.userAgent.toLowerCase();
+                let platform: 'windows' | 'macos' | 'linux' = 'windows';
+                
+                if (userAgent.includes('windows')) {
+                    platform = 'windows';
+                } else if (userAgent.includes('mac')) {
+                    platform = 'macos';
+                } else if (userAgent.includes('linux')) {
+                    platform = 'linux';
+                }
+                
                 let downloadUrl = '';
                 let filename = '';
                 
-                if (userAgent.includes('windows')) {
-                    downloadUrl = 'https://github.com/ocentra/TabAgentDist/releases/latest/download/tabagent-installer-windows.zip';
-                    filename = 'tabagent-installer-windows.zip';
-                } else if (userAgent.includes('mac')) {
-                    downloadUrl = 'https://github.com/ocentra/TabAgentDist/releases/latest/download/tabagent-installer-macos.zip';
-                    filename = 'tabagent-installer-macos.zip';
-                } else if (userAgent.includes('linux')) {
-                    downloadUrl = 'https://github.com/ocentra/TabAgentDist/releases/latest/download/tabagent-installer-linux.zip';
-                    filename = 'tabagent-installer-linux.zip';
-                } else {
-                    // Fallback to Windows installer
-                    downloadUrl = 'https://github.com/ocentra/TabAgentDist/releases/latest/download/tabagent-installer-windows.zip';
-                    filename = 'tabagent-installer-windows.zip';
+                // Try to get from releases first (Production mode)
+                try {
+                    const response = await fetch('https://api.github.com/repos/ocentra/TabAgentDist/releases/latest');
+                    if (response.ok) {
+                        const release = await response.json();
+                        
+                        // Map platform to release asset names
+                        const assetMap: Record<string, string> = {
+                            windows: 'TabAgent-Setup.msi',
+                            macos: 'TabAgent-Setup.pkg',
+                            linux: '.deb'  // Will match tabagent_*.deb
+                        };
+                        
+                        const assetName = assetMap[platform];
+                        const asset = release.assets.find((a: any) => 
+                            a.name === assetName || a.name.includes(assetName)
+                        );
+                        
+                        if (asset) {
+                            downloadUrl = asset.browser_download_url;
+                            filename = asset.name;
+                            if (LOG_NATIVE_APP) console.log(`${prefix} Using release asset:`, filename);
+                        }
+                    }
+                } catch (error) {
+                    if (LOG_NATIVE_APP) console.log(`${prefix} No releases found, using raw files`);
+                }
+                
+                // Fallback to raw installer scripts (Alpha mode)
+                if (!downloadUrl) {
+                    const rawBaseUrl = 'https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/installers';
+                    const rawFiles: Record<string, { url: string; filename: string }> = {
+                        windows: {
+                            url: `${rawBaseUrl}/windows/install-gui.ps1`,
+                            filename: 'install-gui.ps1'
+                        },
+                        macos: {
+                            url: `${rawBaseUrl}/macos/install-gui.sh`,
+                            filename: 'install-gui.sh'
+                        },
+                        linux: {
+                            url: `${rawBaseUrl}/linux/install.sh`,
+                            filename: 'install.sh'
+                        }
+                    };
+                    
+                    downloadUrl = rawFiles[platform].url;
+                    filename = rawFiles[platform].filename;
+                    if (LOG_NATIVE_APP) console.log(`${prefix} Using raw installer script:`, filename);
                 }
                 
                 // Use Chrome downloads API to download the file
@@ -578,9 +629,23 @@ function setupNativeEventListeners(container: HTMLElement): void {
                     downloadBtn.classList.add('bg-green-600', 'hover:bg-green-700');
                     downloadBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
                     
-                    // Show success message with instructions
+                    // Show success message with platform-specific instructions
                     setTimeout(() => {
-                        alert(`✅ Installer downloaded successfully!\n\n📁 Location: Downloads folder\n📄 File: ${filename}\n\n🚀 Next steps:\n1. Navigate to your Downloads folder\n2. Extract the ZIP file\n3. Run install.bat (Windows) or install.sh (Mac/Linux)\n4. Follow the installer prompts\n\n💡 The installer will handle everything automatically!`);
+                        let instructions = '';
+                        if (filename.endsWith('.msi')) {
+                            instructions = '🚀 Next steps:\n1. Navigate to your Downloads folder\n2. Double-click TabAgent-Setup.msi\n3. Follow the installation wizard\n\n💡 Professional Windows installer - just like any other app!';
+                        } else if (filename.endsWith('.pkg')) {
+                            instructions = '🚀 Next steps:\n1. Navigate to your Downloads folder\n2. Double-click TabAgent-Setup.pkg\n3. Follow the installation wizard\n\n💡 Professional macOS installer with native integration!';
+                        } else if (filename.endsWith('.deb') || filename.endsWith('.rpm')) {
+                            instructions = `🚀 Next steps:\n1. Open Terminal\n2. Navigate to Downloads\n3. Run: sudo dpkg -i ${filename} (or sudo rpm -i ${filename})\n\n💡 Professional Linux package with system integration!`;
+                        } else {
+                            // Script files (.ps1, .sh)
+                            const runCommand = filename.endsWith('.ps1') ? 
+                                'Right-click → Run with PowerShell' : 
+                                'chmod +x ' + filename + ' && ./' + filename;
+                            instructions = `🚀 Next steps:\n1. Navigate to your Downloads folder\n2. ${runCommand}\n3. Follow the installer prompts\n\n💡 The installer will handle everything automatically!`;
+                        }
+                        alert(`✅ Installer downloaded successfully!\n\n📁 Location: Downloads folder\n📄 File: ${filename}\n\n${instructions}`);
                     }, 500);
                     
                 } else {

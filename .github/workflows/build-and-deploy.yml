@@ -1,0 +1,379 @@
+name: Build and Deploy Everything
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'Server/**'
+      - 'package.json'
+      - 'manifest.json'
+      - '.github/workflows/build-and-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  # Job 1: Build Browser Extension
+  build-extension:
+    name: Build Browser Extension
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build extension only
+      run: npm run build:extension
+
+    - name: Upload extension artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension
+        path: TabAgentDist/Extension/
+
+  # Job 2: Build Native Host Binaries (3 platforms)
+  build-binaries:
+    name: Build Native Host (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            executable_name: tabagent-host.exe
+          - os: macos-latest
+            platform: macos
+            executable_name: tabagent-host
+          - os: ubuntu-latest
+            platform: linux
+            executable_name: tabagent-host
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Setup and build (Windows)
+      if: matrix.platform == 'windows'
+      shell: pwsh
+      run: |
+        cd Server
+        python -m venv venv
+        .\venv\Scripts\activate
+        pip install pyinstaller
+        pip install -r requirements.txt
+        cd build-tool
+        .\build.bat
+
+    - name: Setup and build (Unix)
+      if: matrix.platform != 'windows'
+      shell: bash
+      run: |
+        cd Server
+        python -m venv venv
+        source venv/bin/activate
+        pip install pyinstaller
+        pip install -r requirements.txt
+        cd build-tool
+        ./build-${{ matrix.platform }}.sh
+
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: binary-${{ matrix.platform }}
+        path: TabAgentDist/NativeApp/binaries/${{ matrix.platform }}/
+
+  # Job 3: Build Windows MSI
+  build-msi:
+    name: Build Windows MSI Installer
+    needs: build-binaries
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Windows binary
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-windows
+        path: TabAgentDist/NativeApp/binaries/windows
+
+    - name: Install WiX Toolset
+      shell: pwsh
+      run: |
+        choco install wixtoolset -y
+        # Refresh PATH
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+    - name: Build MSI
+      shell: pwsh
+      run: |
+        cd TabAgentDist/NativeApp/installers/windows
+        .\build-msi.bat
+
+    - name: Upload MSI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: installer-msi
+        path: TabAgentDist/NativeApp/installers/windows/TabAgent-Setup.msi
+
+  # Job 4: Build macOS PKG
+  build-pkg:
+    name: Build macOS PKG Installer
+    needs: build-binaries
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download macOS binary
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-macos
+        path: TabAgentDist/NativeApp/binaries/macos
+
+    - name: Make binary executable
+      run: |
+        chmod +x TabAgentDist/NativeApp/binaries/macos/tabagent-host
+
+    - name: Build PKG
+      run: |
+        cd TabAgentDist/NativeApp/installers/macos
+        chmod +x build-pkg.sh
+        ./build-pkg.sh
+
+    - name: Upload PKG artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: installer-pkg
+        path: TabAgentDist/NativeApp/installers/macos/TabAgent-Setup.pkg
+
+  # Job 5: Build Linux DEB
+  build-deb:
+    name: Build Linux DEB Package
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Linux binary
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-linux
+        path: TabAgentDist/NativeApp/binaries/linux
+
+    - name: Make binary executable
+      run: |
+        chmod +x TabAgentDist/NativeApp/binaries/linux/tabagent-host
+
+    - name: Build DEB
+      run: |
+        cd TabAgentDist/NativeApp/installers/linux
+        chmod +x build-deb.sh
+        ./build-deb.sh
+
+    - name: Upload DEB artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: installer-deb
+        path: TabAgentDist/NativeApp/installers/linux/tabagent_*.deb
+
+  # Job 6: Build Linux RPM
+  build-rpm:
+    name: Build Linux RPM Package
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Linux binary
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-linux
+        path: TabAgentDist/NativeApp/binaries/linux
+
+    - name: Make binary executable
+      run: |
+        chmod +x TabAgentDist/NativeApp/binaries/linux/tabagent-host
+
+    - name: Install RPM build tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y rpm
+
+    - name: Build RPM
+      run: |
+        cd TabAgentDist/NativeApp/installers/linux
+        chmod +x build-rpm.sh
+        ./build-rpm.sh
+
+    - name: Upload RPM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: installer-rpm
+        path: TabAgentDist/NativeApp/installers/linux/tabagent-*.rpm
+
+  # Job 7: Deploy Everything to TabAgentDist
+  deploy:
+    name: Deploy to TabAgentDist Repository
+    needs: [build-extension, build-msi, build-pkg, build-deb, build-rpm]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Checkout TabAgentDist repository
+      uses: actions/checkout@v4
+      with:
+        repository: ocentra/TabAgentDist
+        token: ${{ secrets.TABAGENT_DIST_TOKEN }}
+        path: ./dist-repo
+
+    - name: Download extension artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: extension
+        path: ./artifacts/extension
+
+    - name: Download binary artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: binary-*
+        path: ./artifacts/binaries
+
+    - name: Download installer artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: installer-*
+        path: ./artifacts/installers
+
+    - name: Copy extension to TabAgentDist
+      run: |
+        rm -rf ./dist-repo/Extension/*
+        cp -r ./artifacts/extension/* ./dist-repo/Extension/
+        echo "Built from ${{ github.repository }}@${{ github.sha }}" > ./dist-repo/Extension/.build-info
+
+    - name: Copy binaries to TabAgentDist
+      run: |
+        cp -r ./artifacts/binaries/binary-windows/* ./dist-repo/NativeApp/binaries/windows/
+        cp -r ./artifacts/binaries/binary-macos/* ./dist-repo/NativeApp/binaries/macos/
+        cp -r ./artifacts/binaries/binary-linux/* ./dist-repo/NativeApp/binaries/linux/
+
+    - name: Copy installers to TabAgentDist
+      run: |
+        cp ./artifacts/installers/installer-msi/* ./dist-repo/NativeApp/installers/windows/ 2>/dev/null || true
+        cp ./artifacts/installers/installer-pkg/* ./dist-repo/NativeApp/installers/macos/ 2>/dev/null || true
+        cp ./artifacts/installers/installer-deb/* ./dist-repo/NativeApp/installers/linux/ 2>/dev/null || true
+        cp ./artifacts/installers/installer-rpm/* ./dist-repo/NativeApp/installers/linux/ 2>/dev/null || true
+
+    - name: Commit and push to TabAgentDist
+      run: |
+        cd ./dist-repo
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git diff --staged --quiet || git commit -m "Auto-deploy: Build ${{ github.run_number }}" -m "Extension + Native App + Installers" -m "Source: ${{ github.repository }}@${{ github.sha }}"
+        git push
+
+  # Job 8: Create GitHub Release (Optional - only on tags)
+  create-release:
+    name: Create GitHub Release
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout TabAgentDist repository
+      uses: actions/checkout@v4
+      with:
+        repository: ocentra/TabAgentDist
+        token: ${{ secrets.TABAGENT_DIST_TOKEN }}
+        path: ./dist-repo
+
+    - name: Download all installer artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: installer-*
+        path: ./installers
+
+    - name: Download extension artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: extension
+        path: ./extension
+
+    - name: Create extension ZIP for release
+      run: |
+        cd ./extension
+        zip -r ../TabAgent-Extension-${{ github.ref_name }}.zip .
+
+    - name: Get version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Create Release in TabAgentDist
+      uses: softprops/action-gh-release@v1
+      with:
+        repository: ocentra/TabAgentDist
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Tab Agent v${{ steps.version.outputs.version }}
+        body: |
+          ## Tab Agent v${{ steps.version.outputs.version }}
+          
+          ### 🚀 Installation Options
+          
+          **Windows:**
+          - Download `TabAgent-Setup.msi` and double-click
+          - Or run PowerShell: `irm https://install.tabagent.com/windows | iex`
+          
+          **macOS:**
+          - Download `TabAgent-Setup.pkg` and double-click
+          - Or run Terminal: `curl -fsSL https://install.tabagent.com/macos | bash`
+          
+          **Linux (Debian/Ubuntu):**
+          - Download and install: `sudo dpkg -i tabagent_*.deb`
+          
+          **Linux (RedHat/Fedora):**
+          - Download and install: `sudo rpm -i tabagent-*.rpm`
+          
+          **Manual Extension Load:**
+          - Download `TabAgent-Extension-*.zip`
+          - Extract and load unpacked in browser
+          
+          ### 📋 What's Included
+          - ✅ Native messaging host (all platforms)
+          - ✅ Browser extension
+          - ✅ LM Studio integration
+          - ✅ Multi-browser support (Chrome, Edge, Firefox, Opera, Brave, Vivaldi)
+          
+          ---
+          Built from TabAgent@${{ github.sha }}
+        draft: false
+        prerelease: false
+        files: |
+          ./installers/installer-msi/*
+          ./installers/installer-pkg/*
+          ./installers/installer-deb/*
+          ./installers/installer-rpm/*
+          ./TabAgent-Extension-${{ github.ref_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.TABAGENT_DIST_TOKEN }}
+

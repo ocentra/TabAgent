@@ -22,7 +22,7 @@
             <button id="new-chat-button" title="New Chat" class="p-1 rounded">
                 <!-- Plus Icon replaced with img --> <img id="icon-new-chat" alt="New Chat" class="w-6 h-6 action-icon-img">
             </button>
-            <h1 class="text-lg font-semibold">Tab Agent</h1>
+            <h1 id="main-header-title" class="text-lg font-semibold">Tab Agent</h1>
              <button id="history-button" title="Chat History" class="p-1 rounded">
                 <!-- History Icon (<img>) --> <img id="icon-history" alt="History" class="w-6 h-6 action-icon-img">
             </button>
@@ -36,7 +36,7 @@
     </div>
 
     <!-- Main Content Area - Now holds page containers -->
-    <div id="main-content" class="flex-1 overflow-hidden relative">
+    <div id="main-content" class="flex-1 overflow-hidden relative pb-12">
         <!-- Home Page (Chat Interface) -->
         <div id="page-home" class="page-container absolute inset-0 flex flex-col overflow-hidden">
             <!-- Chat Message Area -->
@@ -121,21 +121,19 @@
 
         <!-- Discover Page -->
         <div id="page-discover" class="page-container absolute inset-0 p-4 hidden">
-            <h2 class="text-xl font-semibold mb-4">Discover</h2>
+           
             <p>Discover content placeholder...</p>
             <!-- Add Discover specific content here -->
         </div>
 
         <!-- Spaces Page -->
-        <div id="page-spaces" class="page-container absolute inset-0 p-4 hidden">
-            <h2 class="text-xl font-semibold mb-4">Spaces</h2>
+        <div id="page-spaces" class="page-container absolute inset-0 p-4 hidden">           
             <p>Spaces placeholder...</p>
             <!-- Add Spaces specific content here -->
         </div>
 
         <!-- Library Page -->
-        <div id="page-library" class="page-container absolute inset-0 p-4 hidden">
-            <h2 class="text-xl font-semibold mb-4">Library (Starred)</h2>
+        <div id="page-library" class="page-container absolute inset-0 p-4 hidden">          
             <p>Starred items placeholder...</p>
             <!-- Add Library specific content here (e.g., list of starred history) -->
              <div id="starred-list"></div>
@@ -143,14 +141,12 @@
 
         <!-- Integrations Page -->
         <div id="page-integrations" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">
-            <h2 class="text-xl font-semibold mb-4">Integrations</h2>
             <p>Manage model sources and API connections...</p>
             <!-- Integrations content will be injected here by JS -->
         </div>
 
         <!-- Connectors Page -->
-        <div id="page-connectors" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">
-            <h2 class="text-xl font-semibold mb-4">Connectors</h2>
+        <div id="page-connectors" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">          
             <p>Manage external service connections...</p>
             <!-- Connectors content will be injected here by JS -->
         </div>
@@ -396,7 +392,65 @@
          </button>
     </div>
 
-
+    <!-- Footer -->
+    <div id="tab-agent-footer" class="bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-1 py-0.5" style="border-radius: 0 !important; border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important;">
+        <!-- 3-Column Layout: Logo | Content | Update Button -->
+        <div class="flex items-center justify-between text-[10px]">
+            <!-- Column A: Logo (Left Aligned) -->
+            <div class="flex items-center">
+                <a href="https://ocentra.ca/" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    <img src="assets/icons/Mlogo.png" alt="Ocentra" class="w-7 h-7">
+                </a>
+            </div>
+            
+            <!-- Column B: Content (Center) -->
+            <div class="flex flex-col items-center gap-0.5 flex-1">
+                <!-- Line 1: Made with message (bigger) -->
+                <div class="flex items-center gap-1 text-gray-600 dark:text-gray-400 text-[11px]">
+                    <span>Made with</span>
+                    <span class="text-red-500">❤️</span>
+                    <span>for</span>
+                    <span class="text-green-600 dark:text-green-400">🔒</span>
+                    <span class="font-semibold">Security & Privacy</span>
+                </div>
+                
+                <!-- Line 2: TabAgent version -->
+                <div class="flex items-center gap-1">
+                    <span class="font-semibold text-blue-600 dark:text-blue-400">TabAgent</span>
+                    <span id="extension-version" class="font-mono font-semibold text-blue-600 dark:text-blue-400">
+                        v1.0.0
+                    </span>
+                    <span class="text-yellow-500 dark:text-yellow-400 text-[8px] font-medium border border-yellow-500 dark:border-yellow-400 px-1 py-0.5 rounded">
+                        ALPHA
+                    </span>
+                    <a href="https://ocentra.ca/" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       class="font-semibold text-blue-600 dark:text-blue-400 text-[11px] hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+                        By Ocentra
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Column C: Update Button (Right Aligned) -->
+            <div class="flex items-center">
+                <button id="check-updates-btn" 
+                        class="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Check for Updates">
+                    <img id="update-btn-icon" src="assets/icons/update.png" alt="Update" class="w-6 h-6">
+                </button>
+            </div>
+        </div>
+        
+        <div id="update-notification" class="hidden">
+            <span class="px-2 py-1 bg-green-500 text-white rounded animate-pulse text-xs">
+                🎉 Update Available!
+            </span>
+        </div>
+    </div>
 
     <!-- Notification Banner -->
     <div id="notification-banner" class="notification hidden"></div>

@@ -374,11 +374,31 @@ browser.runtime.onInstalled.addListener(async (details: any) => {
         const keysToRemove = Object.keys(items).filter((key: string) => key.startsWith('detachedState_'));
         if (keysToRemove.length > 0) browser.storage.local.remove(keysToRemove);
     });
+    
+    // Initialize persistent native host connection
+    try {
+        const { nativeHostManager } = await import('./Controllers/NativeHostManager');
+        await nativeHostManager.connect();
+        if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Native host connection initialized on install/update');
+    } catch (error) {
+        // Native host connection is optional - don't block startup if it fails
+        if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Native host not available (optional):', error);
+    }
 });
 
 browser.runtime.onStartup.addListener(async () => {
     if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' onStartup event.');
     await initializeSessionIds();
+    
+    // Initialize persistent native host connection
+    try {
+        const { nativeHostManager } = await import('./Controllers/NativeHostManager');
+        await nativeHostManager.connect();
+        if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Native host connection initialized');
+    } catch (error) {
+        // Native host connection is optional - don't block startup if it fails
+        if (LOG_GENERAL) console.log(CONTEXT_PREFIX + ' Native host not available (optional):', error);
+    }
 });
 
 browser.action.onClicked.addListener(async (tab: any) => {
@@ -475,6 +495,52 @@ browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: 
         return isResponseAsync;
     }
 
+    // Handle native host messages through persistent connection
+    if (type === 'native_host_message') {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                const { nativeHostManager } = await import('./Controllers/NativeHostManager');
+                if (!nativeHostManager.isActive()) {
+                    // Try to connect if not connected
+                    await nativeHostManager.connect();
+                }
+                const response = await nativeHostManager.sendMessage(payload, message.timeout || 5000);
+                sendResponse(response);
+            } catch (error: any) {
+                if (LOG_GENERAL) console.error(CONTEXT_PREFIX + ' Native host message error:', error);
+                sendResponse({ status: 'error', message: error.message || 'Native host communication failed' });
+            }
+        })();
+        return isResponseAsync;
+    }
+
+    // Get native host connection status
+    if (type === 'get_native_host_status') {
+        isResponseAsync = true;
+        (async () => {
+            try {
+                const { nativeHostManager } = await import('./Controllers/NativeHostManager');
+                const status = nativeHostManager.getStatus();
+                sendResponse(status);
+            } catch (error: any) {
+                if (LOG_GENERAL) console.error(CONTEXT_PREFIX + ' Failed to get native host status:', error);
+                sendResponse({ 
+                    connected: false, 
+                    connectedSince: null,
+                    uptime: 0,
+                    reconnectAttempts: 0,
+                    queuedMessages: 0,
+                    messagesSent: 0,
+                    messagesReceived: 0,
+                    lastActivity: null,
+                    recentEvents: []
+                });
+            }
+        })();
+        return isResponseAsync;
+    }
+    
     if (type === RuntimeMessageTypes.GET_DRIVE_FILE_LIST) {
         isResponseAsync = true;
         (async () => {

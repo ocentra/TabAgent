@@ -9,12 +9,13 @@ window.EXTENSION_CONTEXT = Contexts.OTHERS;
 
 let pageContainers = document.querySelectorAll('.page-container');
 let navButtons = document.querySelectorAll('.nav-button');
-let mainHeaderTitle: HTMLElement | null = document.querySelector('#header h1');
+let mainHeaderTitle: HTMLElement | null = document.getElementById('main-header-title');
 const newChatButton = document.getElementById('new-chat-button');
 const historyButton = document.getElementById('history-button');
 const CONTEXT_PREFIX = '[Navigation]';
 const pageTitles: { [key: string]: string } = {
     'page-home': 'Tab Agent', 
+    'page-discover': 'Discover',
     'page-spaces': 'Spaces',
     'page-library': 'Library',
     'page-integrations': 'Integrations',

@@ -42,6 +42,12 @@ jobs:
         npm ci
         npm run build
 
+    - name: Create extension zip
+      if: steps.check_release.outputs.release_exists == 'false'
+      run: |
+        cd TabAgentDist
+        zip -r extension.zip Extension/
+
     - name: Create Release
       if: steps.check_release.outputs.release_exists == 'false'
       id: create_release
@@ -72,6 +78,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/extension.zip
+        asset_path: ./TabAgentDist/extension.zip
         asset_name: extension-v${{ steps.version.outputs.version }}.zip
         asset_content_type: application/zip

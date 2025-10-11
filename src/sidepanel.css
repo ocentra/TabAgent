@@ -1,3 +1,12 @@
+/* Force no rounding anywhere - override Chrome side panel defaults */
+body, html, #tab-agent-footer {
+    border-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+}
+
 /* Model Source Toggle Styles - Native App Feel */
 .model-source-toggle {
     display: flex;

@@ -30,6 +30,7 @@ import { initializeConnectorsController } from './Controllers/ConnectorsControll
 import { initializeDriveController } from './Controllers/DriveController';
 import { initializeUnifiedAttachmentController } from './Controllers/UnifiedAttachmentController';
 import { HuggingFaceLoginDialog } from './Components/HuggingFaceLoginDialog';
+import { initializeFooter } from './Components/FooterComponent';
 import {
   UIEventNames,
   RuntimeMessageTypes,
@@ -79,18 +80,18 @@ import newChatIcon from './assets/icons/NewChat.png';
 import historyIcon from './assets/icons/history.png';
 import popupIcon from './assets/icons/popup.png';
 import googleDriveIcon from './assets/icons/googledrive.png';
-import attachIcon from './assets/icons/attach-svgrepo-com.svg';
-import closeCircleIcon from './assets/icons/close-circle-svgrepo-com.svg';
-import homeIcon from './assets/icons/home-svgrepo-com.svg';
-import rocketIcon from './assets/icons/rocket-2-svgrepo-com.svg';
-import myspaceIcon from './assets/icons/myspace-microsoft-svgrepo-com.svg';
-import libraryIcon from './assets/icons/library-svgrepo-com.svg';
+import attachIcon from './assets/icons/attach.svg';
+import closeCircleIcon from './assets/icons/close.svg';
+import homeIcon from './assets/icons/home.svg';
+import rocketIcon from './assets/icons/rocket.svg';
+import myspaceIcon from './assets/icons/myspace.svg';
+import libraryIcon from './assets/icons/library.svg';
 import integrationsIcon from './assets/icons/Integration.png';
 import connectorsIcon from './assets/icons/Connectors.png';
 import browserIcon from './assets/icons/Browser.png';
 import localServerIcon from './assets/icons/LocalServer.png';
 import cloudServerIcon from './assets/icons/CloudServer.png';
-import settingsIcon from './assets/icons/settings-svgrepo-com.svg';
+import settingsIcon from './assets/icons/settings.svg';
 
 // --- Constants ---
 const LOG_QUEUE_MAX = 1000;
@@ -1328,6 +1329,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       debounce,
     });
     if (LOG_DEBUG) console.log(`${prefix} Drive Controller Initialized.`);
+
+    // Initialize Footer with version info and update checker
+    initializeFooter();
+    if (LOG_DEBUG) console.log(`${prefix} Footer Component Initialized.`);
 
     const popupContext = urlParams.get('context');
     originalTabIdFromPopup = popupContext === 'popup' ? urlParams.get('originalTabId') : null;

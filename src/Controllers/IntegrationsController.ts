@@ -12,47 +12,90 @@ const prefix = '[IntegrationsController]';
 
 let isInitialized = false;
 
-// Helper to create a foldout section (matching other controllers style)
-function createFoldoutSection({
-    title,
-    contentHTML,
-    sectionClass = '',
-    initiallyOpen = true
-}: {
-    title: string,
-    contentHTML: string,
-    sectionClass?: string,
-    initiallyOpen?: boolean
-}): HTMLElement {
-    const section = document.createElement('div');
-    section.className = `${sectionClass} mb-6`;
-    section.innerHTML = `
-        <div class="border border-gray-200 dark:border-gray-600 rounded-lg">
-            <button class="foldout-toggle w-full flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg transition-colors min-h-0">
-                <h3 class="text-base font-semibold text-gray-800 dark:text-gray-200 leading-tight">${title}</h3>
-                <span class="fold-icon transform transition-transform duration-200">▼</span>
+// Tab management for integrations
+let currentTab: 'browser' | 'native' | 'api' = 'browser';
+let tabButtons: HTMLButtonElement[] = [];
+
+function initializeTabInterface(container: HTMLElement): void {
+    // Create tab toggle
+    const tabToggle = document.createElement('div');
+    tabToggle.className = 'model-source-toggle bg-gray-100 dark:bg-gray-700 rounded-lg p-1 flex w-full mb-4';
+    tabToggle.innerHTML = `
+        <button id="tab-browser" class="model-source-btn active px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 flex-1">
+            Browser
+        </button>
+        <button id="tab-native" class="model-source-btn px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 flex-1">
+            Native
+        </button>
+        <button id="tab-api" class="model-source-btn px-2 py-1 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 flex-1">
+            API
             </button>
-            <div class="foldout-content p-3 space-y-3${initiallyOpen ? '' : ' hidden'}">
-                ${contentHTML}
+    `;
+    
+    // Create tab content containers
+    const tabContent = document.createElement('div');
+    tabContent.className = 'tab-content-container';
+    tabContent.innerHTML = `
+        <div id="tab-content-browser" class="tab-content active">
+            ${createBrowserContent()}
+        </div>
+        <div id="tab-content-native" class="tab-content hidden">
+            ${createNativeContent()}
             </div>
+        <div id="tab-content-api" class="tab-content hidden">
+            ${createAPIContent()}
         </div>
     `;
-    // Setup foldout toggle
-    const toggle = section.querySelector('.foldout-toggle') as HTMLButtonElement;
-    const content = section.querySelector('.foldout-content') as HTMLElement;
-    const icon = toggle?.querySelector('.fold-icon') as HTMLElement;
-    if (toggle && content && icon) {
-        toggle.addEventListener('click', () => {
-            const isHidden = content.classList.contains('hidden');
-            content.classList.toggle('hidden');
-            icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-180deg)';
+    
+    // Add to container
+    container.appendChild(tabToggle);
+    container.appendChild(tabContent);
+    
+    // Setup tab switching
+    const buttons = tabToggle.querySelectorAll('.model-source-btn');
+    tabButtons = Array.from(buttons) as HTMLButtonElement[];
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.id.replace('tab-', '') as 'browser' | 'native' | 'api';
+            switchTab(tabId);
         });
-    }
-    return section;
+    });
 }
 
-function createBrowserModelsFoldout(): HTMLElement {
-    const contentHTML = `
+function switchTab(tabId: 'browser' | 'native' | 'api'): void {
+    currentTab = tabId;
+    
+    // Update button states
+    tabButtons.forEach(button => {
+        const buttonTabId = button.id.replace('tab-', '');
+        if (buttonTabId === tabId) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+    
+    // Update content visibility
+    const contents = document.querySelectorAll('.tab-content');
+    contents.forEach(content => {
+        if (content.id === `tab-content-${tabId}`) {
+            content.classList.remove('hidden');
+            content.classList.add('active');
+        } else {
+            content.classList.add('hidden');
+            content.classList.remove('active');
+        }
+    });
+    
+    // Test native connection when switching to Native tab
+    if (tabId === 'native') {
+        setTimeout(() => testNativeConnection(), 100);
+    }
+}
+
+function createBrowserContent(): string {
+    return `
         <div class="space-y-4 text-sm">
             <!-- Add Custom Model Section -->
             <div class="border border-blue-200 dark:border-blue-700 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20">
@@ -109,49 +152,230 @@ function createBrowserModelsFoldout(): HTMLElement {
             </div>
         </div>
     `;
-    return createFoldoutSection({
-        title: 'Browser Models',
-        contentHTML,
-        sectionClass: 'browser-models-section',
-        initiallyOpen: true
-    });
 }
 
-function createNativeAppFoldout(): HTMLElement {
-    const contentHTML = `
-        <div class="space-y-3 text-sm">
-            <div class="text-gray-600 dark:text-gray-400">
-                <p>Connect to local AI applications and system resources through the Tab Agent native messaging host.</p>
-                <p class="mt-2 text-xs">The native host enables secure communication between the extension and your local system.</p>
+function createNativeContent(): string {
+    return `
+        <div class="space-y-4 text-sm">
+            <!-- Connection Status Section (Always Visible at Top) -->
+            <div id="native-connection-status" class="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">📡 Connection Status</h3>
+                
+                <div id="native-status-indicator" class="mb-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span id="native-status-icon" class="text-2xl">⏳</span>
+                        <span id="native-status-text" class="font-medium text-gray-700 dark:text-gray-300">Checking connection...</span>
+                    </div>
+                    <div id="native-status-details" class="text-xs text-gray-500 dark:text-gray-400"></div>
+                </div>
+                
+                <!-- Install Section (Shown when NOT connected) -->
+                <div id="native-install-section" class="hidden">
+                    <button id="native-copy-install-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium mb-3">
+                        📋 Copy Install Command for <span id="native-os-name">Your OS</span>
+                    </button>
+                    
+                    <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-2">📋 Installation Steps:</h4>
+                        <ol id="native-install-steps" class="text-xs text-gray-700 dark:text-gray-300 space-y-2 list-decimal list-inside">
+                            <li>Click the button above to copy the install command</li>
+                            <li>Open <span id="native-terminal-name" class="font-mono bg-gray-200 dark:bg-gray-700 px-1 rounded">Terminal</span></li>
+                            <li>Paste the command and press Enter</li>
+                            <li>Wait for installation to complete</li>
+                            <li>Restart Chrome and return here</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="mt-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
+                            🔍 <span>Want to inspect the install script first?</span>
+                        </h4>
+                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                            We believe in transparency. Review the source code before installing:
+                        </p>
+                        <div class="flex flex-col gap-1 text-xs">
+                            <a href="https://github.com/ocentra/TabAgentDist" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">
+                                📂 View Repository: github.com/ocentra/TabAgentDist
+                            </a>
+                            <a id="native-install-script-link" href="https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.sh" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">
+                                📄 View Install Script
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Connected Section (Shown when connected) -->
+                <div id="native-connected-section" class="hidden">
+                    <div class="flex gap-2 mb-3">
+                        <button id="native-test-connection-btn" class="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                            🔄 Test Connection
+                        </button>
+                        <button id="native-view-logs-btn" class="flex-1 px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm">
+                            📄 View Logs
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="space-y-2">
-                <div class="p-3 border border-blue-200 dark:border-blue-700 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                    <h4 class="font-medium text-gray-800 dark:text-gray-200 mb-2">🔧 Native Host Status</h4>
-                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                        The native messaging host allows the extension to:
-                    </p>
-                    <ul class="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1 mb-3">
-                        <li>Access local AI applications (LMStudio, Ollama, etc.)</li>
-                        <li>Execute system commands securely</li>
-                        <li>Interact with local files and services</li>
-                    </ul>
-                    <p class="text-xs text-gray-500 dark:text-gray-500 italic">
-                        💡 To test the native host connection, go to <strong>Connectors → Native Application</strong>
-                    </p>
+            
+            <!-- System Information Section (Shown when connected) -->
+            <div id="native-system-info" class="hidden p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">💻 System Information</h3>
+                <div id="native-system-details" class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="flex justify-between py-1 border-b border-gray-200 dark:border-gray-700">
+                        <span class="font-medium">Operating System:</span>
+                        <span id="sys-os" class="text-gray-600 dark:text-gray-400">Loading...</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-200 dark:border-gray-700">
+                        <span class="font-medium">CPU:</span>
+                        <span id="sys-cpu" class="text-gray-600 dark:text-gray-400">Loading...</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-200 dark:border-gray-700">
+                        <span class="font-medium">RAM:</span>
+                        <span id="sys-ram" class="text-gray-600 dark:text-gray-400">Loading...</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-gray-200 dark:border-gray-700">
+                        <span class="font-medium">GPU:</span>
+                        <span id="sys-gpu" class="text-gray-600 dark:text-gray-400">Loading...</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="font-medium">VRAM:</span>
+                        <span id="sys-vram" class="text-gray-600 dark:text-gray-400">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Success Message (Shown when connected) -->
+            <div id="native-success-message" class="hidden p-4 border border-green-200 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/20">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">🎉 You're All Set!</h3>
+                <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                    Your native app is connected and ready to unlock:
+                </p>
+                <ul class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-600 dark:text-green-400">✓</span>
+                        <span>Full system resources (<span id="success-ram">--</span> RAM + <span id="success-vram">--</span> VRAM)</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-600 dark:text-green-400">✓</span>
+                        <span>Advanced AI capabilities & local model support</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-600 dark:text-green-400">✓</span>
+                        <span>Computer Use Agent for desktop automation</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-600 dark:text-green-400">✓</span>
+                        <span>Complete privacy & local processing</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Why Install Section (Always visible, collapsible) -->
+            <div class="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">🚀 Why Install the Native App?</h3>
+                
+                <div class="space-y-3">
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
+                            <span class="text-green-600 dark:text-green-400">✓</span>
+                            <span>Unlock Full AI Potential</span>
+                        </h4>
+                        <ul class="ml-6 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <li>• Access all your RAM, VRAM & GPU power</li>
+                            <li>• Run powerful local AI models without limitations</li>
+                            <li>• No browser memory constraints</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
+                            <span class="text-green-600 dark:text-green-400">✓</span>
+                            <span>Advanced Agent Capabilities</span>
+                        </h4>
+                        <ul class="ml-6 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <li>• Computer Use Agent - control your desktop</li>
+                            <li>• Better agentic workflows and automation</li>
+                            <li>• System-level integrations</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
+                            <span class="text-green-600 dark:text-green-400">✓</span>
+                            <span>Better Data & Performance</span>
+                        </h4>
+                        <ul class="ml-6 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <li>• Persistent local storage beyond IndexedDB</li>
+                            <li>• Direct file system access</li>
+                            <li>• No browser storage limits</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
+                            <span class="text-green-600 dark:text-green-400">✓</span>
+                            <span>Privacy & Security First 🔒</span>
+                        </h4>
+                        <ul class="ml-6 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <li>• 100% local processing - your data never leaves your machine</li>
+                            <li>• Zero tracking, zero data collection</li>
+                            <li>• No big tech surveillance or monitoring</li>
+                            <li>• Complete control over your AI interactions</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- What Happens Section -->
+            <div class="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">📦 What Happens When You Install?</h3>
+                
+                <div class="space-y-3">
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1">Step 1: Download</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            The install script downloads the native host executable for your platform from our GitHub releases.
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1">Step 2: Install</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Places it in a safe location on your system:
+                        </p>
+                        <ul class="ml-4 mt-1 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                            <li><strong>Windows:</strong> <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">%LOCALAPPDATA%\\TabAgent</code></li>
+                            <li><strong>macOS:</strong> <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">~/Library/Application Support/TabAgent</code></li>
+                            <li><strong>Linux:</strong> <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">~/.local/share/tabagent</code></li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1">Step 3: Register</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Registers with Chrome so the extension can communicate securely through the native messaging protocol.
+                        </p>
+                    </div>
+                    
+                    <div class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded">
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
+                            <span>✅ Safe & Reversible</span>
+                        </h4>
+                        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <li>• Open source - inspect the code anytime</li>
+                            <li>• Easy to uninstall (just delete the folder)</li>
+                            <li>• Permission-based communication only</li>
+                            <li>• No admin rights required</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
     `;
-    return createFoldoutSection({
-        title: 'Native Applications',
-        contentHTML,
-        sectionClass: 'native-apps-section',
-        initiallyOpen: true
-    });
 }
 
-function createExternalAPIFoldout(): HTMLElement {
-    const contentHTML = `
+function createAPIContent(): string {
+    return `
         <div class="space-y-3 text-sm">
             <div class="text-gray-600 dark:text-gray-400">
                 <p>Connect to external AI API providers for cloud-based models.</p>
@@ -188,12 +412,287 @@ function createExternalAPIFoldout(): HTMLElement {
             </div>
         </div>
     `;
-    return createFoldoutSection({
-        title: 'External APIs',
-        contentHTML,
-        sectionClass: 'external-apis-section',
-        initiallyOpen: true
+}
+
+function setupNativeAppManagement(container: HTMLElement): void {
+    // Test connection when Native tab is loaded
+    testNativeConnection();
+    
+    // Setup event listeners
+    setupNativeEventListeners(container);
+}
+
+async function testNativeConnection(): Promise<void> {
+    const statusIcon = document.getElementById('native-status-icon');
+    const statusText = document.getElementById('native-status-text');
+    const statusDetails = document.getElementById('native-status-details');
+    const installSection = document.getElementById('native-install-section');
+    const connectedSection = document.getElementById('native-connected-section');
+    const systemInfoSection = document.getElementById('native-system-info');
+    const successMessage = document.getElementById('native-success-message');
+    
+    if (!statusIcon || !statusText || !statusDetails) return;
+    
+    // Reset to checking state
+    statusIcon.textContent = '⏳';
+    statusText.textContent = 'Checking connection...';
+    statusDetails.textContent = '';
+    
+    try {
+        // Test connection with timeout
+        const response = await sendNativeMessage({ action: 'ping' }, 3000);
+        
+        if (response && response.status === 'success') {
+            // Connected!
+            statusIcon.textContent = '✅';
+            statusText.textContent = `Connected (v${response.version || '1.0.0'})`;
+            statusDetails.textContent = 'Native app is running and ready';
+            
+            // Hide install section, show connected section
+            installSection?.classList.add('hidden');
+            connectedSection?.classList.remove('hidden');
+            systemInfoSection?.classList.remove('hidden');
+            successMessage?.classList.remove('hidden');
+            
+            // Load system information
+            await loadSystemInformation();
+        } else {
+            throw new Error('Invalid response from native host');
+        }
+    } catch (error) {
+        // Not connected
+        statusIcon.textContent = '❌';
+        statusText.textContent = 'Not Connected';
+        
+        if (error instanceof Error) {
+            if (error.message.includes('Specified native messaging host not found')) {
+                statusDetails.textContent = 'Native host not installed. Follow the installation steps below.';
+            } else if (error.message.includes('timeout')) {
+                statusDetails.textContent = 'Native host not responding. Try restarting Chrome.';
+            } else {
+                statusDetails.textContent = `Error: ${error.message}`;
+            }
+        } else {
+            statusDetails.textContent = 'Native host not found. Install it to unlock advanced features.';
+        }
+        
+        // Show install section, hide connected section
+        installSection?.classList.remove('hidden');
+        connectedSection?.classList.add('hidden');
+        systemInfoSection?.classList.add('hidden');
+        successMessage?.classList.add('hidden');
+        
+        // Setup OS-specific install command
+        setupInstallCommand();
+    }
+}
+
+async function sendNativeMessage(message: any, timeoutMs: number = 5000): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            reject(new Error('Native messaging timeout'));
+        }, timeoutMs);
+        
+        try {
+            // Cross-browser native messaging support
+            const detectBrowser = () => {
+                // Check for Firefox first (uses browser namespace)
+                if (typeof (window as any).browser !== 'undefined' && 
+                    (window as any).browser.runtime && 
+                    (window as any).browser.runtime.sendNativeMessage) {
+                    return 'firefox';
+                }
+                // Check for Chromium-based browsers (Chrome, Edge, Opera, Brave, Vivaldi)
+                else if (typeof (window as any).chrome !== 'undefined' && 
+                         (window as any).chrome.runtime && 
+                         (window as any).chrome.runtime.sendNativeMessage) {
+                    return 'chromium';
+                }
+                return 'unsupported';
+            };
+            
+            const browserType = detectBrowser();
+            
+            if (browserType === 'unsupported') {
+                reject(new Error('Native messaging is not supported in this browser. Supported browsers: Chrome, Edge, Firefox, Opera, Brave, Vivaldi.'));
+                return;
+            }
+            
+            if (browserType === 'firefox') {
+                // Firefox uses Promise-based API
+                (window as any).browser.runtime.sendNativeMessage('com.tabagent.host', message)
+                    .then((response: any) => {
+                        clearTimeout(timeout);
+                        resolve(response);
+                    })
+                    .catch((error: any) => {
+                        clearTimeout(timeout);
+                        reject(new Error(error.message || 'Firefox native messaging error'));
+                    });
+            } else if (browserType === 'chromium') {
+                // Chrome/Edge uses callback-based API
+                (window as any).chrome.runtime.sendNativeMessage(
+                    'com.tabagent.host',
+                    message,
+                    (response: any) => {
+                        clearTimeout(timeout);
+                        
+                        if ((window as any).chrome.runtime.lastError) {
+                            reject(new Error((window as any).chrome.runtime.lastError.message || 'Unknown error'));
+                        } else {
+                            resolve(response);
+                        }
+                    }
+                );
+            }
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(error);
+        }
     });
+}
+
+async function loadSystemInformation(): Promise<void> {
+    try {
+        const response = await sendNativeMessage({ action: 'get_system_info' });
+        
+        if (response && response.status === 'success' && response.data) {
+            const info = response.data;
+            
+            // Update system info display
+            const osEl = document.getElementById('sys-os');
+            const cpuEl = document.getElementById('sys-cpu');
+            const ramEl = document.getElementById('sys-ram');
+            const gpuEl = document.getElementById('sys-gpu');
+            const vramEl = document.getElementById('sys-vram');
+            
+            if (osEl) osEl.textContent = info.os || 'Unknown';
+            if (cpuEl) cpuEl.textContent = info.cpu || 'Unknown';
+            if (ramEl) ramEl.textContent = info.ram || 'Unknown';
+            if (gpuEl) gpuEl.textContent = info.gpu || 'Unknown';
+            if (vramEl) vramEl.textContent = info.vram || 'Unknown';
+            
+            // Update success message with system resources
+            const successRam = document.getElementById('success-ram');
+            const successVram = document.getElementById('success-vram');
+            if (successRam) successRam.textContent = info.ram || '--';
+            if (successVram) successVram.textContent = info.vram || '--';
+        }
+    } catch (error) {
+        if (LOG_ERROR) console.error(`${prefix} Failed to load system info:`, error);
+        
+        // Set defaults
+        const osEl = document.getElementById('sys-os');
+        const cpuEl = document.getElementById('sys-cpu');
+        const ramEl = document.getElementById('sys-ram');
+        const gpuEl = document.getElementById('sys-gpu');
+        const vramEl = document.getElementById('sys-vram');
+        
+        if (osEl) osEl.textContent = 'Unable to retrieve';
+        if (cpuEl) cpuEl.textContent = 'Unable to retrieve';
+        if (ramEl) ramEl.textContent = 'Unable to retrieve';
+        if (gpuEl) gpuEl.textContent = 'Unable to retrieve';
+        if (vramEl) vramEl.textContent = 'Unable to retrieve';
+    }
+}
+
+function setupInstallCommand(): void {
+    // Detect OS using navigator.userAgent (more reliable than browser.runtime.getPlatformInfo)
+    const userAgent = navigator.userAgent.toLowerCase();
+    let os: string;
+    
+    if (userAgent.includes('win')) {
+        os = 'win';
+    } else if (userAgent.includes('mac')) {
+        os = 'mac';
+    } else if (userAgent.includes('linux')) {
+        os = 'linux';
+    } else {
+        os = 'unknown';
+    }
+    
+    const osNameEl = document.getElementById('native-os-name');
+    const terminalNameEl = document.getElementById('native-terminal-name');
+    const installScriptLink = document.getElementById('native-install-script-link') as HTMLAnchorElement;
+    
+    let osDisplayName = 'Your OS';
+    let terminalName = 'Terminal';
+    let installCommand = '';
+    let scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.sh';
+    
+    if (os === 'win') {
+        osDisplayName = 'Windows';
+        terminalName = 'PowerShell (as Administrator)';
+        installCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/install.ps1'))"`;
+        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.ps1';
+    } else if (os === 'mac' || os === 'linux') {
+        osDisplayName = os === 'mac' ? 'macOS' : 'Linux';
+        terminalName = 'Terminal';
+        installCommand = `curl -fsSL https://raw.githubusercontent.com/ocentra/TabAgentDist/main/NativeApp/install.sh | bash`;
+        scriptUrl = 'https://github.com/ocentra/TabAgentDist/blob/main/NativeApp/install.sh';
+    }
+    
+    if (osNameEl) osNameEl.textContent = osDisplayName;
+    if (terminalNameEl) terminalNameEl.textContent = terminalName;
+    if (installScriptLink) installScriptLink.href = scriptUrl;
+    
+    // Store install command for copy button
+    const copyBtn = document.getElementById('native-copy-install-btn');
+    if (copyBtn) {
+        (copyBtn as any).dataset.installCommand = installCommand;
+    }
+}
+
+function setupNativeEventListeners(container: HTMLElement): void {
+    // Copy install command button
+    const copyBtn = document.getElementById('native-copy-install-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const installCommand = (copyBtn as any).dataset.installCommand;
+            if (installCommand) {
+                navigator.clipboard.writeText(installCommand).then(() => {
+                    // Show success feedback
+                    const originalText = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '✅ Copied! Paste in your terminal';
+                    copyBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                    copyBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalText;
+                        copyBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                        copyBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    }, 3000);
+                }).catch(err => {
+                    if (LOG_ERROR) console.error(`${prefix} Failed to copy:`, err);
+                    alert('Failed to copy command. Please copy it manually.');
+                });
+            }
+        });
+    }
+    
+    // Test connection button
+    const testBtn = document.getElementById('native-test-connection-btn') as HTMLButtonElement;
+    if (testBtn) {
+        testBtn.addEventListener('click', async () => {
+            testBtn.textContent = '🔄 Testing...';
+            testBtn.disabled = true;
+            
+            await testNativeConnection();
+            
+            setTimeout(() => {
+                testBtn.textContent = '🔄 Test Connection';
+                testBtn.disabled = false;
+            }, 1000);
+        });
+    }
+    
+    // View logs button (placeholder for now)
+    const logsBtn = document.getElementById('native-view-logs-btn');
+    if (logsBtn) {
+        logsBtn.addEventListener('click', () => {
+            alert('Log viewing feature coming soon!');
+        });
+    }
 }
 
 function setupModelManagement(container: HTMLElement): void {
@@ -504,18 +1003,14 @@ export function initializeIntegrationsController(): any {
     const placeholder = integrationsPageContainer.querySelector('p');
     if (placeholder) placeholder.remove();
 
-    // Inject foldout sections
-    const browserModelsFoldout = createBrowserModelsFoldout();
-    integrationsPageContainer.appendChild(browserModelsFoldout);
-
-    const nativeAppFoldout = createNativeAppFoldout();
-    integrationsPageContainer.appendChild(nativeAppFoldout);
-
-    const externalAPIFoldout = createExternalAPIFoldout();
-    integrationsPageContainer.appendChild(externalAPIFoldout);
+    // Initialize tab interface
+    initializeTabInterface(integrationsPageContainer);
 
     // Setup model management functionality
     setupModelManagement(integrationsPageContainer);
+    
+    // Setup native app management functionality
+    setupNativeAppManagement(integrationsPageContainer);
 
     isInitialized = true;
     if (LOG_DEBUG) console.log(`${prefix} Initialized successfully.`);

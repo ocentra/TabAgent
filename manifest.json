@@ -13,7 +13,8 @@
     "declarativeNetRequest",
     "downloads",
     "identity",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "<all_urls>"

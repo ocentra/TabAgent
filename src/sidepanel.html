@@ -22,7 +22,7 @@
             <button id="new-chat-button" title="New Chat" class="p-1 rounded">
                 <!-- Plus Icon replaced with img --> <img id="icon-new-chat" alt="New Chat" class="w-6 h-6 action-icon-img">
             </button>
-            <h1 class="text-lg font-semibold">Tab Agent</h1>
+            <h1 id="main-header-title" class="text-lg font-semibold">Tab Agent</h1>
              <button id="history-button" title="Chat History" class="p-1 rounded">
                 <!-- History Icon (<img>) --> <img id="icon-history" alt="History" class="w-6 h-6 action-icon-img">
             </button>
@@ -121,21 +121,19 @@
 
         <!-- Discover Page -->
         <div id="page-discover" class="page-container absolute inset-0 p-4 hidden">
-            <h2 class="text-xl font-semibold mb-4">Discover</h2>
+           
             <p>Discover content placeholder...</p>
             <!-- Add Discover specific content here -->
         </div>
 
         <!-- Spaces Page -->
-        <div id="page-spaces" class="page-container absolute inset-0 p-4 hidden">
-            <h2 class="text-xl font-semibold mb-4">Spaces</h2>
+        <div id="page-spaces" class="page-container absolute inset-0 p-4 hidden">           
             <p>Spaces placeholder...</p>
             <!-- Add Spaces specific content here -->
         </div>
 
         <!-- Library Page -->
-        <div id="page-library" class="page-container absolute inset-0 p-4 hidden">
-            <h2 class="text-xl font-semibold mb-4">Library (Starred)</h2>
+        <div id="page-library" class="page-container absolute inset-0 p-4 hidden">          
             <p>Starred items placeholder...</p>
             <!-- Add Library specific content here (e.g., list of starred history) -->
              <div id="starred-list"></div>
@@ -143,14 +141,12 @@
 
         <!-- Integrations Page -->
         <div id="page-integrations" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">
-            <h2 class="text-xl font-semibold mb-4">Integrations</h2>
             <p>Manage model sources and API connections...</p>
             <!-- Integrations content will be injected here by JS -->
         </div>
 
         <!-- Connectors Page -->
-        <div id="page-connectors" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">
-            <h2 class="text-xl font-semibold mb-4">Connectors</h2>
+        <div id="page-connectors" class="page-container absolute inset-0 p-4 hidden overflow-y-auto">          
             <p>Manage external service connections...</p>
             <!-- Connectors content will be injected here by JS -->
         </div>

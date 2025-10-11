@@ -6,6 +6,15 @@ venv/
 env/
 packages/
 
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+
 # Log files
 *.log
 logs/

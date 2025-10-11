@@ -47,3 +47,12 @@ fi
 
 echo "Successfully copied executable to TabAgentDist/NativeApp"
 echo
+
+# Clean up build artifacts
+echo "Cleaning up build artifacts..."
+rm -rf dist build
+echo "Build artifacts cleaned up."
+
+echo
+echo "Build process completed successfully!"
+echo

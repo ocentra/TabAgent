@@ -35,13 +35,13 @@ const LOG_GENERAL = false;  // Turn off general logs
 const LOG_DEBUG = false;  // Turn off debug logs
 const LOG_ERROR = true;  // Keep error logging
 const LOG_WARN = false;  // Turn off warning logs
-const LOG_INFO = true;  // Turn ON to trace dropdown/manifest flow
+const LOG_INFO = false;  // Turn OFF to reduce noise for native debugging
 const LOG_UI_UPDATES = false;  // Turn off UI updates logs
 const LOG_QUANT_DROPDOWN = false;  // Turn off quant dropdown logs
-const LOG_MODEL_LOADING = true;  // Keep model loading logs
+const LOG_MODEL_LOADING = false;  // Turn OFF model loading logs for native debugging
 const LOG_EVENTS = false;  // Turn off events logs
 const LOG_PROGRESS_HANDLING = false;  // Turn off to avoid spam
-const LOG_BUTTON_VISIBILITY = true;  // Turn ON to trace button hide/show logic
+const LOG_BUTTON_VISIBILITY = false;  // Turn OFF for native debugging
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {

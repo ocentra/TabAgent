@@ -61,10 +61,27 @@ if exist requirements.txt (
 echo.
 echo Setup completed successfully!
 echo.
-echo To activate the environment in the future, run:
-echo   call venv\Scripts\activate.bat
+
+REM Ask if user wants to build now
+set /p BUILD="Build executable now? (Y/n): "
+if /i "%BUILD%"=="n" (
+    echo.
+    echo Skipping build. To build later, run:
+    echo   cd build-tool
+    echo   build.bat
+    echo.
+    pause
+    exit /b 0
+)
+
 echo.
-echo To build the executable, run:
-echo   build.bat
+echo Building executable...
+echo.
+cd build-tool
+call build.bat
+cd ..
+
+echo.
+echo All done! Executable ready in TabAgentDist\NativeApp\
 echo.
 pause

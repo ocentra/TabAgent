@@ -105,7 +105,7 @@ const LOG_DEBUG = false;  // Detailed internal state (for deep debugging)
 // Feature-specific logging - Enable individually to debug specific subsystems
 const LOG_MANIFEST_GENERATION = false;  // Manifest creation → Enable to debug model manifest issues
 const LOG_INFERENCE_SETTINGS = false;   // Settings loading → Enable to debug AI parameter issues
-const LOG_WORKER_READY = true;  // Track WORKER_READY event and currentLoadedModel updates
+const LOG_WORKER_READY = false;  // Track WORKER_READY event and currentLoadedModel updates - OFF for native debugging
 const senderId = 'sidepanel-' + Math.random().toString(36).slice(2) + '-' + Date.now();
 
 // --- Global State ---

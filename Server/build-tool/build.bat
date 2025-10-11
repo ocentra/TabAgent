@@ -54,4 +54,14 @@ if %errorlevel% neq 0 (
 
 echo Successfully copied executable to TabAgentDist\NativeApp
 echo.
+
+REM Clean up build artifacts
+echo Cleaning up build artifacts...
+if exist "dist" rmdir /s /q "dist"
+if exist "build" rmdir /s /q "build"
+echo Build artifacts cleaned up.
+
+echo.
+echo Build process completed successfully!
+echo.
 pause

@@ -11,10 +11,10 @@ import {
 } from '../DB/idbConnectors';
 
 // Logging constants
-const LOG_GENERAL = true;
-const LOG_DEBUG = true;  // ENABLED FOR DEBUGGING INSERT FLOW
+const LOG_GENERAL = false;  // Turn OFF for native debugging
+const LOG_DEBUG = false;  // Turn OFF for native debugging
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;  // Turn OFF for native debugging
 const prefix = '[UnifiedAttachmentController]';
 
 let isInitialized = false;

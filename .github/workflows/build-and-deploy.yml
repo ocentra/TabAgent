@@ -10,6 +10,13 @@ on:
       - 'manifest.json'
       - '.github/workflows/build-and-deploy.yml'
   workflow_dispatch:
+    inputs:
+      bitnet_version:
+        description: 'BitNet build version to use (e.g., build-123 or latest)'
+        required: false
+        default: 'latest'
+  repository_dispatch:
+    types: [bitnet_release]
 
 jobs:
   # Job 1: Build Browser Extension
@@ -38,9 +45,71 @@ jobs:
         name: extension
         path: TabAgentDist/Extension/
 
-  # Job 2: Build Native Host Binaries (3 platforms)
+  # Job 2: Download BitNet Complete Release (CPU + GPU)
+  download-bitnet-release:
+    name: Download BitNet Complete Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Determine BitNet version
+      id: bitnet_version
+      run: |
+        if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          VERSION="${{ github.event.client_payload.release_tag }}"
+          RELEASE_URL="${{ github.event.client_payload.release_url }}"
+        elif [ -n "${{ github.event.inputs.bitnet_version }}" ]; then
+          VERSION="${{ github.event.inputs.bitnet_version }}"
+          RELEASE_URL=""
+        else
+          VERSION="latest"
+          RELEASE_URL=""
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "release_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+        echo "📦 Using BitNet version: $VERSION"
+    
+    - name: Download BitNet Release
+      run: |
+        VERSION="${{ steps.bitnet_version.outputs.version }}"
+        RELEASE_URL="${{ steps.bitnet_version.outputs.release_url }}"
+        REPO="ocentra/BitNet"
+        
+        # Determine download URL
+        if [ -n "$RELEASE_URL" ]; then
+          echo "📥 Downloading from provided URL: $RELEASE_URL"
+          DOWNLOAD_URL="$RELEASE_URL"
+        elif [ "$VERSION" = "latest" ]; then
+          echo "📥 Downloading latest BitNet release..."
+          DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/BitNet-Release.zip"
+        else
+          echo "📥 Downloading BitNet release version: $VERSION"
+          DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/BitNet-Release.zip"
+        fi
+        
+        # Download and extract
+        curl -L "$DOWNLOAD_URL" -o BitNet-Release.zip
+        
+        if [ -f "BitNet-Release.zip" ]; then
+          unzip -q BitNet-Release.zip -d BitNet-Release/
+          echo "✅ BitNet release downloaded and extracted"
+          echo "📁 Contents:"
+          ls -R BitNet-Release/
+        else
+          echo "❌ Failed to download BitNet release!"
+          exit 1
+        fi
+    
+    - name: Upload BitNet Release as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: bitnet-complete-release
+        path: BitNet-Release/
+
+  # Job 3: Build Native Host Binaries (3 platforms)
   build-binaries:
     name: Build Native Host (${{ matrix.platform }})
+    needs: download-bitnet-release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -58,6 +127,47 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    
+    - name: Download BitNet Complete Release
+      uses: actions/download-artifact@v4
+      with:
+        name: bitnet-complete-release
+        path: BitNet-Release/
+    
+    - name: Integrate BitNet CPU and GPU into Server
+      shell: bash
+      run: |
+        PLATFORM="${{ matrix.platform }}"
+        
+        echo "📦 Integrating BitNet $PLATFORM components..."
+        
+        # Create directories
+        mkdir -p Server/backends/bitnet/binaries/$PLATFORM
+        mkdir -p Server/backends/bitnet/gpu/$PLATFORM
+        
+        # Copy CPU binary
+        if [ "$PLATFORM" = "windows" ]; then
+          cp BitNet-Release/cpu/windows/llama-server.exe Server/backends/bitnet/binaries/windows/
+          echo "✅ CPU binary copied"
+        else
+          cp BitNet-Release/cpu/$PLATFORM/llama-server Server/backends/bitnet/binaries/$PLATFORM/
+          chmod +x Server/backends/bitnet/binaries/$PLATFORM/llama-server
+          echo "✅ CPU binary copied"
+        fi
+        
+        # Copy GPU modules and kernels
+        if [ -d "BitNet-Release/gpu/$PLATFORM" ]; then
+          cp -r BitNet-Release/gpu/$PLATFORM/* Server/backends/bitnet/gpu/$PLATFORM/
+          echo "✅ GPU modules copied"
+        else
+          echo "⚠️ No GPU modules for $PLATFORM"
+        fi
+        
+        echo "📁 BitNet integration complete:"
+        echo "  CPU:"
+        ls -lh Server/backends/bitnet/binaries/$PLATFORM/
+        echo "  GPU:"
+        ls -lh Server/backends/bitnet/gpu/$PLATFORM/ 2>/dev/null || echo "  (none)"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -94,15 +204,21 @@ jobs:
         name: binary-${{ matrix.platform }}
         path: TabAgentDist/NativeApp/binaries/${{ matrix.platform }}/
 
-  # Job 3: Build Windows MSI
-  build-msi:
-    name: Build Windows MSI Installer
-    needs: build-binaries
+  # Job 4: Prepare Windows Installer (PowerShell GUI)
+  prepare-windows-installer:
+    name: Prepare Windows PowerShell Installer
+    needs: [build-extension, build-binaries]
     runs-on: windows-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Download extension artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: extension
+        path: TabAgentDist/Extension
 
     - name: Download Windows binary
       uses: actions/download-artifact@v4
@@ -110,34 +226,39 @@ jobs:
         name: binary-windows
         path: TabAgentDist/NativeApp/binaries/windows
 
-    - name: Install WiX Toolset
+    - name: Create Release folder and zip extension
       shell: pwsh
       run: |
-        choco install wixtoolset -y
-        # Refresh PATH
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        $releaseDir = "TabAgentDist/Release"
+        New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+        Compress-Archive -Path "TabAgentDist/Extension/*" -DestinationPath "$releaseDir/tabagent-extension.zip" -Force
+        Write-Host "Extension zipped to Release folder"
 
-    - name: Build MSI
-      shell: pwsh
-      run: |
-        cd TabAgentDist/NativeApp/installers/windows
-        .\build-msi.bat
 
-    - name: Upload MSI artifact
+    - name: Upload Windows installer package
       uses: actions/upload-artifact@v4
       with:
-        name: installer-msi
-        path: TabAgentDist/NativeApp/installers/windows/TabAgent-Setup.msi
+        name: installer-windows
+        path: |
+          TabAgentDist/Release/
+          TabAgentDist/NativeApp/binaries/windows/
+          TabAgentDist/NativeApp/installers/windows/
 
-  # Job 4: Build macOS PKG
-  build-pkg:
-    name: Build macOS PKG Installer
-    needs: build-binaries
+  # Job 5: Prepare macOS Installer (Shell Script)
+  prepare-macos-installer:
+    name: Prepare macOS Shell Installer
+    needs: [build-extension, build-binaries]
     runs-on: macos-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Download extension artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: extension
+        path: TabAgentDist/Extension
 
     - name: Download macOS binary
       uses: actions/download-artifact@v4
@@ -149,27 +270,38 @@ jobs:
       run: |
         chmod +x TabAgentDist/NativeApp/binaries/macos/tabagent-host
 
-    - name: Build PKG
+    - name: Create Release folder and zip extension
       run: |
-        cd TabAgentDist/NativeApp/installers/macos
-        chmod +x build-pkg.sh
-        ./build-pkg.sh
+        mkdir -p TabAgentDist/Release
+        cd TabAgentDist/Extension
+        zip -r ../Release/tabagent-extension.zip .
+        echo "Extension zipped to Release folder"
 
-    - name: Upload PKG artifact
+
+    - name: Upload macOS installer package
       uses: actions/upload-artifact@v4
       with:
-        name: installer-pkg
-        path: TabAgentDist/NativeApp/installers/macos/TabAgent-Setup.pkg
+        name: installer-macos
+        path: |
+          TabAgentDist/Release/
+          TabAgentDist/NativeApp/binaries/macos/
+          TabAgentDist/NativeApp/installers/macos/
 
-  # Job 5: Build Linux DEB
-  build-deb:
-    name: Build Linux DEB Package
-    needs: build-binaries
+  # Job 6: Prepare Linux Installer (Shell Script)
+  prepare-linux-installer:
+    name: Prepare Linux Shell Installer
+    needs: [build-extension, build-binaries]
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Download extension artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: extension
+        path: TabAgentDist/Extension
 
     - name: Download Linux binary
       uses: actions/download-artifact@v4
@@ -181,59 +313,27 @@ jobs:
       run: |
         chmod +x TabAgentDist/NativeApp/binaries/linux/tabagent-host
 
-    - name: Build DEB
+    - name: Create Release folder and zip extension
       run: |
-        cd TabAgentDist/NativeApp/installers/linux
-        chmod +x build-deb.sh
-        ./build-deb.sh
+        mkdir -p TabAgentDist/Release
+        cd TabAgentDist/Extension
+        zip -r ../Release/tabagent-extension.zip .
+        echo "Extension zipped to Release folder"
 
-    - name: Upload DEB artifact
+
+    - name: Upload Linux installer package
       uses: actions/upload-artifact@v4
       with:
-        name: installer-deb
-        path: TabAgentDist/NativeApp/installers/linux/tabagent_*.deb
-
-  # Job 6: Build Linux RPM
-  build-rpm:
-    name: Build Linux RPM Package
-    needs: build-binaries
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download Linux binary
-      uses: actions/download-artifact@v4
-      with:
-        name: binary-linux
-        path: TabAgentDist/NativeApp/binaries/linux
-
-    - name: Make binary executable
-      run: |
-        chmod +x TabAgentDist/NativeApp/binaries/linux/tabagent-host
-
-    - name: Install RPM build tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y rpm
-
-    - name: Build RPM
-      run: |
-        cd TabAgentDist/NativeApp/installers/linux
-        chmod +x build-rpm.sh
-        ./build-rpm.sh
-
-    - name: Upload RPM artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: installer-rpm
-        path: TabAgentDist/NativeApp/installers/linux/tabagent-*.rpm
+        name: installer-linux
+        path: |
+          TabAgentDist/Release/
+          TabAgentDist/NativeApp/binaries/linux/
+          TabAgentDist/NativeApp/installers/linux/
 
   # Job 7: Deploy Everything to TabAgentDist
   deploy:
     name: Deploy to TabAgentDist Repository
-    needs: [build-extension, build-msi, build-pkg, build-deb, build-rpm]
+    needs: [build-extension, prepare-windows-installer, prepare-macos-installer, prepare-linux-installer]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master'
     
@@ -275,12 +375,22 @@ jobs:
         cp -r ./artifacts/binaries/binary-macos/* ./dist-repo/NativeApp/binaries/macos/
         cp -r ./artifacts/binaries/binary-linux/* ./dist-repo/NativeApp/binaries/linux/
 
-    - name: Copy installers to TabAgentDist
+    - name: Copy Release folder and installers to TabAgentDist
       run: |
-        cp ./artifacts/installers/installer-msi/* ./dist-repo/NativeApp/installers/windows/ 2>/dev/null || true
-        cp ./artifacts/installers/installer-pkg/* ./dist-repo/NativeApp/installers/macos/ 2>/dev/null || true
-        cp ./artifacts/installers/installer-deb/* ./dist-repo/NativeApp/installers/linux/ 2>/dev/null || true
-        cp ./artifacts/installers/installer-rpm/* ./dist-repo/NativeApp/installers/linux/ 2>/dev/null || true
+        # Create Release folder
+        mkdir -p ./dist-repo/Release
+        
+        # Copy Windows installer (PowerShell scripts + Release folder)
+        cp -r ./artifacts/installers/installer-windows/TabAgentDist/Release/* ./dist-repo/Release/ 2>/dev/null || true
+        cp -r ./artifacts/installers/installer-windows/TabAgentDist/NativeApp/installers/windows/* ./dist-repo/NativeApp/installers/windows/ 2>/dev/null || true
+        
+        # Copy macOS installer (Shell scripts + Release folder)
+        cp -r ./artifacts/installers/installer-macos/TabAgentDist/Release/* ./dist-repo/Release/ 2>/dev/null || true
+        cp -r ./artifacts/installers/installer-macos/TabAgentDist/NativeApp/installers/macos/* ./dist-repo/NativeApp/installers/macos/ 2>/dev/null || true
+        
+        # Copy Linux installer (Shell scripts + Release folder)
+        cp -r ./artifacts/installers/installer-linux/TabAgentDist/Release/* ./dist-repo/Release/ 2>/dev/null || true
+        cp -r ./artifacts/installers/installer-linux/TabAgentDist/NativeApp/installers/linux/* ./dist-repo/NativeApp/installers/linux/ 2>/dev/null || true
 
     - name: Commit and push to TabAgentDist
       run: |
@@ -341,21 +451,23 @@ jobs:
           ### 🚀 Installation Options
           
           **Windows:**
-          - Download `TabAgent-Setup.msi` and double-click
-          - Or run PowerShell: `irm https://install.tabagent.com/windows | iex`
+          - Download `NativeApp/installers/windows/install-gui.ps1`
+          - Right-click > Run with PowerShell
+          - Or: `powershell -ExecutionPolicy Bypass -File install-gui.ps1`
+          - Extension zip will be downloaded automatically from Release folder
           
           **macOS:**
-          - Download `TabAgent-Setup.pkg` and double-click
-          - Or run Terminal: `curl -fsSL https://install.tabagent.com/macos | bash`
+          - Download `NativeApp/installers/macos/install-tabagent.sh`
+          - Run in Terminal: `chmod +x install-tabagent.sh && ./install-tabagent.sh`
+          - Extension zip will be downloaded automatically from Release folder
           
-          **Linux (Debian/Ubuntu):**
-          - Download and install: `sudo dpkg -i tabagent_*.deb`
-          
-          **Linux (RedHat/Fedora):**
-          - Download and install: `sudo rpm -i tabagent-*.rpm`
+          **Linux:**
+          - Download `NativeApp/installers/linux/install-tabagent.sh`
+          - Run in Terminal: `chmod +x install-tabagent.sh && ./install-tabagent.sh`
+          - Extension zip will be downloaded automatically from Release folder
           
           **Manual Extension Load:**
-          - Download `TabAgent-Extension-*.zip`
+          - Download `Release/tabagent-extension.zip`
           - Extract and load unpacked in browser
           
           ### 📋 What's Included
@@ -369,10 +481,7 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          ./installers/installer-msi/*
-          ./installers/installer-pkg/*
-          ./installers/installer-deb/*
-          ./installers/installer-rpm/*
+          ./installers/installer-windows/TabAgentDist/Release/tabagent-extension.zip
           ./TabAgent-Extension-${{ github.ref_name }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.TABAGENT_DIST_TOKEN }}

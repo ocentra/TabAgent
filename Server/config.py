@@ -1,15 +1,10 @@
-# Tab Agent Native Host Configuration
+"""
+Configuration shim for backward compatibility.
+Imports all configuration from core.config module.
+"""
 
-# Logging configuration
-LOG_LEVEL = "INFO"
-LOG_FILE = "native_host.log"
+from core.config import *
 
-# Security settings
-# Whitelist of allowed commands (empty list means all commands allowed - FOR DEVELOPMENT ONLY)
-ALLOWED_COMMANDS = []
+# This file exists for backward compatibility
+# All configuration is now in core/config.py
 
-# Timeout for command execution (seconds)
-COMMAND_TIMEOUT = 30
-
-# Maximum message size (bytes)
-MAX_MESSAGE_SIZE = 1024 * 1024  # 1MB

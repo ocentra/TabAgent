@@ -95,9 +95,69 @@ module.exports = {
 - [ ] Version comparison and changelog display
 
 ### LM Studio Integration
-- [ ] Deep integration with LM Studio API
-- [ ] Model management through extension
-- [ ] Auto-start LM Studio when needed
+
+#### Server Side (✅ Completed)
+- [x] LM Studio manager in `Server/backends/lmstudio/`
+- [x] Server lifecycle management (start/stop/status)
+- [x] Auto-start on native_host.py launch
+- [x] API health checking
+- [x] Strongly typed protocol
+
+#### Memory Management Improvements (🔧 TODO)
+- [ ] **Auto VRAM Detection & Layer Offloading**
+  - llama-server requires manual `-ngl` (gpu layers) tuning
+  - LM Studio auto-detects VRAM and splits layers intelligently
+  - **We should add smart wrapper logic:**
+    - Detect available GPU VRAM (via nvidia-smi or CUDA API)
+    - Calculate optimal `-ngl` value based on model size
+    - Auto-fallback to CPU if VRAM insufficient
+    - Dynamic adjustment if model doesn't fit
+  - Example: RTX 2070 (8GB) → auto-calculate max layers for model
+  - Location: `Server/backends/bitnet/manager.py` and `Server/backends/lmstudio/manager.py`
+  - **Inspiration**: [Lemonade SDK](https://github.com/lemonade-sdk/lemonade) does this for AMD NPU/GPU detection
+
+#### Runtime Backend Selection (🔧 TODO - Inspired by Lemonade)
+- [ ] **Add CLI flags for backend selection** (similar to Lemonade's `--llamacpp vulkan/rocm`):
+  - `--backend bitnet-cpu` - Force BitNet CPU inference
+  - `--backend bitnet-gpu` - Force BitNet GPU inference (CUDA)
+  - `--backend llama-cuda` - Force standard llama.cpp with CUDA
+  - `--backend llama-vulkan` - Force standard llama.cpp with Vulkan
+  - `--backend llama-cpu` - Force CPU-only mode
+  - Auto-detect if not specified
+- [ ] **Hardware capability detection**:
+  - Detect NVIDIA GPU (CUDA availability)
+  - Detect AMD GPU (Vulkan/ROCm availability)
+  - Detect Apple Silicon (Metal availability)
+  - Auto-select best backend for hardware
+- [ ] **Model-aware routing**:
+  - BitNet models → BitNet backend (CPU or GPU based on hardware)
+  - GGUF models → Standard llama.cpp (with best GPU backend)
+  - Fallback chain: GPU → CPU if GPU unavailable
+
+#### Extension Side (⏳ TODO - After Server Complete)
+- [ ] Install LM Studio.js SDK (`npm install lmstudio`)
+- [ ] Create LM Studio controller/integration layer
+- [ ] Implement hybrid routing:
+  - [ ] Direct SDK mode (when native app not available)
+  - [ ] Native app proxy mode (when available)
+  - [ ] Auto-detection and fallback logic
+- [ ] Add LM Studio status check in Integrations tab
+- [ ] Update model selection UI:
+  - [ ] Show available backends (BitNet, LM Studio, WebGPU)
+  - [ ] Model type detection and routing
+  - [ ] Backend status indicators
+- [ ] Connection check button in UI
+- [ ] Handle LM Studio not installed/not running states
+- [ ] Add "Install LM Studio" guidance when missing
+
+#### Integration Points
+- [ ] Extension checks native app availability
+- [ ] Extension checks LM Studio availability (both direct and via native)
+- [ ] Smart backend selection based on model type:
+  - BitNet models → Native app (required)
+  - LM Studio models → Direct SDK (preferred) or Native proxy
+  - WebGPU models → Browser only
+- [ ] Status dashboard showing all backend availability
 
 ### Testing
 - [ ] Unit tests for core functionality

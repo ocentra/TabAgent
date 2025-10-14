@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -35,9 +35,9 @@ interface InstallerConfig {
 const installerConfigs: Record<string, InstallerConfig> = {
     win32: {
         installerDir: join(rootDir, 'TabAgentDist', 'NativeApp', 'installers', 'windows'),
-        buildScript: 'build-msi.bat',
-        command: 'cmd',
-        outputFile: 'TabAgent-Setup.msi',
+        buildScript: 'install-gui.ps1',  // PowerShell GUI installer (no MSI needed)
+        command: 'powershell',
+        outputFile: 'install-gui.ps1',
         binaryPath: join(rootDir, 'TabAgentDist', 'NativeApp', 'binaries', 'windows', 'tabagent-host.exe')
     },
     darwin: {
@@ -82,49 +82,117 @@ if (!existsSync(config.binaryPath)) {
 
 console.log('✅ Native host binary found');
 
-// Check platform-specific tools
-if (isWindows) {
-    console.log('🔍 Checking for WiX Toolset...');
-    console.log('⚠️  If build fails, install: choco install wixtoolset');
+// Copy binary to installer directory for build scripts
+console.log('📋 Copying binary to installer directory...');
+const binaryFileName = isWindows ? 'tabagent-host.exe' : 'tabagent-host';
+const targetBinaryPath = join(config.installerDir, binaryFileName);
+try {
+    copyFileSync(config.binaryPath, targetBinaryPath);
+    console.log('✅ Binary copied');
+} catch (error) {
+    console.error('❌ Failed to copy binary:', error);
+    process.exit(1);
+}
+
+// Create extension zip file
+console.log('📋 Creating extension zip file...');
+const extensionSourcePath = join(rootDir, 'TabAgentDist', 'Extension');
+const releaseDir = join(rootDir, 'TabAgentDist', 'Release');
+const releaseZipPath = join(releaseDir, 'tabagent-extension.zip');
+const installerZipPath = join(config.installerDir, 'tabagent-extension.zip');
+
+if (existsSync(extensionSourcePath)) {
+    try {
+        const { execSync } = await import('child_process');
+        const { rmSync } = await import('fs');
+        
+        // Create Release directory if it doesn't exist
+        if (!existsSync(releaseDir)) {
+            mkdirSync(releaseDir, { recursive: true });
+            console.log('✅ Created Release directory');
+        }
+        
+        // Remove existing zips if they exist
+        if (existsSync(releaseZipPath)) {
+            rmSync(releaseZipPath);
+        }
+        if (existsSync(installerZipPath)) {
+            rmSync(installerZipPath);
+        }
+        
+        // Create zip file using PowerShell (works on Windows)
+        if (isWindows) {
+            execSync(`powershell -command "Compress-Archive -Path '${extensionSourcePath}\\*' -DestinationPath '${releaseZipPath}' -Force"`, { stdio: 'inherit' });
+        } else {
+            // Use zip command for macOS/Linux
+            execSync(`cd "${extensionSourcePath}" && zip -r "${releaseZipPath}" .`, { stdio: 'inherit' });
+        }
+        
+        console.log('✅ Extension zip created in Release folder');
+        
+        // Copy to installer directory for backward compatibility
+        copyFileSync(releaseZipPath, installerZipPath);
+        console.log('✅ Extension zip copied to installer directory');
+        
+    } catch (error) {
+        console.error('❌ Failed to create extension zip:', error);
+        process.exit(1);
+    }
+} else {
+    console.log('⚠️ Extension folder not found, skipping...');
+    console.log(`   Expected at: ${extensionSourcePath}`);
 }
 
 console.log('');
-console.log('🔨 Building installer...');
+console.log('✅ Installer preparation complete!');
 console.log('');
 
-const args = isWindows ? ['/c', config.buildScript] : [config.buildScript];
-const buildProcess = spawn(config.command, args, {
-    cwd: config.installerDir,
-    stdio: 'inherit',
-    shell: true
-});
+const outputPath = join(config.installerDir, config.outputFile);
 
-buildProcess.on('error', (error) => {
-    console.error('❌ Build failed:', error);
-    process.exit(1);
-});
+console.log('📦 Installer location:');
+console.log(`   ${outputPath}`);
+console.log('');
+console.log('🚀 To run the installer:');
 
-buildProcess.on('close', (code) => {
-    const outputPath = join(config.installerDir, config.outputFile);
+if (isWindows) {
+    console.log('   Option 1: Double-click install-gui.ps1');
+    console.log('   Option 2: Right-click > Run with PowerShell');
+    console.log(`   Option 3: powershell -ExecutionPolicy Bypass -File "${outputPath}"`);
+} else if (isMac) {
+    console.log('   Building macOS .pkg installer...');
+    const buildProcess = spawn(config.command, [config.buildScript], {
+        cwd: config.installerDir,
+        stdio: 'inherit',
+        shell: true
+    });
     
-    if (code === 0) {
-        console.log('');
-        console.log('✅ Installer built successfully!');
-        console.log(`📦 Output: ${outputPath}`);
-        console.log('');
-        console.log('🚀 To test the installer:');
-        if (isWindows) {
-            console.log(`   ${outputPath}`);
-            console.log('   (Double-click to run)');
-        } else if (isMac) {
+    buildProcess.on('close', (code) => {
+        if (code === 0) {
+            console.log('');
+            console.log('✅ macOS installer built successfully!');
             console.log(`   open "${outputPath}"`);
         } else {
-            console.log(`   sudo dpkg -i "${outputPath}"`);
+            console.error(`❌ Build failed with exit code ${code}`);
+            process.exit(code || 1);
         }
-        process.exit(0);
-    } else {
-        console.error(`❌ Build failed with exit code ${code}`);
-        process.exit(code || 1);
-    }
-});
+    });
+} else {
+    console.log('   Building Linux .deb installer...');
+    const buildProcess = spawn(config.command, [config.buildScript], {
+        cwd: config.installerDir,
+        stdio: 'inherit',
+        shell: true
+    });
+    
+    buildProcess.on('close', (code) => {
+        if (code === 0) {
+            console.log('');
+            console.log('✅ Linux installer built successfully!');
+            console.log(`   sudo dpkg -i "${outputPath}"`);
+        } else {
+            console.error(`❌ Build failed with exit code ${code}`);
+            process.exit(code || 1);
+        }
+    });
+}
 

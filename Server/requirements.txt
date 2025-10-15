@@ -8,6 +8,10 @@
 # Core dependencies
 pydantic>=2.0.0
 requests>=2.31.0
+
+# API Server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
 typing-extensions>=4.5.0
 
 # Hardware detection (required)
@@ -41,3 +45,9 @@ transformers>=4.30.0  # For ONNX tokenization
 # llama.cpp - uses subprocess + binaries from CI/CD (no Python deps)
 # ONNX Runtime - uses onnxruntime-directml + transformers
 # MediaPipe - uses mediapipe package (Python 3.9-3.12 only)
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+httpx>=0.24.0  # For async testing

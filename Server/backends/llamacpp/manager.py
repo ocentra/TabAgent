@@ -26,6 +26,7 @@ from server_mgmt import (
 from .config import (
     LlamaCppConfig,
     LlamaCppBackend,
+    LlamaCppBinaryName,
 )
 
 
@@ -92,9 +93,21 @@ class LlamaCppManager:
         if not path.exists():
             raise FileNotFoundError(f"Model file not found: {model_path}")
         
-        binary_path = Path(config.binary_path)
+        # Use llama-server-standard from bitnet Binary/ folder
+        # (Both bitnet and standard binaries are there)
+        system_name = platform.system().lower()
+        binary_name = "llama-server-standard.exe" if system_name == "windows" else "llama-server-standard"
+        
+        # Point to bitnet/Binary (shares binaries with BitNetManager)
+        backend_dir = Path(__file__).parent.parent / "bitnet"
+        binary_path = backend_dir / "Binary" / system_name / "cpu" / binary_name
+        
         if not binary_path.exists():
-            raise FileNotFoundError(f"llama-server binary not found: {config.binary_path}")
+            raise FileNotFoundError(
+                f"Binary not found: {binary_path}\n"
+                f"Expected: llama-server-standard\n"
+                f"Copy from: BitNet/Release/cpu/{system_name}/"
+            )
         
         logger.info(
             f"Loading model with llama.cpp: {model_path} "

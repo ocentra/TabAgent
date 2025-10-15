@@ -26,6 +26,9 @@ from core.message_types import (
     LoadingStatus
 )
 
+# Import shared inference service (DRY - used by both HTTP and stdin)
+from core.inference_service import get_inference_service
+
 # Import backend implementations
 from backends.bitnet import BitNetManager, BitNetConfig, GGUFValidator
 from backends.lmstudio import LMStudioManager
@@ -56,7 +59,10 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# Initialize backend managers
+# Use shared inference service (DRY - same instance as HTTP API)
+_inference_service = get_inference_service()
+
+# Initialize backend managers (legacy - will migrate to service)
 bitnet_manager: Optional[BitNetManager] = None
 lmstudio_manager: Optional[LMStudioManager] = None
 
@@ -166,93 +172,28 @@ def handle_execute_command(message: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_load_model(message: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle model loading request from extension
-    Detects model type and routes to appropriate backend
+    Handle model loading request from extension.
+    Uses shared InferenceService (DRY).
     """
-    global bitnet_manager
-    
     try:
         # Validate request
         request = LoadModelRequest(**message)
         model_path = request.modelPath
         
-        logging.info(f"Load model request: {model_path}")
-        
-        # Detect model type
-        model_type = GGUFValidator.detect_model_type(model_path)
-        logging.info(f"Detected model type: {model_type.value}")
-        
-        # Detect GPU availability
-        has_gpu = GGUFValidator.detect_cuda_available()
-        logging.info(f"CUDA available: {has_gpu}")
-        
-        # Get appropriate backend
-        backend_type = GGUFValidator.get_backend_for_model(model_type, has_gpu=has_gpu)
-        logging.info(f"Selected backend: {backend_type.value}")
-        
-        # Route to backend
-        if backend_type == BackendType.BITNET_CPU or backend_type == BackendType.BITNET_GPU:
-            # Initialize BitNet manager if needed
-            if bitnet_manager is None:
-                bitnet_manager = BitNetManager(BitNetConfig())
-            
-            # Load model with progress callback
-            def progress_callback(status: LoadingStatus, progress: int, message: str):
-                send_message({
-                    "type": EventType.MODEL_LOADING_PROGRESS.value,
-                    "payload": {
-                        "status": status.value,
-                        "progress": progress,
-                        "file": os.path.basename(model_path),
-                        "message": message
-                    }
-                })
-            
-            bitnet_manager.load_model(model_path, progress_callback)
-            
-            return {
-                "status": "success",
-                "type": EventType.WORKER_READY.value,
+        # Progress callback for native messaging
+        def progress_callback(status: LoadingStatus, progress: int, msg: str):
+            send_message({
+                "type": EventType.MODEL_LOADING_PROGRESS.value,
                 "payload": {
-                    "backend": backend_type.value,
-                    "modelPath": model_path,
-                    "executionProvider": backend_type.value
+                    "status": status.value,
+                    "progress": progress,
+                    "file": os.path.basename(model_path),
+                    "message": msg
                 }
-            }
+            })
         
-        elif backend_type == BackendType.LMSTUDIO:
-            # Initialize LM Studio manager if needed
-            if lmstudio_manager is None:
-                lmstudio_manager = LMStudioManager()
-            
-            # Ensure server is running
-            if not lmstudio_manager.ensure_server_running():
-                return {
-                    "status": "error",
-                    "message": "LM Studio server failed to start. Is LM Studio installed?"
-                }
-            
-            # Note: Model loading is handled by LM Studio itself
-            # Extension uses SDK to load models
-            # Native app just ensures server is running
-            logging.info(f"LM Studio backend selected, server running")
-            
-            return {
-                "status": "success",
-                "type": EventType.WORKER_READY.value,
-                "payload": {
-                    "backend": backend_type.value,
-                    "modelPath": model_path,
-                    "executionProvider": "lmstudio",
-                    "note": "Model loading handled by LM Studio. Use extension SDK."
-                }
-            }
-        
-        else:
-            return {
-                "status": "error",
-                "message": f"Unsupported model type: {model_type.value}"
-            }
+        # Use shared service (same logic for HTTP and native)
+        return _inference_service.load_model(model_path, progress_callback)
     
     except FileNotFoundError as e:
         logging.error(f"Model file not found: {e}")
@@ -270,30 +211,14 @@ def handle_load_model(message: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_generate(message: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle text generation request from extension
-    Routes to appropriate backend based on loaded model
+    Handle text generation request from extension.
+    Uses shared InferenceService (DRY).
     """
-    global bitnet_manager, lmstudio_manager
-    
     try:
         # Validate request
         request = GenerateRequest(**message)
         
-        # Determine which backend to use
-        backend_name = None
-        if bitnet_manager is not None and bitnet_manager.is_model_loaded:
-            backend_name = "BitNet"
-        elif lmstudio_manager is not None and lmstudio_manager.is_server_running:
-            backend_name = "LM Studio"
-        else:
-            return {
-                "status": "error",
-                "message": "No model loaded. Load a model first or ensure LM Studio is running."
-            }
-        
-        logging.info(f"Generate request with {len(request.messages)} messages using {backend_name}")
-        
-        # Stream callback
+        # Stream callback for native messaging
         def stream_callback(token: str, tps: Optional[str], num_tokens: int):
             send_message({
                 "type": EventType.GENERATION_UPDATE.value,
@@ -304,29 +229,12 @@ def handle_generate(message: Dict[str, Any]) -> Dict[str, Any]:
                 }
             })
         
-        # Generate text using active backend
-        if backend_name == "BitNet":
-            generated_text = bitnet_manager.generate(
-                messages=request.messages,
-                settings=request.settings,
-                stream_callback=stream_callback
-            )
-        else:  # LM Studio
-            generated_text = lmstudio_manager.proxy_chat_completion(
-                messages=request.messages,
-                settings=request.settings,
-                stream_callback=stream_callback
-            )
-        
-        # Send completion event
-        return {
-            "status": "success",
-            "type": EventType.GENERATION_COMPLETE.value,
-            "payload": {
-                "output": generated_text,
-                "generatedText": generated_text
-            }
-        }
+        # Use shared service (same logic for HTTP and native)
+        return _inference_service.generate(
+            messages=request.messages,
+            settings=request.settings,
+            stream_callback=stream_callback
+        )
     
     except Exception as e:
         logging.error(f"Generation error: {e}")

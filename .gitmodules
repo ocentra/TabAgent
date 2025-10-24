@@ -1,5 +1,5 @@
 [submodule "Server"]
-	path = Server
+	path = TabAgentServer
 	url = https://github.com/ocentra/TabAgentServer.git
 [submodule "TabAgentDist"]
 	path = TabAgentDist

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tab Agent",
-  "version": "1.0",
+  "version": "1.0.2",
   "key": "MD8BIjANCgYJKj9IPz8NCgEBAQUAAz8BDwAwPwENCgI/AQEAP28/Fz8/Pz8/EwU/Pz8/FDE/P28/Pz89Pz8/eD8/Wz8/Pz8/Fz8/PzpyXzdRXRNLNj9pPz8/Pz80Pz9APyw/Tz8MPz8/Pz8/P1F+ThU/MgkZGD9UKWw2bD8ac3Fvfj91PwY/Pz86PxcDP14/Bgs/P0MmPD8/WT8/Pz86MjFSPzk/Py4/DQo+PzY/BicCP3VXDQo/Pz8oPjsXG1g/O0w/P20/P1h3Uj8/Pz8/P2xaPxk/Pz8eP3I/Pz8/ZxclOz8/Pz9IeWlDPz8TbBJSPz4EPz8QP1M/PwVOJnEuPz8/Jw0KPxc/Vj8/Pz9oFz8mPys/P0I/NjZKDz8/Pz8tPxg/Hj55PwIDAQABDQo=",
   "browser_specific_settings": {
     "gecko": {
@@ -62,7 +62,9 @@
         "xenova/*",
         "model/*"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "action": {},

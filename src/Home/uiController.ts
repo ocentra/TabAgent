@@ -4,9 +4,10 @@ import { clearTemporaryMessages, renderTemporaryMessage } from './chatRenderer';
 import browser from 'webextension-polyfill';
 import { dbChannel } from '../DB/idbSchema';
 import { DbStatusUpdatedNotification, DbMessagesUpdatedNotification } from '../DB/dbEvents';
-import { QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry } from '../DB/idbModel';
+import { QuantStatus, getAllManifestEntries, QuantInfo, getFromIndexedDB, getManifestEntry, getModelQuantSettings, getInferenceSettings as dbGetInferenceSettings } from '../DB/idbModel';
 import { getCurrentLoadedModel } from '../sidepanel';
 import { getCurrentAttachments } from '../Controllers/UnifiedAttachmentController';
+import { loadAndApplySettingsToUI } from '../Controllers/InferenceSettings';
 
 
 let queryInput: HTMLTextAreaElement | null,
@@ -38,10 +39,10 @@ const LOG_WARN = false;  // Turn off warning logs
 const LOG_INFO = false;  // Turn OFF to reduce noise for native debugging
 const LOG_UI_UPDATES = false;  // Turn off UI updates logs
 const LOG_QUANT_DROPDOWN = false;  // Turn off quant dropdown logs
-const LOG_MODEL_LOADING = false;  // Turn OFF model loading logs for native debugging
+const LOG_MODEL_LOADING = false;  // ✅ OFF - Settings working
 const LOG_EVENTS = false;  // Turn off events logs
 const LOG_PROGRESS_HANDLING = false;  // Turn off to avoid spam
-const LOG_BUTTON_VISIBILITY = false;  // Turn OFF for native debugging
+const LOG_BUTTON_VISIBILITY = false;  // ✅ OFF - Load button fixed
 const prefix = '[UIController]';
 // Define available models (can be moved elsewhere later)
 export const AVAILABLE_MODELS = {
@@ -373,6 +374,18 @@ document.addEventListener(UIEventNames.MODEL_ALREADY_LOADED, (e: Event) => {
     handleModelAlreadyLoaded((e as CustomEvent).detail);
 });
 
+// Listen for WORKER_READY to reset loading state
+window.addEventListener('message', (event) => {
+    const { type, payload } = event.data || {};
+    if (type === WorkerEventNames.WORKER_READY) {
+        isLoadingModel = false;
+        lastSeenLoadId = null;
+        if (LOG_MODEL_LOADING) {
+            console.log(prefix, `✅ RESET isLoadingModel = FALSE (WORKER_READY: ${payload?.modelId}:${payload?.dtype})`);
+        }
+    }
+});
+
 document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async () => {
     // This event is now dispatched by both model and quantization change handlers
     // The dropdown rebuilding is handled by the model change handler
@@ -385,6 +398,12 @@ document.addEventListener(UIEventNames.MODEL_SELECTION_CHANGED, async () => {
 async function handleModelManagerLoadingProgress(payload: any) {
     if (LOG_PROGRESS_HANDLING) console.log(prefix, 'Received model manager loading progress:', payload);
     if (!payload) return;
+    
+    // DEBUG: Always log the status to see what we're receiving
+    if (LOG_MODEL_LOADING) {
+        console.log(prefix, `📊 Loading Progress Status: "${payload.status}", loadId: ${payload.loadId}, isLoadingModel: ${isLoadingModel}`);
+    }
+    
     if (payload.loadId !== lastSeenLoadId) {
         progressLogCount++;
         if (LOG_WARN && (progressLogCount % PROGRESS_LOG_THROTTLE_INTERVAL === 0 || progressLogCount === 1)) {
@@ -414,6 +433,7 @@ async function handleModelManagerLoadingProgress(payload: any) {
         progressInner.style.background = '#f44336'; 
         progressInner.style.width = '100%';
         isLoadingModel = false;
+        if (LOG_MODEL_LOADING) console.log(prefix, '❌ RESET isLoadingModel = FALSE (error)');
         
 
         
@@ -441,6 +461,15 @@ async function handleModelManagerLoadingProgress(payload: any) {
 
     let text = '';
     let shortFile = payload.file ? truncateFileName(payload.file) : '';
+    
+    // Reset loading flag based on status (BEFORE message handling!)
+    if (payload.status === LoadingStatusTypes.DONE) {
+        isLoadingModel = false;
+        if (LOG_MODEL_LOADING) console.log(prefix, '✅ Model load DONE - isLoadingModel reset to false');
+    } else if (payload.status === LoadingStatusTypes.READY) {
+        isLoadingModel = false;
+        if (LOG_MODEL_LOADING) console.log(prefix, '✅ Model load READY - isLoadingModel reset to false');
+    }
     
     // Use custom message if provided, otherwise format based on status
     if (payload.message) {
@@ -487,6 +516,7 @@ async function handleModelAlreadyLoaded(payload: any) {
     
     // Reset loading state since the model is already loaded
     isLoadingModel = false;
+    if (LOG_MODEL_LOADING) console.log(prefix, '✅ RESET isLoadingModel = FALSE (model already loaded)');
     
 
     
@@ -1056,8 +1086,22 @@ function handleServerOnlyModelLoad(modelId: string, dtype: string) {
 }
 
 async function _handleLoadModelButtonClick() {
+    if (LOG_MODEL_LOADING) console.log(prefix, '🔘🔘🔘 LOAD BUTTON CLICKED!!!');
     if (LOG_MODEL_LOADING) console.log(prefix, 'Load Model button clicked');
-    if (!modelSelectorDropdown || !loadModelButton || isLoadingModel) return;
+    
+    // Debug: Check all conditions
+    if (LOG_MODEL_LOADING) {
+        console.log(prefix, '🔍 Checking conditions:', {
+            hasModelSelector: !!modelSelectorDropdown,
+            hasLoadButton: !!loadModelButton,
+            isLoadingModel: isLoadingModel
+        });
+    }
+    
+    if (!modelSelectorDropdown || !loadModelButton || isLoadingModel) {
+        if (LOG_MODEL_LOADING) console.log(prefix, '❌ EARLY RETURN - Condition failed!');
+        return;
+    }
     
     const modelId = modelSelectorDropdown.value;
     if (!modelId) {
@@ -1080,10 +1124,21 @@ async function _handleLoadModelButtonClick() {
         return;
     }
     
+    // IMPORTANT: Load settings for this model+quant BEFORE starting the load
+    // This ensures the UI shows the correct settings before the model loads
+    if (LOG_MODEL_LOADING) console.log(prefix, `📋 Pre-loading settings for ${modelId}:${dtype} and updating UI...`);
+    try {
+        await loadAndApplySettingsToUI(modelId, dtype);
+        if (LOG_MODEL_LOADING) console.log(prefix, `✅ Settings UI updated for ${modelId}:${dtype}`);
+    } catch (e) {
+        console.error(prefix, `❌ Failed to pre-load settings for ${modelId}:${dtype}:`, e);
+        // Continue anyway - will use defaults
+    }
+    
     // Set loading state
     isLoadingModel = true;
     currentLoadId = Date.now().toString() + Math.random().toString(36).slice(2);
-    if (LOG_MODEL_LOADING) console.log(prefix, 'Setting current load ID:', currentLoadId);
+    if (LOG_MODEL_LOADING) console.log(prefix, '🚀 SET isLoadingModel = TRUE, loadId:', currentLoadId);
     const statusDiv = document.getElementById('model-load-status');
     if (statusDiv) statusDiv.style.display = 'block';
     disableInput("Loading model...");

@@ -19,7 +19,7 @@ const prefix = '[PipelineDBHandler]';
 const LOG_GENERAL = false;  // OFF - reduce noise
 const LOG_ERROR = true;
 const LOG_MESSAGES = false;
-const LOG_MANIFEST_UPDATES = true; // ON - track manifest updates
+const LOG_MANIFEST_UPDATES = false; // DISABLED - Focus on backgroundModelManager only
 
 // Throttling for high-frequency manifest logs
 let manifestLogCount = 0;

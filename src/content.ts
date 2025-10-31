@@ -1,8 +1,12 @@
 import browser from 'webextension-polyfill';
+import { interceptConsole } from './utils/logRelay';
 import { Contexts } from './events/eventNames';
 import {  DBEventNames } from './DB/dbEvents';
 import { UIEventNames } from './events/eventNames';
 window.EXTENSION_CONTEXT = Contexts.OTHERS;
+
+// Enable log relay to development server
+interceptConsole();
 
 console.log("[ContentScript] Executing...");
 

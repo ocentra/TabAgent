@@ -3,7 +3,7 @@ import browser from 'webextension-polyfill';
 
 // Logging constants
 const LOG_ERROR = true;
-export const LOG_NATIVE_APP = true;
+export const LOG_NATIVE_APP = false;  // DISABLED - Focus on backgroundModelManager only
 const prefix = '[IntegrationsNativeTab]';
 
 // Status update interval

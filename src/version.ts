@@ -1,6 +1,10 @@
 // version.ts
 // Centralized version management for Tab Agent
 
+import packageJson from '../package.json';
+
+const LOG_ERROR = false;  // DISABLED - Focus on backgroundModelManager only
+
 export interface VersionInfo {
     extension: string;
     nativeHost: string;
@@ -17,7 +21,7 @@ export interface UpdateInfo {
 
 // Read from package.json at build time
 export const CURRENT_VERSION: VersionInfo = {
-    extension: require('../package.json').version,
+    extension: packageJson.version,
     nativeHost: '1.0.0', // Will be updated by native host when connected
     environment: 'alpha' // Change this for releases
 };
@@ -32,7 +36,8 @@ const DIST_REPO = 'TabAgentDist';
  */
 export async function checkExtensionUpdate(): Promise<UpdateInfo> {
     try {
-        const response = await fetch(`${GITHUB_API_BASE}/${EXTENSION_REPO}/releases/latest`);
+        // Extension releases are published in TabAgentDist repo, not TabAgent repo
+        const response = await fetch(`${GITHUB_API_BASE}/${DIST_REPO}/releases/latest`);
         if (!response.ok) {
             throw new Error('Failed to fetch latest release');
         }
@@ -51,7 +56,7 @@ export async function checkExtensionUpdate(): Promise<UpdateInfo> {
             releaseNotes: release.body
         };
     } catch (error) {
-        console.error('Failed to check for extension updates:', error);
+        if (LOG_ERROR) console.error('Failed to check for extension updates:', error);
         return {
             hasUpdate: false,
             latestVersion: CURRENT_VERSION.extension,
@@ -161,7 +166,7 @@ export async function getNativeHostVersion(): Promise<string | null> {
         
         return response?.version || null;
     } catch (error) {
-        console.error('Failed to get native host version:', error);
+        if (LOG_ERROR) console.error('Failed to get native host version:', error);
         return null;
     }
 }

@@ -22,7 +22,7 @@ let searchListenerAttached = false;
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;  // DISABLED - Focus on backgroundModelManager only
 const LOG_INFO = false;
 const prefix = '[LibraryController]';
 

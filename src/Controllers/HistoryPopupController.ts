@@ -26,7 +26,7 @@ let currentSearchTerm: string = '';
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
-const LOG_WARN = true;
+const LOG_WARN = false;  // DISABLED - Focus on backgroundModelManager only
 const LOG_INFO = false;
 const prefix = '[HistoryPopupController]';
 function handleSessionUpdate(notification: any): void {

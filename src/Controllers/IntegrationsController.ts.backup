@@ -8,7 +8,7 @@ const LOG_GENERAL = false;
 const LOG_DEBUG = false;
 const LOG_ERROR = true;
 const LOG_WARN = false;
-const LOG_NATIVE_APP = true; // Native messaging specific logging
+const LOG_NATIVE_APP = false; // DISABLED - Focus on backgroundModelManager only
 const prefix = '[IntegrationsController]';
 
 let isInitialized = false;

@@ -4,7 +4,10 @@ import { env, TextStreamer, InterruptableStoppingCriteria } from '@huggingface/t
 import { WorkerEventNames, UIEventNames, LoadingStatusTypes } from './events/eventNames';
 import { DEFAULT_INFERENCE_SETTINGS, InferenceSettings, DEFAULT_SYSTEM_PROMPT_NORMAL, DEFAULT_SYSTEM_PROMPT_JSON } from './Controllers/InferenceSettings';
 import { 
-  QuantStatus, getInferenceSettings as dbGetInferenceSettings, getManifestEntry
+  QuantStatus, 
+  getInferenceSettings as dbGetInferenceSettings, 
+  getModelQuantSettings, 
+  getManifestEntry
 } from './DB/idbModel';
 import { PipelineHelpers } from './Pipelines/PipelineHelpers';
 import { PipelineStateManager } from './Pipelines/PipelineStateManager';
@@ -20,25 +23,25 @@ const prefix = '[BackgroundModelManager]';
 
 // Core logging flags
 const LOG_ERROR = true;   // Keep error logs enabled
-const LOG_WARN = false;   // Disable warning logs
+const LOG_WARN = false;   // DISABLED - Focus on manifest updates only
 
 // CORE GENERATION FUNCTIONALITY
 
-const LOG_GEN_PARAMS = false;          // Generation parameters being used
-
+const LOG_GEN_PARAMS = true;          // Generation parameters being used
+const LOG_GEN_TIMING = true;          // ⏱️ Time to first token (TTFT) and total generation time
 
 // Legacy Q&A flags (for backward compatibility)
-const LOG_QA_START = false;            // Generation lifecycle (start/stop/complete)
-const LOG_QA_OUTPUT = false;           // Generated text output
-const LOG_QA_STATS = false;            // Output statistics
+const LOG_QA_START = true;            // Generation lifecycle (start/stop/complete)
+const LOG_QA_OUTPUT = true;           // Generated text output
+const LOG_QA_STATS = true;            // Output statistics
 
 // Model loading and configuration
 const LOG_MODEL_LOADING = false;      // Model loading progress - OFF for clarity
 const LOG_MODEL_CONFIG = false;       // Detailed model configuration - OFF
-const LOG_TOKEN_IDS = false;          // Token ID extraction - OFF
+const LOG_TOKEN_IDS = true;           // Token ID extraction - ON to debug stopping
 
 // Transformers.js specific
-const LOG_TRANSFORMERS = false;        // Transformers.js debugging
+const LOG_TRANSFORMERS = true;        // Transformers.js debugging - ON for token ID logging
 const LOG_TRANSFORMERS_SETTINGS = false; // Settings comparison
 const LOG_GENERATION = false;          // Detailed generation parameters
 const LOG_GENERATION_FLOW = false;     // Track full generation flow
@@ -49,8 +52,8 @@ const LOG_FETCH_INIT = false;         // Fetch override initialization
 const LOG_FETCH_DETAILED = false;     // Detailed fetch interception (all requests)
 const LOG_CHUNKED = false;             // Chunked download/serve logs - OFF
 
-// MANIFEST UPDATE FLOW - ON to trace button hide issue
-const LOG_MANIFEST_UPDATES = true;    // Track manifest status updates and events
+// MANIFEST UPDATE FLOW - OFF (not related to generation)
+const LOG_MANIFEST_UPDATES = false;    // Track manifest status updates and events
 
 // Message processing
 const LOG_MESSAGES = false;
@@ -591,7 +594,11 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
     const hasExternalData = await PipelineDBHandler.getHasExternalData(modelId, dtype);
     
     // Fetch model metadata (config, context length, architecture) in one call
-    const currentSettings = await dbGetInferenceSettings();
+    // Use hierarchy: Check model+quant settings first, fallback to global or defaults
+    let currentSettings = await getModelQuantSettings(modelId, dtype);
+    if (!currentSettings) {
+      currentSettings = await dbGetInferenceSettings();
+    }
     const userMaxLength = currentSettings?.max_length || DEFAULT_INFERENCE_SETTINGS.max_length;
     
     const { config: modelConfig, contextLength, architecture } = await PipelineDBHandler.fetchModelMetadata(
@@ -661,13 +668,17 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
 
     transformersTokenizer = pipeline.getTokenizer();   
 
-    extractAndPatchTokenIds(transformersTokenizer, modelConfig);   
+    // COMMENTED OUT: Let transformers.js handle token IDs automatically (like official example)
+    // extractAndPatchTokenIds(transformersTokenizer, modelConfig);   
 
     transformersModel = pipeline.getModel();
     
     isTransformersModelReady = true;
     
     if (LOG_MANIFEST_UPDATES) console.log(prefix, `✅ Model loaded successfully via pipeline: ${modelId}`);
+    
+    // Refresh inference settings for this model+quant combination
+    await updateInferenceSettings();
     
     // Update manifest status to indicate successful download/loading
     if (LOG_MANIFEST_UPDATES) console.log(prefix, `📋 [MANIFEST] Model load complete - updating status to Downloaded: repo="${modelId}", dtype="${dtype}"`);
@@ -739,9 +750,9 @@ export const loadModel = async (payload: { modelId: string, dtype: string, task?
 };
 
 
-const LOG_GEN_PARAMS_CURRENT = false;  
-const LOG_GEN_PARAMS_CURRENT_State_check = false; 
-const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = false;
+const LOG_GEN_PARAMS_CURRENT = true;  
+const LOG_GEN_PARAMS_CURRENT_State_check = true; 
+const LOG_GEN_ANALYSIS_CHAT_HISTORY_FILTER = true;
 export const generate = async (messages: Array<{role: string, content: string}>, callback?: EnhancedProgressCallback) => {
   if (LOG_GEN_PARAMS_CURRENT_State_check) {
     const stateInfo = `🎯 GENERATE called - State check:
@@ -822,13 +833,23 @@ export const generate = async (messages: Array<{role: string, content: string}>,
     
     let fullGeneratedText = '';
     
-    // TPS calculation variables
+    // Timing tracking variables
+    const generationStartTime = performance.now();
+    let firstTokenTime: number | undefined;
     let startTime: number | undefined;
     let numTokens = 0;
     let tps: number | undefined;
     
     const token_callback_function = () => {
       startTime ??= performance.now();
+      
+      // Log time to first token (TTFT)
+      if (numTokens === 0 && LOG_GEN_TIMING) {
+        firstTokenTime = performance.now();
+        const ttft = firstTokenTime - generationStartTime;
+        console.log(prefix, `⏱️ Time to First Token (TTFT): ${ttft.toFixed(0)}ms`);
+      }
+      
       if (numTokens++ > 0) {
         tps = (numTokens / (performance.now() - startTime!)) * 1000;
       }
@@ -865,69 +886,75 @@ export const generate = async (messages: Array<{role: string, content: string}>,
       token_callback_function,
     });
     
-    const generateParams = {
+    // Build generation params dynamically based on enabled state
+    // Start with base params (always included)
+    const generateParams: any = {
       ...inputs,
-      // Core sampling parameters
-      do_sample: settings.do_sample,
-      temperature: settings.temperature,
-      top_k: settings.top_k,
-      top_p: settings.top_p,
-      typical_p: settings.typical_p,
-      epsilon_cutoff: settings.epsilon_cutoff,
-      eta_cutoff: settings.eta_cutoff,
-      
-      // Length and repetition control
-      max_length: modelContextLength,
-      max_new_tokens: settings.max_new_tokens,
-      min_length: settings.min_length,
-      min_new_tokens: settings.min_new_tokens,
-      repetition_penalty: settings.repetition_penalty,
-      encoder_repetition_penalty: settings.encoder_repetition_penalty,
-      no_repeat_ngram_size: settings.no_repeat_ngram_size,
-      encoder_no_repeat_ngram_size: settings.encoder_no_repeat_ngram_size,
-      
-      // Beam search parameters
-      num_beams: settings.num_beams,
-      num_beam_groups: settings.num_beam_groups,
-      diversity_penalty: settings.diversity_penalty,
-      length_penalty: settings.length_penalty,
-      early_stopping: settings.early_stopping,
-      penalty_alpha: settings.penalty_alpha,
-      
-      // Token IDs (only forced/decoder variants - basic IDs already set on tokenizer during load)
-      decoder_start_token_id: settings.decoder_start_token_id,
-      forced_bos_token_id: settings.forced_bos_token_id,
-      forced_eos_token_id: settings.forced_eos_token_id,
-      
-      // Advanced filtering
-      bad_words_ids: settings.bad_words_ids,
-      force_words_ids: settings.force_words_ids,
-      suppress_tokens: settings.suppress_tokens,
-      begin_suppress_tokens: settings.begin_suppress_tokens,
-      
-      // Output control
-      num_return_sequences: settings.num_return_sequences,
-      output_attentions: settings.output_attentions,
-      output_hidden_states: settings.output_hidden_states,
-      output_scores: settings.output_scores,
-      return_dict_in_generate: settings.return_dict_in_generate,
-      
-      // Performance and caching
-      use_cache: settings.use_cache,
-      remove_invalid_values: settings.remove_invalid_values,
-      renormalize_logits: settings.renormalize_logits,
-      
-      // Advanced features
-      guidance_scale: settings.guidance_scale,
-      max_time: settings.max_time,
-      exponential_decay_length_penalty: settings.exponential_decay_length_penalty,
-      constraints: settings.constraints,
-      forced_decoder_ids: settings.forced_decoder_ids,
-      
-      // Streamer and stopping
       streamer: ourStreamer,
       stopping_criteria,
+      return_dict_in_generate: true,
     };
+    
+    // Conditionally add params based on enabled checkboxes in UI
+    const enabled = settings.enabled || {};
+    
+    // Core sampling parameters
+    if (enabled.do_sample !== false) generateParams.do_sample = settings.do_sample;
+    if (enabled.top_k) generateParams.top_k = settings.top_k;
+    if (enabled.temperature) generateParams.temperature = settings.temperature;
+    if (enabled.top_p) generateParams.top_p = settings.top_p;
+    if (enabled.typical_p) generateParams.typical_p = settings.typical_p;
+    if (enabled.epsilon_cutoff) generateParams.epsilon_cutoff = settings.epsilon_cutoff;
+    if (enabled.eta_cutoff) generateParams.eta_cutoff = settings.eta_cutoff;
+    
+    // Length control
+    if (enabled.max_new_tokens) generateParams.max_new_tokens = settings.max_new_tokens;
+    if (enabled.max_length) generateParams.max_length = settings.max_length;
+    if (enabled.min_length) generateParams.min_length = settings.min_length;
+    if (enabled.min_new_tokens) generateParams.min_new_tokens = settings.min_new_tokens;
+    
+    // Repetition control
+    if (enabled.repetition_penalty) generateParams.repetition_penalty = settings.repetition_penalty;
+    if (enabled.encoder_repetition_penalty) generateParams.encoder_repetition_penalty = settings.encoder_repetition_penalty;
+    if (enabled.no_repeat_ngram_size) generateParams.no_repeat_ngram_size = settings.no_repeat_ngram_size;
+    if (enabled.encoder_no_repeat_ngram_size) generateParams.encoder_no_repeat_ngram_size = settings.encoder_no_repeat_ngram_size;
+    
+    // Beam search
+    if (enabled.num_beams) generateParams.num_beams = settings.num_beams;
+    if (enabled.num_beam_groups) generateParams.num_beam_groups = settings.num_beam_groups;
+    if (enabled.diversity_penalty) generateParams.diversity_penalty = settings.diversity_penalty;
+    if (enabled.length_penalty) generateParams.length_penalty = settings.length_penalty;
+    if (enabled.early_stopping) generateParams.early_stopping = settings.early_stopping;
+    if (enabled.penalty_alpha) generateParams.penalty_alpha = settings.penalty_alpha;
+    
+    // Token IDs
+    if (enabled.decoder_start_token_id) generateParams.decoder_start_token_id = settings.decoder_start_token_id;
+    if (enabled.forced_bos_token_id) generateParams.forced_bos_token_id = settings.forced_bos_token_id;
+    if (enabled.forced_eos_token_id) generateParams.forced_eos_token_id = settings.forced_eos_token_id;
+    
+    // Advanced filtering
+    if (enabled.bad_words_ids) generateParams.bad_words_ids = settings.bad_words_ids;
+    if (enabled.force_words_ids) generateParams.force_words_ids = settings.force_words_ids;
+    if (enabled.suppress_tokens) generateParams.suppress_tokens = settings.suppress_tokens;
+    if (enabled.begin_suppress_tokens) generateParams.begin_suppress_tokens = settings.begin_suppress_tokens;
+    
+    // Output control
+    if (enabled.num_return_sequences) generateParams.num_return_sequences = settings.num_return_sequences;
+    if (enabled.output_attentions) generateParams.output_attentions = settings.output_attentions;
+    if (enabled.output_hidden_states) generateParams.output_hidden_states = settings.output_hidden_states;
+    if (enabled.output_scores) generateParams.output_scores = settings.output_scores;
+    
+    // Performance
+    if (enabled.use_cache) generateParams.use_cache = settings.use_cache;
+    if (enabled.remove_invalid_values) generateParams.remove_invalid_values = settings.remove_invalid_values;
+    if (enabled.renormalize_logits) generateParams.renormalize_logits = settings.renormalize_logits;
+    
+    // Advanced features
+    if (enabled.guidance_scale) generateParams.guidance_scale = settings.guidance_scale;
+    if (enabled.max_time) generateParams.max_time = settings.max_time;
+    if (enabled.exponential_decay_length_penalty) generateParams.exponential_decay_length_penalty = settings.exponential_decay_length_penalty;
+    if (enabled.constraints) generateParams.constraints = settings.constraints;
+    if (enabled.forced_decoder_ids) generateParams.forced_decoder_ids = settings.forced_decoder_ids;
     
     
     // Log key generation parameters for debugging (as string to avoid truncation)
@@ -983,8 +1010,19 @@ export const generate = async (messages: Array<{role: string, content: string}>,
     
     const finalOutput = fullGeneratedText || finalDecodedText;
     
+    // Calculate total generation time
+    const totalGenerationTime = performance.now() - generationStartTime;
+    
     if (LOG_QA_OUTPUT) {
       console.log(prefix, '📝 FINAL OUTPUT:', finalOutput);
+    }
+    if (LOG_GEN_TIMING) {
+      const timingInfo = `⏱️ GENERATION TIMING:
+        Time to First Token (TTFT): ${firstTokenTime ? (firstTokenTime - generationStartTime).toFixed(0) : 'N/A'}ms
+        Total Generation Time: ${totalGenerationTime.toFixed(0)}ms
+        Tokens Generated: ${numTokens}
+        Tokens per Second: ${tps ? tps.toFixed(2) : 'N/A'}`;
+      console.log(prefix, timingInfo);
     }
     if (LOG_QA_STATS) {
       const outputStats = `📊 OUTPUT STATS:
@@ -1234,7 +1272,26 @@ export const resetModel = () => {
 // Update inference settings
 export const updateInferenceSettings = async () => {
   try {
-    const settings = await dbGetInferenceSettings();
+    // Use hierarchy: Check model+quant settings first, fallback to defaults
+    let settings: InferenceSettings | null = null;
+    
+    if (currentModelRepoId && currentModelQuantPath) {
+      // Try to load per-model+quant settings first (Trait pattern)
+      settings = await getModelQuantSettings(currentModelRepoId, currentModelQuantPath);
+      if (LOG_TRANSFORMERS || LOG_GEN_PARAMS) {
+        if (settings) {
+          console.log(prefix, `[updateInferenceSettings] ✅ Using custom settings for ${currentModelRepoId}:${currentModelQuantPath}`);
+        } else {
+          console.log(prefix, `[updateInferenceSettings] 📋 No custom settings for ${currentModelRepoId}:${currentModelQuantPath}, using defaults`);
+        }
+      }
+    }
+    
+    // Fallback to global settings or defaults
+    if (!settings) {
+      settings = await dbGetInferenceSettings();
+    }
+    
     if (settings) {
       inferenceSettings = { ...inferenceSettings, ...settings };
       if (LOG_TRANSFORMERS || LOG_GEN_PARAMS) {

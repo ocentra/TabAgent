@@ -12,7 +12,7 @@
 import browser from 'webextension-polyfill';
 
 // Logging constant (matches IntegrationsController)
-const LOG_NATIVE_APP = true;
+const LOG_NATIVE_APP = false;  // DISABLED - Focus on backgroundModelManager only
 
 const NATIVE_HOST_NAME = 'com.tabagent.host';
 const RECONNECT_DELAY_MS = 5000; // 5 seconds

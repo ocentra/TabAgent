@@ -17,6 +17,7 @@ export type QuantInfo = {
   status: QuantStatus;
   dtype: string; // Clean quantization type: "q4f16", "fp16", "fp32", etc.
   hasExternalData: boolean; // Whether this quant uses external data format (split files)
+  inferenceSettings?: InferenceSettings; // Per-model+quant settings (optional, falls back to defaults)
 };
 
 export const CURRENT_MANIFEST_VERSION = 1;
@@ -51,7 +52,7 @@ function extractCleanDtype(filePath: string): string {
     // Remove .onnx extension
     const nameWithoutExt = filename.replace(/\.onnx$/, '');
     
-    console.log('[extractCleanDtype] Processing:', filePath, '-> filename:', filename, '-> nameWithoutExt:', nameWithoutExt);
+    if (LOG_DEBUG) console.log('[extractCleanDtype] Processing:', filePath, '-> filename:', filename, '-> nameWithoutExt:', nameWithoutExt);
     
     // Extract quantization type from filename (check longer patterns first)
     if (nameWithoutExt.includes('q4f16')) return 'q4f16';
@@ -123,8 +124,8 @@ const prefix = '[IDBModel]';
 const LOG_GENERAL = false;  // General operational logs
 const LOG_DEBUG = false;   // Detailed debugging logs (can be noisy)
 const LOG_ERROR = true;    // Error logs (always enabled)
-const LOG_WARN = true;     // Warning logs
-const LOG_INFERENCE_SETTINGS = false; // Inference settings specific logs
+const LOG_WARN = false;    // DISABLED - Focus on backgroundModelManager only
+const LOG_INFERENCE_SETTINGS = true; // Inference settings specific logs - ENABLED to debug cutoff values
 const LOG_OPEN_DB = false; // Database open/close logs
 const LOG_MANIFEST = false; // Manifest operation logs
 const LOG_CHUNKS = false;  // Chunking operation logs
@@ -924,6 +925,91 @@ export async function getInferenceSettings(): Promise<InferenceSettings | null> 
             db.close();
         };
     });
+}
+
+/**
+ * Get inference settings for a specific model+quant combo
+ * Returns null if no custom settings exist (fall back to defaults)
+ * @param repo - Repository ID (e.g., "onnx-community/Phi-3.5-mini-instruct-onnx-web")
+ * @param quantPath - Quantization path (e.g., "onnx/model_q4f16.onnx")
+ */
+export async function getModelQuantSettings(repo: string, quantPath: string): Promise<InferenceSettings | null> {
+    if (LOG_INFERENCE_SETTINGS) console.log(prefix, `[getModelQuantSettings] Getting settings for ${repo}:${quantPath}`);
+    
+    const manifest = await getManifestEntry(repo);
+    if (!manifest || !manifest.quants[quantPath]) {
+        if (LOG_INFERENCE_SETTINGS) console.log(prefix, `[getModelQuantSettings] No manifest entry for ${repo}:${quantPath}`);
+        return null;
+    }
+    
+    const quantInfo = manifest.quants[quantPath];
+    const settings = quantInfo.inferenceSettings || null;
+    
+    if (LOG_INFERENCE_SETTINGS) {
+        console.log(prefix, `[getModelQuantSettings] Settings for ${repo}:${quantPath}:`, settings ? 'Custom settings found' : 'No custom settings, will use defaults');
+    }
+    
+    return settings;
+}
+
+/**
+ * Save inference settings for a specific model+quant combo
+ * @param repo - Repository ID
+ * @param quantPath - Quantization path
+ * @param settings - Inference settings to save
+ */
+export async function saveModelQuantSettings(repo: string, quantPath: string, settings: InferenceSettings): Promise<void> {
+    if (LOG_INFERENCE_SETTINGS) console.log(prefix, `[saveModelQuantSettings] Saving settings for ${repo}:${quantPath}`, settings);
+    
+    let manifest = await getManifestEntry(repo);
+    if (!manifest) {
+        if (LOG_WARN) console.warn(prefix, `[saveModelQuantSettings] No manifest for ${repo}, creating one`);
+        manifest = {
+            repo,
+            quants: {},
+            manifestVersion: CURRENT_MANIFEST_VERSION,
+        };
+    }
+    
+    if (!manifest.quants[quantPath]) {
+        if (LOG_WARN) console.warn(prefix, `[saveModelQuantSettings] No quant entry for ${quantPath}, creating one`);
+        manifest.quants[quantPath] = {
+            files: [quantPath],
+            status: QuantStatus.Available,
+            dtype: extractCleanDtype(quantPath),
+            hasExternalData: false,
+        };
+    }
+    
+    // Save settings to the quant entry
+    manifest.quants[quantPath].inferenceSettings = settings;
+    
+    await addManifestEntry(repo, manifest);
+    
+    if (LOG_INFERENCE_SETTINGS) console.log(prefix, `[saveModelQuantSettings] Successfully saved settings for ${repo}:${quantPath}`);
+}
+
+/**
+ * Clear/reset inference settings for a specific model+quant combo
+ * This makes the model fall back to global defaults
+ * @param repo - Repository ID
+ * @param quantPath - Quantization path
+ */
+export async function clearModelQuantSettings(repo: string, quantPath: string): Promise<void> {
+    if (LOG_INFERENCE_SETTINGS) console.log(prefix, `[clearModelQuantSettings] Clearing settings for ${repo}:${quantPath}`);
+    
+    const manifest = await getManifestEntry(repo);
+    if (!manifest || !manifest.quants[quantPath]) {
+        if (LOG_WARN) console.warn(prefix, `[clearModelQuantSettings] No manifest/quant entry for ${repo}:${quantPath}`);
+        return;
+    }
+    
+    // Remove the settings (falls back to defaults)
+    delete manifest.quants[quantPath].inferenceSettings;
+    
+    await addManifestEntry(repo, manifest);
+    
+    if (LOG_INFERENCE_SETTINGS) console.log(prefix, `[clearModelQuantSettings] Successfully cleared settings for ${repo}:${quantPath}`);
 }
 
 /**

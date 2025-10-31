@@ -1,6 +1,6 @@
 // --- GLOBAL SWITCHES ---
-let LOG_TO_CONSOLE = true; // Default: log to console
-let LOG_TO_DB = true;      // Default: log to DB
+let LOG_TO_CONSOLE = false; // DISABLED - Focus on backgroundModelManager only
+let LOG_TO_DB = true;       // Keep DB logging for errors
 
 // --- Per-class settings ---
 let componentName: string = 'unknown';

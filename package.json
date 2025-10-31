@@ -1,18 +1,20 @@
 {
   "name": "tabagent",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:css": "npx tailwindcss -i ./src/input.css -o ./src/output.css --config tailwind.config.js",
     "build:webpack": "webpack --config webpack.config.js",
-    "build:extension": "npm run build:css && rimraf TabAgentDist/Extension && npm run build:webpack",
+    "build:extension": "tsx scripts/ensure-log-server.ts && npm run build:css && rimraf TabAgentDist/Extension && npm run build:webpack",
     "build:native": "tsx scripts/build-native.ts",
     "build:installer": "tsx scripts/build-installer.ts",
     "build:all": "npm run build:extension && npm run build:native && npm run build:installer",
     "build": "npm run build:all",
     "verify": "tsx scripts/verify-all.ts",
-    "lint": "eslint \"src/**/*.{ts,tsx}\""
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "release": "tsx scripts/release-dist.ts",
+    "logs": "tsx log-server.ts"
   },
   "keywords": [],
   "author": "",
@@ -43,6 +45,8 @@
     "@huggingface/transformers": "^3.7.1",
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.17.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
     "highlight.js": "^11.11.1",
     "idb": "^8.0.3",
     "spark-md5": "^3.0.2"

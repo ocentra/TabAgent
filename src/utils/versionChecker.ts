@@ -3,6 +3,8 @@
 
 import browser from 'webextension-polyfill';
 
+const LOG_ERROR = false;  // DISABLED - Focus on backgroundModelManager only
+
 const GITHUB_REPO = 'ocentra/TabAgentDist';
 const VERSION_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -41,7 +43,7 @@ async function getLatestVersion(): Promise<GitHubRelease | null> {
     const release: GitHubRelease = await response.json();
     return release;
   } catch (error) {
-    console.error('Failed to fetch latest version:', error);
+    if (LOG_ERROR) console.error('Failed to fetch latest version:', error);
     return null;
   }
 }

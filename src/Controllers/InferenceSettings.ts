@@ -1,13 +1,20 @@
 // src/Controllers/InferenceSettings.ts
-import { getInferenceSettings, saveInferenceSettings } from '../DB/idbModel';
+import { 
+  getInferenceSettings, 
+  saveInferenceSettings, 
+  saveModelQuantSettings, 
+  getModelQuantSettings,
+  clearModelQuantSettings 
+} from '../DB/idbModel';
 import { WorkerEventNames } from '../events/eventNames';
 import { llmChannel } from '../Utilities/dbChannels';
+import { PipelineStateManager } from '../Pipelines/PipelineStateManager';
 import { showSystemPromptPopup } from '../Components/SystemPromptPopup';
 import popupIcon from '../assets/icons/popup.png';
 
 const prefix = '[InferenceSettings]';
-const LOG_GENERAL = false;
-const LOG_DEBUG = false;
+const LOG_GENERAL = false;   // ✅ OFF - Per-model settings working
+const LOG_DEBUG = false;    // ✅ OFF - Per-model settings working
 const LOG_ERROR = true;
 const LOG_WARN = false;
 export const INFERENCE_SETTINGS_SINGLETON_ID = 'InferenceSettings';
@@ -143,10 +150,20 @@ export type InferenceSettingTypes = {
   
   // JSON output mode
   json_mode: boolean;
+  
+  // Enabled state for each parameter (which params are actively sent to model)
+  enabled: {
+    [key: string]: boolean;
+  };
 };
 
 export type InferenceSettings = {
   [K in keyof typeof INFERENCE_SETTING_KEYS]: InferenceSettingTypes[K];
+} & {
+  // Enabled state for each parameter (which params are actively sent to model)
+  enabled: {
+    [key: string]: boolean;
+  };
 };
 
 export interface SettingDefinition {
@@ -258,12 +275,12 @@ export const DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT_NORMAL;
 
 export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
   // Core generation parameters
-  temperature: 0.3,
+  temperature: 0.2,  // Official Phi-3.5 example default
   max_length: 8192,
   max_new_tokens: 1024,
   min_length: 0,
   min_new_tokens: 0,
-  top_k: 50,
+  top_k: 3,  // Official Phi-3.5 example default
   top_p: 0.9,
   typical_p: 1.0,
   epsilon_cutoff: 0.0,
@@ -319,6 +336,56 @@ export const DEFAULT_INFERENCE_SETTINGS: InferenceSettings = {
   
   // JSON output mode
   json_mode: false,
+  
+  // Enabled state - Only core params enabled by default (matching official phi-3.5 example)
+  enabled: {
+    // Core params - ENABLED (matching official example)
+    do_sample: true,
+    top_k: true,
+    temperature: true,
+    max_new_tokens: true,
+    
+    // Additional sampling - DISABLED by default (enable manually if needed)
+    top_p: false,
+    typical_p: false,
+    epsilon_cutoff: false,
+    eta_cutoff: false,
+    
+    // Everything else - DISABLED by default
+    max_length: false,
+    min_length: false,
+    min_new_tokens: false,
+    repetition_penalty: false,
+    encoder_repetition_penalty: false,
+    num_beams: false,
+    num_beam_groups: false,
+    diversity_penalty: false,
+    early_stopping: false,
+    length_penalty: false,
+    penalty_alpha: false,
+    no_repeat_ngram_size: false,  // DANGEROUS - keep disabled!
+    encoder_no_repeat_ngram_size: false,
+    decoder_start_token_id: false,
+    forced_bos_token_id: false,
+    forced_eos_token_id: false,
+    bad_words_ids: false,
+    force_words_ids: false,
+    suppress_tokens: false,
+    begin_suppress_tokens: false,
+    num_return_sequences: false,
+    output_attentions: false,
+    output_hidden_states: false,
+    output_scores: false,
+    return_dict_in_generate: false,
+    use_cache: false,
+    remove_invalid_values: false,
+    renormalize_logits: false,
+    guidance_scale: false,
+    max_time: false,
+    exponential_decay_length_penalty: false,
+    constraints: false,
+    forced_decoder_ids: false,
+  },
 };
 
 export const SYSTEM_PROMPT_SETTING: SettingDefinition = {
@@ -364,28 +431,34 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
       key: INFERENCE_SETTING_KEYS.max_new_tokens,
       label: keyToLabel(INFERENCE_SETTING_KEYS.max_new_tokens),
       type: 'slider',
-      min: 10,
-      max: 500,
-      step: 10,
-      defaultValue: 100, // Optimal: 100 tokens to prevent rambling
+      min: 50,
+      max: 4096,
+      step: 50,
+      defaultValue: 1024, // Match official example
       description: `Limits how many new words or pieces (tokens) the AI can add to its answer. Lower values keep responses short and to the point. Higher values allow for longer, more detailed answers.`,
-      example: `100 = concise answers, 200 = paragraphs, 500 = detailed explanations.`
+      example: `100 = concise answers, 500 = paragraphs, 1024 = detailed explanations, 2048+ = very long responses.`
   },
   {
       key: INFERENCE_SETTING_KEYS.min_length,
       label: keyToLabel(INFERENCE_SETTING_KEYS.min_length),
-      type: 'input',
+      type: 'slider',
+      min: 0,
+      max: 500,
+      step: 10,
       defaultValue: 0, // Official default: 0
       description: `Sets the minimum length (in tokens) for the AI's answer. Use this if you want to make sure the response is at least a certain size (for example, always a full sentence or paragraph).`,
-      example: `10 for at least a sentence, 50 for a paragraph. 0 means no minimum.`
+      example: `0 = no minimum, 10 = at least a sentence, 50 = paragraph.`
   },
   {
       key: INFERENCE_SETTING_KEYS.top_k,
       label: keyToLabel(INFERENCE_SETTING_KEYS.top_k),
-      type: 'input',
-      defaultValue: 3, // Proven optimal value for focused responses
+      type: 'slider',
+      min: 1,
+      max: 100,
+      step: 1,
+      defaultValue: 3, // Official Phi-3.5 example default
       description: `Controls how many word choices the AI considers at each step. Lower values make the AI more focused and repetitive. Higher values allow for more variety and creativity, but can sometimes make answers less predictable.`,
-      example: `1 = most focused (greedy), 3 = very focused (proven optimal), 10 = focused, 50 = balanced, 0 = unlimited variety.`
+      example: `1 = most focused (greedy), 3 = very focused (official example), 10 = focused, 50 = balanced, 100 = very diverse.`
   },
   {
       key: INFERENCE_SETTING_KEYS.top_p,
@@ -439,7 +512,10 @@ export const COMMON_SETTINGS: SettingDefinition[] = [
   {
       key: INFERENCE_SETTING_KEYS.num_beams,
       label: keyToLabel(INFERENCE_SETTING_KEYS.num_beams),
-      type: 'input',
+      type: 'slider',
+      min: 1,
+      max: 10,
+      step: 1,
       defaultValue: 1, // Official default: 1
       description: `Controls how many different answer paths the AI explores before picking the best one. Higher values can improve answer quality but may take longer.`,
       example: `1 = no beam search (faster), 3–5 = better quality, 10+ = very thorough (slower).`
@@ -451,7 +527,10 @@ export const ADVANCED_SETTINGS: SettingDefinition[] = [
   {
       key: INFERENCE_SETTING_KEYS.min_new_tokens,
       label: keyToLabel(INFERENCE_SETTING_KEYS.min_new_tokens),
-      type: 'input',
+      type: 'slider',
+      min: 0,
+      max: 500,
+      step: 10,
       defaultValue: 0, // Official default: null, we use 0 for user experience
       description: `The minimum number of new words or pieces (tokens) the AI must generate. Use this to ensure answers are not too short.`,
       example: `0 = no minimum, 10 = at least 10 new words.`
@@ -524,7 +603,10 @@ export const ADVANCED_SETTINGS: SettingDefinition[] = [
   {
       key: INFERENCE_SETTING_KEYS.num_beam_groups,
       label: keyToLabel(INFERENCE_SETTING_KEYS.num_beam_groups),
-      type: 'input',
+      type: 'slider',
+      min: 1,
+      max: 5,
+      step: 1,
       defaultValue: 1, // Official default: 1
       description: `Splits the answer search into groups for more variety. Useful for getting different styles or ideas in multiple answers.`,
       example: `1 = standard, 2+ = more diverse answers (when batch size > 1).`
@@ -796,11 +878,24 @@ function createSettingControl(setting: SettingDefinition): string {
       break;
   }
 
+  const enabledId = `${controlId}-enabled`;
+  const isEnabledByDefault = (DEFAULT_INFERENCE_SETTINGS.enabled as any)[setting.key] ?? false;
+  
+  // Only add enable checkbox for sliders (checkboxes are already self-enabling)
+  const enableCheckbox = setting.type === 'slider' ? `
+      <input type="checkbox" 
+             id="${enabledId}" 
+             ${isEnabledByDefault ? 'checked' : ''}
+             class="ml-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
+             title="Enable this parameter">
+  ` : '';
+  
   return `
     <div class="setting-row flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
       <label for="${controlId}" class="min-w-[8rem] text-sm font-medium text-gray-700 dark:text-gray-300">${setting.label}</label>
       ${controlHTML}
-      <button id="${infoId}" class="ml-2 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
+      ${enableCheckbox}
+      <button id="${infoId}" class="ml-1 w-5 h-5 flex items-center justify-center text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full text-gray-600 dark:text-gray-300 transition-colors" title="Info">?</button>
     </div>
   `;
 }
@@ -887,8 +982,17 @@ function positionTooltip(tooltip: HTMLElement, trigger: HTMLElement): void {
 
 export function getCurrentSettings(): InferenceSettings {
   const settings = { ...DEFAULT_INFERENCE_SETTINGS };
+  const enabled: { [key: string]: boolean } = {};
+  
   [...COMMON_SETTINGS, ...ADVANCED_SETTINGS].forEach(setting => {
       const control = document.querySelector(`#setting-${setting.key}`) as HTMLInputElement;
+      const enabledCheckbox = document.querySelector(`#setting-${setting.key}-enabled`) as HTMLInputElement;
+      
+      // Read enabled state
+      if (enabledCheckbox) {
+        enabled[setting.key] = enabledCheckbox.checked;
+      }
+      
       if (control) {
           let value: any;
           switch (setting.type) {
@@ -912,6 +1016,10 @@ export function getCurrentSettings(): InferenceSettings {
   if (sysPrompt) {
     settings.system_prompt = sysPrompt.value;
   }
+  
+  // Store enabled state
+  settings.enabled = enabled;
+  
   if (LOG_DEBUG) console.log(prefix, 'getCurrentSettings() returning:', settings);
   return settings;
 }
@@ -919,6 +1027,8 @@ export function getCurrentSettings(): InferenceSettings {
 export function applySettings(settings: Partial<InferenceSettings>): void {
   if (LOG_DEBUG) console.log(prefix, 'Applying settings to UI:', settings);
   Object.entries(settings).forEach(([key, value]) => {
+      if (key === 'enabled') return; // Skip enabled object, handle separately
+      
       const control = document.querySelector(`#setting-${key}`) as HTMLInputElement;
       const valueSpan = document.querySelector(`#setting-${key}-value`) as HTMLElement;
       
@@ -937,6 +1047,16 @@ export function applySettings(settings: Partial<InferenceSettings>): void {
       }
   });
 
+  // Apply enabled state
+  if (settings.enabled) {
+    Object.entries(settings.enabled).forEach(([key, isEnabled]) => {
+      const enabledCheckbox = document.querySelector(`#setting-${key}-enabled`) as HTMLInputElement;
+      if (enabledCheckbox) {
+        enabledCheckbox.checked = Boolean(isEnabled);
+      }
+    });
+  }
+
   // System prompt (textarea)
   const sysPrompt = document.querySelector(`#setting-${SYSTEM_PROMPT_SETTING.key}`) as HTMLTextAreaElement;
   if (sysPrompt && typeof settings.system_prompt === 'string') {
@@ -947,21 +1067,50 @@ export function applySettings(settings: Partial<InferenceSettings>): void {
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const SAVE_DEBOUNCE_MS = 200;
 
-export async function loadAndApplySettingsToUI() {
+export async function loadAndApplySettingsToUI(explicitModelId?: string, explicitQuantPath?: string) {
   try {
     if (LOG_GENERAL) console.log(prefix, 'Loading inference settings from DB...');
-    const settings = await getInferenceSettings() || DEFAULT_INFERENCE_SETTINGS;
-    if (!settings || Object.keys(settings).length === 0) {
-      if (LOG_WARN) console.warn(prefix, 'No inference settings found in DB, applying defaults.');
-      applySettings(DEFAULT_INFERENCE_SETTINGS);
-      await saveInferenceSettings(DEFAULT_INFERENCE_SETTINGS);
-      if (LOG_GENERAL) console.log(prefix, 'Default inference settings saved to DB.');
+    
+    let modelId = explicitModelId;
+    let quantPath = explicitQuantPath;
+    
+    // If not provided explicitly, get currently loaded model
+    if (!modelId || !quantPath) {
+      await PipelineStateManager.initialize(); // Ensure state is loaded
+      const currentModel = PipelineStateManager.getLastLoadedModel();
+      if (currentModel) {
+        modelId = currentModel.repoId;
+        quantPath = currentModel.quantPath;
+      }
+    }
+    
+    let settings: InferenceSettings | null = null;
+    
+    if (modelId && quantPath) {
+      // Try to load per-model+quant settings first (Trait pattern)
+      settings = await getModelQuantSettings(modelId, quantPath);
+      if (LOG_GENERAL) {
+        if (settings) {
+          console.log(prefix, `✅ Loaded custom settings for ${modelId}:${quantPath}`);
+        } else {
+          console.log(prefix, `📋 No custom settings for ${modelId}:${quantPath}, using defaults`);
+        }
+      }
     } else {
-      if (LOG_GENERAL) console.log(prefix, 'Loaded inference settings from DB:', settings);
+      // No model loaded - check global settings (for backward compatibility)
+      settings = await getInferenceSettings();
+      if (LOG_GENERAL) console.log(prefix, settings ? '✅ Loaded global settings' : '📋 No global settings found');
+    }
+    
+    // Apply settings or fallback to defaults (Trait defaults)
+    if (settings && Object.keys(settings).length > 0) {
       applySettings(settings);
+    } else {
+      if (LOG_GENERAL) console.log(prefix, '📋 Using DEFAULT_INFERENCE_SETTINGS (trait defaults)');
+      applySettings(DEFAULT_INFERENCE_SETTINGS);
     }
   } catch (e) {
-    if (LOG_ERROR) console.error(prefix, 'Failed to load settings from DB:', e);
+    if (LOG_ERROR) console.error(prefix, '❌ Failed to load settings from DB:', e);
     applySettings(DEFAULT_INFERENCE_SETTINGS);
   }
 }
@@ -972,7 +1121,21 @@ export function saveCurrentSettingsToDBDebounced() {
     try {
       const settings = getCurrentSettings();
       if (LOG_GENERAL) console.log(prefix, 'Saving inference settings to DB:', settings);
-      await saveInferenceSettings(settings);
+      
+      // Get currently loaded model (if any)
+      await PipelineStateManager.initialize(); // Ensure state is loaded
+      const currentModel = PipelineStateManager.getLastLoadedModel();
+      
+      if (currentModel) {
+        // Save to current model+quant (per-model settings)
+        await saveModelQuantSettings(currentModel.repoId, currentModel.quantPath, settings);
+        if (LOG_GENERAL) console.log(prefix, `✅ Settings saved for ${currentModel.repoId}:${currentModel.quantPath}`);
+      } else {
+        // No model loaded yet - save as global default (backward compatibility)
+        await saveInferenceSettings(settings);
+        if (LOG_GENERAL) console.log(prefix, '✅ Settings saved as global default (no model loaded)');
+      }
+      
       llmChannel.postMessage({ type: WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
       if (LOG_GENERAL) console.log(prefix, 'Inference settings saved and update event posted.');
     } catch (e) {
@@ -1003,6 +1166,14 @@ export async function initInferenceSettingsUI() {
   if (LOG_GENERAL) console.log(prefix, 'Initializing inference settings UI...');
   await loadAndApplySettingsToUI();
   attachSettingsListeners();
+  
+  // Listen for model load completion to reload settings for new model+quant
+  window.addEventListener('message', (event) => {
+    if (event.data?.type === WorkerEventNames.WORKER_READY) {
+      if (LOG_GENERAL) console.log(prefix, '🔄 Model loaded - reloading settings for new model+quant');
+      loadAndApplySettingsToUI();
+    }
+  });
 
   // Attach expand button handler for system prompt
   const expandBtn = document.getElementById('setting-system_prompt-expand');
@@ -1026,12 +1197,26 @@ export async function initInferenceSettingsUI() {
 export async function resetSettingsToDefault() {
   try {
     if (LOG_GENERAL) console.log(prefix, 'Resetting inference settings to default...');
-    await saveInferenceSettings(DEFAULT_INFERENCE_SETTINGS);
+    
+    // Get currently loaded model (if any)
+    await PipelineStateManager.initialize(); // Ensure state is loaded
+    const currentModel = PipelineStateManager.getLastLoadedModel();
+    
+    if (currentModel) {
+      // Clear custom settings for this model+quant (falls back to defaults)
+      await clearModelQuantSettings(currentModel.repoId, currentModel.quantPath);
+      if (LOG_GENERAL) console.log(prefix, `✅ Cleared custom settings for ${currentModel.repoId}:${currentModel.quantPath}, will use defaults`);
+    } else {
+      // No model loaded - reset global settings
+      await saveInferenceSettings(DEFAULT_INFERENCE_SETTINGS);
+      if (LOG_GENERAL) console.log(prefix, '✅ Reset global settings to defaults');
+    }
+    
     await reloadSettingsFromDB();
     llmChannel.postMessage({ type: WorkerEventNames.INFERENCE_SETTINGS_UPDATE });
     if (LOG_GENERAL) console.log(prefix, 'Inference settings reset to default and UI reloaded.');
   } catch (e) {
-    if (LOG_ERROR) console.error(prefix, 'Failed to reset settings to default:', e);
+    if (LOG_ERROR) console.error(prefix, '❌ Failed to reset settings to default:', e);
   }
 }
 

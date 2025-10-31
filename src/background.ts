@@ -8,6 +8,10 @@ import { WorkerEventNames,
 import { DBEventNames} from './DB/dbEvents';
 import { loadModel, generate, stopGeneration, clearCache, resetModel, updateInferenceSettings, setUIConnectionActive, handleUIConnected, handleUIDisconnected, handleUIPong, getActiveUICount, initializePersistentState, restoreLastLoadedModel, getPersistentState, saveLastChatSession, saveLastLoadedModel, getModelState } from './backgroundModelManager';
 import { scheduleVersionChecks } from './utils/versionChecker';
+import { interceptConsole } from './utils/logRelay';
+
+// Enable log relay to development server
+interceptConsole();
 
 const CONTEXT_PREFIX = '[Background]';
 

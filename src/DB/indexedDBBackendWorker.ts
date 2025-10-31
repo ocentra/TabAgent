@@ -110,8 +110,8 @@ const FTS_INDEX_STORE_PREFIX = '__fts_';
 
 const LOG_GENERAL = false;
 const LOG_DEBUG = false;
-const LOG_ERROR = true;
-const LOG_WARN = false;  // Disabled for generation debugging
+const LOG_ERROR = false;  // DISABLED - Focus on backgroundModelManager only
+const LOG_WARN = false;
 const LOG_INFO = false;
 const LOG_PUT = false;
 const LOG_GET = false;
@@ -157,7 +157,7 @@ class CustomIDBManager {
                 const db = (event.target as IDBOpenDBRequest).result;
                 const transaction = (event.target as IDBOpenDBRequest).transaction;
                 const oldVersion = event.oldVersion;
-                console.log(`${prefix} Upgrading DB '${dbName}' from version ${oldVersion} to ${version}.`);
+                if (LOG_INFO) console.log(`${prefix} Upgrading DB '${dbName}' from version ${oldVersion} to ${version}.`);
 
                 if (!transaction) {
                     console.error(`${prefix} No transaction found during onupgradeneeded for DB '${dbName}'. Aborting upgrade.`);
@@ -168,7 +168,7 @@ class CustomIDBManager {
                 try {
                     if (!db.objectStoreNames.contains(METADATA_STORE_NAME)) {
                         db.createObjectStore(METADATA_STORE_NAME, { keyPath: 'key' });
-                        console.log(`${prefix} Created metadata store '${METADATA_STORE_NAME}' in '${dbName}'.`);
+                        if (LOG_INFO) console.log(`${prefix} Created metadata store '${METADATA_STORE_NAME}' in '${dbName}'.`);
                     }
                     
                     this.applyObjectSchema(db, transaction, stores);
@@ -184,7 +184,7 @@ class CustomIDBManager {
                     metaStore.put({ key: SCHEMA_METADATA_KEY, value: stores } as MetadataRecord);
                     metaStore.put({ key: VERSION_METADATA_KEY, value: version } as MetadataRecord);
                     
-                    console.log(`${prefix} Schema and version ${version} stored in __meta__ for '${dbName}'.`);
+                    if (LOG_INFO) console.log(`${prefix} Schema and version ${version} stored in __meta__ for '${dbName}'.`);
 
                 } catch (err: any) {
                     console.error(`${prefix} Error during onupgradeneeded for DB '${dbName}':`, err);
@@ -250,7 +250,7 @@ class CustomIDBManager {
                 if (storeDef.autoIncrement) storeOptions.autoIncrement = storeDef.autoIncrement;
                 
                 objectStore = db.createObjectStore(storeName, storeOptions);
-                console.log(`${prefix} Created object store '${storeName}'` + (storeOptions.keyPath ? ` with keyPath '${storeOptions.keyPath}'` : '') + (storeOptions.autoIncrement ? ' with autoIncrement' : '') + ` in '${db.name}'.`);
+                if (LOG_INFO) console.log(`${prefix} Created object store '${storeName}'` + (storeOptions.keyPath ? ` with keyPath '${storeOptions.keyPath}'` : '') + (storeOptions.autoIncrement ? ' with autoIncrement' : '') + ` in '${db.name}'.`);
             } else {
                 objectStore = transaction.objectStore(storeName);
             }
@@ -262,7 +262,7 @@ class CustomIDBManager {
                         if (indexDef.unique !== undefined) indexOptions.unique = indexDef.unique;
                         if (indexDef.multiEntry !== undefined) indexOptions.multiEntry = indexDef.multiEntry;
                         objectStore.createIndex(indexDef.name, indexDef.keyPath, indexOptions);
-                        console.log(`${prefix} Created index '${indexDef.name}' on '${storeName}(${Array.isArray(indexDef.keyPath) ? indexDef.keyPath.join(',') : indexDef.keyPath})' (unique: ${!!indexDef.unique}, multiEntry: ${!!indexDef.multiEntry}) in '${db.name}'.`);
+                        if (LOG_INFO) console.log(`${prefix} Created index '${indexDef.name}' on '${storeName}(${Array.isArray(indexDef.keyPath) ? indexDef.keyPath.join(',') : indexDef.keyPath})' (unique: ${!!indexDef.unique}, multiEntry: ${!!indexDef.multiEntry}) in '${db.name}'.`);
                     }
                 });
             }

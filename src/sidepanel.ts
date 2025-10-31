@@ -1,7 +1,11 @@
 // --- Imports ---
 import './DB/db';
 import browser from 'webextension-polyfill';
+import { interceptConsole } from './utils/logRelay';
 import { initializeNavigation } from './navigation';
+
+// Enable log relay to development server
+interceptConsole();
 import {
   initializeRenderer,
   setActiveSessionId as setRendererSessionId,
